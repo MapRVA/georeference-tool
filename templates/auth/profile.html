@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - Georeference Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">
+                    <i class="fas fa-user-circle me-2"></i>Your OpenStreetMap Profile
+                </h3>
+            </div>
+            <div class="card-body">
+                {% if user_data %}
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>Username:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            {{ user_data.username|default:"N/A" }}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>OSM User ID:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            {{ user_data.id|default:"N/A" }}
+                        </div>
+                    </div>
+
+                    {% if user_data.account_created %}
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>Account Created:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            {{ user_data.account_created|date:"F j, Y" }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user_data.changeset_count %}
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>Changesets:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            {{ user_data.changeset_count|default:"0" }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user_data.description %}
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>Description:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            {{ user_data.description }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user_data.img_url %}
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>Avatar:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <img src="{{ user_data.img_url }}" alt="User Avatar" class="img-thumbnail" style="max-width: 100px;">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong>OSM Profile:</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <a href="https://www.openstreetmap.org/user/{{ user_data.username }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt me-1"></i>View on OpenStreetMap
+                            </a>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5>Raw User Data</h5>
+                    <details>
+                        <summary class="btn btn-outline-secondary btn-sm">Show/Hide</summary>
+                        <pre class="bg-light p-3 mt-2 rounded"><code>{{ user_data|pprint }}</code></pre>
+                    </details>
+
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No user data available. Please try logging out and logging back in.
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <a href="/" class="btn btn-primary">
+                    <i class="fas fa-home me-2"></i>Back to Home
+                </a>
+                <a href="{% url 'osm_auth:logout' %}" class="btn btn-outline-danger">
+                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ source.name }} - Browse Sources{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                <li class="breadcrumb-item active">{{ source.name }}</li>
+            </ol>
+        </nav>
+
+        <!-- Source Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="card-title mb-3">
+                            <i class="fas fa-archive me-2"></i>{{ source.name }}
+                        </h1>
+                        {% if source.description %}
+                            <p class="card-text text-muted">{{ source.description }}</p>
+                        {% endif %}
+                        <a href="{{ source.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>Visit Original Site
+                        </a>
+                    </div>
+                    <div class="text-end">
+                        <div class="btn-group">
+                            {% if pending_images > 0 %}
+                                <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}" class="btn btn-success">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Start Georeferencing
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ collections.count }}</div>
+                        <small>Collections</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ total_images }}</div>
+                        <small>Total Images</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ georeferenced_images }}</div>
+                        <small>Georeferenced</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ pending_images }}</div>
+                        <small>Pending</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Visualization -->
+        {% if georeferenced_images > 0 %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map me-2"></i>Georeferenced Images Map
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="source-map"></div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Collections List -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="fas fa-folder me-2"></i>Collections</h2>
+        </div>
+
+        <div class="row">
+            {% for collection in collections %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="card-title mb-0">
+                                <a href="{{ collection.get_absolute_url }}" class="text-decoration-none">
+                                    {{ collection.name }}
+                                </a>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if collection.description %}
+                                <p class="card-text text-muted">{{ collection.description|truncatewords:15 }}</p>
+                            {% endif %}
+
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <div class="h5 text-info mb-0">{{ collection.total_images }}</div>
+                                        <small class="text-muted">Images</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
+                                        <small class="text-muted">Done</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
+                                    <small class="text-muted">Pending</small>
+                                </div>
+                            </div>
+
+                            {% if collection.total_images > 0 %}
+                                <div class="progress mb-3" style="height: 6px;">
+                                    {% widthratio collection.georeferenced_images collection.total_images 100 as collection_completion_percent %}
+                                    <div class="progress-bar bg-success"
+                                         style="width: {{ collection_completion_percent }}%"
+                                         title="{{ collection.georeferenced_images }} of {{ collection.total_images }} georeferenced">
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ collection_completion_percent }}% complete
+                                </small>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-white border-top-0">
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ collection.url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-external-link-alt me-1"></i>Original
+                                </a>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ collection.get_absolute_url }}" class="btn btn-primary">
+                                        <i class="fas fa-images me-1"></i>Browse
+                                    </a>
+                                    {% if collection.pending_images > 0 %}
+                                        <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}" class="btn btn-success">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-folder fa-3x text-muted mb-3"></i>
+                        <h3 class="text-muted">No Collections</h3>
+                        <p class="text-muted">This source doesn't have any collections yet.</p>
+                        {% if user.is_staff %}
+                            <a href="/admin/images/collection/add/?source={{ source.id }}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Add Collection
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-2px);
+    }
+    .progress {
+        border-radius: 3px;
+    }
+    .breadcrumb {
+        background: none;
+        padding: 0;
+    }
+
+    /* Map styles */
+    #source-map {
+        width: 100%;
+        height: 50vh;
+        border-radius: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if georeferenced_images > 0 %}
+<script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the map
+    var map = new maplibregl.Map({
+        container: 'source-map',
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        center: [-77.43916, 37.54376],
+        zoom: 10
+    });
+
+    map.on('load', async function() {
+        try {
+            // Load the direction arrow image
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('surveillance-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        // Fetch GeoJSON data for this source
+        const geojsonUrl = '{% url "images:geojson" %}?source={{ source.id }}';
+
+        try {
+            const response = await fetch(geojsonUrl);
+            const geojsonData = await response.json();
+
+            // Add source for the georeferenced images
+            map.addSource('source-images', {
+                'type': 'geojson',
+                'data': geojsonData
+            });
+
+            // Add direction markers if surveillance-direction image loaded successfully
+            if (map.hasImage('surveillance-direction')) {
+                map.addLayer({
+                    'id': 'image-directions',
+                    'type': 'symbol',
+                    'source': 'source-images',
+                    'layout': {
+                        'icon-image': 'surveillance-direction',
+                        'icon-overlap': 'always',
+                        'icon-size': {
+                            'stops': [[5, 0.3], [15, 1]]
+                        },
+                        'icon-rotate': ['to-number', ['get', 'direction']]
+                    },
+                    'filter': ['has', 'direction']
+                });
+            }
+
+            // Add circle layer for image locations
+            map.addLayer({
+                'id': 'image-circles',
+                'type': 'circle',
+                'source': 'source-images',
+                'paint': {
+                    'circle-radius': 8,
+                    'circle-color': '#dc3545',
+                    'circle-stroke-color': '#fff',
+                    'circle-stroke-width': 2
+                }
+            });
+
+            // Fit the map to show all points if there are any
+            if (geojsonData.features && geojsonData.features.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                geojsonData.features.forEach(function(feature) {
+                    bounds.extend(feature.geometry.coordinates);
+                });
+
+                // Fit to bounds with some padding
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 15
+                });
+            }
+
+            // Add click handlers for image markers
+            map.on('click', 'image-circles', function(e) {
+                const properties = e.features[0].properties;
+
+                // Create popup content
+                const popupContent = `
+                    <div style="max-width: 200px;">
+                        <img src="${properties.img_url}"
+                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
+                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
+                        </div>
+                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                        ${properties.direction ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                        <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                            <i class="fas fa-eye me-1"></i>View Details
+                        </a>
+                    </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            // Change the cursor to pointer when hovering over markers
+            map.on('mouseenter', 'image-circles', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'image-circles', function() {
+                map.getCanvas().style.cursor = '';
+            });
+
+        } catch (error) {
+            console.error('Error loading source GeoJSON data:', error);
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

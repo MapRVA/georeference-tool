@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse Sources - Image Georeferencing{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-archive me-2"></i>Browse Sources</h1>
+            <a href="{% url 'images:georeference_interface' %}" class="btn btn-primary">
+                <i class="fas fa-map-marked-alt me-2"></i>Start Georeferencing
+            </a>
+        </div>
+
+        <div class="row">
+            {% for source in sources %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="card-title mb-0">
+                                <a href="{{ source.get_absolute_url }}" class="text-decoration-none">
+                                    {{ source.name }}
+                                </a>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if source.description %}
+                                <p class="card-text text-muted">{{ source.description|truncatewords:20 }}</p>
+                            {% endif %}
+
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <div class="h4 text-primary mb-0">{{ source.public_collections_count }}</div>
+                                        <small class="text-muted">Collections</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <div class="h4 text-info mb-0">{{ source.total_images }}</div>
+                                        <small class="text-muted">Images</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    {% if source.total_images > 0 %}
+                                        {% widthratio source.georeferenced_images source.total_images 100 as source_percent %}
+                                        <div class="h4 text-success mb-0">{{ source_percent }}%</div>
+                                        <small class="text-muted">Georeferenced</small>
+                                    {% else %}
+                                        <div class="h4 text-success mb-0">0%</div>
+                                        <small class="text-muted">Georeferenced</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if source.total_images > 0 %}
+                                <div class="progress mb-3" style="height: 8px;">
+                                    {% widthratio source.georeferenced_images source.total_images 100 as completion_percent %}
+                                    <div class="progress-bar bg-success"
+                                         style="width: {{ completion_percent }}%"
+                                         title="{{ source.georeferenced_images }} of {{ source.total_images }} georeferenced">
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-white border-top-0">
+                            <div class="d-flex justify-content-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ source.get_absolute_url }}" class="btn btn-primary">
+                                        <i class="fas fa-eye me-1"></i>Browse
+                                    </a>
+                                    {% if source.pending_images > 0 %}
+                                        <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}" class="btn btn-success">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-archive fa-3x text-muted mb-3"></i>
+                        <h3 class="text-muted">No Sources Available</h3>
+                        <p class="text-muted">There are no image sources configured yet.</p>
+                        {% if user.is_staff %}
+                            <a href="/admin/images/source/add/" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Add Source
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if sources %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>Overall Statistics</h5>
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <div class="h3 text-primary">{{ overall_stats.total_sources }}</div>
+                                    <small class="text-muted">Total Sources</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h3 text-info">{{ overall_stats.total_collections }}</div>
+                                    <small class="text-muted">Total Collections</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h3 text-warning">{{ overall_stats.total_images }}</div>
+                                    <small class="text-muted">Total Images</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h3 text-success">{{ overall_stats.georeferenced_percentage }}%</div>
+                                    <small class="text-muted">Georeferenced</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-2px);
+    }
+    .progress {
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,426 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ collection.name }} - {{ source.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                <li class="breadcrumb-item"><a href="{{ source.get_absolute_url }}">{{ source.name }}</a></li>
+                <li class="breadcrumb-item active">{{ collection.name }}</li>
+            </ol>
+        </nav>
+
+        <!-- Collection Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="card-title mb-3">
+                            <i class="fas fa-folder me-2"></i>{{ collection.name }}
+                        </h1>
+                        <p class="text-muted mb-2">
+                            <i class="fas fa-archive me-1"></i>
+                            from <a href="{{ source.get_absolute_url }}" class="text-decoration-none">{{ source.name }}</a>
+                        </p>
+                        {% if collection.description %}
+                            <p class="card-text text-muted">{{ collection.description }}</p>
+                        {% endif %}
+                        <a href="{{ collection.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>Visit Original Collection
+                        </a>
+                    </div>
+                    <div class="text-end">
+                        <div class="btn-group">
+                            {% if pending_images > 0 %}
+                                <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}" class="btn btn-success">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Start Georeferencing
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ total_images }}</div>
+                        <small>Total Images</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ georeferenced_images }}</div>
+                        <small>Georeferenced</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-warning text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ pending_images }}</div>
+                        <small>Pending</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        {% if total_images > 0 %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Georeferencing Progress</h6>
+                        <span class="text-muted">{{ completion_percentage|floatformat:1 }}% complete</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-success"
+                             style="width: {{ completion_percentage }}%"
+                             title="{{ georeferenced_images }} of {{ total_images }} georeferenced">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Map Visualization -->
+        {% if georeferenced_images > 0 %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map me-2"></i>Georeferenced Images Map
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="collection-map"></div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Images Grid -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="fas fa-images me-2"></i>Images</h2>
+        </div>
+
+        {% if page_obj %}
+            <div class="row">
+                {% for image in page_obj %}
+                    <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                        <div class="card h-100 shadow-sm image-card">
+                            <div class="position-relative">
+                                <!-- Image Status Badge -->
+                                {% if image.is_georeferenced %}
+                                    <span class="badge bg-success position-absolute top-0 end-0 m-2">
+                                        <i class="fas fa-map-marker-alt"></i> Georeferenced
+                                    </span>
+                                {% elif image.will_not_georef %}
+                                    <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
+                                        <i class="fas fa-ban"></i> Skip
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning position-absolute top-0 end-0 m-2">
+                                        <i class="fas fa-clock"></i> Pending
+                                    </span>
+                                {% endif %}
+
+                                <!-- Difficulty Badge -->
+                                {% if image.difficulty %}
+                                    <span class="badge position-absolute top-0 start-0 m-2
+                                        {% if image.difficulty == 'easy' %}bg-success{% elif image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ image.difficulty|capfirst }}
+                                    </span>
+                                {% endif %}
+
+                                <!-- Image Thumbnail -->
+                                <div class="image-container" style="height: 200px; overflow: hidden;">
+                                    <img src="{{ image.permalink }}"
+                                         alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
+                                         class="img-fluid w-100 h-100"
+                                         style="object-fit: cover; cursor: pointer;"
+                                         onclick="window.location.href='{% url 'images:image_detail' image.id %}'"
+                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="image-placeholder bg-light d-flex align-items-center justify-content-center h-100" style="display: none;">
+                                        <div class="text-center">
+                                            <i class="fas fa-image fa-2x text-muted mb-2"></i>
+                                            <p class="text-muted small mb-0">Image unavailable</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card-body p-3">
+                                <h6 class="card-title">
+                                    {% if image.title %}
+                                        {{ image.title|truncatechars:50 }}
+                                    {% else %}
+                                        Image #{{ image.id }}
+                                    {% endif %}
+                                </h6>
+
+                                {% if image.date_display != "Unknown date" %}
+                                    <p class="text-muted small mb-2">
+                                        <i class="fas fa-calendar me-1"></i>{{ image.date_display }}
+                                    </p>
+                                {% endif %}
+
+                                {% if image.description %}
+                                    <p class="card-text small text-muted">
+                                        {{ image.description|truncatechars:80 }}
+                                    </p>
+                                {% endif %}
+
+                                {% if image.skip_count > 0 %}
+                                    <p class="text-muted small">
+                                        <i class="fas fa-user-times me-1"></i>Skipped {{ image.skip_count }} time{{ image.skip_count|pluralize }}
+                                    </p>
+                                {% endif %}
+                            </div>
+
+                            <div class="card-footer bg-white border-top-0 p-3">
+                                <div class="d-flex justify-content-between">
+                                    <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-external-link-alt me-1"></i>Original
+                                    </a>
+
+                                    {% if not image.is_georeferenced and not image.will_not_georef %}
+                                        <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}&image={{ image.id }}" class="btn btn-success btn-sm">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                                        </a>
+                                    {% elif image.is_georeferenced %}
+                                        <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="Images pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+
+                <div class="text-center text-muted mt-2">
+                    Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
+                </div>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-images fa-3x text-muted mb-3"></i>
+                <h3 class="text-muted">No Images</h3>
+                <p class="text-muted">This collection doesn't have any images yet.</p>
+                {% if user.is_staff %}
+                    <a href="/admin/images/image/add/?collection={{ collection.id }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Add Images
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
+<style>
+    .image-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .image-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .image-placeholder {
+        border-radius: 0.375rem 0.375rem 0 0;
+    }
+    .badge {
+        font-size: 0.65rem;
+        z-index: 10;
+    }
+    .progress {
+        border-radius: 3px;
+    }
+    .breadcrumb {
+        background: none;
+        padding: 0;
+    }
+    .card-footer {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    #collection-map {
+        width: 100%;
+        height: 40vh;
+        border-radius: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if georeferenced_images > 0 %}
+<script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the map
+    var map = new maplibregl.Map({
+        container: 'collection-map',
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        center: [-77.43916, 37.54376],
+        zoom: 10
+    });
+
+    map.on('load', async function() {
+        try {
+            // Load the direction arrow image
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('surveillance-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        // Fetch GeoJSON data for this collection
+        const geojsonUrl = '{% url "images:geojson" %}?collection={{ collection.id }}';
+
+        try {
+            const response = await fetch(geojsonUrl);
+            const geojsonData = await response.json();
+
+            // Add source for the georeferenced images
+            map.addSource('collection-images', {
+                'type': 'geojson',
+                'data': geojsonData
+            });
+
+
+            // Add direction markers if surveillance-direction image loaded successfully
+            if (map.hasImage('surveillance-direction')) {
+                map.addLayer({
+                    'id': 'image-directions',
+                    'type': 'symbol',
+                    'source': 'collection-images',
+                    'layout': {
+                        'icon-image': 'surveillance-direction',
+                        'icon-overlap': 'always',
+                        'icon-size': {
+                            'stops': [[5, 0.3], [15, 1]]
+                        },
+                        'icon-rotate': ['to-number', ['get', 'direction']]
+                    },
+                    'filter': ['has', 'direction']
+                });
+            }
+
+            // Add circle layer for image locations
+            map.addLayer({
+                'id': 'image-circles',
+                'type': 'circle',
+                'source': 'collection-images',
+                'paint': {
+                    'circle-radius': 8,
+                    'circle-color': 'green',
+                    'circle-stroke-color': '#fff',
+                    'circle-stroke-width': 2
+                }
+            });
+
+            // Fit the map to show all points if there are any
+            if (geojsonData.features && geojsonData.features.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                geojsonData.features.forEach(function(feature) {
+                    bounds.extend(feature.geometry.coordinates);
+                });
+
+                // Fit to bounds with some padding
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 15
+                });
+            }
+
+            // Add click handlers for image markers
+            map.on('click', 'image-circles', function(e) {
+                const properties = e.features[0].properties;
+
+                // Create popup content
+                const popupContent = `
+                    <div style="max-width: 200px;">
+                        <img src="${properties.img_url}"
+                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
+                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
+                        </div>
+                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                        ${properties.direction ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                        <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                            <i class="fas fa-eye me-1"></i>View Details
+                        </a>
+                    </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            // Change the cursor to pointer when hovering over markers
+            map.on('mouseenter', 'image-circles', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'image-circles', function() {
+                map.getCanvas().style.cursor = '';
+            });
+
+        } catch (error) {
+            console.error('Error loading collection GeoJSON data:', error);
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

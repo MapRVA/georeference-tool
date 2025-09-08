@@ -1,0 +1,93 @@
+{% comment %}
+Shared map display component that matches the georeference interface styling exactly.
+Usage: {% include 'images/partials/map_display.html' with georeference=image.georeference map_id='unique-map-id' height='400px' %}
+{% endcomment %}
+
+<div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: 8px; overflow: hidden;"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if georeference %}
+    const mapId = '{{ map_id|default:'map-display' }}';
+    const latitude = {{ georeference.latitude }};
+    const longitude = {{ georeference.longitude }};
+    const direction = {% if georeference.direction %}{{ georeference.direction }}{% else %}null{% endif %};
+
+    // Initialize the map - exactly matching georeference_interface.html
+    const map = new maplibregl.Map({
+        container: mapId,
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        center: [longitude, latitude],
+        zoom: 15
+    });
+
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.FullscreenControl());
+
+    map.on('load', async () => {
+        // Load direction arrow image - exactly matching georeference_interface.html
+        try {
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('surveillance-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        // Add the pin source - exactly matching georeference_interface.html
+        map.addSource('pin', {
+            'type': 'geojson',
+            'data': {
+                'type': 'FeatureCollection',
+                'features': [{
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'Point',
+                        'coordinates': [longitude, latitude]
+                    },
+                    'properties': direction !== null ? { 'direction': direction } : {}
+                }]
+            }
+        });
+
+        // Add circle layer - exactly matching georeference_interface.html styling
+        map.addLayer({
+            'id': 'pin-circle',
+            'type': 'circle',
+            'source': 'pin',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': '#dc3545',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 2
+            }
+        });
+
+        // Add direction arrow - exactly matching georeference_interface.html
+        if (map.hasImage('surveillance-direction')) {
+            map.addLayer({
+                'id': 'pin-symbol',
+                'type': 'symbol',
+                'source': 'pin',
+                'layout': {
+                    'icon-image': 'surveillance-direction',
+                    'icon-overlap': 'always',
+                    'icon-size': {
+                        'stops': [[5, 0.3], [15, 1]]
+                    },
+                    'icon-rotate': ['to-number', ['get', 'direction']]
+                },
+                'filter': ['has', 'direction']
+            });
+        }
+    });
+    {% else %}
+    // No georeference data available
+    document.getElementById('{{ map_id|default:'map-display' }}').innerHTML = 
+        '<div class="d-flex align-items-center justify-content-center h-100 text-muted">' +
+        '<div class="text-center">' +
+        '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+        'No location data available' +
+        '</div></div>';
+    {% endif %}
+});
+</script>

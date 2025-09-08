@@ -1,0 +1,1018 @@
+{% extends 'base.html' %}
+
+{% block title %}Georeference Images - Image Georeferencing{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-map-marker-alt me-2"></i>Georeference Image</h1>
+                {% if source %}
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                            <li class="breadcrumb-item"><a href="{{ source.get_absolute_url }}">{{ source.name }}</a></li>
+                            {% if collection %}
+                                <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ collection.name }}</a></li>
+                            {% endif %}
+                            <li class="breadcrumb-item active">Georeference</li>
+                        </ol>
+                    </nav>
+                {% endif %}
+            </div>
+            <div>
+                <span class="badge bg-info">{{ remaining_count }} remaining</span>
+            </div>
+        </div>
+
+        {% if current_image %}
+            <!-- Image Display -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                {% if current_image.title %}
+                                    {{ current_image.title }}
+                                {% else %}
+                                    Image #{{ current_image.id }}
+                                {% endif %}
+                            </h5>
+                            {% if current_image.difficulty %}
+                                <span class="badge
+                                    {% if current_image.difficulty == 'easy' %}bg-success
+                                    {% elif current_image.difficulty == 'medium' %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ current_image.difficulty|capfirst }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <!-- Image Display -->
+                            <div class="image-container-wrapper text-center mb-4">
+                                <div class="pswp-gallery" id="pswp-gallery">
+                                    <a href="{{ current_image.permalink }}"
+                                       target="_blank"
+                                       title="Click to view full-size image">
+                                        <img src="{{ current_image.permalink }}"
+                                             alt="{% if current_image.title %}{{ current_image.title }}{% else %}Image #{{ current_image.id }}{% endif %}"
+                                             class="image-preview"
+                                             onload="this.style.display='block'; this.parentElement.parentElement.nextElementSibling.style.display='none'; setupPhotoSwipeData(this);"
+                                             onerror="this.style.display='none'; this.parentElement.parentElement.nextElementSibling.style.display='block';">
+                                    </a>
+                                </div>
+
+                                <!-- Fallback for broken images -->
+                                <div class="image-error-fallback" style="display: none;">
+                                    <div class="text-center">
+                                        <i class="fas fa-image fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">Image could not be loaded</p>
+                                        <a href="{{ current_image.permalink }}" target="_blank" class="btn btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>View Original Image
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Image Metadata -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4 text-muted small">Source:</dt>
+                                        <dd class="col-sm-8 small">
+                                            <a href="{{ current_image.collection.source.get_absolute_url }}" class="text-decoration-none">
+                                                {{ current_image.collection.source.name }}
+                                            </a>
+                                        </dd>
+
+                                        <dt class="col-sm-4 text-muted small">Collection:</dt>
+                                        <dd class="col-sm-8 small">
+                                            <a href="{{ current_image.collection.get_absolute_url }}" class="text-decoration-none">
+                                                {{ current_image.collection.name }}
+                                            </a>
+                                        </dd>
+
+                                        {% if current_image.date_display != "Unknown date" %}
+                                            <dt class="col-sm-4 text-muted small">Date:</dt>
+                                            <dd class="col-sm-8 small">{{ current_image.date_display }}</dd>
+                                        {% endif %}
+                                    </dl>
+                                </div>
+                                <div class="col-md-6">
+                                    <dl class="row mb-0">
+                                        {% if current_image.description %}
+                                            <dt class="col-sm-4 text-muted small">Description:</dt>
+                                            <dd class="col-sm-8 small">{{ current_image.description }}</dd>
+                                        {% endif %}
+
+                                        {% if current_image.skip_count > 0 %}
+                                            <dt class="col-sm-4 text-muted small">Skipped:</dt>
+                                            <dd class="col-sm-8 small">{{ current_image.skip_count }} time{{ current_image.skip_count|pluralize }}</dd>
+                                        {% endif %}
+
+                                        <dt class="col-sm-4 text-muted small">Original URL:</dt>
+                                        <dd class="col-sm-8 small">
+                                            <a href="{{ current_image.permalink }}" target="_blank" class="text-decoration-none small">
+                                                View Original <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </dd>
+                                    </dl>
+                                </div>
+                            </div>
+
+                            <!-- Source and Collection Descriptions -->
+                            {% if current_image.collection.source.description or current_image.collection.description %}
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        {% if current_image.collection.source.description %}
+                                            <h6 class="text-muted mb-2">About Source: {{ current_image.collection.source.name }}</h6>
+                                            <p class="small text-muted mb-3">{{ current_image.collection.source.description }}</p>
+                                        {% endif %}
+
+                                        {% if current_image.collection.description %}
+                                            <h6 class="text-muted mb-2">About Collection: {{ current_image.collection.name }}</h6>
+                                            <p class="small text-muted mb-3">{{ current_image.collection.description }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- Georeferencing Map -->
+                            <div class="border-top pt-3">
+                                <h6 class="mb-3"><i class="fas fa-map-marked-alt me-2"></i>Select Location on Map</h6>
+                                <div id="mymap"></div>
+                                <div id="controls-container">
+                                    <div id="coordinate-inputs">
+                                        <div class="input-row">
+                                            <label for="latitude-input">Latitude:</label>
+                                            <input type="text" id="latitude-input" class="coordinate-input" placeholder="Type or click on map">
+                                        </div>
+                                        <div class="input-row">
+                                            <label for="longitude-input">Longitude:</label>
+                                            <input type="text" id="longitude-input" class="coordinate-input" placeholder="Type or click on map">
+                                        </div>
+                                        <div class="input-row">
+                                            <label for="direction-input">Direction:</label>
+                                            <input type="text" id="direction-input" placeholder="e.g. 300">
+                                            <button type="button" id="reset-direction" title="Remove direction">✕</button>
+                                        </div>
+                                    </div>
+                                    <div id="joystick-container">
+                                        <div id="joystick-handle"></div>
+                                    </div>
+                                    <div id="mapswap-container">
+                                        View Elsewhere
+                                        <a href="#" id="mapswap-link" target="_blank" class="btn btn-outline-primary">
+                                            <i class="fas fa-shuffle me-2"></i>MapSwap
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes and Actions -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <!-- Notes -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h6>
+                        </div>
+                        <div class="card-body">
+                            <textarea class="form-control" id="confidence-notes" rows="4"
+                                      placeholder="Any additional information"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <!-- Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Actions</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Submit Button (available to everyone) -->
+                            <button type="button" class="btn btn-success w-100 mb-3" id="submitButton" disabled>
+                                <i class="fas fa-check me-2"></i>Submit Georeference
+                            </button>
+
+                            <!-- Skip Button (available to everyone) -->
+                            <button type="button" class="btn btn-warning w-100 mb-2" id="skipButton">
+                                <i class="fas fa-forward me-2"></i>Skip This Image
+                            </button>
+
+                            {% if not osm_authenticated %}
+                                <!-- Anonymous user info -->
+                                <div class="alert alert-info mb-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    <small>You can georeference and skip images anonymously. <a href="{% url 'osm_auth:login' %}">Login with OpenStreetMap</a> to track your contributions and access validation features.</small>
+                                </div>
+                            {% elif osm_authenticated and not user.is_staff %}
+                                <!-- Logged in user info -->
+                                <div class="alert alert-success mb-2">
+                                    <i class="fas fa-user-check me-1"></i>
+                                    <small>Logged in as <strong>{{ osm_username }}</strong>. Your contributions will be tracked!</small>
+                                </div>
+                            {% endif %}
+
+                            <!-- Admin Controls -->
+                            {% if osm_authenticated and user.is_staff %}
+                                <hr>
+                                <h6 class="text-muted">Admin Controls</h6>
+
+                                {% if not current_image.difficulty %}
+                                    <div class="btn-group w-100 mb-2" role="group">
+                                        <button type="button" class="btn btn-outline-success btn-sm mark-difficulty" data-difficulty="easy">Easy</button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm mark-difficulty" data-difficulty="medium">Medium</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm mark-difficulty" data-difficulty="hard">Hard</button>
+                                    </div>
+                                {% endif %}
+
+                                <button type="button" class="btn btn-outline-secondary w-100 btn-sm" id="willNotGeorefButton">
+                                    <i class="fas fa-ban me-1"></i>Mark as "Will Not Georeference"
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <!-- No Images Available -->
+            <div class="text-center py-5">
+                <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                <h3 class="text-success">Great Work!</h3>
+                <p class="text-muted">
+                    {% if source or collection %}
+                        No more images available for georeferencing in this
+                        {% if collection %}collection{% else %}source{% endif %}.
+                    {% else %}
+                        No more images available for georeferencing with your current filters.
+                    {% endif %}
+                </p>
+                <div class="mt-4">
+                    <a href="{% url 'images:browse_sources' %}" class="btn btn-primary me-2">
+                        <i class="fas fa-archive me-2"></i>Browse Sources
+                    </a>
+                    {% if source or collection %}
+                        <a href="{% url 'images:georeference_interface' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-random me-2"></i>Random Image
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
+<link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
+<style>
+    .breadcrumb {
+        background: none;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .btn-group .btn {
+        flex: 1;
+    }
+
+    /* Map styles */
+    #mymap {
+      width: 100%;
+      height: 50vh;
+      margin-bottom: 10px;
+    }
+    #controls-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    #mapswap-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    #coordinate-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .input-row label {
+      font-weight: bold;
+      min-width: 80px;
+      font-size: 14px;
+    }
+    .coordinate-input, #direction-input {
+      font-family: monospace;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 10ch;
+    }
+    .coordinate-input:focus, #direction-input:focus {
+      outline: none;
+      border-color: #666;
+    }
+    #direction-input {
+      width: 12ch;
+    }
+    #direction-input.inactive {
+      background-color: #f5f5f5;
+      color: #999;
+    }
+    #reset-direction {
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: white;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    #reset-direction:hover {
+      background-color: #f0f0f0;
+    }
+    #joystick-container {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      background: #e0e0e0;
+      border: 2px solid #888;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    #joystick-handle {
+      width: 20px;
+      height: 20px;
+      background: #333;
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    #joystick-handle:active {
+      cursor: grabbing;
+    }
+
+    /* Image preview styles to prevent stretching */
+    .image-container-wrapper {
+        position: relative;
+    }
+
+    .image-preview {
+        max-height: 400px;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+        object-fit: contain;
+        background-color: #f8f9fa;
+        cursor: zoom-in;
+        display: block;
+        margin: 0 auto;
+    }
+
+    .image-error-fallback {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 2rem;
+        min-height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
+<script>
+// Function to set PhotoSwipe data attributes based on actual image dimensions
+function setupPhotoSwipeData(img) {
+    const link = img.parentElement;
+    link.setAttribute('data-pswp-width', img.naturalWidth);
+    link.setAttribute('data-pswp-height', img.naturalHeight);
+}
+
+// Initialize PhotoSwipe for the image viewer
+const lightbox = new PhotoSwipeLightbox({
+    gallery: '#pswp-gallery',
+    children: 'a',
+    showHideAnimationType: 'fade',
+    zoomAnimationDuration: 300,
+    maxZoomLevel: 8,
+    wheelToZoom: true,
+    pswpModule: PhotoSwipe
+});
+
+lightbox.init();
+</script>
+
+{% if current_image %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const skipButton = document.getElementById('skipButton');
+    const submitButton = document.getElementById('submitButton');
+    const willNotGeorefButton = document.getElementById('willNotGeorefButton');
+    const markDifficultyButtons = document.querySelectorAll('.mark-difficulty');
+    const confidenceNotes = document.getElementById('confidence-notes');
+
+    // Check if user is authenticated
+    const isAuthenticated = {{ osm_authenticated|yesno:"true,false" }};
+    const isStaff = {{ user.is_staff|yesno:"true,false" }};
+
+    // Map and georeferencing variables
+    var map = new maplibregl.Map({
+        container: 'mymap',
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        center: [-77.43916, 37.54376],
+        zoom: 13
+    });
+
+    var latitudeInput = document.getElementById('latitude-input');
+    var longitudeInput = document.getElementById('longitude-input');
+    var directionInput = document.getElementById('direction-input');
+    var joystickContainer = document.getElementById('joystick-container');
+    var joystickHandle = document.getElementById('joystick-handle');
+
+    var pinPlaced = false;
+    var currentDirection = null;
+    var isJoystickDragging = false;
+
+    map.getCanvas().style.cursor = 'crosshair';
+
+    function updateCoordinates(lng, lat) {
+        latitudeInput.value = lat.toFixed(6);
+        longitudeInput.value = lng.toFixed(6);
+        submitButton.disabled = false;
+    }
+
+    function updateDirection(direction) {
+        currentDirection = direction;
+
+        if (direction !== null) {
+            directionInput.value = Math.round(direction) + '°';
+            directionInput.classList.remove('inactive');
+        } else {
+            directionInput.value = '';
+            directionInput.classList.add('inactive');
+            updateJoystickHandle(0, 0);
+        }
+
+        // Update pin direction
+        if (pinPlaced) {
+            var currentData = map.getSource('pin')._data;
+            if (currentData.features.length > 0) {
+                if (direction !== null) {
+                    currentData.features[0].properties.direction = direction;
+                } else {
+                    delete currentData.features[0].properties.direction;
+                }
+                map.getSource('pin').setData(currentData);
+            }
+        }
+    }
+
+    function updateJoystickHandle(x, y) {
+        var maxRadius = 40;
+        var distance = Math.sqrt(x * x + y * y);
+
+        if (distance > maxRadius) {
+            var ratio = maxRadius / distance;
+            x *= ratio;
+            y *= ratio;
+        }
+
+        joystickHandle.style.transform = 'translate(calc(-50% + ' + x + 'px), calc(-50% + ' + y + 'px))';
+    }
+
+    function updatePinLocation(lng, lat, direction) {
+        if (!map.getSource('pin')) return;
+
+        var properties = {};
+        if (direction !== null) {
+            properties.direction = direction;
+        }
+
+        map.getSource('pin').setData({
+            'type': 'FeatureCollection',
+            'features': [{
+                'type': 'Feature',
+                'geometry': {
+                    'type': 'Point',
+                    'coordinates': [lng, lat]
+                },
+                'properties': properties
+            }]
+        });
+
+        map.setCenter([lng, lat]);
+    }
+
+    function handleJoystickMove(clientX, clientY) {
+        if (!pinPlaced) return;
+
+        var rect = joystickContainer.getBoundingClientRect();
+        var centerX = rect.left + rect.width / 2;
+        var centerY = rect.top + rect.height / 2;
+        var x = clientX - centerX;
+        var y = clientY - centerY;
+
+        // Calculate direction (0° is north)
+        var angle = Math.atan2(y, x) * 180 / Math.PI;
+        var direction = (angle + 90) % 360;
+        if (direction < 0) direction += 360;
+
+        updateDirection(direction);
+        updateJoystickHandle(x, y);
+    }
+
+    map.on('load', async () => {
+        try {
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('surveillance-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        map.addSource('pin', {
+            'type': 'geojson',
+            'data': {
+                'type': 'FeatureCollection',
+                'features': []
+            }
+        });
+
+        map.addLayer({
+            'id': 'pin-circle',
+            'type': 'circle',
+            'source': 'pin',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': '#dc3545',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 2
+            }
+        });
+
+        if (map.hasImage('surveillance-direction')) {
+            map.addLayer({
+                'id': 'pin-symbol',
+                'type': 'symbol',
+                'source': 'pin',
+                'layout': {
+                    'icon-image': 'surveillance-direction',
+                    'icon-overlap': 'always',
+                    'icon-size': {
+                        'stops': [[5, 0.3], [15, 1]]
+                    },
+                    'icon-rotate': ['to-number', ['get', 'direction']]
+                },
+                'filter': ['has', 'direction']
+            });
+        }
+
+        // Add existing georeferenced images from this collection for context
+        {% if collection %}
+            try {
+                const contextGeojsonUrl = '{% url "images:geojson" %}?collection={{ collection.id }}';
+                const contextResponse = await fetch(contextGeojsonUrl);
+                const contextGeojsonData = await contextResponse.json();
+
+                // Add source for existing georeferenced images in this collection
+                map.addSource('context-images', {
+                    'type': 'geojson',
+                    'data': contextGeojsonData
+                });
+
+                // Add de-emphasized circles for existing images
+                map.addLayer({
+                    'id': 'context-image-circles',
+                    'type': 'circle',
+                    'source': 'context-images',
+                    'paint': {
+                        'circle-radius': 6,
+                        'circle-color': '#6c757d',
+                        'circle-opacity': 0.6,
+                        'circle-stroke-color': '#fff',
+                        'circle-stroke-width': 1,
+                        'circle-stroke-opacity': 0.8
+                    }
+                });
+
+                // Add de-emphasized direction markers for existing images
+                if (map.hasImage('surveillance-direction')) {
+                    map.addLayer({
+                        'id': 'context-image-directions',
+                        'type': 'symbol',
+                        'source': 'context-images',
+                        'layout': {
+                            'icon-image': 'surveillance-direction',
+                            'icon-overlap': 'always',
+                            'icon-size': {
+                                'stops': [[5, 0.3], [15, 1]]
+                            },
+                            'icon-rotate': ['to-number', ['get', 'direction']],
+                        },
+                        'filter': ['has', 'direction']
+                    });
+                }
+
+                // Auto-zoom to fit existing georeferenced images in the collection
+                if (contextGeojsonData.features && contextGeojsonData.features.length > 0) {
+                    const bounds = new maplibregl.LngLatBounds();
+                    contextGeojsonData.features.forEach(function(feature) {
+                        bounds.extend(feature.geometry.coordinates);
+                    });
+
+                    // Fit to bounds with some padding
+                    map.fitBounds(bounds, {
+                        padding: 80,
+                        maxZoom: 15
+                    });
+                }
+
+            } catch (error) {
+                console.warn('Could not load context images:', error);
+            }
+        {% endif %}
+
+        // Initialize MapSwap link and update on map move
+        updateMapSwapLink();
+        map.on('moveend', updateMapSwapLink);
+    });
+
+    map.on('click', function(e) {
+        var lng = e.lngLat.lng;
+        var lat = e.lngLat.lat;
+
+        map.getSource('pin').setData({
+            'type': 'FeatureCollection',
+            'features': [{
+                'type': 'Feature',
+                'geometry': {
+                    'type': 'Point',
+                    'coordinates': [lng, lat]
+                },
+                'properties': {}
+            }]
+        });
+
+        pinPlaced = true;
+        updateCoordinates(lng, lat);
+
+        // Maintain current direction when placing new pin
+        if (currentDirection !== null) {
+            updateDirection(currentDirection);
+            var radians = (currentDirection - 90) * Math.PI / 180;
+            var x = Math.cos(radians) * 35;
+            var y = Math.sin(radians) * 35;
+            updateJoystickHandle(x, y);
+        }
+
+    });
+
+    function updateMapSwapLink() {
+        const mapswapLink = document.getElementById('mapswap-link');
+        if (mapswapLink && map) {
+            const center = map.getCenter();
+            const zoom = Math.round(map.getZoom());
+            const lat = center.lat.toFixed(6);
+            const lng = center.lng.toFixed(6);
+            const url = `https://mapswap.trailsta.sh/swap/#type=l&url=https%3A%2F%2Fwww.openstreetmap.org%2F%23map%3D${zoom}%2F${lat}%2F${lng}`;
+            mapswapLink.href = url;
+        }
+    }
+
+    // Mouse events
+    joystickContainer.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isJoystickDragging = true;
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (isJoystickDragging) {
+            handleJoystickMove(e.clientX, e.clientY);
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        isJoystickDragging = false;
+    });
+
+    // Touch events
+    joystickContainer.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        isJoystickDragging = true;
+        handleJoystickMove(e.touches[0].clientX, e.touches[0].clientY);
+    });
+
+    document.addEventListener('touchmove', function(e) {
+        if (isJoystickDragging) {
+            e.preventDefault();
+            handleJoystickMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    });
+
+    document.addEventListener('touchend', function() {
+        isJoystickDragging = false;
+    });
+
+    // Input handlers
+    latitudeInput.addEventListener('change', function() {
+        var lat = parseFloat(this.value);
+        var lng = parseFloat(longitudeInput.value);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90) {
+            updatePinLocation(lng, lat, currentDirection);
+            pinPlaced = true;
+            submitButton.disabled = false;
+        }
+    });
+
+    longitudeInput.addEventListener('change', function() {
+        var lng = parseFloat(this.value);
+        var lat = parseFloat(latitudeInput.value);
+        if (!isNaN(lng) && !isNaN(lat) && lng >= -180 && lng <= 180) {
+            updatePinLocation(lng, lat, currentDirection);
+            pinPlaced = true;
+            submitButton.disabled = false;
+        }
+    });
+
+    directionInput.addEventListener('change', function() {
+        if (!pinPlaced) return;
+
+        var directionText = this.value.replace('°', '');
+        var direction = parseFloat(directionText);
+
+        if (!isNaN(direction)) {
+            direction = direction % 360;
+            if (direction < 0) direction += 360;
+
+            updateDirection(direction);
+
+            var radians = (direction - 90) * Math.PI / 180;
+            var x = Math.cos(radians) * 35;
+            var y = Math.sin(radians) * 35;
+            updateJoystickHandle(x, y);
+        }
+    });
+
+    document.getElementById('reset-direction').addEventListener('click', function() {
+        if (!pinPlaced) return;
+        updateDirection(null);
+    });
+
+    // Handle submit button
+    submitButton.addEventListener('click', function() {
+        if (!pinPlaced) {
+            showAlert('warning', 'Please select a location on the map first');
+            return;
+        }
+
+        const lat = parseFloat(latitudeInput.value);
+        const lng = parseFloat(longitudeInput.value);
+        const dir = currentDirection !== null ? Math.round(currentDirection) : null;
+        const notes = confidenceNotes.value.trim();
+
+        const data = {
+            latitude: lat,
+            longitude: lng,
+            direction: dir,
+            notes: notes
+        };
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+
+        fetch(`{% url 'images:georeference_image' current_image.id %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', 'Image georeferenced successfully!');
+                // Clear the form and reset for next image
+                setTimeout(() => {
+                    // Check if we came from a specific image
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const specificImageRequested = urlParams.has('image');
+
+                    if (specificImageRequested) {
+                        // Sneaky redirect to collection georeferencing
+                        window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                    } else {
+                        clearFormAndGetNext();
+                    }
+                }, 1500);
+            } else {
+                showAlert('danger', 'Error: ' + data.error);
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+            }
+        })
+        .catch(error => {
+            showAlert('danger', 'Network error occurred');
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+        });
+    });
+
+    // Handle skip button (available to everyone)
+    if (skipButton) {
+        skipButton.addEventListener('click', function() {
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        // Check if we came from a specific image (image parameter in URL)
+        const urlParams = new URLSearchParams(window.location.search);
+        const specificImageRequested = urlParams.has('image');
+
+        fetch(`{% url 'images:skip_image' current_image.id %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({reason: 'Skipped during georeferencing'})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('info', 'Image skipped');
+                setTimeout(() => {
+                    if (specificImageRequested) {
+                        // Sneaky redirect to collection georeferencing
+                        window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                    } else {
+                        clearFormAndGetNext();
+                    }
+                }, 1000);
+            } else {
+                showAlert('danger', 'Error: ' + data.error);
+            }
+        });
+        });
+    }
+
+    // Handle difficulty marking (only for staff users)
+    if (isStaff) {
+        markDifficultyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const difficulty = this.dataset.difficulty;
+                const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                                 document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                const formData = new FormData();
+                formData.append('difficulty', difficulty);
+                formData.append('csrfmiddlewaretoken', csrfToken);
+
+                fetch(`{% url 'images:mark_difficulty' current_image.id %}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showAlert('success', `Image marked as ${difficulty}`);
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    }
+                });
+            });
+        });
+    }
+
+    // Handle will not georeference (only for staff users)
+    if (willNotGeorefButton && isStaff) {
+        willNotGeorefButton.addEventListener('click', function() {
+            const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                             document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', csrfToken);
+
+            fetch(`{% url 'images:mark_will_not_georef' current_image.id %}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showAlert('info', 'Image marked as "will not georeference"');
+                    setTimeout(() => {
+                        // Check if we came from a specific image
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const specificImageRequested = urlParams.has('image');
+
+                        if (specificImageRequested) {
+                            // Sneaky redirect to collection georeferencing
+                            window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                        } else {
+                            clearFormAndGetNext();
+                        }
+                    }, 1000);
+                }
+            });
+        });
+    }
+
+    // Function to clear form and get next image
+    function clearFormAndGetNext() {
+        // Clear coordinate inputs
+        latitudeInput.value = '';
+        longitudeInput.value = '';
+        directionInput.value = '';
+        directionInput.classList.add('inactive');
+        confidenceNotes.value = '';
+
+        // Clear map
+        if (map.getSource('pin')) {
+            map.getSource('pin').setData({
+                'type': 'FeatureCollection',
+                'features': []
+            });
+        }
+
+        // Reset state
+        pinPlaced = false;
+        currentDirection = null;
+        submitButton.disabled = true;
+        updateJoystickHandle(0, 0);
+
+
+
+        // Scroll to top and reload to get next image
+        window.scrollTo(0, 0);
+        location.reload();
+    }
+
+    // Helper function to show alerts
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+
+    // Add CSRF token to the page if not already present
+    if (!document.querySelector('input[name="csrfmiddlewaretoken"]')) {
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = '{{ csrf_token }}';
+        document.body.appendChild(csrfInput);
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

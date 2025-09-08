@@ -1,0 +1,13 @@
+[project]
+name = "georeference-tool"
+version = "0.1.0"
+description = "A Django web application for georeferencing historical images."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.13.5",
+    "django>=5.2.6",
+    "osm-login-python>=2.0.0",
+    "requests>=2.32.5",
+    "uvicorn[standard]>=0.35.0",
+]

@@ -1,0 +1,682 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ image.title|default:"Image "|add:image.id }} - Image Detail{% endblock %}
+
+{% block extra_css %}
+<!-- MapLibre GL JS CSS -->
+<link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
+
+<style>
+    .breadcrumb {
+        background: none;
+        padding: 0;
+    }
+
+    .image-container {
+        overflow: hidden;
+    }
+
+    .image-container img {
+        transition: transform 0.2s ease;
+        cursor: pointer;
+    }
+
+    .image-container img:hover {
+        transform: scale(1.02);
+    }
+
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+
+    .status-badge {
+        font-size: 0.85em;
+        padding: 0.5em 0.75em;
+    }
+
+    .map-container {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+    }
+
+    #image-detail-map {
+        width: 100%;
+        height: 300px;
+        border-radius: 0.375rem;
+    }
+
+    .maplibregl-popup-content {
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .coordinate-display {
+        font-family: monospace;
+        font-size: 0.9em;
+        background-color: #f8f9fa;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        display: inline-block;
+    }
+
+    .action-button {
+        transition: all 0.2s ease;
+    }
+
+    .action-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                <li class="breadcrumb-item"><a href="{{ image.collection.source.get_absolute_url }}">{{ image.collection.source.name }}</a></li>
+                <li class="breadcrumb-item"><a href="{{ image.collection.get_absolute_url }}">{{ image.collection.name }}</a></li>
+                <li class="breadcrumb-item active">
+                    {% if image.title %}{{ image.title|truncatechars:50 }}{% else %}Image #{{ image.id }}{% endif %}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <!-- Image Display -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            {% if image.title %}
+                                {{ image.title }}
+                            {% else %}
+                                Image #{{ image.id }}
+                            {% endif %}
+                        </h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            {% if image.difficulty %}
+                                <span class="badge status-badge
+                                    {% if image.difficulty == 'easy' %}bg-success
+                                    {% elif image.difficulty == 'medium' %}bg-warning text-dark
+                                    {% else %}bg-danger{% endif %}">
+                                    <i class="fas fa-signal me-1"></i>{{ image.difficulty|capfirst }}
+                                </span>
+                            {% endif %}
+
+                            <span class="badge status-badge {% if image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                                {% if image.is_georeferenced %}
+                                    <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
+                                {% elif image.will_not_georef %}
+                                    <i class="fas fa-ban me-1"></i>Will Not Georeference
+                                {% else %}
+                                    <i class="fas fa-clock me-1"></i>Pending
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="image-container position-relative" style="min-height: 400px;">
+                            <div class="pswp-gallery" id="pswp-gallery">
+                                <a href="{{ image.permalink }}"
+                                   title="Click to view full-size image">
+                                    <img id="main-image" src="{{ image.permalink }}"
+                                         alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
+                                         class="img-fluid w-100"
+                                         style="object-fit: contain; background-color: #f8f9fa; max-height: 600px; display: block; cursor: zoom-in;"
+                                         title="Click to view full-size image">
+                                </a>
+                            </div>
+
+                            <!-- Fallback for broken images -->
+                            <div id="image-fallback" class="bg-light align-items-center justify-content-center position-absolute w-100 h-100" style="top: 0; left: 0; min-height: 400px; display: none; z-index: 1;">
+                                <div class="text-center">
+                                    <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                                    <p class="text-muted mb-3">Image could not be loaded</p>
+                                    <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-primary">
+                                        <i class="fas fa-external-link-alt me-1"></i>View Original Image
+                                    </a>
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map Display (if georeferenced) -->
+                {% if image.is_georeferenced %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-map me-2"></i>Location Map</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="map-container">
+                            <div id="image-detail-map"></div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <div class="row g-2 text-center">
+                            <div class="col-md-4">
+                                <small class="text-muted d-block">Coordinates</small>
+                                <span class="coordinate-display">{{ image.georeference.latitude|floatformat:6 }}, {{ image.georeference.longitude|floatformat:6 }}</span>
+                            </div>
+                            {% if image.georeference.direction is not None %}
+                            <div class="col-md-4">
+                                <small class="text-muted d-block">Direction</small>
+                                <span class="coordinate-display">
+                                    {{ image.georeference.direction }}°
+                                    {% if image.georeference.direction == 0 %} (N)
+                                    {% elif image.georeference.direction == 90 %} (E)
+                                    {% elif image.georeference.direction == 180 %} (S)
+                                    {% elif image.georeference.direction == 270 %} (W)
+                                    {% elif image.georeference.direction >= 315 or image.georeference.direction < 45 %} (N)
+                                    {% elif image.georeference.direction >= 45 and image.georeference.direction < 135 %} (E)
+                                    {% elif image.georeference.direction >= 135 and image.georeference.direction < 225 %} (S)
+                                    {% elif image.georeference.direction >= 225 and image.georeference.direction < 315 %} (W)
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endif %}
+                            <div class="col-md-4">
+                                <small class="text-muted d-block">Map Tools</small>
+                                <a href="https://mapswap.trailsta.sh/swap/#type=l&url=https%3A%2F%2Fwww.openstreetmap.org%2F%23map%3D18%2F{{ image.georeference.latitude }}%2F{{ image.georeference.longitude }}"
+                                   target="_blank" class="btn btn-outline-primary btn-sm">
+                                    MapSwap
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sidebar with Information and Actions -->
+            <div class="col-lg-4">
+                <!-- Image Metadata -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Image Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-5">Source:</dt>
+                            <dd class="col-sm-7">
+                                <a href="{{ image.collection.source.get_absolute_url }}" class="text-decoration-none">
+                                    {{ image.collection.source.name }}
+                                </a>
+                            </dd>
+
+                            <dt class="col-sm-5">Collection:</dt>
+                            <dd class="col-sm-7">
+                                <a href="{{ image.collection.get_absolute_url }}" class="text-decoration-none">
+                                    {{ image.collection.name }}
+                                </a>
+                            </dd>
+
+                            {% if image.date_display != "Unknown date" %}
+                                <dt class="col-sm-5">Date:</dt>
+                                <dd class="col-sm-7">{{ image.date_display }}</dd>
+                            {% endif %}
+
+                            {% if image.description %}
+                                <dt class="col-sm-5">Description:</dt>
+                                <dd class="col-sm-7">{{ image.description|truncatewords:20 }}</dd>
+                            {% endif %}
+
+                            {% if image.skip_count > 0 %}
+                                <dt class="col-sm-5">Skip Count:</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge bg-warning text-dark">{{ image.skip_count }}</span>
+                                </dd>
+                            {% endif %}
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- Georeference Information -->
+                {% if image.is_georeferenced %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Georeference Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row">
+                                <dt class="col-sm-5">By:</dt>
+                                <dd class="col-sm-7">
+                                    <i class="fas fa-user me-1"></i>{{ image.georeference.georeferenced_by.username }}
+                                </dd>
+
+                                <dt class="col-sm-5">Date:</dt>
+                                <dd class="col-sm-7">
+                                    <i class="fas fa-calendar me-1"></i>{{ image.georeference.georeferenced_at|date:"M j, Y" }}
+                                </dd>
+
+                                <dt class="col-sm-5">Validations:</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge {% if image.georeference.validation_count > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ image.georeference.validation_count }}
+                                    </span>
+                                </dd>
+
+                                {% if image.georeference.confidence_notes %}
+                                    <dt class="col-sm-12 mt-2">Notes:</dt>
+                                    <dd class="col-sm-12">
+                                        <div class="bg-light p-2 rounded">
+                                            <small>{{ image.georeference.confidence_notes }}</small>
+                                        </div>
+                                    </dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Validations -->
+                    {% if image.georeference.validations.exists %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Community Validations</h6>
+                            </div>
+                            <div class="card-body">
+                                {% for validation in image.georeference.validations.all %}
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <strong class="me-2">{{ validation.validated_by.username }}</strong>
+                                                <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                                    {% if validation.validation == 'correct' %}
+                                                        <i class="fas fa-check me-1"></i>Correct
+                                                    {% elif validation.validation == 'incorrect' %}
+                                                        <i class="fas fa-times me-1"></i>Incorrect
+                                                    {% else %}
+                                                        <i class="fas fa-question me-1"></i>Uncertain
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                            {% if validation.notes %}
+                                                <p class="text-muted small mb-0">{{ validation.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted ms-2">{{ validation.validated_at|date:"M j" }}</small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+                <!-- Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if not image.is_georeferenced and not image.will_not_georef %}
+                            <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
+                               class="btn btn-success w-100 mb-3 action-button">
+                                <i class="fas fa-map-marker-alt me-2"></i>Georeference This Image
+                            </a>
+                        {% elif image.is_georeferenced and request.user.is_authenticated and request.user.username != image.georeference.georeferenced_by.username %}
+                            <button class="btn btn-primary w-100 mb-3 action-button" data-bs-toggle="modal" data-bs-target="#validateModal">
+                                <i class="fas fa-check-circle me-2"></i>Validate This Georeference
+                            </button>
+                        {% elif image.is_georeferenced %}
+                            <div class="alert alert-info mb-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% if request.user.username == image.georeference.georeferenced_by.username %}
+                                    You georeferenced this image.
+                                {% else %}
+                                    This image has been georeferenced.
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Navigation buttons -->
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <a href="{{ image.collection.get_absolute_url }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Collection
+                            </a>
+                            <a href="{% url 'images:random_image' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-random me-1"></i>Random
+                            </a>
+                        </div>
+
+                        <!-- External links -->
+                        <div class="d-grid">
+                            <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-external-link-alt me-1"></i>View Original Source
+                            </a>
+                        </div>
+
+                        <!-- Admin controls -->
+                        {% if user.is_staff %}
+                            <hr>
+                            <h6 class="text-muted small">Admin Controls</h6>
+                            <a href="/admin/images/image/{{ image.id }}/change/" class="btn btn-outline-secondary btn-sm w-100">
+                                <i class="fas fa-edit me-1"></i>Edit in Admin
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Modal -->
+{% if image.is_georeferenced and request.user.is_authenticated and request.user.username != image.georeference.georeferenced_by.username %}
+<div class="modal fade" id="validateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Validate Georeference</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="validateForm">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Is this georeference location correct?</label>
+                        <div class="mt-2">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="validation" value="correct" id="correct">
+                                <label class="form-check-label" for="correct">
+                                    <span class="badge bg-success me-2">✓ Correct</span>
+                                    The location appears accurate
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="validation" value="incorrect" id="incorrect">
+                                <label class="form-check-label" for="incorrect">
+                                    <span class="badge bg-danger me-2">✗ Incorrect</span>
+                                    The location appears wrong
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="validation" value="uncertain" id="uncertain">
+                                <label class="form-check-label" for="uncertain">
+                                    <span class="badge bg-warning text-dark me-2">? Uncertain</span>
+                                    I'm not sure about the location
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="validationNotes" class="form-label">Additional Comments <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="validationNotes" name="notes" rows="3"
+                                  placeholder="Any specific feedback about this georeference..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check me-1"></i>Submit Validation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle validation form submission
+    const validateForm = document.getElementById('validateForm');
+    if (validateForm) {
+        validateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(validateForm);
+            const validation = formData.get('validation');
+
+            if (!validation) {
+                alert('Please select a validation option.');
+                return;
+            }
+
+            const submitBtn = validateForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+            submitBtn.disabled = true;
+
+            const data = {
+                validation: validation,
+                notes: formData.get('notes') || ''
+            };
+
+            fetch(`{% url 'images:validate_georeference' image.georeference.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload(); // Reload to show the new validation
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while submitting the validation.');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- MapLibre GL JS -->
+<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
+
+<script>
+// Function to set PhotoSwipe data attributes based on actual image dimensions
+function setupPhotoSwipeData(img) {
+    const link = img.parentElement;
+    link.setAttribute('data-pswp-width', img.naturalWidth);
+    link.setAttribute('data-pswp-height', img.naturalHeight);
+}
+
+// Initialize PhotoSwipe for the image viewer
+const lightbox = new PhotoSwipeLightbox({
+    gallery: '#pswp-gallery',
+    children: 'a',
+    showHideAnimationType: 'fade',
+    zoomAnimationDuration: 300,
+    maxZoomLevel: 8,
+    wheelToZoom: true,
+    pswpModule: PhotoSwipe
+});
+
+lightbox.init();
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle image loading
+    const mainImage = document.getElementById('main-image');
+    const imageFallback = document.getElementById('image-fallback');
+    
+    if (mainImage && imageFallback) {
+        console.log('Setting up image loading handlers');
+        console.log('Image src:', mainImage.src);
+        console.log('Image complete:', mainImage.complete);
+        console.log('Image naturalHeight:', mainImage.naturalHeight);
+        console.log('Image naturalWidth:', mainImage.naturalWidth);
+        
+        // Handle successful image load
+        mainImage.onload = function() {
+            console.log('Image onload event fired');
+            console.log('Image dimensions:', this.naturalWidth, 'x', this.naturalHeight);
+            imageFallback.style.setProperty('display', 'none', 'important');
+            mainImage.style.display = 'block';
+            mainImage.style.visibility = 'visible';
+            setupPhotoSwipeData(this);
+        };
+        
+        // Handle image load error
+        mainImage.onerror = function() {
+            console.log('Image onerror event fired');
+            mainImage.style.display = 'none';
+            imageFallback.style.setProperty('display', 'flex', 'important');
+        };
+        
+        // Check if image is already loaded (cached)
+        if (mainImage.complete) {
+            if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
+                console.log('Image was already loaded successfully (cached)');
+                console.log('Hiding fallback and showing image');
+                imageFallback.style.setProperty('display', 'none', 'important');
+                mainImage.style.display = 'block';
+                mainImage.style.visibility = 'visible';
+                setupPhotoSwipeData(mainImage);
+            } else {
+                console.log('Image failed to load (cached)');
+                mainImage.style.display = 'none';
+                imageFallback.style.setProperty('display', 'flex', 'important');
+            }
+        } else {
+            console.log('Image is still loading...');
+        }
+        
+        // Debug: Check current visibility states
+        console.log('Image display:', window.getComputedStyle(mainImage).display);
+        console.log('Fallback display:', window.getComputedStyle(imageFallback).display);
+    }
+
+    // Initialize the map for georeferenced images
+    {% if image.is_georeferenced %}
+    const mapContainer = document.getElementById('image-detail-map');
+    if (mapContainer) {
+        // Initialize the map
+        var map = new maplibregl.Map({
+            container: 'image-detail-map',
+            style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+            center: [{{ image.georeference.longitude }}, {{ image.georeference.latitude }}],
+            zoom: 16
+        });
+
+        map.on('load', async function() {
+            try {
+                // Load the direction arrow image
+                const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+                map.addImage('surveillance-direction', image.data);
+            } catch (error) {
+                console.warn('Could not load direction arrow image:', error);
+            }
+
+            // Create GeoJSON data for this single image
+            const imageGeojsonData = {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [{{ image.georeference.longitude }}, {{ image.georeference.latitude }}]
+                    },
+                    "properties": {
+                        "img_url": "{{ image.permalink }}",
+                        "img_entry": "{{ request.build_absolute_uri }}",
+                        {% if image.georeference.direction is not None %}
+                        "direction": {{ image.georeference.direction }},
+                        {% endif %}
+                        {% if image.year %}
+                        "year": "{{ image.year }}"
+                        {% endif %}
+                    }
+                }]
+            };
+
+            // Add source for the georeferenced image
+            map.addSource('image-location', {
+                'type': 'geojson',
+                'data': imageGeojsonData
+            });
+
+            // Add direction markers if surveillance-direction image loaded successfully
+            if (map.hasImage('surveillance-direction')) {
+                map.addLayer({
+                    'id': 'image-directions',
+                    'type': 'symbol',
+                    'source': 'image-location',
+                    'layout': {
+                        'icon-image': 'surveillance-direction',
+                        'icon-overlap': 'always',
+                        'icon-size': {
+                            'stops': [[5, 0.3], [15, 1]]
+                        },
+                        'icon-rotate': ['to-number', ['get', 'direction']]
+                    },
+                    'filter': ['has', 'direction']
+                });
+            }
+
+            // Add circle layer for image location
+            map.addLayer({
+                'id': 'image-circles',
+                'type': 'circle',
+                'source': 'image-location',
+                'paint': {
+                    'circle-radius': 8,
+                    'circle-color': '#dc3545',
+                    'circle-stroke-color': '#fff',
+                    'circle-stroke-width': 2
+                }
+            });
+
+            // Add click handlers for image marker
+            map.on('click', 'image-circles', function(e) {
+                const properties = e.features[0].properties;
+
+                // Create popup content
+                const popupContent = `
+                    <div style="max-width: 200px;">
+                        <img src="${properties.img_url}"
+                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
+                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
+                        </div>
+                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                        ${properties.direction ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                    </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            // Change the cursor to pointer when hovering over markers
+            map.on('mouseenter', 'image-circles', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'image-circles', function() {
+                map.getCanvas().style.cursor = '';
+            });
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}
