@@ -6,7 +6,6 @@ on:
 
 env:
   IMAGE_NAME: georeference-tool
-  # IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
   IMAGE_REGISTRY: ghcr.io/maprva
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}
