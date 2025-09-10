@@ -12,7 +12,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
+LOCAL_DEV = os.getenv("LOCAL_DEV", "False").lower() in ("true", "1", "yes")
+
+# Set DEBUG to True if LOCAL_DEV is True (unless explicitly overwritten)
+if LOCAL_DEV and os.getenv("DJANGO_DEBUG") is None:
+    DEBUG = True
+else:
+    DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
@@ -79,12 +85,34 @@ WSGI_APPLICATION = "georeference_tool.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Use SQLite for local development, PostgreSQL for production
+if LOCAL_DEV:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("PG_DBNAME", "georef"),
+            "USER": os.getenv("PG_USER", "django_user"),
+            "PASSWORD": os.getenv("PG_PASSWORD", ""),
+            "HOST": os.getenv("PG_HOST", "georef-db-rw"),
+            "PORT": os.getenv("PG_PORT", "5432"),
+            "OPTIONS": {
+                "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
+            },
+        }
+    }
+
+    # Read database password from mounted secret if available
+    db_password_file = os.getenv("DB_PASSWORD_FILE", "/etc/georef-db/password")
+    if os.path.exists(db_password_file):
+        with open(db_password_file, "r") as f:
+            DATABASES["default"]["PASSWORD"] = f.read().strip()
 
 
 # Password validation
@@ -147,10 +175,13 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # Usually unused
 ]
 
-# Optional hardcoded admin (only works in DEBUG mode)
-ALLOW_HARDCODED_ADMIN = DEBUG and os.getenv(
-    "ALLOW_HARDCODED_ADMIN", "false"
-).lower() in ("true", "1", "yes")
+# Optional hardcoded admin (enabled by default in LOCAL_DEV mode unless explicitly overwritten)
+if LOCAL_DEV and os.getenv("ALLOW_HARDCODED_ADMIN") is None:
+    ALLOW_HARDCODED_ADMIN = True
+else:
+    ALLOW_HARDCODED_ADMIN = DEBUG and os.getenv(
+        "ALLOW_HARDCODED_ADMIN", "false"
+    ).lower() in ("true", "1", "yes")
 
 if ALLOW_HARDCODED_ADMIN:
     AUTHENTICATION_BACKENDS.append("osm_auth.auth_backends.HardcodedAdminBackend")
