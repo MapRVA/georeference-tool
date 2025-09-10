@@ -81,19 +81,19 @@
                                     <a href="{{ current_image.permalink }}"
                                        target="_blank"
                                        title="Click to view full-size image">
-                                        <img src="{{ current_image.permalink }}"
+                                        <img id="main-image" src="{{ current_image.permalink }}"
                                              alt="{% if current_image.title %}{{ current_image.title }}{% else %}Image #{{ current_image.id }}{% endif %}"
                                              class="image-preview"
-                                             onload="this.style.display='block'; this.parentElement.parentElement.nextElementSibling.style.display='none'; setupPhotoSwipeData(this);"
-                                             onerror="this.style.display='none'; this.parentElement.parentElement.nextElementSibling.style.display='block';">
+                                             style="object-fit: contain; background-color: #f8f9fa; cursor: zoom-in;"
+                                             title="Click to view full-size image">
                                     </a>
                                 </div>
 
                                 <!-- Fallback for broken images -->
-                                <div class="image-error-fallback" style="display: none;">
+                                <div id="image-fallback" class="bg-light align-items-center justify-content-center position-absolute w-100 h-100" style="top: 0; left: 0; min-height: 400px; display: none; z-index: 1;">
                                     <div class="text-center">
-                                        <i class="fas fa-image fa-3x text-muted mb-3"></i>
-                                        <p class="text-muted">Image could not be loaded</p>
+                                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                                        <p class="text-muted mb-3">Image could not be loaded</p>
                                         <a href="{{ current_image.permalink }}" target="_blank" class="btn btn-outline-primary">
                                             <i class="fas fa-external-link-alt me-1"></i>View Original Image
                                         </a>
@@ -584,6 +584,39 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if confidence elements exist
     if (!confidenceNotes || !notesRequiredIndicator || !notesHelpText || !confidenceHighRadio) {
         console.error('Confidence elements not found in DOM');
+    }
+
+    // Handle image loading
+    const mainImage = document.getElementById('main-image');
+    const imageFallback = document.getElementById('image-fallback');
+
+    if (mainImage && imageFallback) {
+        // Handle successful image load
+        mainImage.onload = function() {
+            imageFallback.style.setProperty('display', 'none', 'important');
+            mainImage.style.display = 'block';
+            mainImage.style.visibility = 'visible';
+            setupPhotoSwipeData(this);
+        };
+
+        // Handle image load error
+        mainImage.onerror = function() {
+            mainImage.style.display = 'none';
+            imageFallback.style.setProperty('display', 'flex', 'important');
+        };
+
+        // Check if image is already loaded (cached)
+        if (mainImage.complete) {
+            if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
+                imageFallback.style.setProperty('display', 'none', 'important');
+                mainImage.style.display = 'block';
+                mainImage.style.visibility = 'visible';
+                setupPhotoSwipeData(mainImage);
+            } else {
+                mainImage.style.display = 'none';
+                imageFallback.style.setProperty('display', 'flex', 'important');
+            }
+        }
     }
 
     function updateCoordinates(lng, lat) {
