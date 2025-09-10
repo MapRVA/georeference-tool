@@ -39,6 +39,17 @@ django.setup()
 
 from images.models import Source, Collection, Image
 
+# Import R2 uploader from the same directory
+try:
+    from r2_uploader import R2Uploader, R2UploaderError
+except ImportError:
+    # since we aren't inside a package, relative imports might not work
+    import sys
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, script_dir)
+    from r2_uploader import R2Uploader, R2UploaderError
+
 
 class LibraryOfVirginiaScraper:
     """Richmond Esthetic Survey scraper"""
@@ -53,6 +64,11 @@ class LibraryOfVirginiaScraper:
 
     def __init__(self):
         self.session = requests.Session()
+        self.r2_uploader = R2Uploader()
+
+    def clean_image_url(self, url):
+        """Remove square brackets from image URLs"""
+        return url.replace('[', '').replace(']', '')
 
     def get_or_create_source(self):
         """Get or create the Library of Virginia source"""
@@ -146,6 +162,8 @@ class LibraryOfVirginiaScraper:
                 full_image_url = urljoin(neighborhood_url, href)
                 # Ensure image URL uses HTTPS
                 full_image_url = full_image_url.replace("http://", "https://")
+                # Clean square brackets from URL
+                full_image_url = self.clean_image_url(full_image_url)
 
                 # Find the title by looking at the parent td element
                 parent_td = link.find_parent("td")
@@ -180,7 +198,8 @@ class LibraryOfVirginiaScraper:
                         {
                             "url": full_image_url,
                             "title": title,
-                            "permalink": full_image_url,  # Use image URL as permalink
+                            "original_url": full_image_url,  # Store original URL
+                            "permalink": full_image_url,  # Will be updated to R2 URL later
                         }
                     )
 
@@ -236,8 +255,26 @@ class LibraryOfVirginiaScraper:
             for j, image_data in enumerate(images, 1):
                 print(f"    [{j}/{len(images)}] {image_data['title']}")
 
-                # Check if already exists
-                if Image.objects.filter(permalink=image_data["permalink"]).exists():
+                # Upload image to R2 if uploader is available
+                if self.r2_uploader and not dry_run:
+                    print(f"      → Uploading to R2...")
+                    image_data["permalink"] = self.r2_uploader.upload_url(
+                        image_data["url"],
+                    )
+                elif self.r2_uploader and dry_run:
+                    print(f"      → Would upload to R2 (dry run)")
+                    # For dry run, generate what the R2 URL would look like
+                    mock_key = self.r2_uploader.generate_key_from_url(
+                        image_data["url"],
+                    )
+                    image_data["permalink"] = self.r2_uploader.get_public_url(mock_key)
+
+                # Check if already exists (check by original URL)
+                existing_by_original_url = Image.objects.filter(original_url=image_data["original_url"]).exists()
+                # Also check by permalink in case of duplicates with different R2 URLs
+                existing_by_permalink = Image.objects.filter(permalink=image_data["permalink"]).exists()
+
+                if existing_by_original_url or existing_by_permalink:
                     print(f"      → Already exists, skipping")
                     continue
 
@@ -247,6 +284,7 @@ class LibraryOfVirginiaScraper:
                             collection=collection,
                             title=image_data["title"],
                             permalink=image_data["permalink"],
+                            original_url=image_data["original_url"],
                             year=SOURCE_YEAR,
                         )
                         print(f"      → Created image ID: {image.id}")
