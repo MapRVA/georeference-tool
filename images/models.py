@@ -96,6 +96,10 @@ class Image(models.Model):
         null=True, help_text="Original URL from the source website"
     )
     description = models.TextField(null=True)
+    license_title = models.CharField(null=True, max_length=500)
+    license_permalink = models.URLField(null=True,
+        help_text="Link to license information"
+    )
 
     # Flexible date fields - allows partial dates
     year = models.IntegerField(
