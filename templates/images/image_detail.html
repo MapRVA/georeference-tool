@@ -234,8 +234,7 @@
                     <div class="card-body p-0">
                         <div class="image-container position-relative" style="min-height: 400px;">
                             <div class="pswp-gallery" id="pswp-gallery">
-                                <a href="{{ image.permalink }}"
-                                   title="Click to view full-size image">
+                                <a href="{{ image.permalink }}" title="Click to view full-size image">
                                     <img id="main-image" src="{{ image.permalink }}"
                                          alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                                          class="img-fluid w-100"
@@ -254,8 +253,6 @@
                                     </a>
                                 </div>
                             </div>
-
-
                         </div>
                     </div>
                 </div>
@@ -447,7 +444,6 @@
                             {% endif %}
                         {% endif %}
 
-
                         <!-- Navigation buttons -->
                         <div class="btn-group w-100 mb-3" role="group">
                             <a href="{{ image.collection.get_absolute_url }}" class="btn btn-outline-secondary">
@@ -469,6 +465,37 @@
                         {% if user.is_staff %}
                             <hr>
                             <h6 class="text-muted small">Admin Controls</h6>
+
+                            <!-- Difficulty marking buttons -->
+                            {% if image.difficulty %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block mb-1">Difficulty Level:</small>
+                                    <div class="btn-group w-100" role="group">
+                                        <button type="button" class="btn btn-sm {% if image.difficulty == 'easy' %}btn-success{% else %}btn-outline-success mark-difficulty{% endif %}"
+                                                {% if image.difficulty == 'easy' %}disabled{% else %}data-difficulty="easy"{% endif %}>
+                                            Easy
+                                        </button>
+                                        <button type="button" class="btn btn-sm {% if image.difficulty == 'medium' %}btn-warning{% else %}btn-outline-warning mark-difficulty{% endif %}"
+                                                {% if image.difficulty == 'medium' %}disabled{% else %}data-difficulty="medium"{% endif %}>
+                                            Medium
+                                        </button>
+                                        <button type="button" class="btn btn-sm {% if image.difficulty == 'hard' %}btn-danger{% else %}btn-outline-danger mark-difficulty{% endif %}"
+                                                {% if image.difficulty == 'hard' %}disabled{% else %}data-difficulty="hard"{% endif %}>
+                                            Hard
+                                        </button>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block mb-1">Mark Difficulty:</small>
+                                    <div class="btn-group w-100" role="group">
+                                        <button type="button" class="btn btn-outline-success btn-sm mark-difficulty" data-difficulty="easy">Easy</button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm mark-difficulty" data-difficulty="medium">Medium</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm mark-difficulty" data-difficulty="hard">Hard</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+
                             <a href="/admin/images/image/{{ image.id }}/change/" class="btn btn-outline-secondary btn-sm w-100">
                                 <i class="fas fa-edit me-1"></i>Edit in Admin
                             </a>
@@ -599,7 +626,7 @@
 </div>
 
 <!-- Validation Modal -->
-{% if image.is_georeferenced and request.user.is_authenticated %}
+{% if image.is_georeferenced and request.user.is_authenticated and image.get_georeference and image.get_georeference.id %}
     {% if not image.get_georeference.georeferenced_by or request.user.username != image.get_georeference.georeferenced_by.username %}
 <div class="modal fade" id="validateModal" tabindex="-1">
     <div class="modal-dialog">
@@ -653,15 +680,219 @@
         </div>
     </div>
 </div>
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- MapLibre GL JS -->
+<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
 
 <script>
+// Global utility functions
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+function getBootstrapColor(difficulty) {
+    const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
+    return colors[difficulty] || 'secondary';
+}
+
+// PhotoSwipe setup
+function setupPhotoSwipeData(img) {
+    const link = img.parentElement;
+    link.setAttribute('data-pswp-width', img.naturalWidth);
+    link.setAttribute('data-pswp-height', img.naturalHeight);
+}
+
+const lightbox = new PhotoSwipeLightbox({
+    gallery: '#pswp-gallery',
+    children: 'a',
+    showHideAnimationType: 'fade',
+    zoomAnimationDuration: 300,
+    maxZoomLevel: 8,
+    wheelToZoom: true,
+    pswpModule: PhotoSwipe
+});
+lightbox.init();
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle validation form submission
+    // Set validation URL if georeference exists
+    {% if image.is_georeferenced and image.get_georeference and image.get_georeference.id %}
+    const validationUrl = "{% url 'images:validate_georeference' image.get_georeference.id %}";
+    {% else %}
+    const validationUrl = null;
+    {% endif %}
+    // Image loading handlers
+    const mainImage = document.getElementById('main-image');
+    const imageFallback = document.getElementById('image-fallback');
+
+    if (mainImage && imageFallback) {
+        mainImage.onload = function() {
+            imageFallback.style.setProperty('display', 'none', 'important');
+            mainImage.style.display = 'block';
+            mainImage.style.visibility = 'visible';
+            setupPhotoSwipeData(this);
+        };
+
+        mainImage.onerror = function() {
+            mainImage.style.display = 'none';
+            imageFallback.style.setProperty('display', 'flex', 'important');
+        };
+
+        // Handle already loaded images
+        if (mainImage.complete) {
+            if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
+                imageFallback.style.setProperty('display', 'none', 'important');
+                mainImage.style.display = 'block';
+                mainImage.style.visibility = 'visible';
+                setupPhotoSwipeData(mainImage);
+            } else {
+                mainImage.style.display = 'none';
+                imageFallback.style.setProperty('display', 'flex', 'important');
+            }
+        }
+    }
+
+    // Difficulty marking functionality (admin only)
+    const isStaff = {{ user.is_staff|yesno:"true,false" }};
+
+    function handleDifficultyClick() {
+        const difficulty = this.dataset.difficulty;
+        const clickedButton = this;
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+        clickedButton.disabled = true;
+        const originalText = clickedButton.innerHTML;
+        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const formData = new FormData();
+        formData.append('difficulty', difficulty);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(`{% url 'images:mark_difficulty' image.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                showAlert('success', `Image marked as ${difficulty}`);
+                clickedButton.innerHTML = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+                clickedButton.disabled = false;
+
+                // Force reflow and update UI
+                clickedButton.offsetHeight;
+                setTimeout(() => {
+                    updateDifficultyButtons(difficulty);
+                    updateDifficultyBadge(difficulty);
+                }, 10);
+            } else {
+                throw new Error('Network response was not ok');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'Error marking difficulty. Please try again.');
+            clickedButton.disabled = false;
+            clickedButton.innerHTML = originalText;
+        });
+    }
+
+    function updateDifficultyButtons(newDifficulty) {
+        // Find the difficulty button group
+        let buttonGroup = null;
+        document.querySelectorAll('.btn-group').forEach(group => {
+            const buttons = group.querySelectorAll('button');
+            buttons.forEach(btn => {
+                const text = btn.textContent.toLowerCase().trim();
+                if (btn.hasAttribute('data-difficulty') ||
+                    btn.classList.contains('mark-difficulty') ||
+                    ['easy', 'medium', 'hard'].some(d => text.includes(d))) {
+                    buttonGroup = group;
+                }
+            });
+        });
+
+        if (!buttonGroup) return;
+
+        const buttons = buttonGroup.querySelectorAll('button');
+        const labelText = buttonGroup.previousElementSibling;
+
+        // Update label
+        if (labelText && labelText.tagName === 'SMALL') {
+            labelText.textContent = 'Difficulty Level:';
+        }
+
+        buttons.forEach(button => {
+            const buttonText = button.textContent.toLowerCase().trim();
+            let buttonDifficulty = ['easy', 'medium', 'hard'].find(d => buttonText.includes(d));
+
+            if (buttonDifficulty === newDifficulty) {
+                // Selected difficulty: highlight and disable
+                button.className = `btn btn-sm btn-${getBootstrapColor(newDifficulty)}`;
+                button.disabled = true;
+                button.removeAttribute('data-difficulty');
+            } else {
+                // Other difficulties: make clickable
+                button.className = `btn btn-sm btn-outline-${getBootstrapColor(buttonDifficulty)} mark-difficulty`;
+                button.disabled = false;
+                button.setAttribute('data-difficulty', buttonDifficulty);
+
+                if (!button.hasEventListener) {
+                    button.addEventListener('click', handleDifficultyClick);
+                    button.hasEventListener = true;
+                }
+            }
+            button.innerHTML = buttonDifficulty.charAt(0).toUpperCase() + buttonDifficulty.slice(1);
+        });
+    }
+
+    function updateDifficultyBadge(newDifficulty) {
+        const cardHeader = document.querySelector('.card-header');
+        if (!cardHeader) return;
+
+        let difficultyBadge = cardHeader.querySelector('.badge');
+
+        if (difficultyBadge && difficultyBadge.innerHTML.includes('fa-signal')) {
+            // Update existing badge
+            difficultyBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+            difficultyBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
+        } else {
+            // Create new badge
+            const badgeContainer = cardHeader.querySelector('.d-flex.gap-2');
+            if (badgeContainer) {
+                const newBadge = document.createElement('span');
+                newBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+                newBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
+                badgeContainer.insertBefore(newBadge, badgeContainer.firstChild);
+            }
+        }
+    }
+
+    // Initialize difficulty buttons
+    if (isStaff) {
+        document.querySelectorAll('.mark-difficulty').forEach(button => {
+            button.addEventListener('click', handleDifficultyClick);
+            button.hasEventListener = true;
+        });
+    }
+
+    // Validation form handler
     const validateForm = document.getElementById('validateForm');
-    if (validateForm) {
+    if (validateForm && validationUrl) {
         validateForm.addEventListener('submit', function(e) {
             e.preventDefault();
-
             const formData = new FormData(validateForm);
             const validation = formData.get('validation');
 
@@ -675,23 +906,21 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
             submitBtn.disabled = true;
 
-            const data = {
-                validation: validation,
-                notes: formData.get('notes') || ''
-            };
-
-            fetch(`{% url 'images:validate_georeference' image.get_georeference.id %}`, {
+            fetch(validationUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': formData.get('csrfmiddlewaretoken')
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify({
+                    validation: validation,
+                    notes: formData.get('notes') || ''
+                })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload(); // Reload to show the new validation
+                    location.reload();
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -706,97 +935,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-});
-</script>
-    {% endif %}
-{% endif %}
-{% endblock %}
 
-{% block extra_js %}
-<!-- MapLibre GL JS -->
-<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
-
-<script>
-// Function to set PhotoSwipe data attributes based on actual image dimensions
-function setupPhotoSwipeData(img) {
-    const link = img.parentElement;
-    link.setAttribute('data-pswp-width', img.naturalWidth);
-    link.setAttribute('data-pswp-height', img.naturalHeight);
-}
-
-// Initialize PhotoSwipe for the image viewer
-const lightbox = new PhotoSwipeLightbox({
-    gallery: '#pswp-gallery',
-    children: 'a',
-    showHideAnimationType: 'fade',
-    zoomAnimationDuration: 300,
-    maxZoomLevel: 8,
-    wheelToZoom: true,
-    pswpModule: PhotoSwipe
-});
-
-lightbox.init();
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle image loading
-    const mainImage = document.getElementById('main-image');
-    const imageFallback = document.getElementById('image-fallback');
-
-    if (mainImage && imageFallback) {
-        console.log('Setting up image loading handlers');
-        console.log('Image src:', mainImage.src);
-        console.log('Image complete:', mainImage.complete);
-        console.log('Image naturalHeight:', mainImage.naturalHeight);
-        console.log('Image naturalWidth:', mainImage.naturalWidth);
-
-        // Handle successful image load
-        mainImage.onload = function() {
-            console.log('Image onload event fired');
-            console.log('Image dimensions:', this.naturalWidth, 'x', this.naturalHeight);
-            imageFallback.style.setProperty('display', 'none', 'important');
-            mainImage.style.display = 'block';
-            mainImage.style.visibility = 'visible';
-            setupPhotoSwipeData(this);
-        };
-
-        // Handle image load error
-        mainImage.onerror = function() {
-            console.log('Image onerror event fired');
-            mainImage.style.display = 'none';
-            imageFallback.style.setProperty('display', 'flex', 'important');
-        };
-
-        // Check if image is already loaded (cached)
-        if (mainImage.complete) {
-            if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
-                console.log('Image was already loaded successfully (cached)');
-                console.log('Hiding fallback and showing image');
-                imageFallback.style.setProperty('display', 'none', 'important');
-                mainImage.style.display = 'block';
-                mainImage.style.visibility = 'visible';
-                setupPhotoSwipeData(mainImage);
-            } else {
-                console.log('Image failed to load (cached)');
-                mainImage.style.display = 'none';
-                imageFallback.style.setProperty('display', 'flex', 'important');
-            }
-        } else {
-            console.log('Image is still loading...');
-        }
-
-        // Debug: Check current visibility states
-        console.log('Image display:', window.getComputedStyle(mainImage).display);
-        console.log('Fallback display:', window.getComputedStyle(imageFallback).display);
-    }
-
-    // Initialize the map for georeferenced images
+    // Map initialization for georeferenced images
     {% if image.is_georeferenced %}
     const mapContainer = document.getElementById('image-detail-map');
     if (mapContainer) {
-        // Initialize the map
-        var map = new maplibregl.Map({
+        const map = new maplibregl.Map({
             container: 'image-detail-map',
             style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
             center: [{{ image.get_georeference.longitude }}, {{ image.get_georeference.latitude }}],
@@ -805,14 +949,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         map.on('load', async function() {
             try {
-                // Load the direction arrow image
                 const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
                 map.addImage('surveillance-direction', image.data);
             } catch (error) {
                 console.warn('Could not load direction arrow image:', error);
             }
 
-            // Create GeoJSON data for this single image
             const imageGeojsonData = {
                 "type": "FeatureCollection",
                 "features": [{
@@ -834,13 +976,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }]
             };
 
-            // Add source for the georeferenced image
             map.addSource('image-location', {
                 'type': 'geojson',
                 'data': imageGeojsonData
             });
 
-            // Add direction markers if surveillance-direction image loaded successfully
+            // Add direction markers
             if (map.hasImage('surveillance-direction')) {
                 map.addLayer({
                     'id': 'image-directions',
@@ -849,16 +990,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     'layout': {
                         'icon-image': 'surveillance-direction',
                         'icon-overlap': 'always',
-                        'icon-size': {
-                            'stops': [[5, 0.3], [15, 1]]
-                        },
+                        'icon-size': {'stops': [[5, 0.3], [15, 1]]},
                         'icon-rotate': ['to-number', ['get', 'direction']]
                     },
                     'filter': ['has', 'direction']
                 });
             }
 
-            // Add circle layer for image location
+            // Add location marker
             map.addLayer({
                 'id': 'image-circles',
                 'type': 'circle',
@@ -871,15 +1010,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // Add click handlers for image marker
+            // Add popup on click
             map.on('click', 'image-circles', function(e) {
                 const properties = e.features[0].properties;
-
-                // Create popup content
                 const popupContent = `
                     <div style="max-width: 200px;">
-                        <img src="${properties.img_url}"
-                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                        <img src="${properties.img_url}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                         <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
                             <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
@@ -896,14 +1032,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     .addTo(map);
             });
 
-            // Change the cursor to pointer when hovering over markers
-            map.on('mouseenter', 'image-circles', function() {
-                map.getCanvas().style.cursor = 'pointer';
-            });
-
-            map.on('mouseleave', 'image-circles', function() {
-                map.getCanvas().style.cursor = '';
-            });
+            // Mouse events
+            map.on('mouseenter', 'image-circles', () => map.getCanvas().style.cursor = 'pointer');
+            map.on('mouseleave', 'image-circles', () => map.getCanvas().style.cursor = '');
         });
     }
     {% endif %}
