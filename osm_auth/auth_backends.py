@@ -99,12 +99,17 @@ class HardcodedAdminBackend(BaseBackend):
 
     def authenticate(self, request, username=None, password=None, **kwargs):
         """Authenticate using hardcoded admin credentials."""
+        logger.info(f"HardcodedAdminBackend.authenticate called with username={username}")
+        logger.info(f"DEBUG={settings.DEBUG}, ALLOW_HARDCODED_ADMIN={getattr(settings, 'ALLOW_HARDCODED_ADMIN', 'NOT_SET')}")
+
         # Only work in DEBUG mode with explicit setting
-        if not settings.DEBUG or not settings.ALLOW_HARDCODED_ADMIN:
+        if not settings.DEBUG or not getattr(settings, 'ALLOW_HARDCODED_ADMIN', False):
+            logger.info("HardcodedAdminBackend: Not enabled or DEBUG=False")
             return None
 
         # Only allow the specific dev credentials
         if username != "admin" or password != "admin":
+            logger.info(f"HardcodedAdminBackend: Invalid credentials username={username}")
             return None
 
         try:
@@ -128,6 +133,21 @@ class HardcodedAdminBackend(BaseBackend):
 
             user.last_login = timezone.now()
             user.save()
+
+            # Set up OSM session data to mimic OSM authentication
+            # This makes the hardcoded admin work with OSM-dependent templates and views
+            if request and hasattr(request, 'session'):
+                request.session["is_authenticated"] = True
+                request.session["osm_user_id"] = 99999999  # Use a high ID unlikely to conflict
+                request.session["osm_username"] = "hardcoded_admin"
+                request.session["osm_user_data"] = {
+                    "id": 99999999,
+                    "username": "hardcoded_admin",
+                    "display_name": "Hardcoded Admin (Dev Mode)"
+                }
+                request.session["osm_oauth_token"] = "dev_token"
+
+                logger.info("Set up OSM session data for hardcoded admin")
 
             if created:
                 logger.warning(

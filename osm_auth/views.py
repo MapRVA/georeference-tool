@@ -111,7 +111,9 @@ def callback(request):
 
 
 def admin_login(request):
-    """Custom admin login view that redirects to OSM OAuth"""
+    """Custom admin login view with dev mode fallback"""
+    from django.contrib.auth.views import LoginView
+
     # If user is already authenticated via OSM and has admin rights, redirect to admin
     if request.session.get("is_authenticated"):
         # Try to authenticate with Django's auth system using OSM backend
@@ -125,6 +127,21 @@ def admin_login(request):
                 request, "You don't have permission to access the admin area."
             )
             return redirect("/")
+
+    # In DEBUG mode with hardcoded admin enabled, use Django's built-in admin login
+    if settings.DEBUG and getattr(settings, 'ALLOW_HARDCODED_ADMIN', False):
+        # Use Django's built-in LoginView with admin template
+        login_view = LoginView.as_view(
+            template_name='admin/login.html',
+            success_url='/admin/',
+            extra_context={
+                'title': 'Log in',
+                'site_title': 'Georeference Tool Admin',
+                'site_header': 'Development Mode - Use admin/admin',
+                'site_url': '/',
+            }
+        )
+        return login_view(request)
 
     # Store the admin redirect in session so we can redirect back after OAuth
     request.session["admin_login_redirect"] = request.GET.get("next", "/admin/")
