@@ -1,10 +1,10 @@
-from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
 
 
 class Source(models.Model):
@@ -88,8 +88,12 @@ class Image(models.Model):
         Collection, on_delete=models.CASCADE, related_name="images"
     )
     title = models.CharField(max_length=500, blank=True, null=True)
-    permalink = models.URLField(help_text="Direct link to the image (CDN or processed URL)")
-    original_url = models.URLField(blank=True, null=True, help_text="Original URL from the source website")
+    permalink = models.URLField(
+        help_text="Direct link to the image (CDN or processed URL)"
+    )
+    original_url = models.URLField(
+        blank=True, null=True, help_text="Original URL from the source website"
+    )
     description = models.TextField(blank=True, null=True)
 
     # Flexible date fields - allows partial dates
@@ -151,7 +155,10 @@ class Image(models.Model):
             return "will_not_georef"
         elif self.is_georeferenced:
             # Check if any georeferences have validations
-            if any(georeference.validations.exists() for georeference in self.georeferences.all()):
+            if any(
+                georeference.validations.exists()
+                for georeference in self.georeferences.all()
+            ):
                 return "validated"
             else:
                 return "georeferenced"
@@ -160,7 +167,7 @@ class Image(models.Model):
 
     def get_georeference(self):
         """Get the most recent georeference for this image"""
-        return self.georeferences.order_by('-georeferenced_at').first()
+        return self.georeferences.order_by("-georeferenced_at").first()
 
     class Meta:
         ordering = ["collection__source__name", "collection__name", "id"]
@@ -173,6 +180,12 @@ class Image(models.Model):
 
 class Georeference(models.Model):
     """Georeference data for an image - multiple submissions allowed"""
+
+    CONFIDENCE_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
 
     image = models.ForeignKey(
         Image, on_delete=models.CASCADE, related_name="georeferences"
@@ -190,6 +203,14 @@ class Georeference(models.Model):
         null=True,
         validators=[MinValueValidator(0), MaxValueValidator(359)],
         help_text="Direction in degrees (0-359), where 0 is North",
+    )
+
+    # Confidence level - mandatory field
+    confidence = models.CharField(
+        max_length=10,
+        choices=CONFIDENCE_CHOICES,
+        default="medium",
+        help_text="Confidence level in the accuracy of this georeference",
     )
 
     # Tracking information

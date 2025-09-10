@@ -211,14 +211,46 @@
             <!-- Notes and Actions -->
             <div class="row mt-4">
                 <div class="col-md-6">
-                    <!-- Notes -->
+                    <!-- Confidence and Notes -->
                     <div class="card">
                         <div class="card-header">
-                            <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h6>
+                            <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Confidence & Notes</h6>
                         </div>
                         <div class="card-body">
-                            <textarea class="form-control" id="confidence-notes" rows="4"
-                                      placeholder="Any additional information"></textarea>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Confidence Level *</label>
+                                <div class="mt-2">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="confidence" value="high" id="confidence-high">
+                                        <label class="form-check-label" for="confidence-high">
+                                            <span class="badge bg-success me-2">High</span>
+                                            Very confident in this location
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="confidence" value="medium" id="confidence-medium">
+                                        <label class="form-check-label" for="confidence-medium">
+                                            <span class="badge bg-warning text-dark me-2">Medium</span>
+                                            Reasonably confident
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="confidence" value="low" id="confidence-low">
+                                        <label class="form-check-label" for="confidence-low">
+                                            <span class="badge bg-danger me-2">Low</span>
+                                            Uncertain about this location
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="confidence-notes" class="form-label">Additional Notes <span id="notes-required-indicator" class="text-danger" style="display: none;">*</span></label>
+                                <textarea class="form-control" id="confidence-notes" rows="3"
+                                          placeholder="Any additional information"></textarea>
+                                <div id="notes-help-text" class="form-text" style="display: none;">
+                                    Please explain why you have low confidence in this georeference.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -312,6 +344,31 @@
                 </div>
             </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Direction Confirmation Modal -->
+<div class="modal fade" id="directionConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">No Direction Specified</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Unless you are truly unsure, please specify which direction the image was taken using the joystick interface.</p>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> Without a direction, you cannot select "High" confidence for your georeference.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmSubmitWithoutDirection">
+                    <i class="fas fa-check me-1"></i>Submit Without Direction
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -518,6 +575,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.getCanvas().style.cursor = 'crosshair';
 
+    // Confidence handling
+    const confidenceRadios = document.querySelectorAll('input[name="confidence"]');
+    const notesRequiredIndicator = document.getElementById('notes-required-indicator');
+    const notesHelpText = document.getElementById('notes-help-text');
+    const confidenceHighRadio = document.getElementById('confidence-high');
+
+    // Check if confidence elements exist
+    if (!confidenceNotes || !notesRequiredIndicator || !notesHelpText || !confidenceHighRadio) {
+        console.error('Confidence elements not found in DOM');
+    }
+
     function updateCoordinates(lng, lat) {
         latitudeInput.value = lat.toFixed(6);
         longitudeInput.value = lng.toFixed(6);
@@ -548,6 +616,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 map.getSource('pin').setData(currentData);
             }
         }
+
+        // Update confidence validation based on new direction
+        updateConfidenceValidation();
     }
 
     function updateJoystickHandle(x, y) {
@@ -841,6 +912,50 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDirection(null);
     });
 
+    // Handle confidence level changes
+    if (confidenceRadios && confidenceRadios.length > 0) {
+        confidenceRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'low') {
+                    // Show required indicator and help text for low confidence
+                    if (notesRequiredIndicator) notesRequiredIndicator.style.display = 'inline';
+                    if (notesHelpText) notesHelpText.style.display = 'block';
+                    if (confidenceNotes) confidenceNotes.required = true;
+                } else {
+                    // Hide required indicator and help text for medium/high confidence
+                    if (notesRequiredIndicator) notesRequiredIndicator.style.display = 'none';
+                    if (notesHelpText) notesHelpText.style.display = 'none';
+                    if (confidenceNotes) confidenceNotes.required = false;
+                }
+
+                // Disable high confidence if no direction is specified
+                updateConfidenceValidation();
+            });
+        });
+    }
+
+    // Function to update confidence validation based on direction
+    function updateConfidenceValidation() {
+        if (!confidenceHighRadio) return; // Guard against missing element
+        
+        if (currentDirection === null) {
+            // Disable high confidence when no direction is set
+            confidenceHighRadio.disabled = true;
+            // If high confidence was selected, switch to medium
+            if (confidenceHighRadio.checked) {
+                const mediumRadio = document.getElementById('confidence-medium');
+                if (mediumRadio) {
+                    mediumRadio.checked = true;
+                    // Trigger change event to update UI
+                    mediumRadio.dispatchEvent(new Event('change'));
+                }
+            }
+        } else {
+            // Enable high confidence when direction is set
+            confidenceHighRadio.disabled = false;
+        }
+    }
+
     // Handle submit button
     submitButton.addEventListener('click', function() {
         if (!pinPlaced) {
@@ -848,16 +963,53 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Check if confidence level is selected
+        const selectedConfidence = document.querySelector('input[name="confidence"]:checked');
+        if (!selectedConfidence) {
+            showAlert('warning', 'Please select a confidence level');
+            return;
+        }
+
+        // Check if notes are required for low confidence
+        if (selectedConfidence.value === 'low' && confidenceNotes.value.trim() === '') {
+            showAlert('warning', 'Please provide notes explaining why you have low confidence');
+            confidenceNotes.focus();
+            return;
+        }
+
+        // Check if direction is missing and show confirmation modal
+        if (currentDirection === null) {
+            const directionModal = new bootstrap.Modal(document.getElementById('directionConfirmModal'));
+            directionModal.show();
+            return; // Don't proceed with submission yet
+        }
+
+        // Proceed with submission
+        performSubmission();
+    });
+
+    // Handle confirmation button in modal
+    document.getElementById('confirmSubmitWithoutDirection').addEventListener('click', function() {
+        const directionModal = bootstrap.Modal.getInstance(document.getElementById('directionConfirmModal'));
+        directionModal.hide();
+        performSubmission();
+    });
+
+    // Function to handle the actual submission
+    function performSubmission() {
         const lat = parseFloat(latitudeInput.value);
         const lng = parseFloat(longitudeInput.value);
         const dir = currentDirection !== null ? Math.round(currentDirection) : null;
         const notes = confidenceNotes.value.trim();
+        const selectedConfidence = document.querySelector('input[name="confidence"]:checked');
+        const confidence = selectedConfidence ? selectedConfidence.value : 'medium';
 
         const data = {
             latitude: lat,
             longitude: lng,
             direction: dir,
-            notes: notes
+            notes: notes,
+            confidence: confidence
         };
 
         // Get CSRF token
@@ -919,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
             }
         });
-    });
+    }
 
     // Handle skip button (available to everyone)
     if (skipButton) {
@@ -1027,6 +1179,14 @@ document.addEventListener('DOMContentLoaded', function() {
         directionInput.classList.add('inactive');
         confidenceNotes.value = '';
 
+        // Clear confidence selection
+        if (confidenceRadios && confidenceRadios.length > 0) {
+            confidenceRadios.forEach(radio => radio.checked = false);
+        }
+        if (notesRequiredIndicator) notesRequiredIndicator.style.display = 'none';
+        if (notesHelpText) notesHelpText.style.display = 'none';
+        if (confidenceNotes) confidenceNotes.required = false;
+
         // Clear map
         if (map.getSource('pin')) {
             map.getSource('pin').setData({
@@ -1040,6 +1200,9 @@ document.addEventListener('DOMContentLoaded', function() {
         currentDirection = null;
         submitButton.disabled = true;
         updateJoystickHandle(0, 0);
+        
+        // Reset confidence validation
+        if (confidenceHighRadio) confidenceHighRadio.disabled = false;
 
 
 

@@ -1,20 +1,20 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from django.db import transaction, IntegrityError
-from django.contrib import messages
-from django.core.paginator import Paginator
 import json
 
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
 from .models import (
-    Source,
     Collection,
-    Image,
     Georeference,
     GeoreferenceValidation,
+    Image,
     ImageSkip,
+    Source,
 )
 
 
@@ -39,11 +39,15 @@ def browse_sources(request):
         source.total_images = Image.objects.filter(
             collection__source=source, collection__public=True
         ).count()
-        source.georeferenced_images = Image.objects.filter(
-            collection__source=source,
-            collection__public=True,
-            georeferences__isnull=False,
-        ).distinct().count()
+        source.georeferenced_images = (
+            Image.objects.filter(
+                collection__source=source,
+                collection__public=True,
+                georeferences__isnull=False,
+            )
+            .distinct()
+            .count()
+        )
         source.pending_images = source.total_images - source.georeferenced_images
 
         # Add to overall totals
@@ -76,9 +80,9 @@ def source_detail(request, slug):
     # Add statistics for each collection
     for collection in collections:
         collection.total_images = collection.images.count()
-        collection.georeferenced_images = collection.images.filter(
-            georeferences__isnull=False
-        ).distinct().count()
+        collection.georeferenced_images = (
+            collection.images.filter(georeferences__isnull=False).distinct().count()
+        )
         collection.pending_images = (
             collection.total_images - collection.georeferenced_images
         )
@@ -87,9 +91,15 @@ def source_detail(request, slug):
     total_images = Image.objects.filter(
         collection__source=source, collection__public=True
     ).count()
-    georeferenced_images = Image.objects.filter(
-        collection__source=source, collection__public=True, georeferences__isnull=False
-    ).distinct().count()
+    georeferenced_images = (
+        Image.objects.filter(
+            collection__source=source,
+            collection__public=True,
+            georeferences__isnull=False,
+        )
+        .distinct()
+        .count()
+    )
 
     context = {
         "source": source,
@@ -290,20 +300,52 @@ def georeference_image(request, image_id):
             # Anonymous users can only georeference if no georeferences exist yet
             if image.georeferences.exists():
                 return JsonResponse(
-                    {"success": False, "error": "This image has already been georeferenced. Please login to submit a correction."},
+                    {
+                        "success": False,
+                        "error": "This image has already been georeferenced. Please login to submit a correction.",
+                    },
                     status=400,
                 )
         # Note: Authenticated users can always submit (the unique constraint in the model
         # prevents duplicate submissions by the same user, but we'll handle that gracefully)
 
         # Validate required fields
-        required_fields = ["latitude", "longitude"]
+        required_fields = ["latitude", "longitude", "confidence"]
         for field in required_fields:
             if field not in data:
                 return JsonResponse(
                     {"success": False, "error": f"Missing required field: {field}"},
                     status=400,
                 )
+
+        # Validate confidence level
+        valid_confidence_levels = ["low", "medium", "high"]
+        if data["confidence"] not in valid_confidence_levels:
+            return JsonResponse(
+                {"success": False, "error": "Invalid confidence level"},
+                status=400,
+            )
+
+        # Validate business rules
+        # Rule 1: High confidence requires a direction
+        if data["confidence"] == "high" and not data.get("direction"):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "High confidence requires specifying a direction",
+                },
+                status=400,
+            )
+
+        # Rule 2: Low confidence requires notes
+        if data["confidence"] == "low" and not data.get("notes", "").strip():
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Low confidence requires explanatory notes",
+                },
+                status=400,
+            )
 
         # Handle georeference creation/update with proper transaction handling
         georeference = None
@@ -316,6 +358,7 @@ def georeference_image(request, image_id):
                     latitude=float(data["latitude"]),
                     longitude=float(data["longitude"]),
                     direction=int(data["direction"]) if data.get("direction") else None,
+                    confidence=data["confidence"],
                     georeferenced_by=request.user
                     if request.user.is_authenticated
                     else None,
@@ -326,19 +369,24 @@ def georeference_image(request, image_id):
             if request.user.is_authenticated:
                 with transaction.atomic():
                     georeference = Georeference.objects.filter(
-                        image=image,
-                        georeferenced_by=request.user
+                        image=image, georeferenced_by=request.user
                     ).first()
                     if georeference:
                         georeference.latitude = float(data["latitude"])
                         georeference.longitude = float(data["longitude"])
-                        georeference.direction = int(data["direction"]) if data.get("direction") else None
+                        georeference.direction = (
+                            int(data["direction"]) if data.get("direction") else None
+                        )
+                        georeference.confidence = data["confidence"]
                         georeference.confidence_notes = data.get("notes", "")
                         georeference.save()
                     else:
                         # This shouldn't happen, but handle it gracefully
                         return JsonResponse(
-                            {"success": False, "error": "Unable to update existing georeference"},
+                            {
+                                "success": False,
+                                "error": "Unable to update existing georeference",
+                            },
                             status=500,
                         )
             else:
@@ -543,7 +591,9 @@ def image_stats(request):
     )
 
     total_images = public_images.count()
-    georeferenced_images = public_images.filter(georeferences__isnull=False).distinct().count()
+    georeferenced_images = (
+        public_images.filter(georeferences__isnull=False).distinct().count()
+    )
     will_not_georef_images = public_images.filter(will_not_georef=True).count()
     pending_images = total_images - georeferenced_images - will_not_georef_images
 
@@ -573,10 +623,14 @@ def geojson_endpoint(request):
     from django.urls import reverse
 
     # Start with all georeferenced images from public collections/sources
-    images = Image.objects.select_related("collection__source").prefetch_related("georeferences").filter(
-        georeferences__isnull=False,  # Must be georeferenced
-        collection__public=True,  # Collection must be public
-        collection__source__public=True,  # Source must be public
+    images = (
+        Image.objects.select_related("collection__source")
+        .prefetch_related("georeferences")
+        .filter(
+            georeferences__isnull=False,  # Must be georeferenced
+            collection__public=True,  # Collection must be public
+            collection__source__public=True,  # Source must be public
+        )
     )
 
     # Apply filters based on GET parameters
