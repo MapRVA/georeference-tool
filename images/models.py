@@ -11,9 +11,9 @@ class Source(models.Model):
     """Archive source containing collections of images"""
 
     name = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True, blank=True)
+    slug = models.SlugField(unique=True)
     url = models.URLField()
-    description = models.TextField(blank=True)
+    description = models.TextField()
     public = models.BooleanField(
         default=True, help_text="Whether this source is visible to users"
     )
@@ -42,7 +42,7 @@ class Collection(models.Model):
         Source, on_delete=models.CASCADE, related_name="collections"
     )
     name = models.CharField(max_length=200)
-    slug = models.SlugField(blank=True)
+    slug = models.SlugField()
     url = models.URLField()
     description = models.TextField(blank=True)
     public = models.BooleanField(
@@ -87,31 +87,31 @@ class Image(models.Model):
     collection = models.ForeignKey(
         Collection, on_delete=models.CASCADE, related_name="images"
     )
-    title = models.CharField(max_length=500, blank=True, null=True)
+
+    title = models.CharField(max_length=500)
     permalink = models.URLField(
         help_text="Direct link to the image (CDN or processed URL)"
     )
     original_url = models.URLField(
-        blank=True, null=True, help_text="Original URL from the source website"
+        null=True, help_text="Original URL from the source website"
     )
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(null=True)
 
     # Flexible date fields - allows partial dates
     year = models.IntegerField(
-        blank=True,
         null=True,
         validators=[MinValueValidator(1800), MaxValueValidator(2100)],
     )
     month = models.IntegerField(
-        blank=True, null=True, validators=[MinValueValidator(1), MaxValueValidator(12)]
+        null=True, validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
     day = models.IntegerField(
-        blank=True, null=True, validators=[MinValueValidator(1), MaxValueValidator(31)]
+        null=True, validators=[MinValueValidator(1), MaxValueValidator(31)]
     )
 
     # Georeferencing metadata
     difficulty = models.CharField(
-        max_length=10, choices=DIFFICULTY_CHOICES, blank=True, null=True
+        max_length=10, choices=DIFFICULTY_CHOICES, null=True
     )
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
@@ -199,7 +199,6 @@ class Georeference(models.Model):
         validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)]
     )
     direction = models.IntegerField(
-        blank=True,
         null=True,
         validators=[MinValueValidator(0), MaxValueValidator(359)],
         help_text="Direction in degrees (0-359), where 0 is North",
@@ -219,13 +218,12 @@ class Georeference(models.Model):
         on_delete=models.PROTECT,
         related_name="georeferenced_images",
         null=True,
-        blank=True,
         help_text="User who submitted the georeference (null for anonymous submissions)",
     )
     georeferenced_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # Quality/confidence indicators
+    # Quality/confidence notes from contributor
     confidence_notes = models.TextField(
         blank=True,
         help_text="Optional notes about the georeferencing confidence or methodology",
@@ -241,11 +239,6 @@ class Georeference(models.Model):
     def validation_count(self):
         """Number of validations this georeference has received"""
         return self.validations.count()
-
-    @property
-    def is_validated(self):
-        """Whether this georeference has been validated by other users"""
-        return self.validations.exists()
 
     class Meta:
         indexes = [
