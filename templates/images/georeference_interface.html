@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Georeference Images - Image Georeferencing{% endblock %}
+{% block title %}Georeference Image - Georeference Tool{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -201,8 +201,6 @@
                                     </div>
                                 </div>
                             </div>
-
-
                         </div>
                     </div>
                 </div>
@@ -218,33 +216,33 @@
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Confidence Level *</label>
+                                <label class="form-label fw-bold">Confidence Level <span class="text-danger">*</span></label>
                                 <div class="mt-2">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="radio" name="confidence" value="high" id="confidence-high">
                                         <label class="form-check-label" for="confidence-high">
                                             <span class="badge bg-success me-2">High</span>
-                                            Very confident in this location
+                                            Within a few meters
                                         </label>
                                     </div>
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="radio" name="confidence" value="medium" id="confidence-medium">
                                         <label class="form-check-label" for="confidence-medium">
                                             <span class="badge bg-warning text-dark me-2">Medium</span>
-                                            Reasonably confident
+                                            Within a stone's throw
                                         </label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="confidence" value="low" id="confidence-low">
                                         <label class="form-check-label" for="confidence-low">
                                             <span class="badge bg-danger me-2">Low</span>
-                                            Uncertain about this location
+                                            Within a block or two
                                         </label>
                                     </div>
                                 </div>
                             </div>
                             <div>
-                                <label for="confidence-notes" class="form-label">Additional Notes <span id="notes-required-indicator" class="text-danger" style="display: none;">*</span></label>
+                                <label for="confidence-notes" class="form-label fw-bold">Additional Notes <span id="notes-required-indicator" class="text-danger" style="display: none;">*</span></label>
                                 <textarea class="form-control" id="confidence-notes" rows="3"
                                           placeholder="Any additional information"></textarea>
                                 <div id="notes-help-text" class="form-text" style="display: none;">
@@ -357,10 +355,6 @@
             </div>
             <div class="modal-body">
                 <p>Unless you are truly unsure, please specify which direction the image was taken using the joystick interface.</p>
-                <div class="alert alert-info mt-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>Note:</strong> Without a direction, you cannot select "High" confidence for your georeference.
-                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -970,7 +964,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to update confidence validation based on direction
     function updateConfidenceValidation() {
         if (!confidenceHighRadio) return; // Guard against missing element
-        
+
         if (currentDirection === null) {
             // Disable high confidence when no direction is set
             confidenceHighRadio.disabled = true;
@@ -1005,7 +999,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Check if notes are required for low confidence
         if (selectedConfidence.value === 'low' && confidenceNotes.value.trim() === '') {
-            showAlert('warning', 'Please provide notes explaining why you have low confidence');
+            showAlert('warning', 'Low confidence georeferences must include a descriptive note');
             confidenceNotes.focus();
             return;
         }
@@ -1233,7 +1227,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentDirection = null;
         submitButton.disabled = true;
         updateJoystickHandle(0, 0);
-        
+
         // Reset confidence validation
         if (confidenceHighRadio) confidenceHighRadio.disabled = false;
 
