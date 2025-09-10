@@ -75,33 +75,34 @@
     /* Timeline Styles */
     .timeline {
         position: relative;
-        padding-left: 30px;
+        padding-left: 1.5em;
     }
 
     .timeline-item {
         position: relative;
-        margin-bottom: 30px;
-        padding-bottom: 20px;
+        margin-bottom: 0.5em;
+        padding-bottom: 0.5em;
     }
 
+    /* Vertical line between timeline icons */
     .timeline-item:not(:last-child)::after {
         content: '';
         position: absolute;
-        left: -11px;
-        top: 43px;
-        width: 2px;
+        left: -1.1em;
+        top: 1em;
+        width: 0.2em;
         height: calc(100% + 10px);
         background-color: #dee2e6;
     }
 
     .timeline-marker {
         position: absolute;
-        left: -20px;
-        top: 23px;
-        width: 20px;
-        height: 20px;
+        left: -1.5em;
+        top: 1em;
+        width: 1em;
+        height: 1em;
         background-color: #fff;
-        border: 2px solid #dee2e6;
+        border: 0.2em solid #dee2e6;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -111,7 +112,6 @@
     }
 
     .timeline-marker i {
-        font-size: 10px;
         color: #333;
     }
 
@@ -142,39 +142,6 @@
         position: relative;
     }
 
-    .timeline-content::before {
-        content: '';
-        position: absolute;
-        left: -8px;
-        top: 15px;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 8px 8px 8px 0;
-        border-color: transparent #e9ecef transparent transparent;
-    }
-
-    .timeline-content::after {
-        content: '';
-        position: absolute;
-        left: -7px;
-        top: 15px;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 8px 8px 8px 0;
-        border-color: transparent #f8f9fa transparent transparent;
-    }
-
-    .timeline-header {
-        margin-bottom: 10px;
-    }
-
-    .timeline-title {
-        margin-bottom: 5px;
-        font-size: 1rem;
-    }
-
     .timeline-details .badge {
         font-size: 0.75em;
     }
@@ -199,11 +166,11 @@
     }
 
     .validation-icon {
-        width: 20px;
+        width: 1em;
         display: flex;
         justify-content: center;
         align-items: flex-start;
-        padding-top: 2px;
+        padding-top: 0.25em;
     }
 
     .validation-user .badge {
@@ -282,7 +249,7 @@
                                 <div class="text-center">
                                     <i class="fas fa-image fa-4x text-muted mb-3"></i>
                                     <p class="text-muted mb-3">Image could not be loaded</p>
-                                    <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-primary">
+                                    <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-primary">
                                         <i class="fas fa-external-link-alt me-1"></i>View Original Image
                                     </a>
                                 </div>
@@ -297,7 +264,7 @@
                 {% if image.is_georeferenced %}
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-map me-2"></i>Current Georeference</h6>
+                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>Current Georeference</h5>
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
@@ -413,6 +380,13 @@
                                     </span>
                                 </dd>
 
+                                <dt class="col-sm-5">Confidence:</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge {% if image.get_georeference.confidence == 'high' %}bg-success{% elif image.get_georeference.confidence == 'medium' %}bg-warning text-dark{% elif image.get_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ image.get_georeference.confidence|capfirst }}
+                                    </span>
+                                </dd>
+
                                 <dt class="col-sm-5">Validations:</dt>
                                 <dd class="col-sm-7">
                                     <span class="badge {% if image.get_georeference.validation_count > 0 %}bg-success{% else %}bg-secondary{% endif %}">
@@ -462,7 +436,7 @@
                                 {% endif %}
 
                                 <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
-                                   class="btn btn-outline-warning w-100 mb-3 action-button">
+                                   class="btn btn-warning w-100 mb-3 action-button">
                                     <i class="fas fa-edit me-2"></i>Submit a Correction
                                 </a>
                             {% else %}
@@ -486,7 +460,7 @@
 
                         <!-- External links -->
                         <div class="d-grid">
-                            <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-info btn-sm">
+                            <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-info btn-sm">
                                 <i class="fas fa-external-link-alt me-1"></i>View Original Source
                             </a>
                         </div>
@@ -553,6 +527,11 @@
                                                     </span>
                                                 </div>
                                                 {% endif %}
+                                                <div class="col-auto">
+                                                    <span class="badge {% if georeference.confidence == 'high' %}bg-success{% elif georeference.confidence == 'medium' %}bg-warning text-dark{% elif georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                        {{ georeference.confidence|capfirst }} Confidence
+                                                    </span>
+                                                </div>
                                                 <div class="col-auto">
                                                     <span class="badge {% if georeference.validation_count > 0 %}bg-info{% else %}bg-secondary{% endif %}">
                                                         <i class="fas fa-check-circle me-1"></i>
