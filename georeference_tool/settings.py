@@ -21,9 +21,7 @@ if not SECRET_KEY:
             "django-insecure-ydhsy&ts2zv0tq9b#nbtsjiga1cbo39hgo0vzlj9y!8#c+t*+2"
         )
     else:
-        raise ValueError(
-            "DJANGO_SECRET_KEY environment variable must be set in production"
-        )
+        raise ValueError("DJANGO_SECRET_KEY or DEBUG environment variable must be set")
 
 # Allow hosts from environment variable or use defaults
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
