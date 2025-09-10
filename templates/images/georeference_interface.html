@@ -28,6 +28,31 @@
         </div>
 
         {% if current_image %}
+            <!-- Already Georeferenced Alert -->
+            {% if current_image.is_georeferenced %}
+                <div class="alert alert-warning mb-4" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                        <div>
+                            <h6 class="alert-heading mb-1">This image has already been georeferenced</h6>
+                            <p class="mb-0">
+                                {% if current_image.get_georeference.georeferenced_by %}
+                                    Previously georeferenced by <strong>{{ current_image.get_georeference.georeferenced_by.username }}</strong>
+                                    on {{ current_image.get_georeference.georeferenced_at|date:"M j, Y" }}.
+                                {% else %}
+                                    Previously georeferenced anonymously on {{ current_image.get_georeference.georeferenced_at|date:"M j, Y" }}.
+                                {% endif %}
+                                {% if not request.user.is_authenticated %}
+                                    <strong>Login to submit a correction.</strong>
+                                {% else %}
+                                    You can submit a correction below.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
             <!-- Image Display -->
             <div class="row">
                 <div class="col-12">
@@ -113,8 +138,15 @@
 
                                         <dt class="col-sm-4 text-muted small">Original URL:</dt>
                                         <dd class="col-sm-8 small">
-                                            <a href="{{ current_image.permalink }}" target="_blank" class="text-decoration-none small">
+                                            <a href="{{ current_image.original_url }}" target="_blank" class="text-decoration-none small">
                                                 View Original <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </dd>
+
+                                        <dt class="col-sm-4 text-muted small">Details:</dt>
+                                        <dd class="col-sm-8 small">
+                                            <a href="{% url 'images:image_detail' current_image.id %}" class="text-decoration-none small">
+                                                Image Detail Page <i class="fas fa-info-circle"></i>
                                             </a>
                                         </dd>
                                     </dl>
@@ -198,13 +230,25 @@
                             <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Actions</h6>
                         </div>
                         <div class="card-body">
-                            <!-- Submit Button (available to everyone) -->
-                            <button type="button" class="btn btn-success w-100 mb-3" id="submitButton" disabled>
-                                <i class="fas fa-check me-2"></i>Submit Georeference
-                            </button>
+                            <!-- Submit Button -->
+                            {% if current_image.is_georeferenced %}
+                                {% if request.user.is_authenticated %}
+                                    <button type="button" class="btn btn-warning w-100 mb-3" id="submitButton" disabled>
+                                        <i class="fas fa-edit me-2"></i>Submit Correction
+                                    </button>
+                                {% else %}
+                                    <button type="button" class="btn btn-secondary w-100 mb-3" disabled title="Login required to submit corrections">
+                                        <i class="fas fa-lock me-2"></i>Login to Submit Correction
+                                    </button>
+                                {% endif %}
+                            {% else %}
+                                <button type="button" class="btn btn-success w-100 mb-3" id="submitButton" disabled>
+                                    <i class="fas fa-check me-2"></i>Submit Georeference
+                                </button>
+                            {% endif %}
 
                             <!-- Skip Button (available to everyone) -->
-                            <button type="button" class="btn btn-warning w-100 mb-2" id="skipButton">
+                            <button type="button" class="btn btn-outline-secondary w-100 mb-2" id="skipButton">
                                 <i class="fas fa-forward me-2"></i>Skip This Image
                             </button>
 
@@ -449,9 +493,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const markDifficultyButtons = document.querySelectorAll('.mark-difficulty');
     const confidenceNotes = document.getElementById('confidence-notes');
 
-    // Check if user is authenticated
+    // Check if user is authenticated and image status
     const isAuthenticated = {{ osm_authenticated|yesno:"true,false" }};
     const isStaff = {{ user.is_staff|yesno:"true,false" }};
+    const isImageGeoreferenced = {{ current_image.is_georeferenced|yesno:"true,false" }};
 
     // Map and georeferencing variables
     var map = new maplibregl.Map({
@@ -820,7 +865,11 @@ document.addEventListener('DOMContentLoaded', function() {
                          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         submitButton.disabled = true;
-        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+        if (isImageGeoreferenced) {
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting Correction...';
+        } else {
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+        }
 
         fetch(`{% url 'images:georeference_image' current_image.id %}`, {
             method: 'POST',
@@ -833,7 +882,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('success', 'Image georeferenced successfully!');
+                if (isImageGeoreferenced) {
+                    showAlert('success', 'Correction submitted successfully!');
+                } else {
+                    showAlert('success', 'Image georeferenced successfully!');
+                }
                 // Clear the form and reset for next image
                 setTimeout(() => {
                     // Check if we came from a specific image
@@ -841,8 +894,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const specificImageRequested = urlParams.has('image');
 
                     if (specificImageRequested) {
-                        // Sneaky redirect to collection georeferencing
-                        window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                        // Redirect back to the image detail page
+                        window.location.href = `{% url 'images:image_detail' current_image.id %}`;
                     } else {
                         clearFormAndGetNext();
                     }
@@ -850,13 +903,21 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 showAlert('danger', 'Error: ' + data.error);
                 submitButton.disabled = false;
-                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+                if (isImageGeoreferenced) {
+                    submitButton.innerHTML = '<i class="fas fa-edit me-2"></i>Submit Correction';
+                } else {
+                    submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+                }
             }
         })
         .catch(error => {
             showAlert('danger', 'Network error occurred');
             submitButton.disabled = false;
-            submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+            if (isImageGeoreferenced) {
+                submitButton.innerHTML = '<i class="fas fa-edit me-2"></i>Submit Correction';
+            } else {
+                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Georeference';
+            }
         });
     });
 
@@ -884,8 +945,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 showAlert('info', 'Image skipped');
                 setTimeout(() => {
                     if (specificImageRequested) {
-                        // Sneaky redirect to collection georeferencing
-                        window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                        // Redirect back to the image detail page
+                        window.location.href = `{% url 'images:image_detail' current_image.id %}`;
                     } else {
                         clearFormAndGetNext();
                     }
@@ -946,8 +1007,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const specificImageRequested = urlParams.has('image');
 
                         if (specificImageRequested) {
-                            // Sneaky redirect to collection georeferencing
-                            window.location.href = `{% url 'images:georeference_interface' %}?source={{ current_image.collection.source.slug }}&collection={{ current_image.collection.slug }}`;
+                            // Redirect back to the image detail page
+                            window.location.href = `{% url 'images:image_detail' current_image.id %}`;
                         } else {
                             clearFormAndGetNext();
                         }

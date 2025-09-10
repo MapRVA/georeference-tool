@@ -88,7 +88,8 @@ class Image(models.Model):
         Collection, on_delete=models.CASCADE, related_name="images"
     )
     title = models.CharField(max_length=500, blank=True, null=True)
-    permalink = models.URLField(help_text="Direct link to the image")
+    permalink = models.URLField(help_text="Direct link to the image (CDN or processed URL)")
+    original_url = models.URLField(blank=True, null=True, help_text="Original URL from the source website")
     description = models.TextField(blank=True, null=True)
 
     # Flexible date fields - allows partial dates
@@ -136,7 +137,12 @@ class Image(models.Model):
     @property
     def is_georeferenced(self):
         """Check if this image has been georeferenced"""
-        return hasattr(self, "georeference")
+        return self.georeferences.exists()
+
+    @property
+    def georeference_count(self):
+        """Number of georeferences submitted for this image"""
+        return self.georeferences.count()
 
     @property
     def georeference_status(self):
@@ -144,12 +150,17 @@ class Image(models.Model):
         if self.will_not_georef:
             return "will_not_georef"
         elif self.is_georeferenced:
-            if self.georeference.validations.exists():
+            # Check if any georeferences have validations
+            if any(georeference.validations.exists() for georeference in self.georeferences.all()):
                 return "validated"
             else:
                 return "georeferenced"
         else:
             return "pending"
+
+    def get_georeference(self):
+        """Get the most recent georeference for this image"""
+        return self.georeferences.order_by('-georeferenced_at').first()
 
     class Meta:
         ordering = ["collection__source__name", "collection__name", "id"]
@@ -161,10 +172,10 @@ class Image(models.Model):
 
 
 class Georeference(models.Model):
-    """Georeference data for an image - one per image"""
+    """Georeference data for an image - multiple submissions allowed"""
 
-    image = models.OneToOneField(
-        Image, on_delete=models.CASCADE, related_name="georeference"
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, related_name="georeferences"
     )
 
     # Coordinate data
@@ -217,9 +228,14 @@ class Georeference(models.Model):
 
     class Meta:
         indexes = [
+            models.Index(fields=["image", "georeferenced_by"]),
             models.Index(fields=["latitude", "longitude"]),
             models.Index(fields=["georeferenced_by"]),
             models.Index(fields=["georeferenced_at"]),
+        ]
+        constraints = [
+            # Removed unique constraint to allow multiple georeferences per user per image
+            # This enables correction submissions and maintains full georeferencing history
         ]
 
 
