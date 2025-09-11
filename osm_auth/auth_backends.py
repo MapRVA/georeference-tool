@@ -53,7 +53,14 @@ class OSMAuthBackend(BaseBackend):
             user.first_name = osm_username
 
             # Check if user should have admin access
-            is_admin = osm_username in settings.OSM_ADMIN_USERNAMES
+            admin_usernames = getattr(settings, 'OSM_ADMIN_USERNAMES', [])
+            is_admin = osm_username in admin_usernames
+
+            # Debug logging for admin permission assignment
+            logger.info(f"OSM Auth Debug for user: {osm_username}")
+            logger.info(f"Admin usernames list: {admin_usernames}")
+            logger.info(f"Is admin check result: {is_admin}")
+
             user.is_staff = is_admin
             user.is_superuser = is_admin
 
@@ -68,6 +75,8 @@ class OSMAuthBackend(BaseBackend):
 
             if is_admin:
                 logger.info(f"Granted admin access to OSM user: {osm_username}")
+            else:
+                logger.info(f"OSM user {osm_username} was not granted admin access")
 
             return user
 
