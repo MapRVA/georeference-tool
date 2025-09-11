@@ -42,6 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.addControl(new maplibregl.NavigationControl());
     map.addControl(new maplibregl.FullscreenControl());
+    
+    {% if geolocate %}
+    map.addControl(new maplibregl.GeolocateControl({
+        positionOptions: {
+            enableHighAccuracy: true
+        },
+        trackUserLocation: true
+    }));
+    {% endif %}
 
     map.on('load', async function() {
         try {
