@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ image.title|default:"Image "|add:image.id }} - Image Detail{% endblock %}
+{% block title %}{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %} - Georeference Tool{% endblock %}
 
 {% block extra_css %}
 <!-- MapLibre GL JS CSS -->
