@@ -359,7 +359,14 @@
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
                                     {% if image.get_georeference.georeferenced_by %}
-                                        {{ image.get_georeference.georeferenced_by.username }}
+                                        {% if image.get_georeference.georeferenced_by.get_profile_url %}
+                                            <a href="{{ image.get_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
+                                                {{ image.get_georeference.georeferenced_by.get_display_name }}
+                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                            </a>
+                                        {% else %}
+                                            {{ image.get_georeference.georeferenced_by.get_display_name }}
+                                        {% endif %}
                                     {% else %}
                                         Anonymous
                                     {% endif %}
@@ -417,7 +424,7 @@
                             </a>
                         {% elif image.is_georeferenced %}
                             {% if request.user.is_authenticated %}
-                                {% if image.get_georeference.georeferenced_by and request.user.username == image.get_georeference.georeferenced_by.username %}
+                                {% if image.get_georeference.georeferenced_by and request.user == image.get_georeference.georeferenced_by %}
                                     <div class="alert alert-success mb-3">
                                         <i class="fas fa-user-check me-2"></i>
                                         You submitted the current georeference.
@@ -526,7 +533,16 @@
                                             <h6 class="timeline-title">
                                                 Georeferenced by
                                                 {% if georeference.georeferenced_by %}
-                                                    <strong>{{ georeference.georeferenced_by.username }}</strong>
+                                                    {% if georeference.georeferenced_by.get_profile_url %}
+                                                        <strong>
+                                                            <a href="{{ georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
+                                                                {{ georeference.georeferenced_by.get_display_name }}
+                                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                                            </a>
+                                                        </strong>
+                                                    {% else %}
+                                                        <strong>{{ georeference.georeferenced_by.get_display_name }}</strong>
+                                                    {% endif %}
                                                 {% else %}
                                                     <strong>Anonymous</strong>
                                                 {% endif %}
@@ -597,7 +613,16 @@
                                                             <div class="validation-content flex-grow-1">
                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                     <span class="validation-user">
-                                                                        <strong>{{ validation.validated_by.username }}</strong>
+                                                                        {% if validation.validated_by.get_profile_url %}
+                                                                            <strong>
+                                                                                <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
+                                                                                    {{ validation.validated_by.get_display_name }}
+                                                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                                                                </a>
+                                                                            </strong>
+                                                                        {% else %}
+                                                                            <strong>{{ validation.validated_by.get_display_name }}</strong>
+                                                                        {% endif %}
                                                                         <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
                                                                             {{ validation.validation|capfirst }}
                                                                         </span>
@@ -627,7 +652,7 @@
 
 <!-- Validation Modal -->
 {% if image.is_georeferenced and request.user.is_authenticated and image.get_georeference and image.get_georeference.id %}
-    {% if not image.get_georeference.georeferenced_by or request.user.username != image.get_georeference.georeferenced_by.username %}
+    {% if not image.get_georeference.georeferenced_by or request.user != image.get_georeference.georeferenced_by %}
 <div class="modal fade" id="validateModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
