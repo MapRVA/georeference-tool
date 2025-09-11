@@ -3,7 +3,6 @@
 {% block title %}{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %} - Georeference Tool{% endblock %}
 
 {% block extra_css %}
-<!-- MapLibre GL JS CSS -->
 <link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
 
 <style>
@@ -703,8 +702,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- MapLibre GL JS -->
-<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
 

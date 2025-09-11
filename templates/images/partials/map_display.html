@@ -10,7 +10,7 @@ Usage:
 <link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 
-<div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: 8px; overflow: hidden;"></div>
+<div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: {{ border_radius|default:'8px' }}; overflow: hidden;"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

@@ -6,4 +6,4 @@ def home(request):
     context = {
         "page_title": "Home",
     }
-    return render(request, "base.html", context)
+    return render(request, "home.html", context)

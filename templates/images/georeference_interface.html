@@ -583,21 +583,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function switchToOSMLayer() {
         if (currentLayer === 'osm') return;
-        
+
         // Hide satellite layer, show OSM layers
         if (map.getLayer('satellite-layer')) {
             map.setLayoutProperty('satellite-layer', 'visibility', 'none');
         }
-        
+
         // Show all OSM layers by setting visibility to visible
         const layers = map.getStyle().layers;
         layers.forEach(layer => {
-            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' && 
+            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
                 layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
                 map.setLayoutProperty(layer.id, 'visibility', 'visible');
             }
         });
-        
+
         currentLayer = 'osm';
         osmLayerBtn.classList.add('active');
         satelliteLayerBtn.classList.remove('active');
@@ -605,21 +605,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function switchToSatelliteLayer() {
         if (currentLayer === 'satellite') return;
-        
+
         // Hide OSM layers
         const layers = map.getStyle().layers;
         layers.forEach(layer => {
-            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' && 
+            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
                 layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
                 map.setLayoutProperty(layer.id, 'visibility', 'none');
             }
         });
-        
+
         // Show satellite layer
         if (map.getLayer('satellite-layer')) {
             map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
         }
-        
+
         currentLayer = 'satellite';
         satelliteLayerBtn.classList.add('active');
         osmLayerBtn.classList.remove('active');
