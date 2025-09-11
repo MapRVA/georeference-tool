@@ -56,7 +56,7 @@ class Collection(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(self.name[:50])
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):
