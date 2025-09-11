@@ -398,6 +398,11 @@
         flex: 1;
     }
 
+    .status-badge {
+        font-size: 0.85em;
+        padding: 0.5em 0.75em;
+    }
+
     /* Map styles */
     #mymap {
       width: 100%;
@@ -545,6 +550,12 @@ lightbox.init();
 
 {% if current_image %}
 <script>
+// Global utility functions
+function getBootstrapColor(difficulty) {
+    const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
+    return colors[difficulty] || 'secondary';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const skipButton = document.getElementById('skipButton');
     const submitButton = document.getElementById('submitButton');
@@ -1226,31 +1237,118 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle difficulty marking (only for staff users)
+    // Difficulty marking functionality (admin only)
+    function handleDifficultyClick() {
+        const difficulty = this.dataset.difficulty;
+        const clickedButton = this;
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+        clickedButton.disabled = true;
+        const originalText = clickedButton.innerHTML;
+        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const formData = new FormData();
+        formData.append('difficulty', difficulty);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(`{% url 'images:mark_difficulty' current_image.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                showAlert('success', `Image marked as ${difficulty}`);
+                clickedButton.innerHTML = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+                clickedButton.disabled = false;
+
+                // Force reflow and update UI
+                clickedButton.offsetHeight;
+                setTimeout(() => {
+                    updateDifficultyButtons(difficulty);
+                    updateDifficultyBadge(difficulty);
+                }, 10);
+            } else {
+                throw new Error('Network response was not ok');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'Error marking difficulty. Please try again.');
+            clickedButton.disabled = false;
+            clickedButton.innerHTML = originalText;
+        });
+    }
+
+    function updateDifficultyButtons(newDifficulty) {
+        // Find the difficulty button group
+        let buttonGroup = null;
+        document.querySelectorAll('.btn-group').forEach(group => {
+            const buttons = group.querySelectorAll('button');
+            buttons.forEach(btn => {
+                const text = btn.textContent.toLowerCase().trim();
+                if (btn.hasAttribute('data-difficulty') ||
+                    btn.classList.contains('mark-difficulty') ||
+                    ['easy', 'medium', 'hard'].some(d => text.includes(d))) {
+                    buttonGroup = group;
+                }
+            });
+        });
+
+        if (!buttonGroup) return;
+
+        const buttons = buttonGroup.querySelectorAll('button');
+
+        buttons.forEach(button => {
+            const buttonText = button.textContent.toLowerCase().trim();
+            let buttonDifficulty = ['easy', 'medium', 'hard'].find(d => buttonText.includes(d));
+
+            if (buttonDifficulty === newDifficulty) {
+                // Selected difficulty: highlight and disable
+                button.className = `btn btn-sm btn-${getBootstrapColor(newDifficulty)}`;
+                button.disabled = true;
+                button.removeAttribute('data-difficulty');
+            } else {
+                // Other difficulties: make clickable
+                button.className = `btn btn-sm btn-outline-${getBootstrapColor(buttonDifficulty)} mark-difficulty`;
+                button.disabled = false;
+                button.setAttribute('data-difficulty', buttonDifficulty);
+
+                if (!button.hasEventListener) {
+                    button.addEventListener('click', handleDifficultyClick);
+                    button.hasEventListener = true;
+                }
+            }
+            button.innerHTML = buttonDifficulty.charAt(0).toUpperCase() + buttonDifficulty.slice(1);
+        });
+    }
+
+    function updateDifficultyBadge(newDifficulty) {
+        const cardHeader = document.querySelector('.card-header');
+        if (!cardHeader) return;
+
+        let difficultyBadge = cardHeader.querySelector('.badge');
+
+        if (difficultyBadge && difficultyBadge.innerHTML.includes('fa-signal')) {
+            // Update existing badge
+            difficultyBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+            difficultyBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
+        } else {
+            // Create new badge if it doesn't exist yet
+            const badgeContainer = cardHeader.querySelector('h5');
+            if (badgeContainer && !cardHeader.querySelector('.badge')) {
+                const newBadge = document.createElement('span');
+                newBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)} ms-2`;
+                newBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
+                badgeContainer.appendChild(newBadge);
+            }
+        }
+    }
+
+    // Initialize difficulty buttons
     if (isStaff) {
         markDifficultyButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const difficulty = this.dataset.difficulty;
-                const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
-                                 document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-                const formData = new FormData();
-                formData.append('difficulty', difficulty);
-                formData.append('csrfmiddlewaretoken', csrfToken);
-
-                fetch(`{% url 'images:mark_difficulty' current_image.id %}`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (response.ok) {
-                        showAlert('success', `Image marked as ${difficulty}`);
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
-                    }
-                });
-            });
+            button.addEventListener('click', handleDifficultyClick);
+            button.hasEventListener = true;
         });
     }
 
