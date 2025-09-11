@@ -37,7 +37,7 @@
                             <h6 class="alert-heading mb-1">This image has already been georeferenced</h6>
                             <p class="mb-0">
                                 {% if current_image.get_georeference.georeferenced_by %}
-                                    Previously georeferenced by <strong>{{ current_image.get_georeference.georeferenced_by.username }}</strong>
+                                    Previously georeferenced by <strong>{{ current_image.get_georeference.georeferenced_by.get_display_name }}</strong>
                                     on {{ current_image.get_georeference.georeferenced_at|date:"M j, Y" }}.
                                 {% else %}
                                     Previously georeferenced anonymously on {{ current_image.get_georeference.georeferenced_at|date:"M j, Y" }}.
