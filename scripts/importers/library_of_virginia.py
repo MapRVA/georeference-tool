@@ -15,14 +15,14 @@ Usage:
 # All images from the Library of Virginia RES are from 1965
 SOURCE_YEAR = 1965
 
+import argparse
 import os
 import sys
+import time
+from urllib.parse import urljoin
+
 import requests
 from bs4 import BeautifulSoup
-import argparse
-from urllib.parse import urljoin
-import time
-import re
 
 # Add the Django project to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,18 +37,19 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image
+from images.models import Collection, Image, Source
 
 # Import R2 uploader from the same directory
 try:
     from r2_uploader import R2Uploader, R2UploaderError
 except ImportError:
     # since we aren't inside a package, relative imports might not work
-    import sys
     import os
+    import sys
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader, R2UploaderError
+    from r2_uploader import R2Uploader
 
 
 class LibraryOfVirginiaScraper:
@@ -68,7 +69,7 @@ class LibraryOfVirginiaScraper:
 
     def clean_image_url(self, url):
         """Remove square brackets from image URLs"""
-        return url.replace('[', '').replace(']', '')
+        return url.replace("[", "").replace("]", "")
 
     def get_or_create_source(self):
         """Get or create the Library of Virginia source"""
@@ -115,7 +116,7 @@ class LibraryOfVirginiaScraper:
 
     def parse_area_page(self, area_url):
         """Parse area page (Level 2) to extract neighborhood URLs"""
-        print(f"  Parsing area page...")
+        print("  Parsing area page...")
         response = self.fetch_page(area_url)
         if not response:
             return []
@@ -126,7 +127,7 @@ class LibraryOfVirginiaScraper:
         # Find the neighborhoods dropdown
         neighborhoods_select = soup.find("select", {"name": "neighborhoods"})
         if not neighborhoods_select:
-            print(f"  ✗ No neighborhoods dropdown found")
+            print("  ✗ No neighborhoods dropdown found")
             return []
 
         # Extract neighborhood options
@@ -157,7 +158,7 @@ class LibraryOfVirginiaScraper:
         # Look for links to /RES/access/sp/ images
         for link in soup.find_all("a", href=True):
             href = link.get("href")
-            if href and "/RES/access/sp/" in href:
+            if href and ("/RES/access/sp/" in href or "/RES/access/up/" in href):
                 # Get the full image URL
                 full_image_url = urljoin(neighborhood_url, href)
                 # Ensure image URL uses HTTPS
@@ -257,12 +258,12 @@ class LibraryOfVirginiaScraper:
 
                 # Upload image to R2 if uploader is available
                 if self.r2_uploader and not dry_run:
-                    print(f"      → Uploading to R2...")
+                    print("      → Uploading to R2...")
                     image_data["permalink"] = self.r2_uploader.upload_url(
                         image_data["url"],
                     )
                 elif self.r2_uploader and dry_run:
-                    print(f"      → Would upload to R2 (dry run)")
+                    print("      → Would upload to R2 (dry run)")
                     # For dry run, generate what the R2 URL would look like
                     mock_key = self.r2_uploader.generate_key_from_url(
                         image_data["url"],
@@ -270,12 +271,16 @@ class LibraryOfVirginiaScraper:
                     image_data["permalink"] = self.r2_uploader.get_public_url(mock_key)
 
                 # Check if already exists (check by original URL)
-                existing_by_original_url = Image.objects.filter(original_url=image_data["original_url"]).exists()
+                existing_by_original_url = Image.objects.filter(
+                    original_url=image_data["original_url"]
+                ).exists()
                 # Also check by permalink in case of duplicates with different R2 URLs
-                existing_by_permalink = Image.objects.filter(permalink=image_data["permalink"]).exists()
+                existing_by_permalink = Image.objects.filter(
+                    permalink=image_data["permalink"]
+                ).exists()
 
                 if existing_by_original_url or existing_by_permalink:
-                    print(f"      → Already exists, skipping")
+                    print("      → Already exists, skipping")
                     continue
 
                 if not dry_run:
@@ -292,7 +297,7 @@ class LibraryOfVirginiaScraper:
                     except Exception as e:
                         print(f"      ✗ Error creating image: {e}")
                 else:
-                    print(f"      → Would create image (dry run)")
+                    print("      → Would create image (dry run)")
                     imported_count += 1
 
                 # Be nice to the server
@@ -311,7 +316,7 @@ class LibraryOfVirginiaScraper:
 
     def scrape_all_areas(self, max_neighborhoods=None, max_images=None, dry_run=False):
         """Scrape all areas A, B, C, D"""
-        print(f"\n=== Scraping ALL Areas (A, B, C, D) ===")
+        print("\n=== Scraping ALL Areas (A, B, C, D) ===")
         for area_code in ["A", "B", "C", "D"]:
             self.scrape_area(area_code, max_neighborhoods, max_images, dry_run)
             time.sleep(2)  # Longer delay between areas
