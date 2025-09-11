@@ -657,18 +657,24 @@ def geojson_endpoint(request):
             reverse("images:image_detail", kwargs={"image_id": image.id})
         )
 
+        # Build properties
+        properties = {
+            "img_url": image.permalink,
+            "img_entry": img_entry,
+            "year": str(image.year) if image.year else None,
+        }
+
+        # Only include direction if it's not None
+        if georeference.direction is not None:
+            properties["direction"] = georeference.direction
+
         feature = {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
                 "coordinates": [georeference.longitude, georeference.latitude],
             },
-            "properties": {
-                "img_url": image.permalink,
-                "img_entry": img_entry,
-                "direction": georeference.direction,
-                "year": str(image.year) if image.year else None,
-            },
+            "properties": properties,
         }
         features.append(feature)
 

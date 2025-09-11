@@ -1,93 +1,208 @@
 {% comment %}
-Shared map display component that matches the georeference interface styling exactly.
-Usage: {% include 'images/partials/map_display.html' with georeference=image.georeference map_id='unique-map-id' height='400px' %}
+Shared map display component that uses the GeoJSON endpoint for all map data.
+Usage: 
+- Single image: {% include 'images/partials/map_display.html' with image_id=image.id map_id='unique-map-id' height='400px' %}
+- Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
+- Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
 {% endcomment %}
+
+<!-- MapLibre GL JS CSS and JS - only load once per page -->
+<link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 
 <div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: 8px; overflow: hidden;"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    {% if georeference %}
     const mapId = '{{ map_id|default:'map-display' }}';
-    const latitude = {{ georeference.latitude }};
-    const longitude = {{ georeference.longitude }};
-    const direction = {% if georeference.direction %}{{ georeference.direction }}{% else %}null{% endif %};
+    
+    // Build GeoJSON URL with appropriate parameters
+    let geojsonUrl = '{% url "images:geojson" %}';
+    const urlParams = new URLSearchParams();
+    
+    {% if image_id %}
+    urlParams.append('image', '{{ image_id }}');
+    {% elif collection_id %}
+    urlParams.append('collection', '{{ collection_id }}');
+    {% elif source_id %}
+    urlParams.append('source', '{{ source_id }}');
+    {% endif %}
+    
+    if (urlParams.toString()) {
+        geojsonUrl += '?' + urlParams.toString();
+    }
 
-    // Initialize the map - exactly matching georeference_interface.html
+    // Initialize the map
     const map = new maplibregl.Map({
         container: mapId,
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
-        center: [longitude, latitude],
-        zoom: 15
+        center: [-77.43916, 37.54376],
+        zoom: 10
     });
 
     map.addControl(new maplibregl.NavigationControl());
     map.addControl(new maplibregl.FullscreenControl());
 
-    map.on('load', async () => {
-        // Load direction arrow image - exactly matching georeference_interface.html
+    map.on('load', async function() {
         try {
+            // Load the direction arrow image
             const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
             map.addImage('surveillance-direction', image.data);
         } catch (error) {
             console.warn('Could not load direction arrow image:', error);
         }
 
-        // Add the pin source - exactly matching georeference_interface.html
-        map.addSource('pin', {
-            'type': 'geojson',
-            'data': {
-                'type': 'FeatureCollection',
-                'features': [{
-                    'type': 'Feature',
-                    'geometry': {
-                        'type': 'Point',
-                        'coordinates': [longitude, latitude]
-                    },
-                    'properties': direction !== null ? { 'direction': direction } : {}
-                }]
-            }
-        });
+        // Fetch GeoJSON data
+        try {
+            const response = await fetch(geojsonUrl);
+            const geojsonData = await response.json();
 
-        // Add circle layer - exactly matching georeference_interface.html styling
-        map.addLayer({
-            'id': 'pin-circle',
-            'type': 'circle',
-            'source': 'pin',
-            'paint': {
-                'circle-radius': 8,
-                'circle-color': '#dc3545',
-                'circle-stroke-color': '#fff',
-                'circle-stroke-width': 2
+            if (!geojsonData.features || geojsonData.features.length === 0) {
+                // No data available
+                document.getElementById(mapId).innerHTML = 
+                    '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                    '<div class="text-center">' +
+                    '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+                    'No georeferenced images found' +
+                    '</div></div>';
+                return;
             }
-        });
 
-        // Add direction arrow - exactly matching georeference_interface.html
-        if (map.hasImage('surveillance-direction')) {
-            map.addLayer({
-                'id': 'pin-symbol',
-                'type': 'symbol',
-                'source': 'pin',
-                'layout': {
-                    'icon-image': 'surveillance-direction',
-                    'icon-overlap': 'always',
-                    'icon-size': {
-                        'stops': [[5, 0.3], [15, 1]]
-                    },
-                    'icon-rotate': ['to-number', ['get', 'direction']]
-                },
-                'filter': ['has', 'direction']
+            // Add source for the georeferenced images
+            map.addSource('images', {
+                'type': 'geojson',
+                'data': geojsonData
             });
+
+            // Add direction markers if surveillance-direction image loaded successfully
+            if (map.hasImage('surveillance-direction')) {
+                map.addLayer({
+                    'id': 'image-directions',
+                    'type': 'symbol',
+                    'source': 'images',
+                    'layout': {
+                        'icon-image': 'surveillance-direction',
+                        'icon-overlap': 'always',
+                        'icon-size': {
+                            'stops': [[5, 0.3], [15, 1]]
+                        },
+                        'icon-rotate': ['to-number', ['get', 'direction']]
+                    },
+                    'filter': ['has', 'direction']
+                });
+            }
+
+            // Add circle layer for image locations
+            map.addLayer({
+                'id': 'image-circles',
+                'type': 'circle',
+                'source': 'images',
+                'paint': {
+                    'circle-radius': 8,
+                    'circle-color': 'green',
+                    'circle-stroke-color': '#fff',
+                    'circle-stroke-width': 2
+                }
+            });
+
+            // Fit the map to show all points
+            if (geojsonData.features.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                geojsonData.features.forEach(function(feature) {
+                    bounds.extend(feature.geometry.coordinates);
+                });
+
+                // For single images, zoom closer; for multiple images, fit bounds with padding
+                {% if image_id %}
+                map.setCenter(geojsonData.features[0].geometry.coordinates);
+                map.setZoom(16);
+                {% else %}
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 15
+                });
+                {% endif %}
+            }
+
+            // Add click handlers for image markers (only for multi-image maps)
+            {% if not image_id %}
+            map.on('click', 'image-circles', function(e) {
+                const properties = e.features[0].properties;
+
+                // Create popup content
+                const popupContent = `
+                    <div style="max-width: 200px;">
+                        <img src="${properties.img_url}"
+                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
+                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
+                        </div>
+                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                        ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                        <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                            <i class="fas fa-eye me-1"></i>View Details
+                        </a>
+                    </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            // Change the cursor to pointer when hovering over markers
+            map.on('mouseenter', 'image-circles', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'image-circles', function() {
+                map.getCanvas().style.cursor = '';
+            });
+            {% else %}
+            // For single image maps, add a popup with image info on click
+            map.on('click', 'image-circles', function(e) {
+                const properties = e.features[0].properties;
+
+                const popupContent = `
+                    <div style="max-width: 200px;">
+                        <img src="${properties.img_url}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
+                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
+                        </div>
+                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                        ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                    </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            map.on('mouseenter', 'image-circles', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'image-circles', function() {
+                map.getCanvas().style.cursor = '';
+            });
+            {% endif %}
+
+        } catch (error) {
+            console.error('Error loading GeoJSON data:', error);
+            document.getElementById(mapId).innerHTML = 
+                '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                '<div class="text-center">' +
+                '<i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i><br>' +
+                'Error loading map data' +
+                '</div></div>';
         }
     });
-    {% else %}
-    // No georeference data available
-    document.getElementById('{{ map_id|default:'map-display' }}').innerHTML = 
-        '<div class="d-flex align-items-center justify-content-center h-100 text-muted">' +
-        '<div class="text-center">' +
-        '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-        'No location data available' +
-        '</div></div>';
-    {% endif %}
 });
 </script>
