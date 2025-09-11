@@ -173,7 +173,15 @@
                             <!-- Georeferencing Map -->
                             <div class="border-top pt-3">
                                 <h6 class="mb-3"><i class="fas fa-map-marked-alt me-2"></i>Select Location on Map</h6>
-                                <div id="mymap"></div>
+                                <div class="position-relative">
+                                    <div id="mymap"></div>
+                                    <div id="layer-toggle" class="position-absolute" style="top: 0.5em; right: 0.5em; z-index: 1000;">
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-secondary active" id="osm-layer-btn">Map</button>
+                                            <button type="button" class="btn btn-sm btn-secondary" id="satellite-layer-btn">Satellite</button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div id="controls-container">
                                     <div id="coordinate-inputs">
                                         <div class="input-row">
@@ -557,6 +565,194 @@ document.addEventListener('DOMContentLoaded', function() {
         zoom: 13
     });
 
+    // Layer switching functionality
+    var currentLayer = 'osm';
+    var osmLayerBtn = document.getElementById('osm-layer-btn');
+    var satelliteLayerBtn = document.getElementById('satellite-layer-btn');
+
+    function switchToOSMLayer() {
+        map.setStyle('https://styles.trailsta.sh/openmaptiles-osm.json');
+        currentLayer = 'osm';
+        osmLayerBtn.classList.add('active');
+        satelliteLayerBtn.classList.remove('active');
+
+        // Re-add sources and layers after style change
+        map.once('styledata', () => {
+            addMapSourcesAndLayers();
+        });
+    }
+
+    function switchToSatelliteLayer() {
+        // Create a style with the satellite tile source
+        const satelliteStyle = {
+            "version": 8,
+            "sources": {
+                "satellite": {
+                    "type": "raster",
+                    "tiles": ["https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}"],
+                    "tileSize": 256,
+                    "attribution": "Virginia Geographic Information Network (VGIN)"
+                }
+            },
+            "layers": [
+                {
+                    "id": "satellite",
+                    "type": "raster",
+                    "source": "satellite"
+                }
+            ]
+        };
+
+        map.setStyle(satelliteStyle);
+        currentLayer = 'satellite';
+        satelliteLayerBtn.classList.add('active');
+        osmLayerBtn.classList.remove('active');
+
+        // Re-add sources and layers after style change
+        map.once('styledata', () => {
+            addMapSourcesAndLayers();
+        });
+    }
+
+    // Function to add all map sources and layers (used on initial load and after style changes)
+    async function addMapSourcesAndLayers() {
+        try {
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('surveillance-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        map.addSource('pin', {
+            'type': 'geojson',
+            'data': {
+                'type': 'FeatureCollection',
+                'features': []
+            }
+        });
+
+        map.addLayer({
+            'id': 'pin-circle',
+            'type': 'circle',
+            'source': 'pin',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': '#dc3545',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 2
+            }
+        });
+
+        if (map.hasImage('surveillance-direction')) {
+            map.addLayer({
+                'id': 'pin-symbol',
+                'type': 'symbol',
+                'source': 'pin',
+                'layout': {
+                    'icon-image': 'surveillance-direction',
+                    'icon-overlap': 'always',
+                    'icon-size': {
+                        'stops': [[5, 0.3], [15, 1]]
+                    },
+                    'icon-rotate': ['to-number', ['get', 'direction']]
+                },
+                'filter': ['has', 'direction']
+            });
+        }
+
+        // Add existing georeferenced images from this collection for context
+        {% if collection %}
+            try {
+                const contextGeojsonUrl = '{% url "images:geojson" %}?collection={{ collection.id }}';
+                const contextResponse = await fetch(contextGeojsonUrl);
+                const contextGeojsonData = await contextResponse.json();
+
+                // Add source for existing georeferenced images in this collection
+                map.addSource('context-images', {
+                    'type': 'geojson',
+                    'data': contextGeojsonData
+                });
+
+                // Add de-emphasized circles for existing images
+                map.addLayer({
+                    'id': 'context-image-circles',
+                    'type': 'circle',
+                    'source': 'context-images',
+                    'paint': {
+                        'circle-radius': 6,
+                        'circle-color': '#6c757d',
+                        'circle-opacity': 0.6,
+                        'circle-stroke-color': '#fff',
+                        'circle-stroke-width': 1,
+                        'circle-stroke-opacity': 0.8
+                    }
+                });
+
+                // Add de-emphasized direction markers for existing images
+                if (map.hasImage('surveillance-direction')) {
+                    map.addLayer({
+                        'id': 'context-image-directions',
+                        'type': 'symbol',
+                        'source': 'context-images',
+                        'layout': {
+                            'icon-image': 'surveillance-direction',
+                            'icon-overlap': 'always',
+                            'icon-size': {
+                                'stops': [[5, 0.3], [15, 1]]
+                            },
+                            'icon-rotate': ['to-number', ['get', 'direction']],
+                        },
+                        'filter': ['has', 'direction']
+                    });
+                }
+
+                // Auto-zoom to fit existing georeferenced images in the collection
+                if (contextGeojsonData.features && contextGeojsonData.features.length > 0) {
+                    const bounds = new maplibregl.LngLatBounds();
+                    contextGeojsonData.features.forEach(function(feature) {
+                        bounds.extend(feature.geometry.coordinates);
+                    });
+
+                    // Fit to bounds with some padding
+                    map.fitBounds(bounds, {
+                        padding: 80,
+                        maxZoom: 15
+                    });
+                }
+
+            } catch (error) {
+                console.warn('Could not load context images:', error);
+            }
+        {% endif %}
+
+        // Restore any existing pin if there was one
+        if (pinPlaced) {
+            const lat = parseFloat(latitudeInput.value);
+            const lng = parseFloat(longitudeInput.value);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                const properties = {};
+                if (currentDirection !== null) {
+                    properties.direction = currentDirection;
+                }
+
+                map.getSource('pin').setData({
+                    'type': 'FeatureCollection',
+                    'features': [{
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Point',
+                            'coordinates': [lng, lat]
+                        },
+                        'properties': properties
+                    }]
+                });
+            }
+        }
+    }
+
+    osmLayerBtn.addEventListener('click', switchToOSMLayer);
+    satelliteLayerBtn.addEventListener('click', switchToSatelliteLayer);
+
     var latitudeInput = document.getElementById('latitude-input');
     var longitudeInput = document.getElementById('longitude-input');
     var directionInput = document.getElementById('direction-input');
@@ -703,114 +899,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     map.on('load', async () => {
-        try {
-            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
-            map.addImage('surveillance-direction', image.data);
-        } catch (error) {
-            console.warn('Could not load direction arrow image:', error);
-        }
-
-        map.addSource('pin', {
-            'type': 'geojson',
-            'data': {
-                'type': 'FeatureCollection',
-                'features': []
-            }
-        });
-
-        map.addLayer({
-            'id': 'pin-circle',
-            'type': 'circle',
-            'source': 'pin',
-            'paint': {
-                'circle-radius': 8,
-                'circle-color': '#dc3545',
-                'circle-stroke-color': '#fff',
-                'circle-stroke-width': 2
-            }
-        });
-
-        if (map.hasImage('surveillance-direction')) {
-            map.addLayer({
-                'id': 'pin-symbol',
-                'type': 'symbol',
-                'source': 'pin',
-                'layout': {
-                    'icon-image': 'surveillance-direction',
-                    'icon-overlap': 'always',
-                    'icon-size': {
-                        'stops': [[5, 0.3], [15, 1]]
-                    },
-                    'icon-rotate': ['to-number', ['get', 'direction']]
-                },
-                'filter': ['has', 'direction']
-            });
-        }
-
-        // Add existing georeferenced images from this collection for context
-        {% if collection %}
-            try {
-                const contextGeojsonUrl = '{% url "images:geojson" %}?collection={{ collection.id }}';
-                const contextResponse = await fetch(contextGeojsonUrl);
-                const contextGeojsonData = await contextResponse.json();
-
-                // Add source for existing georeferenced images in this collection
-                map.addSource('context-images', {
-                    'type': 'geojson',
-                    'data': contextGeojsonData
-                });
-
-                // Add de-emphasized circles for existing images
-                map.addLayer({
-                    'id': 'context-image-circles',
-                    'type': 'circle',
-                    'source': 'context-images',
-                    'paint': {
-                        'circle-radius': 6,
-                        'circle-color': '#6c757d',
-                        'circle-opacity': 0.6,
-                        'circle-stroke-color': '#fff',
-                        'circle-stroke-width': 1,
-                        'circle-stroke-opacity': 0.8
-                    }
-                });
-
-                // Add de-emphasized direction markers for existing images
-                if (map.hasImage('surveillance-direction')) {
-                    map.addLayer({
-                        'id': 'context-image-directions',
-                        'type': 'symbol',
-                        'source': 'context-images',
-                        'layout': {
-                            'icon-image': 'surveillance-direction',
-                            'icon-overlap': 'always',
-                            'icon-size': {
-                                'stops': [[5, 0.3], [15, 1]]
-                            },
-                            'icon-rotate': ['to-number', ['get', 'direction']],
-                        },
-                        'filter': ['has', 'direction']
-                    });
-                }
-
-                // Auto-zoom to fit existing georeferenced images in the collection
-                if (contextGeojsonData.features && contextGeojsonData.features.length > 0) {
-                    const bounds = new maplibregl.LngLatBounds();
-                    contextGeojsonData.features.forEach(function(feature) {
-                        bounds.extend(feature.geometry.coordinates);
-                    });
-
-                    // Fit to bounds with some padding
-                    map.fitBounds(bounds, {
-                        padding: 80,
-                        maxZoom: 15
-                    });
-                }
-
-            } catch (error) {
-                console.warn('Could not load context images:', error);
-            }
-        {% endif %}
+        await addMapSourcesAndLayers();
 
         // Initialize MapSwap link and update on map move
         updateMapSwapLink();
