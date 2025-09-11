@@ -155,7 +155,9 @@ def admin_login(request):
 
 
 def logout(request):
-    """Log out user by clearing session"""
+    """Log out user by clearing session and Django auth"""
+    from django.contrib.auth import logout as auth_logout
+
     # Clear OSM-related session data
     session_keys_to_remove = [
         "osm_user_id",
@@ -168,6 +170,9 @@ def logout(request):
     for key in session_keys_to_remove:
         if key in request.session:
             del request.session[key]
+
+    # Also log out of Django's authentication system
+    auth_logout(request)
 
     messages.success(request, "Successfully logged out!")
     return redirect("/")
