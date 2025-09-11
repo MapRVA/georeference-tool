@@ -17,13 +17,10 @@
 </div>
 </main>
 
-<!-- Full-width map, pulling from all sources -->
-<div class="container-fluid px-0 mb-4">
-    <div class="map-container">
-        {% include 'images/partials/map_display.html' with map_id='homepage-map' height='60vh' border_radius='0' geolocate=True %}
+<!-- Full-width map that grows to fill remaining space -->
+<div class="container-fluid px-0 flex-grow-1 d-flex">
+    <div class="map-container w-100" style="min-height: 60vh;">
+        {% include 'images/partials/map_display.html' with map_id='homepage-map' height='100%' border_radius='0' geolocate=True %}
     </div>
 </div>
-
-<!-- Reopen main container for footer spacing -->
-<main class="container my-4">
 {% endblock %}
