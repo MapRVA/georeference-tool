@@ -582,47 +582,47 @@ document.addEventListener('DOMContentLoaded', function() {
     var satelliteLayerBtn = document.getElementById('satellite-layer-btn');
 
     function switchToOSMLayer() {
-        map.setStyle('https://styles.trailsta.sh/openmaptiles-osm.json');
+        if (currentLayer === 'osm') return;
+        
+        // Hide satellite layer, show OSM layers
+        if (map.getLayer('satellite-layer')) {
+            map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+        }
+        
+        // Show all OSM layers by setting visibility to visible
+        const layers = map.getStyle().layers;
+        layers.forEach(layer => {
+            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' && 
+                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
+                map.setLayoutProperty(layer.id, 'visibility', 'visible');
+            }
+        });
+        
         currentLayer = 'osm';
         osmLayerBtn.classList.add('active');
         satelliteLayerBtn.classList.remove('active');
-
-        // Re-add sources and layers after style change
-        map.once('styledata', () => {
-            addMapSourcesAndLayers();
-        });
     }
 
     function switchToSatelliteLayer() {
-        // Create a style with the satellite tile source
-        const satelliteStyle = {
-            "version": 8,
-            "sources": {
-                "satellite": {
-                    "type": "raster",
-                    "tiles": ["https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}"],
-                    "tileSize": 256,
-                    "attribution": "Virginia Geographic Information Network (VGIN)"
-                }
-            },
-            "layers": [
-                {
-                    "id": "satellite",
-                    "type": "raster",
-                    "source": "satellite"
-                }
-            ]
-        };
-
-        map.setStyle(satelliteStyle);
+        if (currentLayer === 'satellite') return;
+        
+        // Hide OSM layers
+        const layers = map.getStyle().layers;
+        layers.forEach(layer => {
+            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' && 
+                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
+                map.setLayoutProperty(layer.id, 'visibility', 'none');
+            }
+        });
+        
+        // Show satellite layer
+        if (map.getLayer('satellite-layer')) {
+            map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+        }
+        
         currentLayer = 'satellite';
         satelliteLayerBtn.classList.add('active');
         osmLayerBtn.classList.remove('active');
-
-        // Re-add sources and layers after style change
-        map.once('styledata', () => {
-            addMapSourcesAndLayers();
-        });
     }
 
     // Function to add all map sources and layers (used on initial load and after style changes)
@@ -632,6 +632,27 @@ document.addEventListener('DOMContentLoaded', function() {
             map.addImage('surveillance-direction', image.data);
         } catch (error) {
             console.warn('Could not load direction arrow image:', error);
+        }
+
+        // Add satellite source and layer (initially hidden)
+        if (!map.getSource('satellite')) {
+            map.addSource('satellite', {
+                'type': 'raster',
+                'tiles': ['https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}'],
+                'tileSize': 256,
+                'attribution': 'Virginia Geographic Information Network (VGIN)'
+            });
+        }
+
+        if (!map.getLayer('satellite-layer')) {
+            map.addLayer({
+                'id': 'satellite-layer',
+                'type': 'raster',
+                'source': 'satellite',
+                'layout': {
+                    'visibility': 'none'
+                }
+            });
         }
 
         map.addSource('pin', {
