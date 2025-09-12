@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """
-Valentine Museum Mary Wingfield Scott Photograph Collection Scraper
-
-Scrapes the Mary Wingfield Scott Photograph Collection from The Valentine Museum's
-digital archives, extracting image data and high-resolution image URLs.
+Valentine Museum Collection Scraper
 
 Usage:
-    python mary_wingfield_scott.py --dry-run
-    python mary_wingfield_scott.py --max-images 10 --dry-run
+    uv run scripts/importers/valentine.py <COLLECTION ID>
 """
 
 import os
