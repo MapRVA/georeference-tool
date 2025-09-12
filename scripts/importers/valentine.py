@@ -318,14 +318,22 @@ def main(archive_id):
             sleep(POLITE_WAIT_SECS)
             record = get_record_details(child)
 
+            # Do we have an image URL to try and download?
             if "permalink" not in record:
                 tqdm.write("      ✗ No image URL found for record, skipping")
                 continue
 
+            # Try downloading the image (and uploading it to R2)
             record["permalink"] = r2_uploader.upload_url(
                 record["permalink"],
-                in_tqdm=True
+                in_tqdm=True,
+                raise_on_err=False,
             )
+
+            # Were we successful in downloading the image?
+            if record["permalink"] is None:
+                tqdm.write("      ✗ Unable to download image, skipping")
+                continue
 
             try:
                 tqdm.write("      → Inserting image {}".format(record["original_url"]))

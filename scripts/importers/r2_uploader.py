@@ -95,7 +95,7 @@ class R2Uploader:
             else:
                 raise R2UploaderError(f"Error checking file existence: {e}")
 
-    def upload_url(self, source_url, overwrite=False, timeout=30, in_tqdm=False):
+    def upload_url(self, source_url, overwrite=False, timeout=30, in_tqdm=False, raise_on_err=True):
         """
         Download a file from URL and upload to R2 bucket
 
@@ -104,6 +104,8 @@ class R2Uploader:
             key (str): S3 key (path) where to store the file in the bucket
             overwrite (bool): Whether to overwrite existing files
             timeout (int): Timeout for downloading the source file
+            in_tqdm (bool): If True, use tqdm to print messages
+            raise_on_err (bool): If True, raise an Exception when there is a download error
 
         Returns:
             str: Public URL of the uploaded file
@@ -161,7 +163,13 @@ class R2Uploader:
             return public_url
 
         except requests.RequestException as e:
-            raise R2UploaderError(f"Failed to download from {source_url}: {e}")
+            if raise_on_err:
+                raise R2UploaderError(f"Failed to download from {source_url}: {e}")
+            else:
+                if tqdm:
+                    tqdm.write(f"Failed to download from {source_url}: {e}")
+                else:
+                    print(f"Failed to download from {source_url}: {e}")
         except ClientError as e:
             raise R2UploaderError(f"Failed to upload to R2: {e}")
         except Exception as e:
