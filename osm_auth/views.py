@@ -129,17 +129,17 @@ def admin_login(request):
             return redirect("/")
 
     # In DEBUG mode with hardcoded admin enabled, use Django's built-in admin login
-    if settings.DEBUG and getattr(settings, 'ALLOW_HARDCODED_ADMIN', False):
+    if settings.DEBUG and getattr(settings, "ALLOW_HARDCODED_ADMIN", False):
         # Use Django's built-in LoginView with admin template
         login_view = LoginView.as_view(
-            template_name='admin/login.html',
-            success_url='/admin/',
+            template_name="admin/login.html",
+            success_url="/admin/",
             extra_context={
-                'title': 'Log in',
-                'site_title': 'Georeference Tool Admin',
-                'site_header': 'Development Mode - Use admin/admin',
-                'site_url': '/',
-            }
+                "title": "Log in",
+                "site_title": "Georeference Tool Admin",
+                "site_header": "Development Mode - Use admin/admin",
+                "site_url": "/",
+            },
         )
         return login_view(request)
 

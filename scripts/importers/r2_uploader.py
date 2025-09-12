@@ -26,6 +26,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 class R2UploaderError(Exception):
     """Custom exception for R2 uploader errors"""
+
     pass
 
 
@@ -58,7 +59,9 @@ class R2Uploader:
             # Extract account ID from endpoint URL
             # https://<accountid>.r2.cloudflarestorage.com -> https://<bucket>.<accountid>.r2.cloudflarestorage.com
             if self.endpoint_url and self.bucket_name:
-                account_part = self.endpoint_url.replace("https://", "").replace(".r2.cloudflarestorage.com", "")
+                account_part = self.endpoint_url.replace("https://", "").replace(
+                    ".r2.cloudflarestorage.com", ""
+                )
                 self.public_url_base = f"https://{self.bucket_name}.{account_part}.r2.cloudflarestorage.com"
 
     def _validate_config(self):
@@ -70,7 +73,9 @@ class R2Uploader:
             ("IMPORT_R2_BUCKET_NAME", self.bucket_name),
         ]
 
-        missing_vars = [var_name for var_name, var_value in required_vars if not var_value]
+        missing_vars = [
+            var_name for var_name, var_value in required_vars if not var_value
+        ]
 
         if missing_vars:
             raise R2UploaderError(
@@ -84,7 +89,7 @@ class R2Uploader:
             self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
             return True
         except ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response["Error"]["Code"] == "404":
                 return False
             else:
                 raise R2UploaderError(f"Error checking file existence: {e}")
@@ -122,12 +127,12 @@ class R2Uploader:
             file_content = response.content
 
             # Determine content type
-            content_type = response.headers.get('content-type')
+            content_type = response.headers.get("content-type")
             if not content_type:
                 # Guess content type from URL
                 content_type, _ = mimetypes.guess_type(source_url)
                 if not content_type:
-                    content_type = 'application/octet-stream'
+                    content_type = "application/octet-stream"
 
             # Upload to R2
             print(f"  Uploading to R2: {key}")
@@ -136,9 +141,9 @@ class R2Uploader:
                 self.bucket_name,
                 key,
                 ExtraArgs={
-                    'ContentType': content_type,
-                    'CacheControl': 'public, max-age=31536000'  # Cache for 1 year
-                }
+                    "ContentType": content_type,
+                    "CacheControl": "public, max-age=31536000",  # Cache for 1 year
+                },
             )
 
             public_url = self.get_public_url(key)
@@ -152,7 +157,9 @@ class R2Uploader:
         except Exception as e:
             raise R2UploaderError(f"Unexpected error during upload: {e}")
 
-    def upload_file_content(self, file_content, key, content_type=None, overwrite=False):
+    def upload_file_content(
+        self, file_content, key, content_type=None, overwrite=False
+    ):
         """
         Upload file content directly to R2 bucket
 
@@ -178,7 +185,7 @@ class R2Uploader:
             if not content_type:
                 content_type, _ = mimetypes.guess_type(key)
                 if not content_type:
-                    content_type = 'application/octet-stream'
+                    content_type = "application/octet-stream"
 
             # Upload to R2
             print(f"  Uploading to R2: {key}")
@@ -187,9 +194,9 @@ class R2Uploader:
                 self.bucket_name,
                 key,
                 ExtraArgs={
-                    'ContentType': content_type,
-                    'CacheControl': 'public, max-age=31536000'  # Cache for 1 year
-                }
+                    "ContentType": content_type,
+                    "CacheControl": "public, max-age=31536000",  # Cache for 1 year
+                },
             )
 
             public_url = self.get_public_url(key)
@@ -249,6 +256,7 @@ class R2Uploader:
             str: Generated key for the file
         """
         return str(hashlib.md5(source_url.encode()).hexdigest()[:20])
+
 
 if __name__ == "__main__":
     # Test the R2 connection when run directly

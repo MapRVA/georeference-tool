@@ -34,12 +34,12 @@ def get_profile_url(self):
 
     # For OSM users, use the OSM username stored in first_name
     if self.first_name:
-        osm_url = getattr(settings, 'OSM_URL', 'https://www.openstreetmap.org')
+        osm_url = getattr(settings, "OSM_URL", "https://www.openstreetmap.org")
         return f"{osm_url}/user/{self.first_name}"
 
     return None
 
 
 # Add the methods to the User model
-User.add_to_class('get_display_name', get_display_name)
-User.add_to_class('get_profile_url', get_profile_url)
+User.add_to_class("get_display_name", get_display_name)
+User.add_to_class("get_profile_url", get_profile_url)

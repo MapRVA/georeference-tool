@@ -1,10 +1,14 @@
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
+from edtf import parse_edtf
+from edtf.parser.parser_classes import EDTFObject
+from edtf.parser.edtf_exceptions import EDTFParseException
 
 
 class Source(models.Model):
@@ -97,26 +101,46 @@ class Image(models.Model):
     )
     description = models.TextField(null=True)
     license_title = models.CharField(null=True, max_length=500)
-    license_permalink = models.URLField(null=True,
-        help_text="Link to license information"
+    license_permalink = models.URLField(
+        null=True, help_text="Link to license information"
     )
 
-    # Flexible date fields - allows partial dates
-    year = models.IntegerField(
-        null=True,
-        validators=[MinValueValidator(1800), MaxValueValidator(2100)],
+    creator = models.CharField(
+        null=True, max_length=100, help_text="Creator(s) of the work"
     )
-    month = models.IntegerField(
-        null=True, validators=[MinValueValidator(1), MaxValueValidator(12)]
+    ref = models.CharField(
+        null=True, max_length=50, help_text="Source-specific reference"
     )
-    day = models.IntegerField(
-        null=True, validators=[MinValueValidator(1), MaxValueValidator(31)]
+
+    original_date = models.CharField(
+        null=True, max_length=50, help_text="Date information from source"
     )
+    edtf_date = models.CharField(
+        null=True, max_length=50, help_text="Date parsed as EDTF"
+    )
+
+    def clean(self):
+        """Validate model fields"""
+        super().clean()
+
+        # Validate EDTF date format if provided
+        if self.edtf_date:
+            try:
+                parse_edtf(self.edtf_date)
+            except EDTFParseException as e:
+                raise ValidationError({"edtf_date": f"Invalid EDTF format: {str(e)}"})
+
+    def save(self, *args, **kwargs):
+        """Validate EDTF date format before saving"""
+        if self.edtf_date:
+            try:
+                parse_edtf(self.edtf_date)
+            except EDTFParseException as e:
+                raise ValidationError(f'Invalid EDTF date "{self.edtf_date}": {str(e)}')
+        super().save(*args, **kwargs)
 
     # Georeferencing metadata
-    difficulty = models.CharField(
-        max_length=10, choices=DIFFICULTY_CHOICES, null=True
-    )
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, null=True)
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
 
@@ -130,16 +154,8 @@ class Image(models.Model):
 
     @property
     def date_display(self):
-        """Human readable date representation"""
-        parts = []
-        if self.year:
-            if self.month:
-                if self.day:
-                    return f"{self.year}-{self.month:02d}-{self.day:02d}"
-                else:
-                    return f"{self.year}-{self.month:02d}"
-            else:
-                return str(self.year)
+        if self.original_date:
+            return str(self.original_date)
         return "Unknown date"
 
     @property
@@ -178,7 +194,6 @@ class Image(models.Model):
         indexes = [
             models.Index(fields=["collection", "will_not_georef"]),
             models.Index(fields=["difficulty"]),
-            models.Index(fields=["year", "month", "day"]),
         ]
 
 

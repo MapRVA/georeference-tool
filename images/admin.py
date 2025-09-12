@@ -46,7 +46,7 @@ class ImageAdmin(admin.ModelAdmin):
         "skip_count",
         "georeference_status",
     )
-    list_filter = ("difficulty", "will_not_georef", "collection__source", "year")
+    list_filter = ("difficulty", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
     fieldsets = (
@@ -57,7 +57,7 @@ class ImageAdmin(admin.ModelAdmin):
         (
             "Date Information",
             {
-                "fields": ("year", "month", "day"),
+                "fields": ("original_date", "edtf_date"),
                 "description": "Leave fields blank if date information is not available",
             },
         ),

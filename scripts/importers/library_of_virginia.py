@@ -13,7 +13,7 @@ Usage:
 """
 
 # All images from the Library of Virginia RES are from 1965
-SOURCE_YEAR = 1965
+SOURCE_YEAR = "1965"
 
 import argparse
 import os
@@ -290,7 +290,8 @@ class LibraryOfVirginiaScraper:
                             title=image_data["title"],
                             permalink=image_data["permalink"],
                             original_url=image_data["original_url"],
-                            year=SOURCE_YEAR,
+                            original_date=SOURCE_YEAR,
+                            edtf_date=SOURCE_YEAR,
                         )
                         print(f"      → Created image ID: {image.id}")
                         imported_count += 1

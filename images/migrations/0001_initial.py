@@ -7,7 +7,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -16,152 +15,408 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Collection',
+            name="Collection",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=200)),
-                ('slug', models.SlugField()),
-                ('url', models.URLField()),
-                ('description', models.TextField(blank=True)),
-                ('public', models.BooleanField(default=True, help_text='Whether this collection is visible to users')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("slug", models.SlugField()),
+                ("url", models.URLField()),
+                ("description", models.TextField(blank=True)),
+                (
+                    "public",
+                    models.BooleanField(
+                        default=True,
+                        help_text="Whether this collection is visible to users",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['source__name', 'name'],
+                "ordering": ["source__name", "name"],
             },
         ),
         migrations.CreateModel(
-            name='Source',
+            name="Source",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=200)),
-                ('slug', models.SlugField(unique=True)),
-                ('url', models.URLField()),
-                ('description', models.TextField()),
-                ('public', models.BooleanField(default=True, help_text='Whether this source is visible to users')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("slug", models.SlugField(unique=True)),
+                ("url", models.URLField()),
+                ("description", models.TextField()),
+                (
+                    "public",
+                    models.BooleanField(
+                        default=True,
+                        help_text="Whether this source is visible to users",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['name'],
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='Image',
+            name="Image",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=500)),
-                ('permalink', models.URLField(help_text='Direct link to the image (CDN or processed URL)')),
-                ('original_url', models.URLField(help_text='Original URL from the source website', null=True)),
-                ('description', models.TextField(null=True)),
-                ('license_title', models.CharField(max_length=500, null=True)),
-                ('license_permalink', models.URLField(help_text='Link to license information', null=True)),
-                ('year', models.IntegerField(null=True, validators=[django.core.validators.MinValueValidator(1800), django.core.validators.MaxValueValidator(2100)])),
-                ('month', models.IntegerField(null=True, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(12)])),
-                ('day', models.IntegerField(null=True, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(31)])),
-                ('difficulty', models.CharField(choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')], max_length=10, null=True)),
-                ('will_not_georef', models.BooleanField(default=False)),
-                ('skip_count', models.PositiveIntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('collection', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='images', to='images.collection')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=500)),
+                (
+                    "permalink",
+                    models.URLField(
+                        help_text="Direct link to the image (CDN or processed URL)"
+                    ),
+                ),
+                (
+                    "original_url",
+                    models.URLField(
+                        help_text="Original URL from the source website", null=True
+                    ),
+                ),
+                ("description", models.TextField(null=True)),
+                ("license_title", models.CharField(max_length=500, null=True)),
+                (
+                    "license_permalink",
+                    models.URLField(help_text="Link to license information", null=True),
+                ),
+                (
+                    "year",
+                    models.IntegerField(
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(1800),
+                            django.core.validators.MaxValueValidator(2100),
+                        ],
+                    ),
+                ),
+                (
+                    "month",
+                    models.IntegerField(
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(1),
+                            django.core.validators.MaxValueValidator(12),
+                        ],
+                    ),
+                ),
+                (
+                    "day",
+                    models.IntegerField(
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(1),
+                            django.core.validators.MaxValueValidator(31),
+                        ],
+                    ),
+                ),
+                (
+                    "difficulty",
+                    models.CharField(
+                        choices=[
+                            ("easy", "Easy"),
+                            ("medium", "Medium"),
+                            ("hard", "Hard"),
+                        ],
+                        max_length=10,
+                        null=True,
+                    ),
+                ),
+                ("will_not_georef", models.BooleanField(default=False)),
+                ("skip_count", models.PositiveIntegerField(default=0)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "collection",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="images",
+                        to="images.collection",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['collection__source__name', 'collection__name', 'id'],
+                "ordering": ["collection__source__name", "collection__name", "id"],
             },
         ),
         migrations.CreateModel(
-            name='Georeference',
+            name="Georeference",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('latitude', models.FloatField(validators=[django.core.validators.MinValueValidator(-90.0), django.core.validators.MaxValueValidator(90.0)])),
-                ('longitude', models.FloatField(validators=[django.core.validators.MinValueValidator(-180.0), django.core.validators.MaxValueValidator(180.0)])),
-                ('direction', models.IntegerField(help_text='Direction in degrees (0-359), where 0 is North', null=True, validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(359)])),
-                ('confidence', models.CharField(choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High')], default='medium', help_text='Confidence level in the accuracy of this georeference', max_length=10)),
-                ('georeferenced_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('confidence_notes', models.TextField(blank=True, help_text='Optional notes about the georeferencing confidence or methodology')),
-                ('georeferenced_by', models.ForeignKey(help_text='User who submitted the georeference (null for anonymous submissions)', null=True, on_delete=django.db.models.deletion.PROTECT, related_name='georeferenced_images', to=settings.AUTH_USER_MODEL)),
-                ('image', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='georeferences', to='images.image')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "latitude",
+                    models.FloatField(
+                        validators=[
+                            django.core.validators.MinValueValidator(-90.0),
+                            django.core.validators.MaxValueValidator(90.0),
+                        ]
+                    ),
+                ),
+                (
+                    "longitude",
+                    models.FloatField(
+                        validators=[
+                            django.core.validators.MinValueValidator(-180.0),
+                            django.core.validators.MaxValueValidator(180.0),
+                        ]
+                    ),
+                ),
+                (
+                    "direction",
+                    models.IntegerField(
+                        help_text="Direction in degrees (0-359), where 0 is North",
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(0),
+                            django.core.validators.MaxValueValidator(359),
+                        ],
+                    ),
+                ),
+                (
+                    "confidence",
+                    models.CharField(
+                        choices=[
+                            ("low", "Low"),
+                            ("medium", "Medium"),
+                            ("high", "High"),
+                        ],
+                        default="medium",
+                        help_text="Confidence level in the accuracy of this georeference",
+                        max_length=10,
+                    ),
+                ),
+                ("georeferenced_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "confidence_notes",
+                    models.TextField(
+                        blank=True,
+                        help_text="Optional notes about the georeferencing confidence or methodology",
+                    ),
+                ),
+                (
+                    "georeferenced_by",
+                    models.ForeignKey(
+                        help_text="User who submitted the georeference (null for anonymous submissions)",
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="georeferenced_images",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "image",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="georeferences",
+                        to="images.image",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ImageSkip',
+            name="ImageSkip",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('skipped_at', models.DateTimeField(auto_now_add=True)),
-                ('reason', models.CharField(blank=True, help_text='Optional reason for skipping', max_length=100)),
-                ('image', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='skips', to='images.image')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='image_skips', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("skipped_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "reason",
+                    models.CharField(
+                        blank=True,
+                        help_text="Optional reason for skipping",
+                        max_length=100,
+                    ),
+                ),
+                (
+                    "image",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="skips",
+                        to="images.image",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="image_skips",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.AddField(
-            model_name='collection',
-            name='source',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='collections', to='images.source'),
+            model_name="collection",
+            name="source",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="collections",
+                to="images.source",
+            ),
         ),
         migrations.CreateModel(
-            name='GeoreferenceValidation',
+            name="GeoreferenceValidation",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('validation', models.CharField(choices=[('correct', 'Correct'), ('incorrect', 'Incorrect'), ('uncertain', 'Uncertain')], max_length=10)),
-                ('notes', models.TextField(blank=True, help_text='Optional validation notes')),
-                ('validated_at', models.DateTimeField(auto_now_add=True)),
-                ('georeference', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='validations', to='images.georeference')),
-                ('validated_by', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='georeference_validations', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "validation",
+                    models.CharField(
+                        choices=[
+                            ("correct", "Correct"),
+                            ("incorrect", "Incorrect"),
+                            ("uncertain", "Uncertain"),
+                        ],
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "notes",
+                    models.TextField(blank=True, help_text="Optional validation notes"),
+                ),
+                ("validated_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "georeference",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="validations",
+                        to="images.georeference",
+                    ),
+                ),
+                (
+                    "validated_by",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="georeference_validations",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'indexes': [models.Index(fields=['georeference', 'validation'], name='images_geor_georefe_72c8d9_idx'), models.Index(fields=['validated_by'], name='images_geor_validat_dde067_idx')],
-                'unique_together': {('georeference', 'validated_by')},
+                "indexes": [
+                    models.Index(
+                        fields=["georeference", "validation"],
+                        name="images_geor_georefe_72c8d9_idx",
+                    ),
+                    models.Index(
+                        fields=["validated_by"], name="images_geor_validat_dde067_idx"
+                    ),
+                ],
+                "unique_together": {("georeference", "validated_by")},
             },
         ),
         migrations.AddIndex(
-            model_name='image',
-            index=models.Index(fields=['collection', 'will_not_georef'], name='images_imag_collect_2827b5_idx'),
+            model_name="image",
+            index=models.Index(
+                fields=["collection", "will_not_georef"],
+                name="images_imag_collect_2827b5_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='image',
-            index=models.Index(fields=['difficulty'], name='images_imag_difficu_56a429_idx'),
+            model_name="image",
+            index=models.Index(
+                fields=["difficulty"], name="images_imag_difficu_56a429_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='image',
-            index=models.Index(fields=['year', 'month', 'day'], name='images_imag_year_421258_idx'),
+            model_name="image",
+            index=models.Index(
+                fields=["year", "month", "day"], name="images_imag_year_421258_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='georeference',
-            index=models.Index(fields=['image', 'georeferenced_by'], name='images_geor_image_i_ccacbf_idx'),
+            model_name="georeference",
+            index=models.Index(
+                fields=["image", "georeferenced_by"],
+                name="images_geor_image_i_ccacbf_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='georeference',
-            index=models.Index(fields=['latitude', 'longitude'], name='images_geor_latitud_4bcb0f_idx'),
+            model_name="georeference",
+            index=models.Index(
+                fields=["latitude", "longitude"], name="images_geor_latitud_4bcb0f_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='georeference',
-            index=models.Index(fields=['georeferenced_by'], name='images_geor_georefe_47bf56_idx'),
+            model_name="georeference",
+            index=models.Index(
+                fields=["georeferenced_by"], name="images_geor_georefe_47bf56_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='georeference',
-            index=models.Index(fields=['georeferenced_at'], name='images_geor_georefe_b5bdeb_idx'),
+            model_name="georeference",
+            index=models.Index(
+                fields=["georeferenced_at"], name="images_geor_georefe_b5bdeb_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='imageskip',
-            index=models.Index(fields=['image'], name='images_imag_image_i_9b326b_idx'),
+            model_name="imageskip",
+            index=models.Index(fields=["image"], name="images_imag_image_i_9b326b_idx"),
         ),
         migrations.AddIndex(
-            model_name='imageskip',
-            index=models.Index(fields=['user'], name='images_imag_user_id_5d471f_idx'),
+            model_name="imageskip",
+            index=models.Index(fields=["user"], name="images_imag_user_id_5d471f_idx"),
         ),
         migrations.AddIndex(
-            model_name='imageskip',
-            index=models.Index(fields=['skipped_at'], name='images_imag_skipped_d23ecb_idx'),
+            model_name="imageskip",
+            index=models.Index(
+                fields=["skipped_at"], name="images_imag_skipped_d23ecb_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='imageskip',
-            unique_together={('image', 'user')},
+            name="imageskip",
+            unique_together={("image", "user")},
         ),
         migrations.AlterUniqueTogether(
-            name='collection',
-            unique_together={('source', 'name', 'slug')},
+            name="collection",
+            unique_together={("source", "name", "slug")},
         ),
     ]
