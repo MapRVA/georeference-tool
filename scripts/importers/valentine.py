@@ -223,6 +223,7 @@ def get_record_details(readable_primary_key: str):
     # Process date further to extract year and month
     if date_match:
         date_str = date_match.group(1).strip()
+        result["original_date"] = date_str
 
         year_match = re.match(r"^(\d{4})$", date_str)
         if year_match:
