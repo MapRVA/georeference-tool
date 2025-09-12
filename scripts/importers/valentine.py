@@ -204,7 +204,6 @@ def get_record_details(readable_primary_key: str):
         )
     else:
         print("No image found!")
-        breakpoint()
 
     month_map = {
         "january": 1,
@@ -314,22 +313,25 @@ def main(archive_id):
         r2_uploader = R2Uploader()
 
         for child in tqdm(archival_children):
+            existing_by_ref = Image.objects.filter(ref=child).exists()
+            if existing_by_ref:
+                tqdm.write("      → Already exists, skipping")
+                continue
+
             sleep(POLITE_WAIT_SECS)
             record = get_record_details(child)
 
+            if "permalink" not in record:
+                tqdm.write("      ✗ No image URL found for record, skipping")
+                continue
+
             record["permalink"] = r2_uploader.upload_url(
                 record["permalink"],
+                in_tqdm=True
             )
 
-            existing_by_ref = Image.objects.filter(ref=record["ref"]).exists()
-
-            if existing_by_ref:
-                print("      → Already exists, skipping")
-                continue
-            else:
-                print("      → Inserting image {}".format(record["original_url"]))
-
             try:
+                tqdm.write("      → Inserting image {}".format(record["original_url"]))
                 image = Image.objects.create(
                     collection=collection,
                     title=record["title"],
@@ -341,9 +343,9 @@ def main(archive_id):
                     original_date=record.get("original_date"),
                     edtf_date=record.get("etdf_date"),
                 )
-                print(f"      → Created image ID: {image.id}")
+                tqdm.write(f"      → Created image ID: {image.id}")
             except Exception as e:
-                print(f"      ✗ Error creating image: {e}")
+                tqdm.write(f"      ✗ Error creating image: {e}")
                 breakpoint()
 
 

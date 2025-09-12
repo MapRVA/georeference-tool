@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 import hashlib
 import mimetypes
 from botocore.exceptions import ClientError, NoCredentialsError
+from tqdm import tqdm
 
 
 class R2UploaderError(Exception):
@@ -94,7 +95,7 @@ class R2Uploader:
             else:
                 raise R2UploaderError(f"Error checking file existence: {e}")
 
-    def upload_url(self, source_url, overwrite=False, timeout=30):
+    def upload_url(self, source_url, overwrite=False, timeout=30, in_tqdm=False):
         """
         Download a file from URL and upload to R2 bucket
 
@@ -119,7 +120,10 @@ class R2Uploader:
 
         try:
             # Download the file from the source URL
-            print(f"  Downloading from: {source_url}")
+            if tqdm:
+                tqdm.write(f"  Downloading from: {source_url}")
+            else:
+                print(f"  Downloading from: {source_url}")
             response = requests.get(source_url, timeout=timeout, stream=True)
             response.raise_for_status()
 
@@ -135,7 +139,10 @@ class R2Uploader:
                     content_type = "application/octet-stream"
 
             # Upload to R2
-            print(f"  Uploading to R2: {key}")
+            if tqdm:
+                tqdm.write(f"  Uploading to R2: {key}")
+            else:
+                print(f"  Uploading to R2: {key}")
             self.s3_client.upload_fileobj(
                 io.BytesIO(file_content),
                 self.bucket_name,
@@ -147,7 +154,10 @@ class R2Uploader:
             )
 
             public_url = self.get_public_url(key)
-            print(f"  ✓ Uploaded to R2: {public_url}")
+            if tqdm:
+                tqdm.write(f"  ✓ Uploaded to R2: {public_url}")
+            else:
+                print(f"  ✓ Uploaded to R2: {public_url}")
             return public_url
 
         except requests.RequestException as e:
