@@ -560,10 +560,15 @@ def mark_will_not_georef(request, image_id):
 
     image = get_object_or_404(Image, id=image_id)
 
-    image.will_not_georef = True
+    # Get the desired state from POST data, defaulting to True for backwards compatibility
+    will_not_georef = request.POST.get('will_not_georef', 'true').lower() in ('true', '1', 'yes')
+
+    image.will_not_georef = will_not_georef
     image.save(update_fields=["will_not_georef"])
+    message = 'Image marked as "will not georeference"' if will_not_georef else 'Removed "will not georeference" flag'
+
     return JsonResponse(
-        {"success": True, "message": 'Image marked as "will not georeference"'}
+        {"success": True, "message": message}
     )
 
 

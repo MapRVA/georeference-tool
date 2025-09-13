@@ -479,6 +479,17 @@
                                 </div>
                             {% endif %}
 
+                            <!-- Will Not Georeference Toggle Button -->
+                            <button type="button" class="btn btn-sm w-100 mb-2 toggle-will-not-georeference
+                                {% if image.will_not_georef %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
+                                data-will-not-georef="{{ image.will_not_georef|yesno:'true,false' }}">
+                                {% if image.will_not_georef %}
+                                    <i class="fas fa-undo me-1"></i>Remove "Will Not Georeference"
+                                {% else %}
+                                    <i class="fas fa-ban me-1"></i>Mark as "Will Not Georeference"
+                                {% endif %}
+                            </button>
+
                             <a href="/admin/images/image/{{ image.id }}/change/" class="btn btn-outline-secondary btn-sm w-100">
                                 <i class="fas fa-edit me-1"></i>Edit in Admin
                             </a>
@@ -879,12 +890,104 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function updateWillNotGeoreferenceStatus(willNotGeoref) {
+        const cardHeader = document.querySelector('.card-header');
+        if (!cardHeader) return;
+
+        const badgeContainer = cardHeader.querySelector('.d-flex.gap-2');
+        if (!badgeContainer) return;
+
+        // Find the status badge (the one that shows georeferenced/pending/will not georeference)
+        let statusBadge = null;
+        badgeContainer.querySelectorAll('.badge').forEach(badge => {
+            if (badge.innerHTML.includes('Georeferenced') ||
+                badge.innerHTML.includes('Pending') ||
+                badge.innerHTML.includes('Will Not Georeference')) {
+                statusBadge = badge;
+            }
+        });
+
+        if (statusBadge) {
+            if (willNotGeoref) {
+                statusBadge.className = 'badge status-badge bg-secondary';
+                statusBadge.innerHTML = '<i class="fas fa-ban me-1"></i>Will Not Georeference';
+            } else {
+                // Check if it's georeferenced or pending
+                const isGeoreferenced = {{ image.is_georeferenced|yesno:"true,false" }};
+                if (isGeoreferenced) {
+                    statusBadge.className = 'badge status-badge bg-success';
+                    statusBadge.innerHTML = '<i class="fas fa-map-marker-alt me-1"></i>Georeferenced';
+                } else {
+                    statusBadge.className = 'badge status-badge bg-warning text-dark';
+                    statusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Pending';
+                }
+            }
+        }
+    }
+
     // Initialize difficulty buttons
     if (isStaff) {
         document.querySelectorAll('.mark-difficulty').forEach(button => {
             button.addEventListener('click', handleDifficultyClick);
             button.hasEventListener = true;
         });
+
+        // Will Not Georeference toggle button handler
+        const willNotGeoreferenceBtn = document.querySelector('.toggle-will-not-georeference');
+        if (willNotGeoreferenceBtn) {
+            willNotGeoreferenceBtn.addEventListener('click', function() {
+                const button = this;
+                const currentState = button.dataset.willNotGeoref === 'true';
+                const newState = !currentState;
+                const action = newState ? 'mark' : 'unmark';
+                const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+                button.disabled = true;
+                const originalText = button.innerHTML;
+                button.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${action === 'mark' ? 'Marking' : 'Removing'}...`;
+
+                const formData = new FormData();
+                formData.append('will_not_georef', newState.toString());
+                formData.append('csrfmiddlewaretoken', csrfToken);
+
+                fetch(`{% url 'images:mark_will_not_georef' image.id %}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        const message = newState
+                            ? 'Image marked as "Will Not Georeference"'
+                            : 'Removed "Will Not Georeference" flag';
+                        showAlert('success', message);
+
+                        // Update button state immediately
+                        button.dataset.willNotGeoref = newState.toString();
+
+                        if (newState) {
+                            button.className = 'btn btn-secondary btn-sm w-100 mb-2 toggle-will-not-georeference';
+                            button.innerHTML = '<i class="fas fa-undo me-1"></i>Remove "Will Not Georeference"';
+                        } else {
+                            button.className = 'btn btn-outline-secondary btn-sm w-100 mb-2 toggle-will-not-georeference';
+                            button.innerHTML = '<i class="fas fa-ban me-1"></i>Mark as "Will Not Georeference"';
+                        }
+
+                        button.disabled = false;
+
+                        // Update the status badge in the header
+                        updateWillNotGeoreferenceStatus(newState);
+                    } else {
+                        throw new Error('Network response was not ok');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('danger', `Error ${action}ing image. Please try again.`);
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                });
+            });
+        }
     }
 
     // Validation form handler
