@@ -47,6 +47,9 @@
                                 <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="hard">
                                     Hard
                                 </button>
+                                <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="unlabeled">
+                                    Unlabeled
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -632,7 +635,8 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function() {
                 const isActive = button.classList.contains('btn-success') ||
                                button.classList.contains('btn-warning') ||
-                               button.classList.contains('btn-danger');
+                               button.classList.contains('btn-danger') ||
+                               button.classList.contains('btn-secondary');
 
                 // Toggle the state
                 updateDifficultyButtonState(button, !isActive);
@@ -656,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getDifficultyColor(difficulty) {
-        const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
+        const colors = { easy: 'success', medium: 'warning', hard: 'danger', unlabeled: 'secondary' };
         return colors[difficulty] || 'secondary';
     }
 
@@ -672,7 +676,8 @@ document.addEventListener('DOMContentLoaded', function() {
         difficultyToggles.forEach(button => {
             const isActive = button.classList.contains('btn-success') ||
                            button.classList.contains('btn-warning') ||
-                           button.classList.contains('btn-danger');
+                           button.classList.contains('btn-danger') ||
+                           button.classList.contains('btn-secondary');
 
             if (isActive) {
                 activeDifficulties.push(button.dataset.difficulty);

@@ -3,6 +3,7 @@ import json
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
+from django.db import models
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -195,9 +196,29 @@ def georeference_interface(request):
         )
         images = images.filter(collection=collection)
 
-    # Filter by difficulty if specified
-    if difficulty in ["easy", "medium", "hard"]:
-        images = images.filter(difficulty=difficulty)
+    # Filter by difficulty if specified - can be multiple values (plus-separated)
+    difficulty_param = request.GET.get('difficulty', '')
+    difficulty_filters = []
+    if difficulty_param:
+        # Split plus-separated values and validate
+        difficulty_filters = [d.strip() for d in difficulty_param.split('+') if d.strip() in ["easy", "medium", "hard", "unlabeled"]]
+        if difficulty_filters:
+            # Handle unlabeled separately since it needs a different query
+            regular_difficulties = [d for d in difficulty_filters if d != "unlabeled"]
+            has_unlabeled = "unlabeled" in difficulty_filters
+
+            if regular_difficulties and has_unlabeled:
+                # Include both regular difficulties and unlabeled images
+                images = images.filter(
+                    models.Q(difficulty__in=regular_difficulties) |
+                    models.Q(difficulty__isnull=True)
+                )
+            elif regular_difficulties:
+                # Only regular difficulties
+                images = images.filter(difficulty__in=regular_difficulties)
+            elif has_unlabeled:
+                # Only unlabeled images
+                images = images.filter(difficulty__isnull=True)
 
     # If no specific image or it wasn't found, select randomly from filtered set
     if not current_image:
@@ -215,15 +236,12 @@ def georeference_interface(request):
         "current_image": current_image,
         "source": source,
         "collection": collection,
-        "difficulty_filter": difficulty,
+        "difficulty_filters": difficulty_filters,
+        "difficulty_filters_json": json.dumps(difficulty_filters),
         "remaining_count": images.count(),
     }
 
-    if not current_image:
-        messages.info(
-            request,
-            "No more images available for georeferencing with your current filters.",
-        )
+    # Remove duplicate message - template already shows appropriate message when no image available
 
     return render(request, "images/georeference_interface.html", context)
 
