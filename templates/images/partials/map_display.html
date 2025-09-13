@@ -1,6 +1,6 @@
 {% comment %}
 Shared map display component that uses the GeoJSON endpoint for all map data.
-Usage: 
+Usage:
 - Single image: {% include 'images/partials/map_display.html' with image_id=image.id map_id='unique-map-id' height='400px' %}
 - Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
@@ -15,11 +15,11 @@ Usage:
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const mapId = '{{ map_id|default:'map-display' }}';
-    
+
     // Build GeoJSON URL with appropriate parameters
     let geojsonUrl = '{% url "images:geojson" %}';
     const urlParams = new URLSearchParams();
-    
+
     {% if image_id %}
     urlParams.append('image', '{{ image_id }}');
     {% elif collection_id %}
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% elif source_id %}
     urlParams.append('source', '{{ source_id }}');
     {% endif %}
-    
+
     if (urlParams.toString()) {
         geojsonUrl += '?' + urlParams.toString();
     }
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.addControl(new maplibregl.NavigationControl());
     map.addControl(new maplibregl.FullscreenControl());
-    
+
     {% if geolocate %}
     map.addControl(new maplibregl.GeolocateControl({
         positionOptions: {
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Load the direction arrow image
             const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
-            map.addImage('surveillance-direction', image.data);
+            map.addImage('image-direction', image.data);
         } catch (error) {
             console.warn('Could not load direction arrow image:', error);
         }
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!geojsonData.features || geojsonData.features.length === 0) {
                 // No data available
-                document.getElementById(mapId).innerHTML = 
+                document.getElementById(mapId).innerHTML =
                     '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
                     '<div class="text-center">' +
                     '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
@@ -83,14 +83,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 'data': geojsonData
             });
 
-            // Add direction markers if surveillance-direction image loaded successfully
-            if (map.hasImage('surveillance-direction')) {
+            // Add direction markers if image-direction image loaded successfully
+            if (map.hasImage('image-direction')) {
                 map.addLayer({
                     'id': 'image-directions',
                     'type': 'symbol',
                     'source': 'images',
                     'layout': {
-                        'icon-image': 'surveillance-direction',
+                        'icon-image': 'image-direction',
                         'icon-overlap': 'always',
                         'icon-size': {
                             'stops': [[5, 0.3], [15, 1]]
@@ -140,20 +140,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Create popup content
                 const popupContent = `
-                    <div style="max-width: 200px;">
-                        <img src="${properties.img_url}"
-                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
-                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
-                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
-                        </div>
-                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
-                        ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
-                        <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                            <i class="fas fa-eye me-1"></i>View Details
-                        </a>
-                    </div>
+                  <div>
+                      <img src="${properties.img_url}"
+                            style="border-radius: 4px;">
+                      ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
+                      ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                      <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                          <i class="fas fa-eye me-1"></i>View Details
+                      </a>
+                  </div>
                 `;
 
                 new maplibregl.Popup()
@@ -170,42 +165,11 @@ document.addEventListener('DOMContentLoaded', function() {
             map.on('mouseleave', 'image-circles', function() {
                 map.getCanvas().style.cursor = '';
             });
-            {% else %}
-            // For single image maps, add a popup with image info on click
-            map.on('click', 'image-circles', function(e) {
-                const properties = e.features[0].properties;
-
-                const popupContent = `
-                    <div style="max-width: 200px;">
-                        <img src="${properties.img_url}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div style="display: none; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 4px;">
-                            <i class="fas fa-image" style="font-size: 2em; color: #6c757d; margin-bottom: 8px;"></i>
-                            <p style="margin: 0; color: #6c757d; font-size: 0.9em;">Image not available</p>
-                        </div>
-                        ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
-                        ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
-                    </div>
-                `;
-
-                new maplibregl.Popup()
-                    .setLngLat(e.lngLat)
-                    .setHTML(popupContent)
-                    .addTo(map);
-            });
-
-            map.on('mouseenter', 'image-circles', function() {
-                map.getCanvas().style.cursor = 'pointer';
-            });
-
-            map.on('mouseleave', 'image-circles', function() {
-                map.getCanvas().style.cursor = '';
-            });
             {% endif %}
 
         } catch (error) {
             console.error('Error loading GeoJSON data:', error);
-            document.getElementById(mapId).innerHTML = 
+            document.getElementById(mapId).innerHTML =
                 '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
                 '<div class="text-center">' +
                 '<i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i><br>' +
