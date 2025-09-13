@@ -27,6 +27,45 @@
             </div>
         </div>
 
+        <!-- Difficulty Filter (only show when not viewing a specific image) -->
+        {% if not request.GET.image %}
+            <div class="card mb-4">
+                <div class="card-body py-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h6 class="mb-2 mb-md-0"><i class="fas fa-filter me-2"></i>Filter by Difficulty</h6>
+                            <small class="text-muted">Select which difficulty levels you want to work on</small>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="btn-group w-100" role="group" id="difficulty-filter-group">
+                                <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="easy">
+                                    Easy
+                                </button>
+                                <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="medium">
+                                    Medium
+                                </button>
+                                <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="hard">
+                                    Hard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% if difficulty_filters %}
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Currently showing only
+                                {% for difficulty in difficulty_filters %}
+                                    <strong>{{ difficulty }}</strong>{% if not forloop.last %}{% if forloop.revcounter == 2 %} and {% else %}, {% endif %}{% endif %}
+                                {% endfor %}
+                                difficulty images.
+                            </small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+
         {% if current_image %}
             <!-- Already Georeferenced Alert -->
             {% if current_image.is_georeferenced %}
@@ -567,6 +606,90 @@
 <script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
+
+<!-- Difficulty filter functionality (works with or without current image) -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize difficulty filter toggles
+    initializeDifficultyToggles();
+
+    // Function to initialize difficulty filter toggles
+    function initializeDifficultyToggles() {
+        const difficultyToggles = document.querySelectorAll('.difficulty-toggle');
+        const currentFilters = {{ difficulty_filters_json|safe }};
+
+        difficultyToggles.forEach(button => {
+            const difficulty = button.dataset.difficulty;
+
+            // Set initial state based on current filters
+            if (currentFilters.includes(difficulty)) {
+                updateDifficultyButtonState(button, true);
+            } else {
+                updateDifficultyButtonState(button, false);
+            }
+
+            // Add click handler
+            button.addEventListener('click', function() {
+                const isActive = button.classList.contains('btn-success') ||
+                               button.classList.contains('btn-warning') ||
+                               button.classList.contains('btn-danger');
+
+                // Toggle the state
+                updateDifficultyButtonState(button, !isActive);
+
+                // Update URL with new filter selection
+                updateDifficultyFilter();
+            });
+        });
+    }
+
+    function updateDifficultyButtonState(button, isActive) {
+        const difficulty = button.dataset.difficulty;
+
+        if (isActive) {
+            // Active state - solid color
+            button.className = `btn btn-sm btn-${getDifficultyColor(difficulty)} difficulty-toggle`;
+        } else {
+            // Inactive state - outline
+            button.className = `btn btn-sm btn-outline-${getDifficultyColor(difficulty)} difficulty-toggle`;
+        }
+    }
+
+    function getDifficultyColor(difficulty) {
+        const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
+        return colors[difficulty] || 'secondary';
+    }
+
+    function updateDifficultyFilter() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const difficultyToggles = document.querySelectorAll('.difficulty-toggle');
+
+        // Remove existing difficulty parameter
+        urlParams.delete('difficulty');
+
+        // Collect active difficulties
+        const activeDifficulties = [];
+        difficultyToggles.forEach(button => {
+            const isActive = button.classList.contains('btn-success') ||
+                           button.classList.contains('btn-warning') ||
+                           button.classList.contains('btn-danger');
+
+            if (isActive) {
+                activeDifficulties.push(button.dataset.difficulty);
+            }
+        });
+
+        // Add single plus-separated difficulty parameter if any are active
+        if (activeDifficulties.length > 0) {
+            urlParams.set('difficulty', activeDifficulties.join('+'));
+        }
+
+        // Update URL
+        const newUrl = window.location.pathname + '?' + urlParams.toString();
+        window.location.href = newUrl;
+    }
+});
+</script>
 <script>
 // Function to set PhotoSwipe data attributes based on actual image dimensions
 function setupPhotoSwipeData(img) {
