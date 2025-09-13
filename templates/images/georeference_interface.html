@@ -60,7 +60,7 @@
                                 {% for difficulty in difficulty_filters %}
                                     <strong>{{ difficulty }}</strong>{% if not forloop.last %}{% if forloop.revcounter == 2 %} and {% else %}, {% endif %}{% endif %}
                                 {% endfor %}
-                                difficulty images.
+                                difficulty images. Difficulty labels are approximate!
                             </small>
                         </div>
                     {% endif %}
@@ -143,54 +143,77 @@
                             </div>
                             <!-- Image Metadata -->
                             <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <dl class="row mb-0">
-                                        <dt class="col-sm-4 text-muted small">Source:</dt>
-                                        <dd class="col-sm-8 small">
-                                            <a href="{{ current_image.collection.source.get_absolute_url }}" class="text-decoration-none">
-                                                {{ current_image.collection.source.name }}
-                                            </a>
-                                        </dd>
+                                <div class="col-12">
+                                    <div class="row g-2">
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Title:</dt>
+                                                <dd class="small mb-0">{{ current_image.title }}</dd>
+                                            </div>
+                                        </div>
 
-                                        <dt class="col-sm-4 text-muted small">Collection:</dt>
-                                        <dd class="col-sm-8 small">
-                                            <a href="{{ current_image.collection.get_absolute_url }}" class="text-decoration-none">
-                                                {{ current_image.collection.name }}
-                                            </a>
-                                        </dd>
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Source:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ current_image.collection.source.get_absolute_url }}" class="text-decoration-none">
+                                                        {{ current_image.collection.source.name }}
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Collection:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ current_image.collection.get_absolute_url }}" class="text-decoration-none">
+                                                        {{ current_image.collection.name }}
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
 
                                         {% if current_image.date_display != "Unknown date" %}
-                                            <dt class="col-sm-4 text-muted small">Date:</dt>
-                                            <dd class="col-sm-8 small">{{ current_image.date_display }}</dd>
+                                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                                <div class="d-flex">
+                                                    <dt class="text-muted small me-2">Date:</dt>
+                                                    <dd class="small mb-0">{{ current_image.date_display }}</dd>
+                                                </div>
+                                            </div>
                                         {% endif %}
-                                    </dl>
-                                </div>
-                                <div class="col-md-6">
-                                    <dl class="row mb-0">
+
                                         {% if current_image.description %}
-                                            <dt class="col-sm-4 text-muted small">Description:</dt>
-                                            <dd class="col-sm-8 small">{{ current_image.description }}</dd>
+                                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                                <div class="d-flex">
+                                                    <dt class="text-muted small me-2">Description:</dt>
+                                                    <dd class="small mb-0">{{ current_image.description }}</dd>
+                                                </div>
+                                            </div>
                                         {% endif %}
 
-                                        {% if current_image.skip_count > 0 %}
-                                            <dt class="col-sm-4 text-muted small">Skipped:</dt>
-                                            <dd class="col-sm-8 small">{{ current_image.skip_count }} time{{ current_image.skip_count|pluralize }}</dd>
-                                        {% endif %}
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Original URL:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ current_image.original_url }}" target="_blank" class="text-decoration-none small">
+                                                        View Original <i class="fas fa-external-link-alt"></i>
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
 
-                                        <dt class="col-sm-4 text-muted small">Original URL:</dt>
-                                        <dd class="col-sm-8 small">
-                                            <a href="{{ current_image.original_url }}" target="_blank" class="text-decoration-none small">
-                                                View Original <i class="fas fa-external-link-alt"></i>
-                                            </a>
-                                        </dd>
-
-                                        <dt class="col-sm-4 text-muted small">Details:</dt>
-                                        <dd class="col-sm-8 small">
-                                            <a href="{% url 'images:image_detail' current_image.id %}" class="text-decoration-none small">
-                                                Image Detail Page <i class="fas fa-info-circle"></i>
-                                            </a>
-                                        </dd>
-                                    </dl>
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Details:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{% url 'images:image_detail' current_image.id %}" class="text-decoration-none small">
+                                                        Image Detail Page <i class="fas fa-info-circle"></i>
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
