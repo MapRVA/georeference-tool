@@ -122,7 +122,8 @@ def collection_detail(request, source_slug, collection_slug):
         Collection, source=source, slug=collection_slug, public=True
     )
 
-    images = collection.images.all()
+    # Sort images by ID, but put "will not reference" images at the end
+    images = collection.images.order_by('will_not_georef', 'id')
     total_images = images.count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
 
