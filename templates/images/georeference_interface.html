@@ -624,6 +624,12 @@
         color: white;
     }
 
+    /* Fix highlight overflow for indented Sanborn items */
+    .dropdown-item.sanborn-layer {
+        padding-left: 2rem;
+        margin-left: 0;
+    }
+
 
 </style>
 {% endblock %}
@@ -925,7 +931,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const layerId = `sanborn-${index}`;
             const listItem = document.createElement('li');
             const layerItem = document.createElement('a');
-            layerItem.className = 'dropdown-item sanborn-layer ms-3';
+            layerItem.className = 'dropdown-item sanborn-layer';
             layerItem.href = '#';
             layerItem.dataset.layer = layerId;
             layerItem.dataset.mosaicUrl = layer.mosaic_url;
