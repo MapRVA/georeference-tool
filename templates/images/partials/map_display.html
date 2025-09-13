@@ -4,6 +4,7 @@ Usage:
 - Single image: {% include 'images/partials/map_display.html' with image_id=image.id map_id='unique-map-id' height='400px' %}
 - Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
+- Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng='-77.44' center_lat='37.53' zoom_level='11.5' %}
 {% endcomment %}
 
 <!-- MapLibre GL JS CSS and JS - only load once per page -->
@@ -46,8 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const map = new maplibregl.Map({
         container: mapId,
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        {% if center_lng and center_lat and zoom_level %}
+        center: [{{ center_lng }}, {{ center_lat }}],
+        zoom: {{ zoom_level }}
+        {% else %}
         center: [-77.43916, 37.54376],
         zoom: 10
+        {% endif %}
     });
 
     map.addControl(new maplibregl.NavigationControl());
@@ -124,7 +130,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // Fit the map to show all points
+            // Only zoom to data if no custom location is specified
+            {% if not center_lng or not center_lat or not zoom_level %}
             if (geojsonData.features.length > 0) {
                 const bounds = new maplibregl.LngLatBounds();
                 geojsonData.features.forEach(function(feature) {
@@ -142,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 {% endif %}
             }
+            {% endif %}
 
             // Add click handlers for image markers (only for multi-image maps)
             {% if not image_id %}
