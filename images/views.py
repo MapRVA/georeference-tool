@@ -500,15 +500,12 @@ def skip_image(request, image_id):
         # Only track skips for authenticated users
         if request.user.is_authenticated:
             with transaction.atomic():
+                # Always allow skipping - don't check if already skipped
+                # This lets users skip multiple times if they want
                 skip, created = ImageSkip.objects.get_or_create(
                     image=image,
                     user=request.user,
                     defaults={"reason": data.get("reason", "")},
-                )
-
-            if not created:
-                return JsonResponse(
-                    {"success": False, "error": "You have already skipped this image"}
                 )
 
         # For anonymous users, we just return success without tracking
