@@ -661,7 +661,8 @@ def geojson_endpoint(request):
         properties = {
             "img_url": image.permalink,
             "img_entry": img_entry,
-            "date": str(image.original_date) if image.original_date else None,
+            "original_date": str(image.original_date) if image.original_date else None,
+            "edtf_date": str(image.original_date) if image.original_date else None,
         }
 
         # Only include direction if it's not None
