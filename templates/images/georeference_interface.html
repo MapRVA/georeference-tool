@@ -186,15 +186,6 @@
                                             </div>
                                         {% endif %}
 
-                                        {% if current_image.description %}
-                                            <div class="col-lg-3 col-md-4 col-sm-6">
-                                                <div class="d-flex">
-                                                    <dt class="text-muted small me-2">Description:</dt>
-                                                    <dd class="small mb-0">{{ current_image.description }}</dd>
-                                                </div>
-                                            </div>
-                                        {% endif %}
-
                                         <div class="col-lg-3 col-md-4 col-sm-6">
                                             <div class="d-flex">
                                                 <dt class="text-muted small me-2">Original URL:</dt>
@@ -220,21 +211,13 @@
                                 </div>
                             </div>
 
-                            <!-- Source and Collection Descriptions -->
-                            {% if current_image.collection.source.description or current_image.collection.description %}
-                                <div class="row mb-4">
-                                    <div class="col-12">
-                                        {% if current_image.collection.source.description %}
-                                            <h6 class="text-muted mb-2">About Source: {{ current_image.collection.source.name }}</h6>
-                                            <p class="small text-muted mb-3">{{ current_image.collection.source.description }}</p>
-                                        {% endif %}
-
-                                        {% if current_image.collection.description %}
-                                            <h6 class="text-muted mb-2">About Collection: {{ current_image.collection.name }}</h6>
-                                            <p class="small text-muted mb-3">{{ current_image.collection.description }}</p>
-                                        {% endif %}
-                                    </div>
+                            {% if current_image.description %}
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <dt class="text-muted mb-2">Image Description:</dt>
+                                    <dd class="small">{{ current_image.description }}</dd>
                                 </div>
+                            </div>
                             {% endif %}
 
                             <!-- Georeferencing Map -->
