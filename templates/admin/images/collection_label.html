@@ -26,6 +26,11 @@
     <p><strong>Total Images:</strong> {{ images.count }}</p>
 </div>
 
+<div class="jump-controls">
+    <button type="button" id="jump-unlabeled" class="button default">Jump to Next Unlabeled</button>
+    <button type="button" id="jump-will-not-georef" class="button">Jump to Next Will Not Georeference</button>
+</div>
+
 <div class="labeling-interface">
     <div class="current-image" style="display: none;" id="image-container">
         <div class="image-info">
@@ -95,6 +100,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Convert Django template data to JavaScript
     const imageData = {{ image_data_json|safe }};
+
+    // Jump to next unlabeled functionality (difficulty is null)
+    function findNextUnlabeled() {
+        // Start searching from the next image after current position
+        for (let i = currentIndex + 1; i < imageData.length; i++) {
+            const image = imageData[i];
+            const isUnlabeled = !image.difficulty;
+            if (isUnlabeled) {
+                return i;
+            }
+        }
+        // If nothing found after current position, search from the beginning
+        for (let i = 0; i <= currentIndex; i++) {
+            const image = imageData[i];
+            const isUnlabeled = !image.difficulty;
+            if (isUnlabeled) {
+                return i;
+            }
+        }
+        return -1; // No unlabeled images found
+    }
+
+    function jumpToNextUnlabeled() {
+        const index = findNextUnlabeled();
+        if (index !== -1) {
+            currentIndex = index;
+            showImage(currentIndex);
+        } else {
+            alert('No unlabeled images found');
+        }
+    }
+
+    // Jump to next will not georeference functionality
+    function findNextWillNotGeoref() {
+        // Start searching from the next image after current position
+        for (let i = currentIndex + 1; i < imageData.length; i++) {
+            const image = imageData[i];
+            if (image.will_not_georef) {
+                return i;
+            }
+        }
+        // If nothing found after current position, search from the beginning
+        for (let i = 0; i <= currentIndex; i++) {
+            const image = imageData[i];
+            if (image.will_not_georef) {
+                return i;
+            }
+        }
+        return -1; // No will not georeference images found
+    }
+
+    function jumpToNextWillNotGeoref() {
+        const index = findNextWillNotGeoref();
+        if (index !== -1) {
+            currentIndex = index;
+            showImage(currentIndex);
+        } else {
+            alert('No "will not georeference" images found');
+        }
+    }
 
     function showImage(index) {
         if (index >= imageData.length) {
@@ -170,6 +235,15 @@ document.addEventListener('DOMContentLoaded', function() {
     skipBtn.addEventListener('click', function() {
         currentIndex++;
         showImage(currentIndex);
+    });
+
+    // Jump button event listeners
+    document.getElementById('jump-unlabeled').addEventListener('click', function() {
+        jumpToNextUnlabeled();
+    });
+
+    document.getElementById('jump-will-not-georef').addEventListener('click', function() {
+        jumpToNextWillNotGeoref();
     });
 
     // Keyboard shortcuts
@@ -274,6 +348,25 @@ document.addEventListener('DOMContentLoaded', function() {
     margin-top: 20px;
     font-size: 12px;
     color: #666;
+}
+
+.jump-controls {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.jump-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.jump-controls .button {
+    padding: 10px 16px;
+    font-size: 14px;
 }
 </style>
 
