@@ -1021,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const mapswapLink = document.getElementById('mapswap-link');
         if (mapswapLink && map) {
             const center = map.getCenter();
-            const zoom = map.getZoom();
+            const zoom = map.getZoom().toFixed(2);
             const lat = center.lat.toFixed(6);
             const lng = center.lng.toFixed(6);
             const url = `https://mapswap.trailsta.sh/swap/#type=m&url=geo:${lat},${lng};z=${zoom}`;
