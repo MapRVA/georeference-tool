@@ -1021,10 +1021,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const mapswapLink = document.getElementById('mapswap-link');
         if (mapswapLink && map) {
             const center = map.getCenter();
-            const zoom = Math.round(map.getZoom());
+            const zoom = map.getZoom();
             const lat = center.lat.toFixed(6);
             const lng = center.lng.toFixed(6);
-            const url = `https://mapswap.trailsta.sh/swap/#type=l&url=https%3A%2F%2Fwww.openstreetmap.org%2F%23map%3D${zoom}%2F${lat}%2F${lng}`;
+            const url = `https://mapswap.trailsta.sh/swap/#type=m&url=geo:${lat},${lng};z=${zoom}`;
             mapswapLink.href = url;
         }
     }
