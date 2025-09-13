@@ -216,6 +216,14 @@ def get_record_details(readable_primary_key: str):
         "december": 12,
     }
 
+    season_map = {
+        "spring": 21,
+        "summer": 22,
+        "autumn": 23,
+        "fall": 23,
+        "winter": 24,
+    }
+
     # Process date further to extract year and month
     if date_match:
         date_str = date_match.group(1).strip()
@@ -286,6 +294,18 @@ def get_record_details(readable_primary_key: str):
                     + str(month_map[month_name]).zfill(2)
                     + "-"
                     + month_name_day_year_match.group(2).zfill(2)
+                )
+                return result
+
+        # Try Season YYYY
+        season_year_match = re.match(r"^(\w+)\s+(\d{4})$", date_str)
+        if season_year_match:
+            season_name = season_year_match.group(1).lower()
+            if season_name in season_map:
+                result["etdf_date"] = (
+                    season_year_match.group(2)
+                    + "-"
+                    + str(season_map[season_name])
                 )
                 return result
 
