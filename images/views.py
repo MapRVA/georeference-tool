@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.db.models import Case, When, Value, IntegerField
 
 from .models import (
     Collection,
@@ -122,8 +123,14 @@ def collection_detail(request, source_slug, collection_slug):
         Collection, source=source, slug=collection_slug, public=True
     )
 
-    # Sort images by ID, but put "will not reference" images at the end
-    images = collection.images.order_by('will_not_georef', 'id')
+    # Sort images: georeferenced images second-to-last, "will not reference" images at the end
+    images = collection.images.annotate(
+        has_georeference=Case(
+            When(georeferences__isnull=False, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField()
+        )
+    ).order_by('will_not_georef', 'has_georeference', 'id')
     total_images = images.count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
 
