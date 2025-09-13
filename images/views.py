@@ -704,3 +704,45 @@ def geojson_endpoint(request):
     geojson = {"type": "FeatureCollection", "features": features}
 
     return JsonResponse(geojson)
+
+
+def insurance_layers_view(request):
+    """Return hardcoded insurance map layers JSON"""
+    layers = [
+        {
+            "title": "Richmond, Va. | 1952 | Vol. 5",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_020-main-content__2024-07-27__ebgoRc.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1952 | Vol. 4",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_019-main-content__2024-07-27__Dgy4wy.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1952 | Vol. 3",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_018-main-content__2024-07-27__Nuirza.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1952 | Vol. 2",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_017-main-content__2024-07-27__QAY0tK.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1952 | Vol. 1",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_016-main-content__2024-07-27__znVEUT.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1952",
+            "year": 1952,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_021-main-content__2024-07-27__3VeFIq.tif"
+        },
+        {
+            "title": "Richmond, Va. | 1905",
+            "year": 1905,
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_003-main-content__2025-04-03__7XTcKr.tif"
+        }
+    ]
+    return JsonResponse(layers, safe=False)

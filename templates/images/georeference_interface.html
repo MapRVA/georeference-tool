@@ -226,9 +226,15 @@
                                 <div class="position-relative">
                                     <div id="mymap"></div>
                                     <div id="layer-toggle" class="position-absolute" style="top: 0.5em; right: 0.5em; z-index: 1000;">
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-sm btn-secondary active" id="osm-layer-btn">Map</button>
-                                            <button type="button" class="btn btn-sm btn-secondary" id="satellite-layer-btn">Satellite</button>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="layerDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                                Map
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="layerDropdown">
+                                                <li><a class="dropdown-item layer-option active" href="#" data-layer="osm">Map</a></li>
+                                                <li><a class="dropdown-item layer-option" href="#" data-layer="satellite">Satellite</a></li>
+                                                <!-- Sanborn layers will be populated dynamically here -->
+                                            </ul>
                                         </div>
                                     </div>
                                 </div>
@@ -610,11 +616,21 @@
         align-items: center;
         justify-content: center;
     }
+
+
+
+    .dropdown-item.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
+<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
 
@@ -746,6 +762,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const isImageGeoreferenced = {{ current_image.is_georeferenced|yesno:"true,false" }};
 
     // Map and georeferencing variables
+    // Add COG protocol support
+    maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
+    
     var map = new maplibregl.Map({
         container: 'mymap',
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
@@ -754,14 +773,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Layer switching functionality
-    var currentLayer = 'osm';
-    var osmLayerBtn = document.getElementById('osm-layer-btn');
-    var satelliteLayerBtn = document.getElementById('satellite-layer-btn');
+    var currentBaseLayer = 'osm';  // 'osm' or 'satellite'
+    var currentSanbornLayer = null; // null or sanborn layer ID
+    var layerDropdown = document.getElementById('layerDropdown');
+    var insuranceLayersLoaded = false;
+    var insuranceLayersData = null;
 
     function switchToOSMLayer() {
-        if (currentLayer === 'osm') return;
+        if (currentBaseLayer === 'osm') return;
 
-        // Hide satellite layer, show OSM layers
+        // Hide satellite layer
         if (map.getLayer('satellite-layer')) {
             map.setLayoutProperty('satellite-layer', 'visibility', 'none');
         }
@@ -770,24 +791,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const layers = map.getStyle().layers;
         layers.forEach(layer => {
             if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
-                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
+                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions' &&
+                !layer.id.startsWith('sanborn-')) {
                 map.setLayoutProperty(layer.id, 'visibility', 'visible');
             }
         });
 
-        currentLayer = 'osm';
-        osmLayerBtn.classList.add('active');
-        satelliteLayerBtn.classList.remove('active');
+        currentBaseLayer = 'osm';
     }
 
     function switchToSatelliteLayer() {
-        if (currentLayer === 'satellite') return;
+        if (currentBaseLayer === 'satellite') return;
 
-        // Hide OSM layers
+        // Hide OSM layers (but keep Sanborn layers visible)
         const layers = map.getStyle().layers;
         layers.forEach(layer => {
             if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
-                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions') {
+                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions' &&
+                !layer.id.startsWith('sanborn-')) {
                 map.setLayoutProperty(layer.id, 'visibility', 'none');
             }
         });
@@ -797,9 +818,138 @@ document.addEventListener('DOMContentLoaded', function() {
             map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
         }
 
-        currentLayer = 'satellite';
-        satelliteLayerBtn.classList.add('active');
-        osmLayerBtn.classList.remove('active');
+        currentBaseLayer = 'satellite';
+    }
+
+    function switchToSanbornLayer(layerId, mosaicUrl, title) {
+        if (currentSanbornLayer === layerId) return;
+
+        // Hide other Sanborn layers (but keep base layer visible)
+        const layers = map.getStyle().layers;
+        layers.forEach(layer => {
+            if (layer.id.startsWith('sanborn-') && layer.id !== layerId) {
+                map.setLayoutProperty(layer.id, 'visibility', 'none');
+            }
+        });
+
+        // Add COG source if it doesn't exist
+        const sourceId = `${layerId}-source`;
+        if (!map.getSource(sourceId)) {
+            map.addSource(sourceId, {
+                type: 'raster',
+                url: `cog://${mosaicUrl}`,
+                tileSize: 256
+            });
+        }
+
+        // Add layer if it doesn't exist
+        if (!map.getLayer(layerId)) {
+            map.addLayer({
+                id: layerId,
+                source: sourceId,
+                type: 'raster',
+                paint: {
+                    'raster-opacity': 1.0,
+                    'raster-fade-duration': 300,
+                    'raster-resampling': 'linear'
+                },
+                layout: {
+                    'visibility': 'visible'
+                }
+            });
+        }
+
+        // Show the selected Sanborn layer
+        map.setLayoutProperty(layerId, 'visibility', 'visible');
+
+        currentSanbornLayer = layerId;
+        updateDropdownSelection(title, layerId);
+    }
+
+    function updateDropdownSelection(buttonText, selectedLayer) {
+        layerDropdown.textContent = buttonText;
+        
+        // Update active states
+        document.querySelectorAll('.layer-option, .sanborn-layer').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        const selectedItem = document.querySelector(`[data-layer="${selectedLayer}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('active');
+        }
+    }
+
+    async function loadInsuranceLayers() {
+        if (insuranceLayersLoaded) return;
+        
+        try {
+            const response = await fetch('/api/insurance-layers/');
+            if (!response.ok) throw new Error('Failed to fetch insurance layers');
+            
+            insuranceLayersData = await response.json();
+            populateSanbornSubmenu();
+            insuranceLayersLoaded = true;
+        } catch (error) {
+            console.error('Error loading insurance layers:', error);
+            
+            // Add error item to main dropdown
+            const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
+            const errorItem = document.createElement('li');
+            const errorLink = document.createElement('div');
+            errorLink.className = 'dropdown-item-text text-muted';
+            errorLink.textContent = 'Failed to load Sanborn layers';
+            errorItem.appendChild(errorLink);
+            dropdownMenu.appendChild(errorItem);
+        }
+    }
+
+    function populateSanbornSubmenu() {
+        if (!insuranceLayersData) return;
+        
+        const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
+        
+        // Add Sanborn header
+        const sanbornHeaderItem = document.createElement('li');
+        const sanbornHeader = document.createElement('h6');
+        sanbornHeader.className = 'dropdown-header';
+        sanbornHeader.textContent = 'Sanborn';
+        sanbornHeaderItem.appendChild(sanbornHeader);
+        dropdownMenu.appendChild(sanbornHeaderItem);
+        
+        // Create dropdown items for each individual layer
+        insuranceLayersData.forEach((layer, index) => {
+            const layerId = `sanborn-${index}`;
+            const listItem = document.createElement('li');
+            const layerItem = document.createElement('a');
+            layerItem.className = 'dropdown-item sanborn-layer ms-3';
+            layerItem.href = '#';
+            layerItem.dataset.layer = layerId;
+            layerItem.dataset.mosaicUrl = layer.mosaic_url;
+            layerItem.textContent = layer.title;
+            
+            // Add click event listener
+            layerItem.addEventListener('click', handleSanbornLayerClick);
+            
+            listItem.appendChild(layerItem);
+            dropdownMenu.appendChild(listItem);
+        });
+    }
+
+    function handleSanbornLayerClick(e) {
+        e.preventDefault();
+        const layerId = this.dataset.layer;
+        const mosaicUrl = this.dataset.mosaicUrl;
+        const title = this.textContent.trim();
+        
+        // Switch to the Sanborn layer
+        switchToSanbornLayer(layerId, mosaicUrl, title);
+        
+        // Close the dropdown after selection
+        const dropdown = bootstrap.Dropdown.getInstance(layerDropdown);
+        if (dropdown) {
+            dropdown.hide();
+        }
     }
 
     // Function to add all map sources and layers (used on initial load and after style changes)
@@ -959,8 +1109,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    osmLayerBtn.addEventListener('click', switchToOSMLayer);
-    satelliteLayerBtn.addEventListener('click', switchToSatelliteLayer);
+    // Add event listeners for dropdown items
+    document.querySelectorAll('.layer-option').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const layer = this.dataset.layer;
+            
+            if (layer === 'osm') {
+                switchToOSMLayer();
+            } else if (layer === 'satellite') {
+                switchToSatelliteLayer();
+            }
+            
+            // Clear any active Sanborn layer when switching base layers
+            currentSanbornLayer = null;
+            
+            // Hide all Sanborn layers
+            const layers = map.getStyle().layers;
+            layers.forEach(mapLayer => {
+                if (mapLayer.id.startsWith('sanborn-')) {
+                    map.setLayoutProperty(mapLayer.id, 'visibility', 'none');
+                }
+            });
+            
+            // Update dropdown to show base layer
+            updateDropdownSelection(this.textContent, layer);
+        });
+    });
+
+    // Sanborn layers are now added directly to the main dropdown
+
+    // Note: Sanborn layer event listeners are added dynamically when layers are loaded
 
     var latitudeInput = document.getElementById('latitude-input');
     var longitudeInput = document.getElementById('longitude-input');
@@ -1116,6 +1295,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.on('load', async () => {
         await addMapSourcesAndLayers();
+
+        // Load insurance layers on map load so they're ready
+        await loadInsuranceLayers();
 
         // Initialize MapSwap link and update on map move
         updateMapSwapLink();
