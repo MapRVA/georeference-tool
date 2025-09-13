@@ -309,11 +309,16 @@ def main(archive_id):
 
         r2_uploader = R2Uploader()
 
+        skip_count = 0
         for child in tqdm(archival_children):
             existing_by_ref = Image.objects.filter(ref=child).exists()
             if existing_by_ref:
-                tqdm.write("      → Already exists, skipping")
+                skip_count += 1
                 continue
+            elif skip_count > 0:
+                tqdm.write(f"Skipped {skip_count} images that already exist")
+                skip_count = 0
+
 
             sleep(POLITE_WAIT_SECS)
             record = get_record_details(child)
