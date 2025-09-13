@@ -95,7 +95,9 @@ class R2Uploader:
             else:
                 raise R2UploaderError(f"Error checking file existence: {e}")
 
-    def upload_url(self, source_url, overwrite=False, timeout=30, in_tqdm=False, raise_on_err=True):
+    def upload_url(
+        self, source_url, overwrite=False, timeout=30, in_tqdm=False, raise_on_err=True
+    ):
         """
         Download a file from URL and upload to R2 bucket
 

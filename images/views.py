@@ -128,9 +128,9 @@ def collection_detail(request, source_slug, collection_slug):
         has_georeference=Case(
             When(georeferences__isnull=False, then=Value(1)),
             default=Value(0),
-            output_field=IntegerField()
+            output_field=IntegerField(),
         )
-    ).order_by('will_not_georef', 'has_georeference', 'id')
+    ).order_by("will_not_georef", "has_georeference", "id")
     total_images = images.count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
 
@@ -206,11 +206,15 @@ def georeference_interface(request):
         images = images.filter(collection=collection)
 
     # Filter by difficulty if specified - can be multiple values (plus-separated)
-    difficulty_param = request.GET.get('difficulty', '')
+    difficulty_param = request.GET.get("difficulty", "")
     difficulty_filters = []
     if difficulty_param:
         # Split plus-separated values and validate
-        difficulty_filters = [d.strip() for d in difficulty_param.split('+') if d.strip() in ["easy", "medium", "hard", "unlabeled"]]
+        difficulty_filters = [
+            d.strip()
+            for d in difficulty_param.split("+")
+            if d.strip() in ["easy", "medium", "hard", "unlabeled"]
+        ]
         if difficulty_filters:
             # Handle unlabeled separately since it needs a different query
             regular_difficulties = [d for d in difficulty_filters if d != "unlabeled"]
@@ -219,8 +223,8 @@ def georeference_interface(request):
             if regular_difficulties and has_unlabeled:
                 # Include both regular difficulties and unlabeled images
                 images = images.filter(
-                    models.Q(difficulty__in=regular_difficulties) |
-                    models.Q(difficulty__isnull=True)
+                    models.Q(difficulty__in=regular_difficulties)
+                    | models.Q(difficulty__isnull=True)
                 )
             elif regular_difficulties:
                 # Only regular difficulties
@@ -569,15 +573,21 @@ def mark_will_not_georef(request, image_id):
     image = get_object_or_404(Image, id=image_id)
 
     # Get the desired state from POST data, defaulting to True for backwards compatibility
-    will_not_georef = request.POST.get('will_not_georef', 'true').lower() in ('true', '1', 'yes')
+    will_not_georef = request.POST.get("will_not_georef", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     image.will_not_georef = will_not_georef
     image.save(update_fields=["will_not_georef"])
-    message = 'Image marked as "will not georeference"' if will_not_georef else 'Removed "will not georeference" flag'
-
-    return JsonResponse(
-        {"success": True, "message": message}
+    message = (
+        'Image marked as "will not georeference"'
+        if will_not_georef
+        else 'Removed "will not georeference" flag'
     )
+
+    return JsonResponse({"success": True, "message": message})
 
 
 def get_random_image(request):
@@ -719,37 +729,37 @@ def insurance_layers_view(request):
         {
             "title": "Richmond, Va. | 1952 | Vol. 5",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_020-main-content__2024-07-27__ebgoRc.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_020-main-content__2024-07-27__ebgoRc.tif",
         },
         {
             "title": "Richmond, Va. | 1952 | Vol. 4",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_019-main-content__2024-07-27__Dgy4wy.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_019-main-content__2024-07-27__Dgy4wy.tif",
         },
         {
             "title": "Richmond, Va. | 1952 | Vol. 3",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_018-main-content__2024-07-27__Nuirza.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_018-main-content__2024-07-27__Nuirza.tif",
         },
         {
             "title": "Richmond, Va. | 1952 | Vol. 2",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_017-main-content__2024-07-27__QAY0tK.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_017-main-content__2024-07-27__QAY0tK.tif",
         },
         {
             "title": "Richmond, Va. | 1952 | Vol. 1",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_016-main-content__2024-07-27__znVEUT.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_016-main-content__2024-07-27__znVEUT.tif",
         },
         {
             "title": "Richmond, Va. | 1952",
             "year": 1952,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_021-main-content__2024-07-27__3VeFIq.tif"
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_021-main-content__2024-07-27__3VeFIq.tif",
         },
         {
             "title": "Richmond, Va. | 1905",
             "year": 1905,
-            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_003-main-content__2025-04-03__7XTcKr.tif"
-        }
+            "mosaic_url": "https://s3.us-central-1.wasabisys.com/oldinsurancemaps/uploaded/mosaics/sanborn09064_003-main-content__2025-04-03__7XTcKr.tif",
+        },
     ]
     return JsonResponse(layers, safe=False)

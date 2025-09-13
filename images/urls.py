@@ -40,5 +40,5 @@ urlpatterns = [
     ),
     # GeoJSON endpoint
     path("geojson/", views.geojson_endpoint, name="geojson"),
-    path('api/insurance-layers/', views.insurance_layers_view, name='insurance_layers'),
+    path("api/insurance-layers/", views.insurance_layers_view, name="insurance_layers"),
 ]
