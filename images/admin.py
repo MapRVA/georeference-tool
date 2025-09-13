@@ -1,4 +1,10 @@
 from django.contrib import admin
+from django.urls import path, reverse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.http import JsonResponse
+from django.utils.html import format_html
+import json
 from .models import (
     Source,
     Collection,
@@ -24,15 +30,85 @@ class SourceAdmin(admin.ModelAdmin):
 
 @admin.register(Collection)
 class CollectionAdmin(admin.ModelAdmin):
-    list_display = ("name", "source", "public", "url", "created_at", "image_count")
+    list_display = ("name", "source", "public", "url", "created_at", "image_count", "label_collection_button")
     list_filter = ("public", "source", "created_at")
     search_fields = ("name", "description", "source__name")
     readonly_fields = ("created_at", "updated_at")
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<int:collection_id>/label/',
+                self.admin_site.admin_view(self.label_collection),
+                name='images_collection_label',
+            ),
+            path(
+                '<int:collection_id>/label/update/',
+                self.admin_site.admin_view(self.update_image_label),
+                name='images_collection_update_label',
+            ),
+        ]
+        return custom_urls + urls
+
     def image_count(self, obj):
         return obj.images.count()
-
     image_count.short_description = "Images"
+
+    def label_collection_button(self, obj):
+        url = reverse('admin:images_collection_label', args=[obj.pk])
+        return format_html('<a class="button" href="{}">Label Collection</a>', url)
+    label_collection_button.short_description = "Actions"
+
+    def label_collection(self, request, collection_id):
+        collection = get_object_or_404(Collection, id=collection_id)
+        images = collection.images.all().order_by('id')
+
+        # Serialize image data for JavaScript
+        image_data = []
+        for image in images:
+            image_data.append({
+                'id': image.id,
+                'title': image.title,
+                'permalink': image.permalink,
+                'description': image.description,
+                'date_display': image.date_display,
+                'difficulty': image.difficulty,
+                'will_not_georef': image.will_not_georef,
+                'absolute_url': image.get_absolute_url(),
+            })
+
+        context = {
+            'collection': collection,
+            'images': images,
+            'image_data_json': json.dumps(image_data),
+            'title': f'Label Collection: {collection.name}',
+        }
+
+        return render(request, 'admin/images/collection_label.html', context)
+
+    def update_image_label(self, request, collection_id):
+        if request.method != 'POST':
+            return JsonResponse({'error': 'POST required'}, status=400)
+
+        image_id = request.POST.get('image_id')
+        difficulty = request.POST.get('difficulty')
+        will_not_georef = request.POST.get('will_not_georef') == 'true'
+
+        try:
+            image = get_object_or_404(Image, id=image_id, collection_id=collection_id)
+
+            if difficulty and difficulty != 'none':
+                image.difficulty = difficulty
+            elif difficulty == 'none':
+                image.difficulty = None
+
+            image.will_not_georef = will_not_georef
+            image.save(update_fields=['difficulty', 'will_not_georef'])
+
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
 
 
 @admin.register(Image)

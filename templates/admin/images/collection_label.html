@@ -1,0 +1,286 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Django administration" }}</a></h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:images_collection_changelist' %}">Collections</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="module">
+    <p><strong>Collection:</strong> {{ collection.name }}</p>
+    <p><strong>Source:</strong> {{ collection.source.name }}</p>
+    <p><strong>Total Images:</strong> {{ images.count }}</p>
+</div>
+
+<div class="labeling-interface">
+    <div class="current-image" style="display: none;" id="image-container">
+        <div class="image-info">
+            <h2 id="image-title"></h2>
+            <p><strong>Image <span id="current-index"></span> of {{ images.count }}</strong></p>
+            <p id="image-date" style="margin: 5px 0;"></p>
+            <div id="image-description" style="margin: 10px 0; font-style: italic;"></div>
+            <p><a id="image-link" href="#" target="_blank">View image on site →</a></p>
+        </div>
+
+        <div class="image-display">
+            <img id="current-image" style="max-width: 100%; max-height: 400px; margin-bottom: 20px;" />
+        </div>
+
+        <div class="labeling-controls">
+            <h3>Labels</h3>
+
+            <div class="fieldset">
+                <label for="difficulty">Difficulty:</label>
+                <select id="difficulty" name="difficulty">
+                    <option value="none">No difficulty set</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+
+            <div class="fieldset">
+                <label>
+                    <input type="checkbox" id="will_not_georef" name="will_not_georef">
+                    Will not georeference
+                </label>
+            </div>
+
+            <div class="navigation-buttons">
+                <button type="button" id="prev-btn" class="default">← Previous</button>
+                <button type="button" id="save-next-btn" class="default">Save & Next →</button>
+                <button type="button" id="skip-btn">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="completion-message" style="display: none;">
+        <h2>Collection Labeling Complete!</h2>
+        <p>You have reviewed all {{ images.count }} images in this collection.</p>
+        <a href="{% url 'admin:images_collection_changelist' %}" class="button default">Back to Collections</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentIndex = 0;
+
+    const imageContainer = document.getElementById('image-container');
+    const currentImage = document.getElementById('current-image');
+    const imageTitle = document.getElementById('image-title');
+    const currentIndexSpan = document.getElementById('current-index');
+    const imageDate = document.getElementById('image-date');
+    const imageDescription = document.getElementById('image-description');
+    const imageLink = document.getElementById('image-link');
+    const difficultySelect = document.getElementById('difficulty');
+    const willNotGeorefCheckbox = document.getElementById('will_not_georef');
+    const prevBtn = document.getElementById('prev-btn');
+    const saveNextBtn = document.getElementById('save-next-btn');
+    const skipBtn = document.getElementById('skip-btn');
+    const completionMessage = document.getElementById('completion-message');
+
+    // Convert Django template data to JavaScript
+    const imageData = {{ image_data_json|safe }};
+
+    function showImage(index) {
+        if (index >= imageData.length) {
+            imageContainer.style.display = 'none';
+            completionMessage.style.display = 'block';
+            return;
+        }
+
+        const image = imageData[index];
+        currentImage.src = image.permalink;
+        imageTitle.textContent = image.title || `Image ${image.id}`;
+        currentIndexSpan.textContent = index + 1;
+
+        // Set date and description
+        imageDate.textContent = image.date_display ? `Date: ${image.date_display}` : '';
+        imageDescription.textContent = image.description || '';
+        imageDescription.style.display = image.description ? 'block' : 'none';
+
+        // Set image link
+        imageLink.href = image.absolute_url;
+
+        // Set form values
+        difficultySelect.value = image.difficulty || 'none';
+        willNotGeorefCheckbox.checked = image.will_not_georef;
+
+        // Update button states
+        prevBtn.disabled = index === 0;
+
+        imageContainer.style.display = 'block';
+    }
+
+    function saveCurrentImage() {
+        const image = imageData[currentIndex];
+        const formData = new FormData();
+        formData.append('image_id', image.id);
+        formData.append('difficulty', difficultySelect.value);
+        formData.append('will_not_georef', willNotGeorefCheckbox.checked);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        return fetch(`{% url 'admin:images_collection_update_label' collection.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save');
+            }
+            // Update local data
+            imageData[currentIndex].difficulty = difficultySelect.value === 'none' ? null : difficultySelect.value;
+            imageData[currentIndex].will_not_georef = willNotGeorefCheckbox.checked;
+        });
+    }
+
+    prevBtn.addEventListener('click', function() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            showImage(currentIndex);
+        }
+    });
+
+    saveNextBtn.addEventListener('click', function() {
+        saveCurrentImage()
+            .then(() => {
+                currentIndex++;
+                showImage(currentIndex);
+            })
+            .catch(error => {
+                alert('Error saving: ' + error.message);
+            });
+    });
+
+    skipBtn.addEventListener('click', function() {
+        currentIndex++;
+        showImage(currentIndex);
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                prevBtn.click();
+                break;
+            case 'ArrowRight':
+            case 'Enter':
+                e.preventDefault();
+                saveNextBtn.click();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                skipBtn.click();
+                break;
+            case '1':
+                e.preventDefault();
+                difficultySelect.value = 'easy';
+                break;
+            case '2':
+                e.preventDefault();
+                difficultySelect.value = 'medium';
+                break;
+            case '3':
+                e.preventDefault();
+                difficultySelect.value = 'hard';
+                break;
+            case '0':
+                e.preventDefault();
+                difficultySelect.value = 'none';
+                break;
+            case 'w':
+                e.preventDefault();
+                willNotGeorefCheckbox.checked = !willNotGeorefCheckbox.checked;
+                break;
+        }
+    });
+
+    // Start with first image
+    showImage(currentIndex);
+});
+</script>
+
+<style>
+.labeling-interface {
+    margin-top: 20px;
+}
+
+.image-info h2 {
+    margin: 0 0 10px 0;
+}
+
+.image-display {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.labeling-controls {
+    background: #f8f8f8;
+    padding: 20px;
+    border: 1px solid #ddd;
+}
+
+.fieldset {
+    margin-bottom: 15px;
+}
+
+.fieldset label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.fieldset select {
+    width: 200px;
+    padding: 5px;
+}
+
+.navigation-buttons {
+    margin-top: 20px;
+}
+
+.navigation-buttons button {
+    margin-right: 10px;
+    padding: 8px 16px;
+}
+
+#completion-message {
+    text-align: center;
+    padding: 40px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+}
+
+.keyboard-help {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #666;
+}
+</style>
+
+<div class="keyboard-help">
+    <strong>Keyboard shortcuts:</strong>
+    ← Previous | → or Enter: Save & Next | Esc: Skip | 1: Easy | 2: Medium | 3: Hard | 0: No difficulty | W: Toggle "Will not georeference"
+</div>
+
+{% csrf_token %}
+{% endblock %}

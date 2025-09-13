@@ -152,6 +152,9 @@ class Image(models.Model):
             return self.title
         return f"Image {self.id} from {self.collection.name}"
 
+    def get_absolute_url(self):
+        return reverse("images:image_detail", kwargs={"image_id": self.id})
+
     @property
     def date_display(self):
         if self.original_date:
