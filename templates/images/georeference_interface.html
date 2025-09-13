@@ -844,6 +844,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add layer if it doesn't exist
         if (!map.getLayer(layerId)) {
+            // Add before pin layers so pin/direction indicators appear on top
+            const beforeId = map.getLayer('pin-circle') ? 'pin-circle' : undefined;
+            
             map.addLayer({
                 id: layerId,
                 source: sourceId,
@@ -856,7 +859,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 layout: {
                     'visibility': 'visible'
                 }
-            });
+            }, beforeId);
         }
 
         // Show the selected Sanborn layer
