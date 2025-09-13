@@ -10,6 +10,16 @@ Usage:
 <link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 
+<style>
+.maplibregl-popup {
+    max-width: none !important;
+}
+.maplibregl-popup-content {
+    max-width: 60vw;
+    width: max-content;
+}
+</style>
+
 <div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: {{ border_radius|default:'8px' }}; overflow: hidden;"></div>
 
 <script>
@@ -142,9 +152,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const popupContent = `
                   <div>
                       <img src="${properties.img_url}"
-                            style="border-radius: 4px;">
-                      ${properties.year ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Year: ${properties.year}</p>` : ''}
-                      ${properties.direction !== undefined ? `<p style="margin: 4px 0; font-size: 0.9em; color: #666;">Direction: ${properties.direction}°</p>` : ''}
+                            style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                      ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
                       <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
                           <i class="fas fa-eye me-1"></i>View Details
                       </a>
