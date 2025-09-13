@@ -176,9 +176,10 @@ def georeference_interface(request):
         collection__source__public=True,
     )
 
-    # Exclude images this user has already skipped (only if user is authenticated)
-    if request.user.is_authenticated:
-        images = images.exclude(skips__user=request.user)
+    # Note: We deliberately do NOT exclude skipped images here because:
+    # 1. It makes the remaining count misleading (looks like fewer images need work)
+    # 2. Users should be able to go back and georeference images they previously skipped
+    # 3. Skip tracking is still useful for statistics, but shouldn't hide images
 
     images = images.select_related("collection__source")
 
@@ -579,9 +580,8 @@ def get_random_image(request):
         collection__source__public=True,
     )
 
-    # Exclude images this user has already skipped (only if user is authenticated)
-    if request.user.is_authenticated:
-        available_images = available_images.exclude(skips__user=request.user)
+    # Note: We deliberately do NOT exclude skipped images - users should be able to
+    # go back and georeference images they previously skipped
 
     # Filter by difficulty if specified
     difficulty = request.GET.get("difficulty")
