@@ -463,133 +463,131 @@
 
     /* Map styles */
     #mymap {
-      width: 100%;
-      height: 50vh;
-
+        width: 100%;
+        height: 50vh;
     }
     #controls-container {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1.5em;
-      margin-top: 0.75em;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1.5em;
+        margin-top: 0.75em;
     }
 
     #coordinate-inputs {
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      gap: 0.5em 1em;
-      min-width: 220px; /* Ensure adequate space for inputs */
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.5em 1em;
+        min-width: 220px;
     }
 
     .input-row {
-      display: contents;
+        display: contents;
     }
 
     .input-row label {
-      font-weight: bold;
-      text-align: left;
-      grid-column: 1;
+        font-weight: bold;
+        text-align: left;
+        grid-column: 1;
     }
 
     .coordinate-input {
-      font-family: monospace;
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 0.8em;
-      grid-column: 2;
-      width: 18ch;
+        font-family: monospace;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 0.8em;
+        grid-column: 2;
+        width: 18ch;
     }
 
     .direction-input-group {
-      grid-column: 2;
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      width: 8em;
+        grid-column: 2;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        width: 8em;
     }
 
     #direction-input {
-      font-family: monospace;
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 0.8em;
-      width: 14ch;
-      max-width: 100%;
+        font-family: monospace;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 0.8em;
+        width: 14ch;
+        max-width: 100%;
     }
 
     .coordinate-input:focus, #direction-input:focus {
-      outline: none;
-      border-color: #666;
-      box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2);
+        outline: none;
+        border-color: #666;
+        box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2);
     }
 
     #direction-input.inactive {
-      background-color: #f5f5f5;
-      color: #999;
+        background-color: #f5f5f5;
+        color: #999;
     }
 
     #reset-direction {
-      padding: 0.5em;
-      border: 0.1em solid #ccc;
-      border-radius: 1em;
-      background-color: white;
-      cursor: pointer;
-      font-size: 0.8em;
-      width: 5ch;
+        padding: 0.5em;
+        border: 0.1em solid #ccc;
+        border-radius: 1em;
+        background-color: white;
+        cursor: pointer;
+        font-size: 0.8em;
+        width: 5ch;
     }
 
     #reset-direction:hover {
-      background-color: #f0f0f0;
+        background-color: #f0f0f0;
     }
 
     #joystick-container {
-      display:block;
-      position: relative;
-      width: 6.5em;
-      height: 6.5em;
-      min-width: 6.5em;
-      background: #e0e0e0;
-      border: 0.1em solid #888;
-      border-radius: 50%;
-      flex-shrink: 0;
-      user-select: none;
-      touch-action: none; /* Prevent scrolling while dragging */
+        display: block;
+        position: relative;
+        width: 6.5em;
+        height: 6.5em;
+        min-width: 6.5em;
+        background: #e0e0e0;
+        border: 0.1em solid #888;
+        border-radius: 50%;
+        flex-shrink: 0;
+        user-select: none;
+        touch-action: none;
     }
 
     #joystick-handle {
-      width: 1.5em;
-      height: 1.5em;
-      background: #333;
-      border-radius: 50%;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      cursor: grab;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      transition: none; /* Remove any transitions that might affect dragging */
+        width: 1.5em;
+        height: 1.5em;
+        background: #333;
+        border-radius: 50%;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        cursor: grab;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        transition: none;
     }
 
     #joystick-handle:active {
-      cursor: grabbing;
+        cursor: grabbing;
     }
 
     #mapswap-container {
-      flex: 2;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5em;
-      text-align: left;
-      min-width: 120px;
-      flex-shrink: 0; /* Prevent shrinking */
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5em;
+        text-align: left;
+        min-width: 120px;
+        flex-shrink: 0;
     }
 
-    /* Image preview styles to prevent stretching */
     .image-container-wrapper {
         position: relative;
     }
@@ -617,14 +615,10 @@
         justify-content: center;
     }
 
-
-
     .dropdown-item.active {
         background-color: #0d6efd;
         color: white;
     }
-
-    /* Fix highlight overflow for indented Sanborn items */
     .dropdown-item.sanborn-layer {
         padding-left: 2rem;
         margin-left: 0;
@@ -640,7 +634,7 @@
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
 
-<!-- Difficulty filter functionality (works with or without current image) -->
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize difficulty filter toggles
@@ -726,14 +720,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script>
-// Function to set PhotoSwipe data attributes based on actual image dimensions
 function setupPhotoSwipeData(img) {
     const link = img.parentElement;
     link.setAttribute('data-pswp-width', img.naturalWidth);
     link.setAttribute('data-pswp-height', img.naturalHeight);
 }
-
-// Initialize PhotoSwipe for the image viewer
 const lightbox = new PhotoSwipeLightbox({
     gallery: '#pswp-gallery',
     children: 'a',
@@ -749,7 +740,6 @@ lightbox.init();
 
 {% if current_image %}
 <script>
-// Global utility functions
 function getBootstrapColor(difficulty) {
     const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
     return colors[difficulty] || 'secondary';
@@ -761,16 +751,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const willNotGeorefButton = document.getElementById('willNotGeorefButton');
     const markDifficultyButtons = document.querySelectorAll('.mark-difficulty');
     const confidenceNotes = document.getElementById('confidence-notes');
-
-    // Check if user is authenticated and image status
-    const isAuthenticated = {{ osm_authenticated|yesno:"true,false" }};
     const isStaff = {{ user.is_staff|yesno:"true,false" }};
     const isImageGeoreferenced = {{ current_image.is_georeferenced|yesno:"true,false" }};
 
-    // Map and georeferencing variables
-    // Add COG protocol support
     maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
-    
+
     var map = new maplibregl.Map({
         container: 'mymap',
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
@@ -778,9 +763,8 @@ document.addEventListener('DOMContentLoaded', function() {
         zoom: 13
     });
 
-    // Layer switching functionality
-    var currentBaseLayer = 'osm';  // 'osm' or 'satellite'
-    var currentSanbornLayer = null; // null or sanborn layer ID
+    var currentBaseLayer = 'osm';
+    var currentSanbornLayer = null;
     var layerDropdown = document.getElementById('layerDropdown');
     var insuranceLayersLoaded = false;
     var insuranceLayersData = null;
@@ -804,6 +788,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         currentBaseLayer = 'osm';
+
+        updateDropdownSelection(currentSanbornLayer ? layerDropdown.textContent : 'Map', 'osm');
     }
 
     function switchToSatelliteLayer() {
@@ -825,10 +811,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         currentBaseLayer = 'satellite';
+        updateDropdownSelection(currentSanbornLayer ? layerDropdown.textContent : 'Satellite', 'satellite');
     }
 
     function switchToSanbornLayer(layerId, mosaicUrl, title) {
-        if (currentSanbornLayer === layerId) return;
+        // If clicking the same layer, deactivate it
+        if (currentSanbornLayer === layerId) {
+            // Hide the current Sanborn layer
+            map.setLayoutProperty(layerId, 'visibility', 'none');
+
+            // Clear the current Sanborn layer
+            currentSanbornLayer = null;
+
+            // Update dropdown to show only base layer
+            const baseLayerName = currentBaseLayer === 'osm' ? 'Map' : 'Satellite';
+            updateDropdownSelection(baseLayerName, currentBaseLayer);
+            return;
+        }
 
         // Hide other Sanborn layers (but keep base layer visible)
         const layers = map.getStyle().layers;
@@ -852,7 +851,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!map.getLayer(layerId)) {
             // Add before pin layers so pin/direction indicators appear on top
             const beforeId = map.getLayer('pin-circle') ? 'pin-circle' : undefined;
-            
+
             map.addLayer({
                 id: layerId,
                 source: sourceId,
@@ -877,33 +876,57 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateDropdownSelection(buttonText, selectedLayer) {
         layerDropdown.textContent = buttonText;
-        
-        // Update active states
+
+        // Clear all active states first
         document.querySelectorAll('.layer-option, .sanborn-layer').forEach(item => {
             item.classList.remove('active');
         });
-        
-        const selectedItem = document.querySelector(`[data-layer="${selectedLayer}"]`);
-        if (selectedItem) {
-            selectedItem.classList.add('active');
+
+        // If a Sanborn layer is selected, highlight both the base layer and the Sanborn layer
+        if (currentSanbornLayer) {
+            // Highlight the active base layer
+            const baseLayerItem = document.querySelector(`[data-layer="${currentBaseLayer}"]`);
+            if (baseLayerItem) {
+                baseLayerItem.classList.add('active');
+            }
+
+            // Highlight the active Sanborn layer
+            const sanbornLayerItem = document.querySelector(`[data-layer="${currentSanbornLayer}"]`);
+            if (sanbornLayerItem) {
+                sanbornLayerItem.classList.add('active');
+            }
+        } else {
+            // Only highlight the base layer
+            const selectedItem = document.querySelector(`[data-layer="${selectedLayer}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('active');
+            }
         }
     }
 
     async function loadInsuranceLayers() {
         if (insuranceLayersLoaded) return;
-        
+
         try {
             const response = await fetch('/api/insurance-layers/');
             if (!response.ok) throw new Error('Failed to fetch insurance layers');
-            
+
             insuranceLayersData = await response.json();
             populateSanbornSubmenu();
             insuranceLayersLoaded = true;
         } catch (error) {
             console.error('Error loading insurance layers:', error);
-            
+
             // Add error item to main dropdown
             const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
+
+            // Add divider before error message
+            const dividerItem = document.createElement('li');
+            const divider = document.createElement('hr');
+            divider.className = 'dropdown-divider';
+            dividerItem.appendChild(divider);
+            dropdownMenu.appendChild(dividerItem);
+
             const errorItem = document.createElement('li');
             const errorLink = document.createElement('div');
             errorLink.className = 'dropdown-item-text text-muted';
@@ -915,9 +938,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function populateSanbornSubmenu() {
         if (!insuranceLayersData) return;
-        
+
         const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
-        
+
+        // Add divider before Sanborn section
+        const dividerItem = document.createElement('li');
+        const divider = document.createElement('hr');
+        divider.className = 'dropdown-divider';
+        dividerItem.appendChild(divider);
+        dropdownMenu.appendChild(dividerItem);
+
         // Add Sanborn header
         const sanbornHeaderItem = document.createElement('li');
         const sanbornHeader = document.createElement('h6');
@@ -925,7 +955,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sanbornHeader.textContent = 'Sanborn';
         sanbornHeaderItem.appendChild(sanbornHeader);
         dropdownMenu.appendChild(sanbornHeaderItem);
-        
+
         // Create dropdown items for each individual layer
         insuranceLayersData.forEach((layer, index) => {
             const layerId = `sanborn-${index}`;
@@ -936,10 +966,10 @@ document.addEventListener('DOMContentLoaded', function() {
             layerItem.dataset.layer = layerId;
             layerItem.dataset.mosaicUrl = layer.mosaic_url;
             layerItem.textContent = layer.title;
-            
+
             // Add click event listener
             layerItem.addEventListener('click', handleSanbornLayerClick);
-            
+
             listItem.appendChild(layerItem);
             dropdownMenu.appendChild(listItem);
         });
@@ -950,10 +980,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const layerId = this.dataset.layer;
         const mosaicUrl = this.dataset.mosaicUrl;
         const title = this.textContent.trim();
-        
+
         // Switch to the Sanborn layer
         switchToSanbornLayer(layerId, mosaicUrl, title);
-        
+
         // Close the dropdown after selection
         const dropdown = bootstrap.Dropdown.getInstance(layerDropdown);
         if (dropdown) {
@@ -1123,32 +1153,22 @@ document.addEventListener('DOMContentLoaded', function() {
         item.addEventListener('click', function(e) {
             e.preventDefault();
             const layer = this.dataset.layer;
-            
+
+            // If clicking the same base layer that's already active, do nothing
+            if (layer === currentBaseLayer) {
+                return;
+            }
+
+            // Switch base layers while preserving any active Sanborn layer
             if (layer === 'osm') {
                 switchToOSMLayer();
             } else if (layer === 'satellite') {
                 switchToSatelliteLayer();
             }
-            
-            // Clear any active Sanborn layer when switching base layers
-            currentSanbornLayer = null;
-            
-            // Hide all Sanborn layers
-            const layers = map.getStyle().layers;
-            layers.forEach(mapLayer => {
-                if (mapLayer.id.startsWith('sanborn-')) {
-                    map.setLayoutProperty(mapLayer.id, 'visibility', 'none');
-                }
-            });
-            
-            // Update dropdown to show base layer
-            updateDropdownSelection(this.textContent, layer);
         });
     });
 
-    // Sanborn layers are now added directly to the main dropdown
 
-    // Note: Sanborn layer event listeners are added dynamically when layers are loaded
 
     var latitudeInput = document.getElementById('latitude-input');
     var longitudeInput = document.getElementById('longitude-input');
@@ -1162,23 +1182,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.getCanvas().style.cursor = 'crosshair';
 
-    // Confidence handling
     const confidenceRadios = document.querySelectorAll('input[name="confidence"]');
     const notesRequiredIndicator = document.getElementById('notes-required-indicator');
     const notesHelpText = document.getElementById('notes-help-text');
     const confidenceHighRadio = document.getElementById('confidence-high');
 
-    // Check if confidence elements exist
     if (!confidenceNotes || !notesRequiredIndicator || !notesHelpText || !confidenceHighRadio) {
         console.error('Confidence elements not found in DOM');
     }
 
-    // Handle image loading
     const mainImage = document.getElementById('main-image');
     const imageFallback = document.getElementById('image-fallback');
 
     if (mainImage && imageFallback) {
-        // Handle successful image load
         mainImage.onload = function() {
             imageFallback.style.setProperty('display', 'none', 'important');
             mainImage.style.display = 'block';
@@ -1186,13 +1202,11 @@ document.addEventListener('DOMContentLoaded', function() {
             setupPhotoSwipeData(this);
         };
 
-        // Handle image load error
         mainImage.onerror = function() {
             mainImage.style.display = 'none';
             imageFallback.style.setProperty('display', 'flex', 'important');
         };
 
-        // Check if image is already loaded (cached)
         if (mainImage.complete) {
             if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
                 imageFallback.style.setProperty('display', 'none', 'important');
