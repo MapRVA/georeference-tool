@@ -271,7 +271,7 @@
                             {% endif %}
                             <div class="col-md-4">
                                 <small class="text-muted d-block">Map Tools</small>
-                                <a href="https://mapswap.trailsta.sh/swap/#type=l&url=https%3A%2F%2Fwww.openstreetmap.org%2F%23map%3D18%2F{{ image.get_georeference.latitude }}%2F{{ image.get_georeference.longitude }}"
+                                <a href="https://mapswap.trailsta.sh/swap/#url=geo:{{ image.get_georeference.latitude }},{{ image.get_georeference.longitude }};z=18"
                                    target="_blank" class="btn btn-outline-primary btn-sm">
                                     MapSwap
                                 </a>
