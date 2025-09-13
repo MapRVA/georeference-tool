@@ -9,13 +9,16 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h1><i class="fas fa-map-marker-alt me-2"></i>Georeference Image</h1>
-                {% if source %}
+                {% if request.GET.source or request.GET.image %}
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
                             <li class="breadcrumb-item"><a href="{{ source.get_absolute_url }}">{{ source.name }}</a></li>
-                            {% if collection %}
+                            {% if request.GET.collection or request.GET.image %}
                                 <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ collection.name }}</a></li>
+                            {% endif %}
+                            {% if request.GET.image %}
+                                <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ current_image.title }}</a></li>
                             {% endif %}
                             <li class="breadcrumb-item active">Georeference</li>
                         </ol>
