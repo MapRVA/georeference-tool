@@ -631,6 +631,8 @@
 {% block extra_js %}
 <script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
 <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.css" />
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
 
@@ -1321,6 +1323,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Load insurance layers on map load so they're ready
         await loadInsuranceLayers();
+
+        // Add address search control powered by Photon
+        const geocoder = new MaplibreGeocoder({
+            forwardGeocode: async (config) => {
+                const url = `https://photon.komoot.io/api?q=${encodeURIComponent(config.query)}&limit=5`;
+                const geojson = await (await fetch(url)).json();
+
+                geojson.features.forEach((f) => {
+                    const { name, city, country } = f.properties;
+                    f.place_name = [name, city, country].filter(Boolean).join(', ');
+                    f.place_type = ['place'];
+                    f.center = f.geometry.coordinates;
+                });
+
+                return geojson;
+            },
+        }, { maplibregl, marker: false });
+
+        map.addControl(geocoder, 'top-left');
 
         // Initialize MapSwap link and update on map move
         updateMapSwapLink();
