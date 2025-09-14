@@ -129,6 +129,7 @@ class ImageAdmin(admin.ModelAdmin):
         "title_or_id",
         "collection",
         "date_display",
+        "edtf_date",
         "difficulty",
         "will_not_georef",
         "skip_count",
