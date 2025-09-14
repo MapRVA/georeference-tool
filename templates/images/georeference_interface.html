@@ -630,7 +630,7 @@
 
 {% block extra_js %}
 <script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
-<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
+<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.css" />
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
@@ -756,7 +756,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const isStaff = {{ user.is_staff|yesno:"true,false" }};
     const isImageGeoreferenced = {{ current_image.is_georeferenced|yesno:"true,false" }};
 
-    maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
+    // Add PMTiles protocol
+    let protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
 
     var map = new maplibregl.Map({
         container: 'mymap',
@@ -816,7 +818,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDropdownSelection(currentSanbornLayer ? layerDropdown.textContent : 'Satellite', 'satellite');
     }
 
-    function switchToSanbornLayer(layerId, mosaicUrl, title) {
+    function switchToSanbornLayer(layerId, pmtilesUrl, title) {
         // If clicking the same layer, deactivate it
         if (currentSanbornLayer === layerId) {
             // Hide the current Sanborn layer
@@ -839,12 +841,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Add COG source if it doesn't exist
+        // Add PMTiles source if it doesn't exist
         const sourceId = `${layerId}-source`;
         if (!map.getSource(sourceId)) {
             map.addSource(sourceId, {
                 type: 'raster',
-                url: `cog://${mosaicUrl}`,
+                url: `pmtiles://${pmtilesUrl}`,
                 tileSize: 256
             });
         }
@@ -966,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
             layerItem.className = 'dropdown-item sanborn-layer';
             layerItem.href = '#';
             layerItem.dataset.layer = layerId;
-            layerItem.dataset.mosaicUrl = layer.mosaic_url;
+            layerItem.dataset.pmtilesUrl = layer.pmtiles;
             layerItem.textContent = layer.title;
 
             // Add click event listener
@@ -980,11 +982,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleSanbornLayerClick(e) {
         e.preventDefault();
         const layerId = this.dataset.layer;
-        const mosaicUrl = this.dataset.mosaicUrl;
+        const pmtilesUrl = this.dataset.pmtilesUrl;
         const title = this.textContent.trim();
 
         // Switch to the Sanborn layer
-        switchToSanbornLayer(layerId, mosaicUrl, title);
+        switchToSanbornLayer(layerId, pmtilesUrl, title);
 
         // Close the dropdown after selection
         const dropdown = bootstrap.Dropdown.getInstance(layerDropdown);
