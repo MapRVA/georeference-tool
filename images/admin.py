@@ -140,7 +140,7 @@ class ImageAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Basic Information",
-            {"fields": ("collection", "title", "permalink", "description", "ref")},
+            {"fields": ("collection", "title", "creator", "permalink", "description", "ref", "original_url")},
         ),
         (
             "Date Information",
