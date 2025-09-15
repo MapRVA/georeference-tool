@@ -194,16 +194,7 @@ def process_items(
                 )
             )
 
-            # Concatenate description fields
-            image_description = {
-                key: value for key,
-                value in image_data.items() if key not in ["Title", "Creator", "Date", "Identifier"]
-            }
-            image_description = {
-                "Description": image_description.pop("Description"),
-                **image_description
-            }
-            image_description = " | ".join(image_description.values()).strip()
+            image_description = "{}\n\nSubject: {}\n\nProvenance: {}".format(image_data["Description"], image_data["Subject"], image_data["Provenance"])
 
             # Parse dates
             date_str = image_data.get("Date", "")
@@ -218,8 +209,8 @@ def process_items(
                     )
                 else:
                     image_data["etdf_date"] = date_str
-    
-    
+
+
             # Create image data to export
             image_data = {
                 "collection": collection,
