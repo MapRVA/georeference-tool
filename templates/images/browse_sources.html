@@ -26,17 +26,13 @@
                             {% endif %}
 
                             <div class="row text-center mb-3">
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h4 text-primary mb-0">{{ source.public_collections_count }}</div>
-                                        <small class="text-muted">Collections</small>
-                                    </div>
+                                <div class="col-4 border-end">
+                                    <div class="h4 text-primary mb-0">{{ source.public_collections_count }}</div>
+                                    <small class="text-muted">Collections</small>
                                 </div>
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h4 text-info mb-0">{{ source.total_images }}</div>
-                                        <small class="text-muted">Images</small>
-                                    </div>
+                                <div class="col-4 border-end">
+                                    <div class="h4 text-info mb-0">{{ source.total_images }}</div>
+                                    <small class="text-muted">Images</small>
                                 </div>
                                 <div class="col-4">
                                     <div class="h4 text-success mb-0">{{ source.georeferenced_images }}</div>

@@ -113,17 +113,13 @@
                             {% endif %}
 
                             <div class="row text-center mb-3">
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h5 text-info mb-0">{{ collection.total_images }}</div>
-                                        <small class="text-muted">Images</small>
-                                    </div>
+                                <div class="col-4 border-end">
+                                    <div class="h5 text-info mb-0">{{ collection.total_images }}</div>
+                                    <small class="text-muted">Images</small>
                                 </div>
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
-                                        <small class="text-muted">Pending</small>
-                                    </div>
+                                <div class="col-4 border-end">
+                                    <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
+                                    <small class="text-muted">Pending</small>
                                 </div>
                                 <div class="col-4">
                                     <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
