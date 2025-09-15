@@ -16,8 +16,8 @@
         <!-- Source Header -->
         <div class="card mb-4">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
+                <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
+                    <div class="flex-grow-1 mb-3 mb-md-0">
                         <h1 class="card-title mb-3">
                             <i class="fas fa-archive me-2"></i>{{ source.name }}
                         </h1>
@@ -28,7 +28,7 @@
                             <i class="fas fa-external-link-alt me-1"></i>Homepage
                         </a>
                     </div>
-                    <div class="text-end">
+                    <div class="text-start text-md-end">
                         <div class="btn-group">
                             {% if pending_images > 0 %}
                                 <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}" class="btn btn-success">
