@@ -1,11 +1,10 @@
 import os
 import sys
-import re
-import requests
 from time import sleep
-from tqdm import tqdm
-import click
 
+import click
+import requests
+from tqdm import tqdm
 
 ## SETUP
 # Add the Django project to Python path
@@ -21,7 +20,7 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image
+from images.models import Collection, Image, Source
 
 # Import R2 uploader from the same directory
 try:
@@ -42,6 +41,7 @@ BASE_API_URL = "https://rvalibrary.contentdm.oclc.org/digital/api"
 BASE_VIEWER_URL = "https://rvalibrary.contentdm.oclc.org/digital/collection"
 BASE_IMAGE_URL = "https://rvalibrary.contentdm.oclc.org/digital/download/collection"
 
+
 def get_or_create_source():
     """Get or create the Richmond Public Library source"""
     source, created = Source.objects.get_or_create(
@@ -58,11 +58,11 @@ def get_or_create_source():
         click.echo(f"✓ Using existing source: {source.name}")
     return source
 
+
 def get_or_create_collection(source, collection_code):
     """Get or create a collection for the given ContentDM collection"""
     collection_info = f"{BASE_API_URL}/collections/{collection_code}"
     session = requests.Session()
-
 
     try:
         response = session.get(collection_info, timeout=30)
@@ -72,14 +72,17 @@ def get_or_create_collection(source, collection_code):
     except requests.RequestException as e:
         click.echo(f"  ✗ Error fetching {collection_code}: {e}", err=True)
 
-
     name = data.get("name")
     collection_url = f"{BASE_VIEWER_URL}/{collection_code}"
-    
+
     collection, created = Collection.objects.get_or_create(
         source=source,
         name=name,
-        description=data.get("pageText").replace("&amp;apos;", "'").replace("&amp;lt;p&amp;gt;", "").replace("&amp;lt;/p&amp;gt;", "").replace("&#64;", "@"),
+        description=data.get("pageText")
+        .replace("&amp;apos;", "'")
+        .replace("&amp;lt;p&amp;gt;", "")
+        .replace("&amp;lt;/p&amp;gt;", "")
+        .replace("&#64;", "@"),
         defaults={
             "url": collection_url,
             "public": True,
@@ -90,6 +93,7 @@ def get_or_create_collection(source, collection_code):
     else:
         click.echo(f"  ✓ Using existing collection: {collection.name}")
     return collection
+
 
 def fetch_items(collection_code, start=1, max_items=None):
     """Fetch items from ContentDM API"""
@@ -111,7 +115,7 @@ def fetch_items(collection_code, start=1, max_items=None):
                     break
 
                 items.extend(data["items"])
-                
+
                 if max_items and len(items) >= max_items:
                     items = items[:max_items]
                     break
@@ -129,6 +133,7 @@ def fetch_items(collection_code, start=1, max_items=None):
                 break
 
     return items
+
 
 def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None):
     """Process and import items from ContentDM"""
@@ -158,7 +163,9 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
                 try:
                     permalink = r2_uploader.upload_url(image_url)
                 except R2UploaderError as e:
-                    click.echo(f"    ✗ R2 upload failed for {contentdm_id}: {e}", err=True)
+                    click.echo(
+                        f"    ✗ R2 upload failed for {contentdm_id}: {e}", err=True
+                    )
                     pbar.update(1)
                     continue
             else:
@@ -174,6 +181,7 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
                 "description": item.get("description", ""),
                 "ref": contentdm_id,  # Store ContentDM ID as ref
                 "creator": item.get("creator", None),
+                "license_title": "Non-commercial Use Only",
             }
 
             # Add date if available
@@ -196,10 +204,11 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
             pbar.update(1)
             sleep(POLITE_WAIT_SECS)
 
-    if debug=="image":
-      return [imported_count, image_data]
+    if debug == "image":
+        return [imported_count, image_data]
     else:
-      return [imported_count]
+        return [imported_count]
+
 
 @click.command()
 @click.option(
@@ -220,9 +229,8 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
 @click.option(
     "--debug",
     default=None,
-    help="Print metadata (\"meta\") or image data (\"image\") for debugging",
+    help='Print metadata ("meta") or image data ("image") for debugging',
 )
-
 def main(collection, max_images, dry_run, debug):
     """Import images from Richmond Public Library ContentDM"""
     click.echo(f"\n=== Importing Collection: {collection} ===")
@@ -245,16 +253,18 @@ def main(collection, max_images, dry_run, debug):
     # Process items
     imported_count = process_items(coll, items, dry_run, r2_uploader, debug)
 
-    if debug=="meta":
+    if debug == "meta":
         click.echo(f"\n=== Debug: {debug} ===")
         click.echo(f"{items}")
-    if debug=="image":
+    if debug == "image":
         click.echo(f"\n=== Debug: {debug} ===")
         click.echo(f"{imported_count[1]}")
 
     # Print summary
-    click.echo(f"\n=== Import Complete ===")
-    click.echo(f"{'Would import' if dry_run else 'Imported'}: {imported_count[0]} images")
+    click.echo("\n=== Import Complete ===")
+    click.echo(
+        f"{'Would import' if dry_run else 'Imported'}: {imported_count[0]} images"
+    )
     click.echo(f"Collection: {collection}")
 
 
