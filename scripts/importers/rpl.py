@@ -18,6 +18,7 @@ os.chdir(project_root)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "georeference_tool.settings")
 
 import django
+from django.utils.text import slugify
 
 django.setup()
 
@@ -76,17 +77,20 @@ def get_or_create_collection(source, collection_code):
     name = data.get("name")
     collection_url = f"{BASE_VIEWER_URL}/{collection_code}"
 
+    # Generate slug consistently with the model's save method
+    slug = "memory-lab" if collection_code == "memorylab" else slugify(name[:50])
+
     collection, created = Collection.objects.get_or_create(
         source=source,
         name=name,
-        slug="memory-lab" if collection_code == "memorylab" else None,
-        description=data.get("pageText")
-        .replace("&amp;apos;", "'")
-        .replace("&amp;lt;p&amp;gt;", "")
-        .replace("&amp;lt;/p&amp;gt;", "")
-        .replace("&#64;", "@"),
+        slug=slug,
         defaults={
             "url": collection_url,
+            "description": data.get("pageText", "")
+            .replace("&amp;apos;", "'")
+            .replace("&amp;lt;p&amp;gt;", "")
+            .replace("&amp;lt;/p&amp;gt;", "")
+            .replace("&#64;", "@"),
             "public": True,
         },
     )
@@ -159,20 +163,6 @@ def process_items(
             )
             item_info_url = f"{BASE_API_URL}/collections/{collection_code}/items/{contentdm_id}/false"
 
-            # Upload to R2 if not dry run
-            if not dry_run and r2_uploader:
-                try:
-                    permalink = r2_uploader.upload_url(image_url)
-                except R2UploaderError as e:
-                    click.echo(
-                        f"    ✗ R2 upload failed for {contentdm_id}: {e}", err=True
-                    )
-                    pbar.update(1)
-                    continue
-            else:
-                mock_key = r2_uploader.generate_key_from_url(image_url)
-                permalink = r2_uploader.get_public_url(mock_key)
-
             # Poll image metadata
             session = requests.Session()
 
@@ -200,6 +190,20 @@ def process_items(
                 )
                 pbar.update(1)
                 continue
+
+            # Upload to R2 if not dry run
+            if not dry_run and r2_uploader:
+                try:
+                    permalink = r2_uploader.upload_url(image_url)
+                except R2UploaderError as e:
+                    click.echo(
+                        f"    ✗ R2 upload failed for {contentdm_id}: {e}", err=True
+                    )
+                    pbar.update(1)
+                    continue
+            else:
+                mock_key = r2_uploader.generate_key_from_url(image_url)
+                permalink = r2_uploader.get_public_url(mock_key)
 
             image_description = image_data["Description"]
 
