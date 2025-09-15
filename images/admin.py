@@ -1,17 +1,18 @@
-from django.contrib import admin
-from django.urls import path, reverse
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from django.http import JsonResponse
-from django.utils.html import format_html
 import json
+
+from django.contrib import admin
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.urls import path, reverse
+from django.utils.html import format_html
+
 from .models import (
-    Source,
     Collection,
-    Image,
     Georeference,
     GeoreferenceValidation,
+    Image,
     ImageSkip,
+    Source,
 )
 
 
@@ -138,10 +139,62 @@ class ImageAdmin(admin.ModelAdmin):
     list_filter = ("difficulty", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Make nullable fields not required in admin form
+        nullable_fields = [
+            "original_url",
+            "description",
+            "license_title",
+            "license_permalink",
+            "creator",
+            "ref",
+            "original_date",
+            "edtf_date",
+            "difficulty",
+        ]
+        for field_name in nullable_fields:
+            if field_name in form.base_fields:
+                form.base_fields[field_name].required = False
+        return form
+
+    def save_model(self, request, obj, form, change):
+        # Convert empty strings to None for nullable fields
+        nullable_fields = [
+            "original_url",
+            "description",
+            "license_title",
+            "license_permalink",
+            "creator",
+            "ref",
+            "original_date",
+            "edtf_date",
+            "difficulty",
+        ]
+        for field_name in nullable_fields:
+            if hasattr(obj, field_name) and getattr(obj, field_name) == "":
+                setattr(obj, field_name, None)
+        super().save_model(request, obj, form, change)
+
     fieldsets = (
         (
             "Basic Information",
-            {"fields": ("collection", "title", "creator", "permalink", "description", "ref", "original_url")},
+            {
+                "fields": (
+                    "collection",
+                    "title",
+                    "creator",
+                    "permalink",
+                    "description",
+                    "ref",
+                    "original_url",
+                )
+            },
+        ),
+        (
+            "License Information",
+            {"fields": ("license_title", "license_permalink")},
         ),
         (
             "Date Information",

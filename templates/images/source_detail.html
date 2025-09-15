@@ -16,8 +16,8 @@
         <!-- Source Header -->
         <div class="card mb-4">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
+                <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
+                    <div class="flex-grow-1 mb-3 mb-md-0">
                         <h1 class="card-title mb-3">
                             <i class="fas fa-archive me-2"></i>{{ source.name }}
                         </h1>
@@ -28,7 +28,7 @@
                             <i class="fas fa-external-link-alt me-1"></i>Homepage
                         </a>
                     </div>
-                    <div class="text-end">
+                    <div class="text-start text-md-end">
                         <div class="btn-group">
                             {% if pending_images > 0 %}
                                 <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}" class="btn btn-success">
@@ -42,36 +42,36 @@
         </div>
 
         <!-- Statistics -->
-        <div class="row mb-4">
-            <div class="col-md-3">
+        <div class="row mb-4 g-2">
+            <div class="col-6 col-md-3">
                 <div class="card bg-primary text-white">
-                    <div class="card-body text-center">
-                        <div class="h2 mb-0">{{ collections.count }}</div>
+                    <div class="card-body text-center py-2">
+                        <div class="h4 mb-0">{{ collections.count }}</div>
                         <small>Collections</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card bg-info text-white">
-                    <div class="card-body text-center">
-                        <div class="h2 mb-0">{{ total_images }}</div>
+                    <div class="card-body text-center py-2">
+                        <div class="h4 mb-0">{{ total_images }}</div>
                         <small>Total Images</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body text-center">
-                        <div class="h2 mb-0">{{ georeferenced_images }}</div>
-                        <small>Georeferenced</small>
+            <div class="col-6 col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body text-center py-2">
+                        <div class="h4 mb-0">{{ pending_images }}</div>
+                        <small>Pending</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-white">
-                    <div class="card-body text-center">
-                        <div class="h2 mb-0">{{ pending_images }}</div>
-                        <small>Pending</small>
+            <div class="col-6 col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center py-2">
+                        <div class="h4 mb-0">{{ georeferenced_images }}</div>
+                        <small>Georeferenced</small>
                     </div>
                 </div>
             </div>
@@ -113,21 +113,17 @@
                             {% endif %}
 
                             <div class="row text-center mb-3">
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h5 text-info mb-0">{{ collection.total_images }}</div>
-                                        <small class="text-muted">Images</small>
-                                    </div>
+                                <div class="col-4 border-end">
+                                    <div class="h5 text-info mb-0">{{ collection.total_images }}</div>
+                                    <small class="text-muted">Images</small>
                                 </div>
-                                <div class="col-4">
-                                    <div class="border-end">
-                                        <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
-                                        <small class="text-muted">Done</small>
-                                    </div>
-                                </div>
-                                <div class="col-4">
+                                <div class="col-4 border-end">
                                     <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
                                     <small class="text-muted">Pending</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
+                                    <small class="text-muted">Done</small>
                                 </div>
                             </div>
 
