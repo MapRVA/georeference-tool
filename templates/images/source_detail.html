@@ -60,18 +60,18 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body text-center">
-                        <div class="h2 mb-0">{{ georeferenced_images }}</div>
-                        <small>Georeferenced</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
                 <div class="card bg-warning text-white">
                     <div class="card-body text-center">
                         <div class="h2 mb-0">{{ pending_images }}</div>
                         <small>Pending</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <div class="h2 mb-0">{{ georeferenced_images }}</div>
+                        <small>Georeferenced</small>
                     </div>
                 </div>
             </div>
@@ -121,13 +121,13 @@
                                 </div>
                                 <div class="col-4">
                                     <div class="border-end">
-                                        <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
-                                        <small class="text-muted">Done</small>
+                                        <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
+                                        <small class="text-muted">Pending</small>
                                     </div>
                                 </div>
                                 <div class="col-4">
-                                    <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
-                                    <small class="text-muted">Pending</small>
+                                    <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>
+                                    <small class="text-muted">Done</small>
                                 </div>
                             </div>
 
