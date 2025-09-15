@@ -154,7 +154,9 @@ def process_items(
 
             # Build URLs
             original_url = f"{BASE_VIEWER_URL}/{collection_code}/id/{contentdm_id}"
-            image_url = f"{BASE_IMAGE_URL}/{collection_code}/id/{contentdm_id}/size/full"
+            image_url = (
+                f"{BASE_IMAGE_URL}/{collection_code}/id/{contentdm_id}/size/full"
+            )
             item_info_url = f"{BASE_API_URL}/collections/{collection_code}/items/{contentdm_id}/false"
 
             # Upload to R2 if not dry run
@@ -185,17 +187,25 @@ def process_items(
             image_data = dict(
                 zip(
                     [item["label"] for item in item_info],
-                    [item["value"] for item in item_info]
+                    [item["value"] for item in item_info],
                 )
             )
 
             # Check if image already exists by ref
             if Image.objects.filter(ref=image_data["Identifier"]).exists():
-                click.echo("    → Item {} already exists, skipping".format(image_data["Identifier"]))
+                click.echo(
+                    "    → Item {} already exists, skipping".format(
+                        image_data["Identifier"]
+                    )
+                )
                 pbar.update(1)
                 continue
 
-            image_description = "{}\n\nSubject: {}\n\nProvenance: {}".format(image_data["Description"], image_data["Subject"], image_data["Provenance"])
+            image_description = "{}\n\nSubject: {}\n\nProvenance: {}".format(
+                image_data["Description"],
+                image_data["Subject"],
+                image_data["Provenance"],
+            )
 
             # Parse dates
             date_str = image_data.get("Date", "")
@@ -205,12 +215,9 @@ def process_items(
                 year_range_match = re.search(r";", date_str)
                 if year_range_match:
                     year_range = re.split(r";\s|;", date_str)
-                    image_data["etdf_date"] = (
-                        year_range[0] + "/" + year_range[-1]
-                    )
+                    image_data["etdf_date"] = year_range[0] + "/" + year_range[-1]
                 else:
                     image_data["etdf_date"] = date_str
-
 
             # Create image data to export
             image_data = {
