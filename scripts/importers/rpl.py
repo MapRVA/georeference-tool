@@ -135,7 +135,9 @@ def fetch_items(collection_code, start=1, max_items=None):
     return items
 
 
-def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None):
+def process_items(
+    collection, collection_code, items, dry_run=False, r2_uploader=None, debug=None
+):
     """Process and import items from ContentDM"""
     imported_count = 0
 
@@ -149,8 +151,8 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
                 continue
 
             # Build URLs
-            original_url = f"{BASE_VIEWER_URL}/{collection.slug}/id/{contentdm_id}"
-            image_url = f"{BASE_API_URL}/{collection.slug}/id/{contentdm_id}/size/full"
+            original_url = f"{BASE_VIEWER_URL}/{collection_code}/id/{contentdm_id}"
+            image_url = f"{BASE_API_URL}/{collection_code}/id/{contentdm_id}/size/full"
 
             # Check if image already exists by ref
             if Image.objects.filter(ref=contentdm_id).exists():
@@ -212,7 +214,7 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
 
 @click.command()
 @click.option(
-    "--collection",
+    "--collection-code",
     default="RPLTHC",
     help="ContentDM collection code (default: RPLTHC)",
 )
@@ -231,19 +233,19 @@ def process_items(collection, items, dry_run=False, r2_uploader=None, debug=None
     default=None,
     help='Print metadata ("meta") or image data ("image") for debugging',
 )
-def main(collection, max_images, dry_run, debug):
+def main(collection_code, max_images, dry_run, debug):
     """Import images from Richmond Public Library ContentDM"""
-    click.echo(f"\n=== Importing Collection: {collection} ===")
+    click.echo(f"\n=== Importing Collection: {collection_code} ===")
 
     # Initialize R2 uploader
     r2_uploader = R2Uploader()
 
     # Get or create source and collection
     source = get_or_create_source()
-    coll = get_or_create_collection(source, collection)
+    coll = get_or_create_collection(source, collection_code)
 
     # Fetch items from API
-    items = fetch_items(collection, max_items=max_images)
+    items = fetch_items(collection_code, max_items=max_images)
     if not items:
         click.echo("✗ No items found")
         return
@@ -251,7 +253,9 @@ def main(collection, max_images, dry_run, debug):
     click.echo(f"\nFound {len(items)} items to process")
 
     # Process items
-    imported_count = process_items(coll, items, dry_run, r2_uploader, debug)
+    imported_count = process_items(
+        coll, collection_code, items, dry_run, r2_uploader, debug
+    )
 
     if debug == "meta":
         click.echo(f"\n=== Debug: {debug} ===")
@@ -265,7 +269,7 @@ def main(collection, max_images, dry_run, debug):
     click.echo(
         f"{'Would import' if dry_run else 'Imported'}: {imported_count[0]} images"
     )
-    click.echo(f"Collection: {collection}")
+    click.echo(f"Collection: {collection_code}")
 
 
 if __name__ == "__main__":
