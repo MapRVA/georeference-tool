@@ -153,6 +153,7 @@ def process_items(
             # Build URLs
             original_url = f"{BASE_VIEWER_URL}/{collection_code}/id/{contentdm_id}"
             image_url = f"{BASE_IMAGE_URL}/{collection_code}/id/{contentdm_id}/size/full"
+            item_info_url = f"{BASE_API_URL}/collections/{collection_code}/items/{contentdm_id}/false"
 
             # Check if image already exists by ref
             if Image.objects.filter(ref=contentdm_id).exists():
@@ -175,22 +176,33 @@ def process_items(
                 permalink = r2_uploader.get_public_url(mock_key)
 
             # Create image metadata
-            image_data = {
+            session = requests.Session()
+
+            try:
+                response = session.get(item_info_url, timeout=30)
+                response.raise_for_status()
+                item_info = response.json().get("fields", {})
+
+            except requests.RequestException as e:
+                click.echo(f"  ✗ Error fetching {collection_code}: {e}", err=True)
+
+            image_data = dict(
+                zip(
+                    [item["label"].lower() for item in item_info],
+                    [item["value"] for item in item_info]
+                )
+            )
+            image_data["ref"] = image_data.pop("identifier")
+
+            image_data.update({
                 "collection": collection,
-                "title": item.get("title", "Untitled"),
                 "permalink": permalink,
                 "original_url": original_url,
-                "description": item.get("description", ""),
-                "ref": contentdm_id,  # Store ContentDM ID as ref
-                "creator": item.get("creator", None),
                 "license_title": "Non-commercial Use Only",
-            }
+            })
 
-            # Add date if available
-            if date := item.get("date"):
-                image_data["original_date"] = date
-                # TODO: Parse date into EDTF format if possible
-                # image_data["edtf_date"] = parsed_date
+            # TODO: Parse date into EDTF format if possible
+            # image_data["edtf_date"] = parsed_date
 
             if not dry_run:
                 try:
