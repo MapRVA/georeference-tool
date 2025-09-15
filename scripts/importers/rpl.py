@@ -152,7 +152,7 @@ def process_items(
 
             # Build URLs
             original_url = f"{BASE_VIEWER_URL}/{collection_code}/id/{contentdm_id}"
-            image_url = f"{BASE_API_URL}/singleitem/image/{collection_code}/{contentdm_id}/default.jpg"
+            image_url = f"{BASE_IMAGE_URL}/{collection_code}/id/{contentdm_id}/size/full"
 
             # Check if image already exists by ref
             if Image.objects.filter(ref=contentdm_id).exists():
