@@ -4,6 +4,7 @@ from time import sleep
 
 import click
 import requests
+import re
 from tqdm import tqdm
 
 ## SETUP
@@ -175,7 +176,7 @@ def process_items(
                 mock_key = r2_uploader.generate_key_from_url(image_url)
                 permalink = r2_uploader.get_public_url(mock_key)
 
-            # Create image metadata
+            # Poll image metadata
             session = requests.Session()
 
             try:
@@ -188,21 +189,50 @@ def process_items(
 
             image_data = dict(
                 zip(
-                    [item["label"].lower() for item in item_info],
+                    [item["label"] for item in item_info],
                     [item["value"] for item in item_info]
                 )
             )
-            image_data["ref"] = image_data.pop("identifier")
 
-            image_data.update({
+            # Concatenate description fields
+            image_description = {
+                key: value for key,
+                value in image_data.items() if key not in ["Title", "Creator", "Date", "Identifier"]
+            }
+            image_description = {
+                "Description": image_description.pop("Description"),
+                **image_description
+            }
+            image_description = " | ".join(image_description.values()).strip()
+
+            # Parse dates
+            date_str = image_data.get("Date", "")
+
+            if date_str != "":
+                # Date range (Sequential years separated by ";" and maybe spaces)
+                year_range_match = re.search(r";", date_str)
+                if year_range_match:
+                    year_range = re.split(r";\s|;", date_str)
+                    image_data["etdf_date"] = (
+                        year_range[0] + "/" + year_range[-1]
+                    )
+                else:
+                    image_data["etdf_date"] = date_str
+    
+    
+            # Create image data to export
+            image_data = {
                 "collection": collection,
+                "title": image_data.get("Title", "Untitled"),
                 "permalink": permalink,
+                "ref": image_data["Identifier"],
                 "original_url": original_url,
+                "description": image_description,
+                "creator": image_data.get("Creator", ""),
+                "original_date": image_data.get("Date"),
+                "edtf_date": image_data.get("etdf_date"),
                 "license_title": "Non-commercial Use Only",
-            })
-
-            # TODO: Parse date into EDTF format if possible
-            # image_data["edtf_date"] = parsed_date
+            }
 
             if not dry_run:
                 try:
