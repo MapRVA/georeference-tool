@@ -79,6 +79,7 @@ def get_or_create_collection(source, collection_code):
     collection, created = Collection.objects.get_or_create(
         source=source,
         name=name,
+        slug="memory-lab" if collection_code == "memorylab" else None,
         description=data.get("pageText")
         .replace("&amp;apos;", "'")
         .replace("&amp;lt;p&amp;gt;", "")
