@@ -201,11 +201,13 @@ def process_items(
                 pbar.update(1)
                 continue
 
-            image_description = "{}\n\nSubject: {}\n\nProvenance: {}".format(
-                image_data["Description"],
-                image_data["Subject"],
-                image_data["Provenance"],
-            )
+            image_description = image_data["Description"]
+
+            if "Subject" in image_data.keys():
+                image_description += "\n\n{}".format(image_data["Subject"])
+
+            if "Provenance" in image_data.keys():
+                image_description += "\n\n{}".format(image_data["Provenance"])
 
             # Parse dates
             date_str = image_data.get("Date", "")
