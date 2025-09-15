@@ -156,12 +156,6 @@ def process_items(
             image_url = f"{BASE_IMAGE_URL}/{collection_code}/id/{contentdm_id}/size/full"
             item_info_url = f"{BASE_API_URL}/collections/{collection_code}/items/{contentdm_id}/false"
 
-            # Check if image already exists by ref
-            if Image.objects.filter(ref=contentdm_id).exists():
-                click.echo(f"    → Item {contentdm_id} already exists, skipping")
-                pbar.update(1)
-                continue
-
             # Upload to R2 if not dry run
             if not dry_run and r2_uploader:
                 try:
@@ -193,6 +187,12 @@ def process_items(
                     [item["value"] for item in item_info]
                 )
             )
+
+            # Check if image already exists by ref
+            if Image.objects.filter(ref=image_data["Identifier"]).exists():
+                click.echo("    → Item {} already exists, skipping".format(image_data["Identifier"]))
+                pbar.update(1)
+                continue
 
             image_description = "{}\n\nSubject: {}\n\nProvenance: {}".format(image_data["Description"], image_data["Subject"], image_data["Provenance"])
 
