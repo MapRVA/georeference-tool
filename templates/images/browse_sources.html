@@ -39,14 +39,8 @@
                                     </div>
                                 </div>
                                 <div class="col-4">
-                                    {% if source.total_images > 0 %}
-                                        {% widthratio source.georeferenced_images source.total_images 100 as source_percent %}
-                                        <div class="h4 text-success mb-0">{{ source_percent }}%</div>
-                                        <small class="text-muted">Georeferenced</small>
-                                    {% else %}
-                                        <div class="h4 text-success mb-0">0%</div>
-                                        <small class="text-muted">Georeferenced</small>
-                                    {% endif %}
+                                    <div class="h4 text-success mb-0">{{ source.georeferenced_images }}</div>
+                                    <small class="text-muted">Georeferenced</small>
                                 </div>
                             </div>
 
@@ -112,7 +106,7 @@
                                     <small class="text-muted">Total Images</small>
                                 </div>
                                 <div class="col-md-3">
-                                    <div class="h3 text-success">{{ overall_stats.georeferenced_percentage }}%</div>
+                                    <div class="h3 text-success">{{ overall_stats.total_georeferenced }}</div>
                                     <small class="text-muted">Georeferenced</small>
                                 </div>
                             </div>
