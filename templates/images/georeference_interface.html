@@ -225,18 +225,6 @@
                                 <h6 class="mb-3"><i class="fas fa-map-marked-alt me-2"></i>Select Location on Map</h6>
                                 <div class="position-relative">
                                     <div id="mymap"></div>
-                                    <div id="layer-toggle" class="position-absolute" style="top: 0.5em; right: 0.5em; z-index: 1000;">
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="layerDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                                Map
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="layerDropdown">
-                                                <li><a class="dropdown-item layer-option active" href="#" data-layer="osm">Map</a></li>
-                                                <li><a class="dropdown-item layer-option" href="#" data-layer="satellite">Satellite</a></li>
-                                                <!-- Sanborn layers will be populated dynamically here -->
-                                            </ul>
-                                        </div>
-                                    </div>
                                 </div>
                                 <div id="controls-container">
                                     <div id="coordinate-inputs">
@@ -615,13 +603,140 @@
         justify-content: center;
     }
 
-    .dropdown-item.active {
+    .layer-control {
+        position: relative;
+        z-index: 1000;
+    }
+    .layer-control .dropdown-menu {
+        min-width: 250px;
+        width: max-content;
+        margin-top: 0;
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-top: none;
+        box-shadow: none;
+    }
+    .maplibregl-ctrl-group .layer-control {
+        z-index: 1000 !important;
+    }
+    .layer-control .dropdown-toggle {
+        background-color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        border-radius: 0.375rem;
+        color: #495057;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.5rem 2rem 0.5rem 1rem;
+        text-align: left;
+        white-space: nowrap;
+        position: relative;
+        display: flex;
+        align-items: center;
+        line-height: 1;
+        transition: all 0.15s ease-in-out;
+        box-shadow: none;
+        width: auto;
+        min-width: 120px;
+    }
+    .layer-control .dropdown-toggle::after {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .layer-control .dropdown-toggle:hover {
+        background-color: #f8f9fa;
+        border-color: rgba(0, 0, 0, 0.15);
+    }
+
+    .layer-control .dropdown-toggle:focus {
+        box-shadow: none;
+        border-color: #86b7fe;
+    }
+
+    .layer-control .dropdown-toggle.show {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom-color: transparent;
+        box-shadow: none;
+    }
+    .layer-control .dropdown-item {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    .layer-control .dropdown-header {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.5rem 1rem 0.25rem;
+    }
+    .layer-control .overlay-layer {
+        padding-left: 1.5rem;
+        font-size: 0.9rem;
+        position: relative;
+    }
+    .layer-control .overlay-layer.active {
+        background-color: transparent !important;
+        color: inherit !important;
+    }
+    .layer-control .overlay-layer.active::before {
+        content: "✓";
+        position: absolute;
+        left: 0.5rem;
+        font-weight: bold;
+    }
+    .layer-control .dropdown-item.active {
         background-color: #0d6efd;
         color: white;
     }
-    .dropdown-item.sanborn-layer {
-        padding-left: 2rem;
-        margin-left: 0;
+    .layer-control .dropdown-divider {
+        margin: 0.5rem 0;
+    }
+
+    /* Bootstrap-style MapLibre Controls */
+    .maplibregl-ctrl-group {
+        border-radius: 0.375rem;
+        box-shadow: none;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+
+    .maplibregl-ctrl-group:not(.layer-control) {
+        overflow: hidden;
+    }
+
+    .maplibregl-ctrl-group button {
+        background-color: #fff;
+        border: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+        color: #495057;
+        font-size: 0.875rem;
+        transition: all 0.15s ease-in-out;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .maplibregl-ctrl-group button:last-child {
+        border-bottom: none;
+    }
+
+    .maplibregl-ctrl-group button:hover {
+        background-color: #f8f9fa;
+        color: #212529;
+    }
+
+    .maplibregl-ctrl-group button:focus {
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        outline: none;
+    }
+
+    .maplibregl-ctrl-group button:active {
+        background-color: #e9ecef;
     }
 
 
@@ -747,6 +862,30 @@ function getBootstrapColor(difficulty) {
     return colors[difficulty] || 'secondary';
 }
 
+// Global PMTiles setup (outside DOMContentLoaded so it's available to all functions)
+window.pmtilesProtocolSetup = false;
+
+window.setupPMTilesProtocol = function() {
+    if (window.pmtilesProtocolSetup) return true;
+
+    if (typeof pmtiles !== 'undefined') {
+        try {
+            console.log('Setting up PMTiles protocol...');
+            let protocol = new pmtiles.Protocol();
+            maplibregl.addProtocol("pmtiles", protocol.tile);
+            console.log('PMTiles protocol setup complete');
+            window.pmtilesProtocolSetup = true;
+            return true;
+        } catch (error) {
+            console.error('Error setting up PMTiles protocol:', error);
+            return false;
+        }
+    } else {
+        console.log('PMTiles library not yet available');
+        return false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const skipButton = document.getElementById('skipButton');
     const submitButton = document.getElementById('submitButton');
@@ -766,165 +905,461 @@ document.addEventListener('DOMContentLoaded', function() {
         center: [-77.43916, 37.54376],
         zoom: 13
     });
+    
+    // Try to setup PMTiles protocol
+    window.setupPMTilesProtocol();
 
-    var currentBaseLayer = 'osm';
-    var currentSanbornLayer = null;
-    var layerDropdown = document.getElementById('layerDropdown');
-    var insuranceLayersLoaded = false;
-    var insuranceLayersData = null;
-
-    function switchToOSMLayer() {
-        if (currentBaseLayer === 'osm') return;
-
-        // Hide satellite layer
-        if (map.getLayer('satellite-layer')) {
-            map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+    // Layer Control Class (mirrored from map_display.html)
+    class LayerControl {
+        constructor() {
+            this.baseLayers = {
+                'osm': {
+                    name: 'OpenStreetMap',
+                    isDefault: true,
+                    setupLayer: () => {
+                        // OSM is the default style, no additional setup needed
+                    },
+                    activate: () => this.showOSMLayers(),
+                    deactivate: () => this.hideOSMLayers()
+                },
+                'satellite': {
+                    name: 'Satellite',
+                    setupLayer: () => this.setupSatelliteLayer(),
+                    activate: () => this.showSatelliteLayer(),
+                    deactivate: () => this.hideSatelliteLayer()
+                },
+                'usgs': {
+                    name: 'USGS Topo',
+                    setupLayer: () => this.setupUSGSLayer(),
+                    activate: () => this.showUSGSLayer(),
+                    deactivate: () => this.hideUSGSLayer()
+                }
+            };
+            this.currentBaseLayer = 'osm';
+            this.currentOverlayLayer = null;
+            this.mapLayersLoaded = false;
+            this.collectionsData = null;
         }
 
-        // Show all OSM layers by setting visibility to visible
-        const layers = map.getStyle().layers;
-        layers.forEach(layer => {
-            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
-                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions' &&
-                !layer.id.startsWith('sanborn-')) {
-                map.setLayoutProperty(layer.id, 'visibility', 'visible');
+        onAdd(map) {
+            this.map = map;
+            this.container = document.createElement('div');
+            this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group layer-control';
+
+            // Generate base layer options dynamically
+            const baseLayerOptions = Object.entries(this.baseLayers).map(([key, layer]) => {
+                const activeClass = layer.isDefault ? ' active' : '';
+                return `<li><a class="dropdown-item layer-option${activeClass}" href="#" data-layer="${key}">${layer.name}</a></li>`;
+            }).join('');
+
+            this.container.innerHTML = `
+                <div class="dropdown">
+                    <button class="dropdown-toggle" type="button" id="layerDropdown-georef" data-bs-toggle="dropdown" aria-expanded="false" data-bs-container="body">
+                        ${this.baseLayers[this.currentBaseLayer].name}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="layerDropdown-georef">
+                        ${baseLayerOptions}
+                    </ul>
+                </div>
+            `;
+
+            this.layerDropdown = this.container.querySelector('.dropdown-toggle');
+            this.setupEventListeners();
+
+            // Defer layer setup until map is loaded
+            if (this.map.loaded()) {
+                this.setupMapLayers();
+                this.loadMapLayers();
+            } else {
+                this.map.on('load', () => {
+                    this.setupMapLayers();
+                    this.loadMapLayers();
+                });
             }
-        });
 
-        currentBaseLayer = 'osm';
-
-        updateDropdownSelection(currentSanbornLayer ? layerDropdown.textContent : 'Map', 'osm');
-    }
-
-    function switchToSatelliteLayer() {
-        if (currentBaseLayer === 'satellite') return;
-
-        // Hide OSM layers (but keep Sanborn layers visible)
-        const layers = map.getStyle().layers;
-        layers.forEach(layer => {
-            if (layer.id !== 'satellite-layer' && layer.id !== 'pin-circle' && layer.id !== 'pin-symbol' &&
-                layer.id !== 'context-image-circles' && layer.id !== 'context-image-directions' &&
-                !layer.id.startsWith('sanborn-')) {
-                map.setLayoutProperty(layer.id, 'visibility', 'none');
-            }
-        });
-
-        // Show satellite layer
-        if (map.getLayer('satellite-layer')) {
-            map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+            return this.container;
         }
 
-        currentBaseLayer = 'satellite';
-        updateDropdownSelection(currentSanbornLayer ? layerDropdown.textContent : 'Satellite', 'satellite');
-    }
-
-    function switchToSanbornLayer(layerId, pmtilesUrl, title) {
-        // If clicking the same layer, deactivate it
-        if (currentSanbornLayer === layerId) {
-            // Hide the current Sanborn layer
-            map.setLayoutProperty(layerId, 'visibility', 'none');
-
-            // Clear the current Sanborn layer
-            currentSanbornLayer = null;
-
-            // Update dropdown to show only base layer
-            const baseLayerName = currentBaseLayer === 'osm' ? 'Map' : 'Satellite';
-            updateDropdownSelection(baseLayerName, currentBaseLayer);
-            return;
+        onRemove() {
+            this.container.parentNode.removeChild(this.container);
+            this.map = undefined;
         }
 
-        // Hide other Sanborn layers (but keep base layer visible)
-        const layers = map.getStyle().layers;
-        layers.forEach(layer => {
-            if (layer.id.startsWith('sanborn-') && layer.id !== layerId) {
-                map.setLayoutProperty(layer.id, 'visibility', 'none');
-            }
-        });
-
-        // Add PMTiles source if it doesn't exist
-        const sourceId = `${layerId}-source`;
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
-                type: 'raster',
-                url: `pmtiles://${pmtilesUrl}`,
-                tileSize: 256
+        setupMapLayers() {
+            // Setup all base layers
+            Object.entries(this.baseLayers).forEach(([key, layer]) => {
+                layer.setupLayer();
             });
         }
 
-        // Add layer if it doesn't exist
-        if (!map.getLayer(layerId)) {
-            // Add before pin layers so pin/direction indicators appear on top
-            const beforeId = map.getLayer('pin-circle') ? 'pin-circle' : undefined;
+        setupSatelliteLayer() {
+            if (!this.map.getSource('satellite')) {
+                this.map.addSource('satellite', {
+                    'type': 'raster',
+                    'tiles': ['https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'Virginia Geographic Information Network (VGIN)'
+                });
+            }
 
-            map.addLayer({
-                id: layerId,
-                source: sourceId,
-                type: 'raster',
-                paint: {
-                    'raster-opacity': 1.0,
-                    'raster-fade-duration': 300,
-                    'raster-resampling': 'linear'
-                },
-                layout: {
-                    'visibility': 'visible'
+            if (!this.map.getLayer('satellite-layer')) {
+                this.map.addLayer({
+                    'id': 'satellite-layer',
+                    'type': 'raster',
+                    'source': 'satellite',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupUSGSLayer() {
+            if (!this.map.getSource('usgs')) {
+                this.map.addSource('usgs', {
+                    'type': 'raster',
+                    'tiles': ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'USGS National Map'
+                });
+            }
+
+            if (!this.map.getLayer('usgs-layer')) {
+                this.map.addLayer({
+                    'id': 'usgs-layer',
+                    'type': 'raster',
+                    'source': 'usgs',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupEventListeners() {
+            // Add event listeners for base layer options
+            this.container.querySelectorAll('.layer-option').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const layerKey = item.dataset.layer;
+
+                    if (layerKey === this.currentBaseLayer) return;
+
+                    this.switchToBaseLayer(layerKey);
+                });
+            });
+        }
+
+        switchToBaseLayer(newLayerKey) {
+            if (!this.baseLayers[newLayerKey] || newLayerKey === this.currentBaseLayer) return;
+
+            // Deactivate current base layer
+            this.baseLayers[this.currentBaseLayer].deactivate();
+
+            // Activate new base layer
+            this.baseLayers[newLayerKey].activate();
+
+            // Update current layer
+            this.currentBaseLayer = newLayerKey;
+
+            // Update dropdown display
+            let currentLayerName;
+            if (this.currentOverlayLayer) {
+                // Get the overlay layer title from the current button text
+                const currentText = this.layerDropdown.textContent;
+                const overlayTitle = currentText.split(' + ')[1]; // Extract overlay name after " + "
+                currentLayerName = `${this.baseLayers[newLayerKey].name} + ${overlayTitle}`;
+            } else {
+                currentLayerName = this.baseLayers[newLayerKey].name;
+            }
+            this.updateDropdownSelection(currentLayerName, newLayerKey);
+        }
+
+        showOSMLayers() {
+            // Hide other base layers
+            this.hideOtherBaseLayers(['satellite-layer', 'usgs-layer']);
+
+            // Show OSM layers (all layers except our custom base layers and overlays)
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'visible');
                 }
-            }, beforeId);
+            });
         }
 
-        // Show the selected Sanborn layer
-        map.setLayoutProperty(layerId, 'visibility', 'visible');
+        hideOSMLayers() {
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+        }
 
-        currentSanbornLayer = layerId;
-        updateDropdownSelection(title, layerId);
-    }
-
-    function updateDropdownSelection(buttonText, selectedLayer) {
-        layerDropdown.textContent = buttonText;
-
-        // Clear all active states first
-        document.querySelectorAll('.layer-option, .sanborn-layer').forEach(item => {
-            item.classList.remove('active');
-        });
-
-        // If a Sanborn layer is selected, highlight both the base layer and the Sanborn layer
-        if (currentSanbornLayer) {
-            // Highlight the active base layer
-            const baseLayerItem = document.querySelector(`[data-layer="${currentBaseLayer}"]`);
-            if (baseLayerItem) {
-                baseLayerItem.classList.add('active');
-            }
-
-            // Highlight the active Sanborn layer
-            const sanbornLayerItem = document.querySelector(`[data-layer="${currentSanbornLayer}"]`);
-            if (sanbornLayerItem) {
-                sanbornLayerItem.classList.add('active');
-            }
-        } else {
-            // Only highlight the base layer
-            const selectedItem = document.querySelector(`[data-layer="${selectedLayer}"]`);
-            if (selectedItem) {
-                selectedItem.classList.add('active');
+        showSatelliteLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['usgs-layer']);
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
             }
         }
-    }
 
-    async function loadInsuranceLayers() {
-        if (insuranceLayersLoaded) return;
+        hideSatelliteLayer() {
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+            }
+        }
 
-        try {
-            const response = await fetch('/api/insurance-layers/');
-            if (!response.ok) throw new Error('Failed to fetch insurance layers');
+        showUSGSLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['satellite-layer']);
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
+            }
+        }
 
-            insuranceLayersData = await response.json();
-            populateSanbornSubmenu();
-            insuranceLayersLoaded = true;
-        } catch (error) {
-            console.error('Error loading insurance layers:', error);
+        hideUSGSLayer() {
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'none');
+            }
+        }
 
-            // Add error item to main dropdown
-            const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
+        isOverlayLayer(layerId) {
+            return layerId === 'pin-circle' ||
+                   layerId === 'pin-symbol' ||
+                   layerId === 'context-image-circles' ||
+                   layerId === 'context-image-directions' ||
+                   layerId.startsWith('overlay-');
+        }
 
-            // Add divider before error message
+        isCustomBaseLayer(layerId) {
+            return layerId === 'satellite-layer' || layerId === 'usgs-layer';
+        }
+
+        hideOtherBaseLayers(layersToHide) {
+            layersToHide.forEach(layerId => {
+                if (this.map.getLayer(layerId)) {
+                    this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            });
+        }
+
+        switchToOverlayLayer(layerId, tileUrl, title, tileType) {
+            console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType);
+            
+            // For PMTiles, check if protocol is set up
+            if (tileType === 'pmtiles') {
+                console.log('PMTiles protocol setup status:', window.pmtilesProtocolSetup);
+                console.log('PMTiles available:', typeof pmtiles !== 'undefined');
+
+                // Check if PMTiles protocol has been set up
+                if (!window.pmtilesProtocolSetup) {
+                    console.error('PMTiles protocol not available! Attempting to set up now...');
+                    // Try to set it up now
+                    if (!window.setupPMTilesProtocol()) {
+                        alert('PMTiles map overlay layers are not available - PMTiles protocol not loaded.');
+                        return;
+                    }
+                    console.log('PMTiles protocol setup successful, continuing...');
+                }
+            }
+
+            // If clicking the same layer, deactivate it
+            if (this.currentOverlayLayer === layerId) {
+                console.log('Deactivating current overlay layer:', layerId);
+                this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                this.currentOverlayLayer = null;
+                const baseLayerName = this.baseLayers[this.currentBaseLayer].name;
+                this.updateDropdownSelection(baseLayerName, this.currentBaseLayer);
+                return;
+            }
+
+            // Hide other overlay layers
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (layer.id.startsWith('overlay-') && layer.id !== layerId) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+
+            // Add source if it doesn't exist
+            const sourceId = `${layerId}-source`;
+            if (!this.map.getSource(sourceId)) {
+                console.log(`Adding ${tileType} source:`, sourceId, tileUrl);
+                try {
+                    // Different source configuration based on tile type
+                    if (tileType === 'pmtiles') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            url: `pmtiles://${tileUrl}`,
+                            tileSize: 256
+                        });
+                    } else if (tileType === 'xyz') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            tiles: [tileUrl],
+                            tileSize: 256
+                        });
+                    }
+                    console.log('Tile source added successfully');
+                } catch (error) {
+                    console.error(`Error adding ${tileType} source:`, error);
+                    return;
+                }
+            } else {
+                console.log('Tile source already exists:', sourceId);
+            }
+
+            // Add layer if it doesn't exist
+            if (!this.map.getLayer(layerId)) {
+                console.log('Adding overlay layer:', layerId);
+                try {
+                    // Add before pin layers so pin/direction indicators appear on top
+                    const beforeId = this.map.getLayer('pin-circle') ? 'pin-circle' : undefined;
+
+                    this.map.addLayer({
+                        id: layerId,
+                        source: sourceId,
+                        type: 'raster',
+                        paint: {
+                            'raster-opacity': 1.0,
+                            'raster-fade-duration': 300,
+                            'raster-resampling': 'linear'
+                        },
+                        layout: {
+                            'visibility': 'visible'
+                        }
+                    }, beforeId);
+                    console.log('Overlay layer added successfully');
+                } catch (error) {
+                    console.error('Error adding overlay layer:', error);
+                    return;
+                }
+            } else {
+                console.log('Overlay layer already exists, showing it');
+            }
+
+            // Show the selected overlay layer
+            this.map.setLayoutProperty(layerId, 'visibility', 'visible');
+
+            this.currentOverlayLayer = layerId;
+            // Combine base layer name with overlay layer title
+            const combinedTitle = `${this.baseLayers[this.currentBaseLayer].name} + ${title}`;
+            this.updateDropdownSelection(combinedTitle, layerId);
+            console.log('Overlay layer switch complete');
+        }
+
+        updateDropdownSelection(buttonText, selectedLayer) {
+            this.layerDropdown.textContent = buttonText;
+
+            // Clear all active states
+            this.container.querySelectorAll('.layer-option, .overlay-layer').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Highlight active layers
+            if (this.currentOverlayLayer) {
+                // Highlight both base layer and overlay layer
+                const baseLayerItem = this.container.querySelector(`[data-layer="${this.currentBaseLayer}"]`);
+                if (baseLayerItem) baseLayerItem.classList.add('active');
+
+                const overlayLayerItem = this.container.querySelector(`[data-layer="${this.currentOverlayLayer}"]`);
+                if (overlayLayerItem) overlayLayerItem.classList.add('active');
+            } else {
+                // Only highlight base layer
+                const selectedItem = this.container.querySelector(`[data-layer="${selectedLayer}"]`);
+                if (selectedItem) selectedItem.classList.add('active');
+            }
+        }
+
+        async loadMapLayers() {
+            if (this.mapLayersLoaded) return;
+
+            try {
+                console.log('Loading map layers...');
+                const response = await fetch('{% url "images:map_layers" %}');
+                console.log('Map layers response:', response);
+
+                if (!response.ok) throw new Error(`Failed to fetch map layers: ${response.status}`);
+
+                const data = await response.json();
+                console.log('Map layers data:', data);
+
+                // Store collections data with proper structure
+                this.collectionsData = data.collections;
+
+                this.populateCollectionSubmenus();
+                this.mapLayersLoaded = true;
+                console.log('Map layers loaded successfully');
+            } catch (error) {
+                console.error('Error loading map layers:', error);
+                this.addErrorItem();
+            }
+        }
+
+        populateCollectionSubmenus() {
+            if (!this.collectionsData || this.collectionsData.length === 0) return;
+
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+            let layerIndex = 0;
+
+            this.collectionsData.forEach((collection, collectionIndex) => {
+                if (collection.layers.length === 0) return;
+
+                // Add divider before each collection (except if it's the first)
+                if (collectionIndex > 0 || dropdownMenu.children.length > 0) {
+                    const dividerItem = document.createElement('li');
+                    const divider = document.createElement('hr');
+                    divider.className = 'dropdown-divider';
+                    dividerItem.appendChild(divider);
+                    dropdownMenu.appendChild(dividerItem);
+                }
+
+                // Add collection header
+                const headerItem = document.createElement('li');
+                const header = document.createElement('h6');
+                header.className = 'dropdown-header';
+                header.textContent = collection.name;
+                headerItem.appendChild(header);
+                dropdownMenu.appendChild(headerItem);
+
+                // Add layers for this collection
+                collection.layers.forEach(layer => {
+                    const layerId = `overlay-${layerIndex}`;
+                    const listItem = document.createElement('li');
+                    const layerItem = document.createElement('a');
+                    layerItem.className = 'dropdown-item overlay-layer';
+                    layerItem.href = '#';
+                    layerItem.dataset.layer = layerId;
+                    layerItem.dataset.tileUrl = layer.url;
+                    layerItem.dataset.tileType = layer.type || 'pmtiles'; // Default to pmtiles for backward compatibility
+                    layerItem.textContent = layer.name;
+
+                    layerItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.switchToOverlayLayer(
+                            layerId, 
+                            layer.url, 
+                            layer.name, 
+                            layer.type || 'pmtiles'
+                        );
+
+                        // Close dropdown
+                        const dropdown = bootstrap.Dropdown.getInstance(this.layerDropdown);
+                        if (dropdown) dropdown.hide();
+                    });
+
+                    listItem.appendChild(layerItem);
+                    dropdownMenu.appendChild(listItem);
+                    layerIndex++;
+                });
+            });
+        }
+
+        addErrorItem() {
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+
             const dividerItem = document.createElement('li');
             const divider = document.createElement('hr');
             divider.className = 'dropdown-divider';
@@ -934,64 +1369,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorItem = document.createElement('li');
             const errorLink = document.createElement('div');
             errorLink.className = 'dropdown-item-text text-muted';
-            errorLink.textContent = 'Failed to load Sanborn layers';
+            errorLink.textContent = 'Failed to load map layers';
             errorItem.appendChild(errorLink);
             dropdownMenu.appendChild(errorItem);
-        }
-    }
-
-    function populateSanbornSubmenu() {
-        if (!insuranceLayersData) return;
-
-        const dropdownMenu = document.querySelector('ul[aria-labelledby="layerDropdown"]');
-
-        // Add divider before Sanborn section
-        const dividerItem = document.createElement('li');
-        const divider = document.createElement('hr');
-        divider.className = 'dropdown-divider';
-        dividerItem.appendChild(divider);
-        dropdownMenu.appendChild(dividerItem);
-
-        // Add Sanborn header
-        const sanbornHeaderItem = document.createElement('li');
-        const sanbornHeader = document.createElement('h6');
-        sanbornHeader.className = 'dropdown-header';
-        sanbornHeader.textContent = 'Sanborn';
-        sanbornHeaderItem.appendChild(sanbornHeader);
-        dropdownMenu.appendChild(sanbornHeaderItem);
-
-        // Create dropdown items for each individual layer
-        insuranceLayersData.forEach((layer, index) => {
-            const layerId = `sanborn-${index}`;
-            const listItem = document.createElement('li');
-            const layerItem = document.createElement('a');
-            layerItem.className = 'dropdown-item sanborn-layer';
-            layerItem.href = '#';
-            layerItem.dataset.layer = layerId;
-            layerItem.dataset.pmtilesUrl = layer.pmtiles;
-            layerItem.textContent = layer.title;
-
-            // Add click event listener
-            layerItem.addEventListener('click', handleSanbornLayerClick);
-
-            listItem.appendChild(layerItem);
-            dropdownMenu.appendChild(listItem);
-        });
-    }
-
-    function handleSanbornLayerClick(e) {
-        e.preventDefault();
-        const layerId = this.dataset.layer;
-        const pmtilesUrl = this.dataset.pmtilesUrl;
-        const title = this.textContent.trim();
-
-        // Switch to the Sanborn layer
-        switchToSanbornLayer(layerId, pmtilesUrl, title);
-
-        // Close the dropdown after selection
-        const dropdown = bootstrap.Dropdown.getInstance(layerDropdown);
-        if (dropdown) {
-            dropdown.hide();
         }
     }
 
@@ -1002,27 +1382,6 @@ document.addEventListener('DOMContentLoaded', function() {
             map.addImage('surveillance-direction', image.data);
         } catch (error) {
             console.warn('Could not load direction arrow image:', error);
-        }
-
-        // Add satellite source and layer (initially hidden)
-        if (!map.getSource('satellite')) {
-            map.addSource('satellite', {
-                'type': 'raster',
-                'tiles': ['https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}'],
-                'tileSize': 256,
-                'attribution': 'Virginia Geographic Information Network (VGIN)'
-            });
-        }
-
-        if (!map.getLayer('satellite-layer')) {
-            map.addLayer({
-                'id': 'satellite-layer',
-                'type': 'raster',
-                'source': 'satellite',
-                'layout': {
-                    'visibility': 'none'
-                }
-            });
         }
 
         map.addSource('pin', {
@@ -1151,28 +1510,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-
-    // Add event listeners for dropdown items
-    document.querySelectorAll('.layer-option').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            const layer = this.dataset.layer;
-
-            // If clicking the same base layer that's already active, do nothing
-            if (layer === currentBaseLayer) {
-                return;
-            }
-
-            // Switch base layers while preserving any active Sanborn layer
-            if (layer === 'osm') {
-                switchToOSMLayer();
-            } else if (layer === 'satellite') {
-                switchToSatelliteLayer();
-            }
-        });
-    });
-
-
+    // Add LayerControl to map
+    map.addControl(new LayerControl(), 'top-right');
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.FullscreenControl());
 
     var latitudeInput = document.getElementById('latitude-input');
     var longitudeInput = document.getElementById('longitude-input');
@@ -1322,9 +1663,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     map.on('load', async () => {
         await addMapSourcesAndLayers();
-
-        // Load insurance layers on map load so they're ready
-        await loadInsuranceLayers();
 
         // Add address search control powered by Photon
         const geocoder = new MaplibreGeocoder({
