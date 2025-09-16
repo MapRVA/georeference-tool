@@ -905,7 +905,7 @@ document.addEventListener('DOMContentLoaded', function() {
         center: [-77.43916, 37.54376],
         zoom: 13
     });
-    
+
     // Try to setup PMTiles protocol
     window.setupPMTilesProtocol();
 
@@ -1147,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         switchToOverlayLayer(layerId, tileUrl, title, tileType) {
             console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType);
-            
+
             // For PMTiles, check if protocol is set up
             if (tileType === 'pmtiles') {
                 console.log('PMTiles protocol setup status:', window.pmtilesProtocolSetup);
@@ -1339,9 +1339,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     layerItem.addEventListener('click', (e) => {
                         e.preventDefault();
                         this.switchToOverlayLayer(
-                            layerId, 
-                            layer.url, 
-                            layer.name, 
+                            layerId,
+                            layer.url,
+                            layer.name,
                             layer.type || 'pmtiles'
                         );
 
@@ -1664,22 +1664,50 @@ document.addEventListener('DOMContentLoaded', function() {
     map.on('load', async () => {
         await addMapSourcesAndLayers();
 
-        // Add address search control powered by Photon
-        const geocoder = new MaplibreGeocoder({
+        // Add address search control powered by Nominatim
+        const geocoderApi = {
             forwardGeocode: async (config) => {
-                const url = `https://photon.komoot.io/api?q=${encodeURIComponent(config.query)}&limit=5`;
-                const geojson = await (await fetch(url)).json();
+                const features = [];
+                try {
+                    const request =
+            `https://nominatim.openstreetmap.org/search?q=${
+                config.query
+            }&format=geojson&polygon_geojson=1&addressdetails=1`;
+                    const response = await fetch(request);
+                    const geojson = await response.json();
+                    for (const feature of geojson.features) {
+                        const center = [
+                            feature.bbox[0] +
+                    (feature.bbox[2] - feature.bbox[0]) / 2,
+                            feature.bbox[1] +
+                    (feature.bbox[3] - feature.bbox[1]) / 2
+                        ];
+                        const point = {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: center
+                            },
+                            place_name: feature.properties.display_name,
+                            properties: feature.properties,
+                            text: feature.properties.display_name,
+                            place_type: ['place'],
+                            center
+                        };
+                        features.push(point);
+                    }
+                } catch (e) {
+                    console.error(`Failed to forwardGeocode with error: ${e}`);
+                }
 
-                geojson.features.forEach((f) => {
-                    const { name, city, country } = f.properties;
-                    f.place_name = [name, city, country].filter(Boolean).join(', ');
-                    f.place_type = ['place'];
-                    f.center = f.geometry.coordinates;
-                });
-
-                return geojson;
-            },
-        }, { maplibregl, marker: false });
+                return {
+                    features
+                };
+            }
+        };
+        const geocoder = new MaplibreGeocoder(geocoderApi, {
+            maplibregl,
+        });
 
         map.addControl(geocoder, 'top-left');
 
