@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Adding overlay layer:', layerId);
                 try {
                     // Add before image layers so markers appear on top
-                    const beforeId = this.map.getLayer('image-circles') ? 'image-circles' : undefined;
+                    const beforeId = this.map.getLayer('image-directions') ? 'image-directions' : undefined;
 
                     this.map.addLayer({
                         id: layerId,
