@@ -1,5 +1,6 @@
 import json
 
+from dateutil.parser import parse
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
@@ -9,6 +10,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.db.models import Case, When, Value, IntegerField
+
+from edtf import parse_edtf
 
 from .models import (
     Collection,
@@ -702,8 +705,15 @@ def geojson_endpoint(request):
             "img_url": image.permalink,
             "img_entry": img_entry,
             "original_date": str(image.original_date) if image.original_date else None,
-            "edtf_date": str(image.original_date) if image.original_date else None,
+            "edtf_date": str(image.edtf_date) if image.edtf_date else None,
         }
+
+        if image.edtf_date:
+            edtf_date = parse_edtf(image.edtf_date)
+            properties["start_decdate"] = edtf_date.lower_strict()[0]
+            properties["fuzzy_start_decdate"] = edtf_date.lower_fuzzy()[0]
+            properties["end_decdate"] = edtf_date.upper_strict()[0]
+            properties["fuzzy_end_decdate"] = edtf_date.upper_fuzzy()[0]
 
         # Only include direction if it's not None
         if georeference.direction is not None:
