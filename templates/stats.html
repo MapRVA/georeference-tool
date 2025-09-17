@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}Statistics - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 40vh;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Site Statistics</h1>
+
+    <div class="row">
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-chart-line me-2"></i>Daily Georeferences (Cumulative)
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="dailyGeoreferencesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-2"></i>Image Status
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="imageStatusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-users me-2"></i>Top Contributors
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Username</th>
+                            <th scope="col">Georeferences</th>
+                            <th scope="col">Validations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contributor, stats in contributors %}
+                        <tr>
+                            <th scope="row">{{ forloop.counter }}</th>
+                            <td>{{ contributor }}</td>
+                            <td>{{ stats.georeferences }}</td>
+                            <td>{% if contributor == 'Anonymous' %}N/A{% else %}{{ stats.validations }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Daily Georeferences Chart
+        const dailyCtx = document.getElementById('dailyGeoreferencesChart').getContext('2d');
+        new Chart(dailyCtx, {
+            type: 'line',
+            data: {
+                labels: {{ daily_labels|safe }},
+                datasets: [{
+                    label: 'Cumulative Georeferences',
+                    data: {{ daily_counts|safe }},
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Image Status Pie Chart
+        const statusCtx = document.getElementById('imageStatusChart').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'pie',
+            data: {
+                labels: {{ status_labels|safe }},
+                datasets: [{
+                    label: 'Image Status',
+                    data: {{ status_counts|safe }},
+                    backgroundColor: [
+                        'rgba(108, 117, 125, 0.7)', // Grey
+                        'rgba(255, 99, 132, 0.7)',  // Light Red
+                        'rgba(255, 205, 86, 0.7)', // Yellow
+                        'rgba(75, 192, 192, 0.7)'  // Green
+                    ],
+                    borderColor: [
+                        'rgba(108, 117, 125, 1)',
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(255, 205, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+            }
+        });
+    });
+</script>
+{% endblock %}

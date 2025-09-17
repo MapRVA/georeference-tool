@@ -16,12 +16,15 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path, include
-from . import views
+from django.urls import include, path
+
 from osm_auth import views as auth_views
+
+from . import views
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("stats/", views.stats, name="stats"),
     path("admin/login/", auth_views.admin_login, name="admin_login"),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
