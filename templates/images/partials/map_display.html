@@ -768,7 +768,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         'icon-size': {
                             'stops': [[5, 0.3], [15, 1]]
                         },
-                        'icon-rotate': ['to-number', ['get', 'direction']]
+                        'icon-rotate': ['to-number', ['get', 'direction']],
+                        'icon-rotation-alignment': 'map',
+                        'icon-pitch-alignment': 'map'
                     },
                     'filter': ['has', 'direction']
                 });
