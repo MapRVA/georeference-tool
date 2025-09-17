@@ -38,7 +38,7 @@ urlpatterns = [
         views.mark_will_not_georef,
         name="mark_will_not_georef",
     ),
-    # GeoJSON endpoint
-    path("geojson/", views.geojson_endpoint, name="geojson"),
+    # Public API endpoints
+    path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
 ]
