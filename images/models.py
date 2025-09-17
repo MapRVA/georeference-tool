@@ -118,6 +118,18 @@ class Image(models.Model):
     edtf_date = models.CharField(
         null=True, max_length=50, help_text="Date parsed as EDTF"
     )
+    start_decdate = models.IntegerField(
+        null=True, help_text="Start of date range in decimal format"
+    )
+    fuzzy_start_decdate = models.IntegerField(
+        null=True, help_text="Fuzzy start of date range in decimal format"
+    )
+    end_decdate = models.IntegerField(
+        null=True, help_text="End of date range in decimal format"
+    )
+    fuzzy_end_decdate = models.IntegerField(
+        null=True, help_text="Fuzzy end of date range in decimal format"
+    )
 
     def clean(self):
         """Validate model fields"""
@@ -131,12 +143,21 @@ class Image(models.Model):
                 raise ValidationError({"edtf_date": f"Invalid EDTF format: {str(e)}"})
 
     def save(self, *args, **kwargs):
-        """Validate EDTF date format before saving"""
+        """Validate EDTF date format and pre-calculate decimal dates before saving"""
         if self.edtf_date:
             try:
-                parse_edtf(self.edtf_date)
+                edtf_date = parse_edtf(self.edtf_date)
+                self.start_decdate = edtf_date.lower_strict()[0]
+                self.fuzzy_start_decdate = edtf_date.lower_fuzzy()[0]
+                self.end_decdate = edtf_date.upper_strict()[0]
+                self.fuzzy_end_decdate = edtf_date.upper_fuzzy()[0]
             except EDTFParseException as e:
                 raise ValidationError(f'Invalid EDTF date "{self.edtf_date}": {str(e)}')
+        else:
+            self.start_decdate = None
+            self.fuzzy_start_decdate = None
+            self.end_decdate = None
+            self.fuzzy_end_decdate = None
         super().save(*args, **kwargs)
 
     # Georeferencing metadata
