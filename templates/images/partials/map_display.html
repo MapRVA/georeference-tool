@@ -114,6 +114,77 @@ Usage:
     margin: 0.5rem 0;
 }
 
+/* Time Slider Control */
+.time-slider-control {
+    width: 280px;
+    padding: 10px;
+    background-color: #fff;
+    font-size: 0.9rem;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+.time-slider-values {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: #495057;
+}
+.time-slider-container {
+    position: relative;
+    height: 24px;
+}
+.slider-track {
+    position: absolute;
+    height: 4px;
+    background: #ddd;
+    width: 100%;
+    top: 10px;
+    border-radius: 2px;
+    z-index: 1;
+}
+.slider-range {
+    position: absolute;
+    height: 4px;
+    background: #0d6efd;
+    top: 10px;
+    border-radius: 2px;
+    z-index: 2;
+}
+.time-slider-container input[type="range"] {
+    position: absolute;
+    width: 100%;
+    pointer-events: none;
+    -webkit-appearance: none;
+    background: transparent;
+    height: 24px;
+    top: 0;
+    margin: 0;
+    z-index: 3;
+}
+.time-slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: all;
+    width: 20px;
+    height: 20px;
+    background: #0d6efd;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+.time-slider-container input[type="range"]::-moz-range-thumb {
+    pointer-events: all;
+    width: 16px;
+    height: 16px;
+    background: #0d6efd;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+
 /* Bootstrap-style MapLibre Controls */
 .maplibregl-ctrl-group {
     border-radius: 0.375rem;
@@ -696,6 +767,133 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Time Slider Control Class
+    class TimeSliderControl {
+        constructor(minYear, maxYear, mapId) {
+            this._minYear = minYear;
+            this._maxYear = maxYear;
+            this._mapId = mapId;
+
+            this.closeHandler = (e) => {
+                if (this._outerContainer && !this._outerContainer.contains(e.target)) {
+                    if (this._sliderPanel) {
+                        this._sliderPanel.style.display = 'none';
+                    }
+                }
+            };
+        }
+
+        onAdd(map) {
+            this._map = map;
+            this._outerContainer = document.createElement('div');
+            this._outerContainer.className = 'maplibregl-ctrl';
+
+            this._outerContainer.innerHTML = `
+                <div class="maplibregl-ctrl-group">
+                    <button id="time-slider-toggle-${this._mapId}" type="button" title="Filter by date" style="width: 32px; height: 32px;">
+                        <i class="fas fa-calendar-alt" style="font-size: 1.1em;"></i>
+                    </button>
+                </div>
+                <div class="time-slider-control" style="display: none; position: absolute; top: 40px; right: 0; z-index: 1;">
+                    <div class="time-slider-values">
+                        <span id="time-slider-label-${this._mapId}">Date Range</span>
+                        <span id="time-slider-range-label-${this._mapId}"></span>
+                    </div>
+                    <div class="time-slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range" id="slider-range-${this._mapId}"></div>
+                        <input type="range" id="start-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._minYear}">
+                        <input type="range" id="end-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
+                    </div>
+                </div>
+            `;
+
+            this._button = this._outerContainer.querySelector('button');
+            this._sliderPanel = this._outerContainer.querySelector('.time-slider-control');
+
+            this._button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = this._sliderPanel.style.display === 'none';
+                this._sliderPanel.style.display = isHidden ? 'block' : 'none';
+            });
+
+            document.addEventListener('click', this.closeHandler, true);
+
+            this._sliderPanel.addEventListener('click', e => e.stopPropagation());
+
+            this._startSlider = this._sliderPanel.querySelector(`#start-slider-${this._mapId}`);
+            this._endSlider = this._sliderPanel.querySelector(`#end-slider-${this._mapId}`);
+            this._rangeLabel = this._sliderPanel.querySelector(`#time-slider-range-label-${this._mapId}`);
+            this._sliderRange = this._sliderPanel.querySelector(`#slider-range-${this._mapId}`);
+
+            this.setupEventListeners();
+            this.updateView();
+
+            return this._outerContainer;
+        }
+
+        setupEventListeners() {
+            this._startSlider.addEventListener('input', () => {
+                if (parseInt(this._startSlider.value) > parseInt(this._endSlider.value)) {
+                    this._endSlider.value = this._startSlider.value;
+                }
+                this.updateView();
+                this.applyFilter();
+            });
+
+            this._endSlider.addEventListener('input', () => {
+                if (parseInt(this._endSlider.value) < parseInt(this._startSlider.value)) {
+                    this._startSlider.value = this._endSlider.value;
+                }
+                this.updateView();
+                this.applyFilter();
+            });
+        }
+
+        updateView() {
+            this._rangeLabel.textContent = `${this._startSlider.value} - ${this._endSlider.value}`;
+
+            const range = this._maxYear - this._minYear;
+            if (range === 0) return;
+
+            const startPercent = ((this._startSlider.value - this._minYear) / range) * 100;
+            const endPercent = ((this._endSlider.value - this._minYear) / range) * 100;
+
+            this._sliderRange.style.left = `${startPercent}%`;
+            this._sliderRange.style.width = `${endPercent - startPercent}%`;
+        }
+
+        applyFilter() {
+            const startYear = parseInt(this._startSlider.value);
+            const endYear = parseInt(this._endSlider.value);
+
+            const filter = [
+                'all',
+                ['<=', ['get', 'fuzzy_start_decdate'], endYear],
+                ['>=', ['get', 'fuzzy_end_decdate'], startYear]
+            ];
+
+            if (this._map.getLayer('image-circles')) {
+                this._map.setFilter('image-circles', filter);
+            }
+            if (this._map.getLayer('image-directions')) {
+                this._map.setFilter('image-directions', [
+                    'all',
+                    ['has', 'direction'],
+                    ...filter.slice(1)
+                ]);
+            }
+        }
+
+        onRemove() {
+            document.removeEventListener('click', this.closeHandler, true);
+            if (this._outerContainer && this._outerContainer.parentNode) {
+                this._outerContainer.parentNode.removeChild(this._outerContainer);
+            }
+            this._map = undefined;
+        }
+    }
+
     // Try to setup PMTiles protocol
     window.setupPMTilesProtocol();
 
@@ -738,6 +936,32 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(geojsonUrl);
             const geojsonData = await response.json();
+
+            // Find min/max years for time slider
+            let minYear = null;
+            let maxYear = null;
+            if (geojsonData.features && geojsonData.features.length > 0) {
+                geojsonData.features.forEach(feature => {
+                    const props = feature.properties;
+                    if (props.fuzzy_start_decdate) {
+                        if (minYear === null || props.fuzzy_start_decdate < minYear) {
+                            minYear = props.fuzzy_start_decdate;
+                        }
+                    }
+                    const yearForMax = props.fuzzy_end_decdate || props.fuzzy_start_decdate;
+                    if (yearForMax) {
+                        if (maxYear === null || yearForMax > maxYear) {
+                            maxYear = yearForMax;
+                        }
+                    }
+                });
+            }
+
+            // Only add slider if there's a valid date range and not a single image view
+            if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
+                const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
+                map.addControl(timeSlider, 'top-right');
+            }
 
             if (!geojsonData.features || geojsonData.features.length === 0) {
                 // No data available
