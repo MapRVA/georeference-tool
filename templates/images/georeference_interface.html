@@ -1676,7 +1676,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const request =
             `https://nominatim.openstreetmap.org/search?q=${
                 config.query
-            }&format=geojson&polygon_geojson=1&addressdetails=1`;
+            }&format=geojson&polygon_geojson=1&addressdetails=1&layer=address&viewbox=-77.61976,37.60954,-77.36673,37.44393&bounded=1`;
                     const response = await fetch(request);
                     const geojson = await response.json();
                     for (const feature of geojson.features) {
