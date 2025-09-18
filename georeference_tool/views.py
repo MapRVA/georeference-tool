@@ -68,13 +68,13 @@ def stats(request):
 
     # Top contributors
     georeference_contributors = (
-        Georeference.objects.values(username=F("georeferenced_by__username"))
+        Georeference.objects.values(username=F("georeferenced_by__first_name"))
         .annotate(georeference_count=Count("id"))
         .order_by("-georeference_count")
     )
 
     validation_contributors = (
-        GeoreferenceValidation.objects.values(username=F("validated_by__username"))
+        GeoreferenceValidation.objects.values(username=F("validated_by__first_name"))
         .annotate(validation_count=Count("id"))
         .order_by("-validation_count")
     )
