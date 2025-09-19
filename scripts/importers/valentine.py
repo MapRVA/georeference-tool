@@ -64,7 +64,10 @@ def create_source_if_not_exist():
 def create_collection_if_not_exist(source, readable_primary_key):
     """Get or create a collection using the GetRecordDetails API for group data"""
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
-    headers = {"Content-Type": "application/json; charset=utf-8"}
+    headers = {
+        "Content-Type": "application/json; charset=utf-8", 
+        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+    }
     data = {
         "TableName": "group",
         "Directory": "VALARCH",
@@ -128,11 +131,14 @@ def create_collection_if_not_exist(source, readable_primary_key):
         return None
 
 
-def get_archival_children(archival_number: str):
+def get_archival_children(archival_number: str, table: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetArchivalChildren"
-    headers = {"Content-Type": "application/json; charset=utf-8"}
+    headers ={
+        "Content-Type": "application/json; charset=utf-8", 
+        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+    }
     data = {
-        "TableName": "GROUP",
+        "TableName": table,
         "ArchivalNumber": archival_number,
         "Directory": "VALARCH",
     }
@@ -140,15 +146,31 @@ def get_archival_children(archival_number: str):
     response = requests.post(url, headers=headers, json=data)
     json_response = response.json()
     xml_content = json_response.get("d", "")
-    archival_numbers = re.findall(
-        r"<ArchivalNumber>(.*?)</ArchivalNumber>", xml_content
-    )
-    return archival_numbers
+
+    # Report high-level info of children found
+    member_data = {
+        # Official Valentine reference number   
+        "archival_number": re.findall(
+            r"<ArchivalNumber>(.*?)</ArchivalNumber>", xml_content
+        ),
+        # Archival level (GROUP/SERIES-FILEUNIT#BIBLIO
+        "table_name": re.findall(
+            r"<TableName>(.*?)</TableName>", xml_content
+        ),
+        # Internal Valentine reference number (database)
+        "file_name": re.findall(
+            r"<FileName>(.*?)</FileName>", xml_content
+        ),
+    }
+    return member_data
 
 
 def get_record_details(readable_primary_key: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
-    headers = {"Content-Type": "application/json; charset=utf-8"}
+    headers = {
+        "Content-Type": "application/json; charset=utf-8", 
+        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+    }
     data = {
         "TableName": "biblio",
         "Directory": "VALARCH",
@@ -169,6 +191,7 @@ def get_record_details(readable_primary_key: str):
     creator_match = re.search(r"<author>(.*?)</author>", xml_content)
     geo_match = re.search(r"<sub_geo>(.*?)</sub_geo>", xml_content)
     image_match = re.search(r"<FullImage>(.*?)</FullImage>", xml_content)
+    inscription_match = re.search(r"<categ_3>(.*?)</categ_3>", xml_content)
 
     # Create dictionary for extracted data
     result = {
@@ -318,19 +341,76 @@ def get_record_details(readable_primary_key: str):
 
 @click.command()
 @click.argument("archive_id", default="PHC0039")
-def main(archive_id):
+@click.option(
+    "--hotlink",
+    is_flag=True,
+    help="Hotlink images instead of uploading to R2",
+)
+
+def main(archive_id, hotlink=False):
     """Scrape archival records from The Valentine Museum's digital archives."""
 
     source = create_source_if_not_exist()
     collection = create_collection_if_not_exist(source, archive_id)
 
     if collection:
-        archival_children = get_archival_children(archive_id)
+        archival_children = get_archival_children(archive_id, "GROUP")
+
+        items_resolved = {
+            "archival_number": [],
+            "table_name": [],
+            "file_name": []
+        }
+        items_unresolved = {
+            "archival_number": [],
+            "table_name": [],
+            "file_name": []
+        }
+
+        for i, table in enumerate(archival_children["table_name"]):
+            if table == "BIBLIO":
+                items_resolved["archival_number"].append(archival_children["archival_number"][i])
+                items_resolved["table_name"].append(table)
+                items_resolved["file_name"].append(archival_children["file_name"][i])
+            if table != "BIBLIO":
+                items_unresolved["archival_number"].append(archival_children["archival_number"][i])
+                items_unresolved["table_name"].append(table)
+                items_unresolved["file_name"].append(archival_children["file_name"][i])
+
+        # Recurse down the archival hierarchy until we have all BIBLIO items
+        while len(items_unresolved["table_name"]) != 0:
+            hold = {
+                "archival_number": [],
+                "table_name": [],
+                "file_name": []
+            }
+
+            for i in range(len(items_unresolved["archival_number"])):
+                archival_children = get_archival_children(
+                    items_unresolved["archival_number"][i],
+                    items_unresolved["table_name"][i]
+                )
+                for i, table in enumerate(archival_children["table_name"]):
+                    if table == "BIBLIO":
+                        items_resolved["archival_number"].append(archival_children["archival_number"][i])
+                        items_resolved["table_name"].append(table)
+                        items_resolved["file_name"].append(archival_children["file_name"][i])
+                    if table != "BIBLIO":
+                        hold["archival_number"].append(archival_children["archival_number"][i])
+                        hold["table_name"].append(table)
+                        hold["file_name"].append(archival_children["file_name"][i])
+
+            items_unresolved = hold
+            sleep(POLITE_WAIT_SECS)
+
+
+
+
 
         r2_uploader = R2Uploader()
 
         skip_count = 0
-        for child in tqdm(archival_children):
+        for child in tqdm(items_resolved["archival_number"]):
             existing_by_ref = Image.objects.filter(ref=child).exists()
             if existing_by_ref:
                 skip_count += 1
@@ -349,11 +429,12 @@ def main(archive_id):
                 continue
 
             # Try downloading the image (and uploading it to R2)
-            record["permalink"] = r2_uploader.upload_url(
-                record["permalink"],
-                in_tqdm=True,
-                raise_on_err=False,
-            )
+            if not hotlink:
+                record["permalink"] = r2_uploader.upload_url(
+                    record["permalink"],
+                    in_tqdm=True,
+                    raise_on_err=False,
+                )
 
             # Were we successful in downloading the image?
             if record["permalink"] is None:
