@@ -901,7 +901,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const map = new maplibregl.Map({
         container: mapId,
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        {% if hash %}
         hash: true,
+        {% endif %}
         {% if center_lng and center_lat and zoom_level %}
         center: [{{ center_lng }}, {{ center_lat }}],
         zoom: {{ zoom_level }}
