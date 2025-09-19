@@ -157,10 +157,6 @@ def get_archival_children(archival_number: str, table: str):
         "table_name": re.findall(
             r"<TableName>(.*?)</TableName>", xml_content
         ),
-        # Internal Valentine reference number (database)
-        "file_name": re.findall(
-            r"<FileName>(.*?)</FileName>", xml_content
-        ),
     }
     return member_data
 
@@ -210,6 +206,9 @@ def get_record_details(readable_primary_key: str):
 
     if creator_match:
         result["creator"] = creator_match.group(1)
+
+    if inscription_match:
+        result["description"] += "\n\nInscription: " + inscription_match.group(1)
 
     if geo_match:
         result["description"] += "\n\nGeographic Description: " + geo_match.group(1)
@@ -358,31 +357,26 @@ def main(archive_id, hotlink=False):
 
         items_resolved = {
             "archival_number": [],
-            "table_name": [],
-            "file_name": []
+            "table_name": []
         }
         items_unresolved = {
             "archival_number": [],
-            "table_name": [],
-            "file_name": []
+            "table_name": []
         }
 
         for i, table in enumerate(archival_children["table_name"]):
             if table == "BIBLIO":
                 items_resolved["archival_number"].append(archival_children["archival_number"][i])
                 items_resolved["table_name"].append(table)
-                items_resolved["file_name"].append(archival_children["file_name"][i])
             if table != "BIBLIO":
                 items_unresolved["archival_number"].append(archival_children["archival_number"][i])
                 items_unresolved["table_name"].append(table)
-                items_unresolved["file_name"].append(archival_children["file_name"][i])
 
         # Recurse down the archival hierarchy until we have all BIBLIO items
         while len(items_unresolved["table_name"]) != 0:
             hold = {
                 "archival_number": [],
-                "table_name": [],
-                "file_name": []
+                "table_name": []
             }
 
             for i in range(len(items_unresolved["archival_number"])):
@@ -394,11 +388,9 @@ def main(archive_id, hotlink=False):
                     if table == "BIBLIO":
                         items_resolved["archival_number"].append(archival_children["archival_number"][i])
                         items_resolved["table_name"].append(table)
-                        items_resolved["file_name"].append(archival_children["file_name"][i])
                     if table != "BIBLIO":
                         hold["archival_number"].append(archival_children["archival_number"][i])
                         hold["table_name"].append(table)
-                        hold["file_name"].append(archival_children["file_name"][i])
 
             items_unresolved = hold
             sleep(POLITE_WAIT_SECS)
