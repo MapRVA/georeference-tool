@@ -22,3 +22,14 @@ dependencies = [
 
 [tool.uv.sources]
 clip = { git = "https://github.com/openai/CLIP.git" }
+torch = [
+  { index = "pytorch-cpu" },
+]
+torchvision = [
+  { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
