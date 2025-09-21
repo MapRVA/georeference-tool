@@ -18,6 +18,7 @@ urlpatterns = [
     path("", views.image_list, name="image_list"),
     path("<int:image_id>/", views.image_detail, name="image_detail"),
     path("stats/", views.image_stats, name="image_stats"),
+    path("search/", views.search_page, name="search_page"),
     path("random/", views.get_random_image, name="random_image"),
     # API endpoints for georeferencing
     path(
@@ -41,4 +42,5 @@ urlpatterns = [
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
+    path("api/v1/search/", views.semantic_search, name="semantic_search"),
 ]

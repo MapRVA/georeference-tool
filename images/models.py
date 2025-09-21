@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -164,6 +165,14 @@ class Image(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, null=True)
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
+
+    # Image embedding for CLIP similarity search
+    embedding = ArrayField(
+        models.FloatField(),
+        null=True,
+        blank=True,
+        help_text="CLIP embedding vector for image similarity search (dimension varies by model)"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

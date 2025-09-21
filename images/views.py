@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 
 from dateutil.parser import parse
 from django.contrib import messages
@@ -12,6 +14,14 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Case, When, Value, IntegerField
 
 from edtf import parse_edtf
+
+# Import CLIP dependencies (only when needed for search)
+try:
+    import clip
+    import torch
+    CLIP_AVAILABLE = True
+except ImportError:
+    CLIP_AVAILABLE = False
 
 from .models import (
     Collection,
@@ -661,6 +671,14 @@ def image_stats(request):
     return render(request, "images/stats.html", context)
 
 
+def search_page(request):
+    """Display the semantic search interface"""
+    context = {
+        "clip_available": CLIP_AVAILABLE,
+    }
+    return render(request, "images/search.html", context)
+
+
 def geojson_endpoint(request):
     """Return GeoJSON FeatureCollection of georeferenced images"""
     from django.urls import reverse
@@ -767,3 +785,276 @@ def map_layers_view(request):
     }
 
     return JsonResponse(response_data)
+
+
+# Global variables for CLIP model (loaded on first use)
+_clip_model = None
+_clip_preprocess = None
+_clip_device = None
+
+
+def _load_clip_model():
+    """Load CLIP model on first use"""
+    global _clip_model, _clip_preprocess, _clip_device
+
+    if _clip_model is not None:
+        return _clip_model, _clip_preprocess, _clip_device
+
+    if not CLIP_AVAILABLE:
+        raise ImportError("CLIP dependencies not available. Install torch and openai-clip.")
+
+    # Determine device
+    _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Check for local model
+    local_model_path = Path('./models/ViT-L-14-336px.pt').absolute()
+    print(local_model_path)
+    model_name = 'ViT-L/14@336px'
+
+    if local_model_path.exists():
+        _clip_model, _clip_preprocess = clip.load(
+            model_name,
+            device=_clip_device,
+            download_root=local_model_path.parent
+        )
+    else:
+        _clip_model, _clip_preprocess = clip.load(model_name, device=_clip_device)
+
+    return _clip_model, _clip_preprocess, _clip_device
+
+
+def _get_text_embedding(text):
+    """Generate embedding for text query"""
+    model, preprocess, device = _load_clip_model()
+
+    with torch.no_grad():
+        text_input = clip.tokenize([text]).to(device)
+        text_features = model.encode_text(text_input)
+        text_features /= text_features.norm(dim=-1, keepdim=True)
+
+    return text_features.cpu().numpy()[0].tolist()
+
+
+@require_http_methods(["GET", "POST"])
+def semantic_search(request):
+    """API endpoint for semantic search using CLIP embeddings"""
+    if not CLIP_AVAILABLE:
+        return JsonResponse({
+            "success": False,
+            "error": "Semantic search not available. CLIP dependencies not installed."
+        }, status=503)
+
+    # Get search query
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            query = data.get("query", "").strip()
+        except json.JSONDecodeError:
+            return JsonResponse({
+                "success": False,
+                "error": "Invalid JSON in request body"
+            }, status=400)
+    else:  # GET request
+        query = request.GET.get("q", "").strip()
+
+    if not query:
+        return JsonResponse({
+            "success": False,
+            "error": "Query parameter 'q' (GET) or 'query' (POST) is required"
+        }, status=400)
+
+    # Get search parameters
+    limit = min(int(request.GET.get("limit", 20)), 100)  # Max 100 results
+    include_no_embedding = request.GET.get("include_no_embedding", "false").lower() == "true"
+    georeferenced_only = request.GET.get("georeferenced_only", "false").lower() == "true"
+
+    # Year filtering parameters
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+
+    # Validate year parameters
+    if start_year:
+        try:
+            start_year = int(start_year)
+        except ValueError:
+            return JsonResponse({
+                "success": False,
+                "error": "Invalid start_year parameter. Must be an integer."
+            }, status=400)
+
+    if end_year:
+        try:
+            end_year = int(end_year)
+        except ValueError:
+            return JsonResponse({
+                "success": False,
+                "error": "Invalid end_year parameter. Must be an integer."
+            }, status=400)
+
+    try:
+        # First, detect the dimension of existing embeddings in the database
+        sample_embedding = None
+        expected_dimension = None
+
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT embedding
+                FROM images_image
+                WHERE embedding IS NOT NULL
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true
+                )
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if result:
+                sample_embedding = result[0]
+                expected_dimension = len(sample_embedding)
+
+        # Generate query embedding
+        query_embedding = _get_text_embedding(query)
+        query_dimension = len(query_embedding)
+
+        # Check dimension compatibility
+        if expected_dimension and query_dimension != expected_dimension:
+            return JsonResponse({
+                "success": False,
+                "error": f"Model dimension mismatch. Database contains {expected_dimension}D embeddings, but current model produces {query_dimension}D embeddings. Please regenerate embeddings with the current model."
+            }, status=400)
+
+        # Base queryset - only public images
+        images = Image.objects.filter(
+            collection__public=True,
+            collection__source__public=True
+        ).select_related("collection__source")
+
+        # Filter to images with embeddings (unless explicitly including those without)
+        if not include_no_embedding:
+            images = images.filter(embedding__isnull=False)
+
+        # Use raw SQL for vector similarity search
+        # Note: This requires pgvector extension to be installed
+
+        with connection.cursor() as cursor:
+            # Convert embedding to PostgreSQL array format
+            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+
+            # Build dynamic WHERE conditions and separate parameters
+            where_conditions = ["embedding IS NOT NULL"]
+            where_params = []
+
+            # Add georeferenced filter
+            if georeferenced_only:
+                where_conditions.append("EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)")
+
+            # Add year filtering conditions
+            if start_year is not None:
+                where_conditions.append("(start_decdate >= %s OR fuzzy_start_decdate >= %s)")
+                where_params.extend([start_year, start_year])
+
+            if end_year is not None:
+                where_conditions.append("(end_decdate <= %s OR fuzzy_end_decdate <= %s)")
+                where_params.extend([end_year, end_year])
+
+            # Combine all WHERE conditions
+            where_clause = " AND ".join(where_conditions)
+
+            # Raw SQL query for cosine similarity
+            # Cast the array to vector type for pgvector operations
+            sql = f"""
+                SELECT
+                    id,
+                    title,
+                    permalink,
+                    original_date,
+                    edtf_date,
+                    start_decdate,
+                    end_decdate,
+                    (embedding::vector <=> %s::vector) as distance
+                FROM images_image
+                WHERE {where_clause}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true
+                )
+                ORDER BY embedding::vector <=> %s::vector
+                LIMIT %s
+            """
+
+            # Build the final parameter list in the correct order:
+            # 1. First embedding for distance calculation
+            # 2. WHERE clause parameters (years)
+            # 3. Second embedding for ORDER BY
+            # 4. LIMIT parameter
+            query_params = [embedding_str] + where_params + [embedding_str, limit]
+
+            cursor.execute(sql, query_params)
+            results = cursor.fetchall()
+
+        # Format results
+        search_results = []
+        for row in results:
+            image_id, title, permalink, original_date, edtf_date, start_decdate, end_decdate, distance = row
+
+            # Get the full image object for additional data
+            try:
+                image = Image.objects.select_related("collection__source").get(id=image_id)
+
+                result = {
+                    "id": image_id,
+                    "title": title,
+                    "permalink": permalink,
+                    "original_date": str(original_date) if original_date else None,
+                    "edtf_date": str(edtf_date) if edtf_date else None,
+                    "distance": float(distance),
+                    "similarity": 1.0 - float(distance),  # Convert distance to similarity
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image_id}/",
+                    "georeferenced": image.is_georeferenced,
+                }
+
+                # Add georeference data if available
+                if image.is_georeferenced:
+                    georeference = image.get_georeference()
+                    if georeference:
+                        result["georeference"] = {
+                            "latitude": georeference.latitude,
+                            "longitude": georeference.longitude,
+                            "direction": georeference.direction,
+                            "confidence": georeference.confidence,
+                        }
+
+                search_results.append(result)
+
+            except Image.DoesNotExist:
+                # Skip if image was deleted between query and retrieval
+                continue
+
+        return JsonResponse({
+            "success": True,
+            "query": query,
+            "results": search_results,
+            "count": len(search_results),
+            "limit": limit,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"Search failed: {str(e)}"
+        }, status=500)
