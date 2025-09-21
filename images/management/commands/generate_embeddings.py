@@ -43,8 +43,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--model-name',
             type=str,
-            default='ViT-B/32',
-            help='CLIP model name to use (default: ViT-B/32)'
+            default='ViT-L/14@336px',
+            help='CLIP model name to use (default: ViT-L/14@336px)'
         )
         parser.add_argument(
             '--device',
