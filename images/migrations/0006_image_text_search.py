@@ -37,12 +37,6 @@ def setup_search_vectors(apps, schema_editor):
             FOR EACH ROW EXECUTE FUNCTION update_image_search_vector();
     """)
 
-    # Temporarily disable the trigger to perform the bulk update without firing it for every row.
-    # This is necessary to avoid the "pending trigger events" error when creating the index in the same transaction.
-    schema_editor.execute(
-        "ALTER TABLE images_image DISABLE TRIGGER image_search_vector_update;"
-    )
-
     # Populate existing records
     schema_editor.execute("""
         UPDATE images_image SET search_vector = to_tsvector('english',
@@ -54,11 +48,6 @@ def setup_search_vectors(apps, schema_editor):
             COALESCE(creator, '')
         );
     """)
-
-    # Re-enable the trigger
-    schema_editor.execute(
-        "ALTER TABLE images_image ENABLE TRIGGER image_search_vector_update;"
-    )
 
     # Create GIN index for better search performance
     schema_editor.execute(
@@ -84,6 +73,8 @@ def teardown_search_vectors(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
+
     dependencies = [
         ("images", "0005_image_embedding"),
     ]
