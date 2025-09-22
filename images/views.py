@@ -1,24 +1,34 @@
 import json
-import os
 from pathlib import Path
 
-from dateutil.parser import parse
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import IntegrityError, transaction
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.db.models import Case, Func, IntegerField, Value, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from django.db.models import Case, When, Value, IntegerField
 
-from edtf import parse_edtf
+# Try to import PostgreSQL search functions
+try:
+    from django.contrib.postgres.search import (
+        SearchQuery,
+        SearchRank,
+        SearchVector,
+        TrigramSimilarity,
+    )
+
+    HAS_POSTGRES_SEARCH = True
+except ImportError:
+    HAS_POSTGRES_SEARCH = False
 
 # Import CLIP dependencies (only when needed for search)
 try:
     import clip
     import torch
+
     CLIP_AVAILABLE = True
 except ImportError:
     CLIP_AVAILABLE = False
@@ -30,7 +40,6 @@ from .models import (
     Image,
     ImageSkip,
     LayerCollection,
-    MapLayer,
     Source,
 )
 
@@ -681,7 +690,6 @@ def search_page(request):
 
 def geojson_endpoint(request):
     """Return GeoJSON FeatureCollection of georeferenced images"""
-    from django.urls import reverse
 
     # Start with all georeferenced images from public collections/sources
     images = (
@@ -752,14 +760,14 @@ def geojson_endpoint(request):
 
 def map_layers_view(request):
     """Return all map layers organized by collections in a single object"""
-    collections = LayerCollection.objects.prefetch_related('layers').all()
+    collections = LayerCollection.objects.prefetch_related("layers").all()
 
     collections_data = []
     for collection in collections:
         collection_data = {
             "name": collection.name,
             "description": collection.description,
-            "layers": []
+            "layers": [],
         }
 
         for layer in collection.layers.all():
@@ -780,9 +788,7 @@ def map_layers_view(request):
         collections_data.append(collection_data)
 
     # Return single object with all metadata
-    response_data = {
-        "collections": collections_data
-    }
+    response_data = {"collections": collections_data}
 
     return JsonResponse(response_data)
 
@@ -801,21 +807,21 @@ def _load_clip_model():
         return _clip_model, _clip_preprocess, _clip_device
 
     if not CLIP_AVAILABLE:
-        raise ImportError("CLIP dependencies not available. Install torch and openai-clip.")
+        raise ImportError(
+            "CLIP dependencies not available. Install torch and openai-clip."
+        )
 
     # Determine device
     _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Check for local model
-    local_model_path = Path('./models/ViT-L-14-336px.pt').absolute()
+    local_model_path = Path("./models/ViT-L-14-336px.pt").absolute()
     print(local_model_path)
-    model_name = 'ViT-L/14@336px'
+    model_name = "ViT-L/14@336px"
 
     if local_model_path.exists():
         _clip_model, _clip_preprocess = clip.load(
-            model_name,
-            device=_clip_device,
-            download_root=local_model_path.parent
+            model_name, device=_clip_device, download_root=local_model_path.parent
         )
     else:
         _clip_model, _clip_preprocess = clip.load(model_name, device=_clip_device)
@@ -839,10 +845,13 @@ def _get_text_embedding(text):
 def semantic_search(request):
     """API endpoint for semantic search using CLIP embeddings"""
     if not CLIP_AVAILABLE:
-        return JsonResponse({
-            "success": False,
-            "error": "Semantic search not available. CLIP dependencies not installed."
-        }, status=503)
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Semantic search not available. CLIP dependencies not installed.",
+            },
+            status=503,
+        )
 
     # Get search query
     if request.method == "POST":
@@ -850,23 +859,29 @@ def semantic_search(request):
             data = json.loads(request.body)
             query = data.get("query", "").strip()
         except json.JSONDecodeError:
-            return JsonResponse({
-                "success": False,
-                "error": "Invalid JSON in request body"
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Invalid JSON in request body"}, status=400
+            )
     else:  # GET request
         query = request.GET.get("q", "").strip()
 
     if not query:
-        return JsonResponse({
-            "success": False,
-            "error": "Query parameter 'q' (GET) or 'query' (POST) is required"
-        }, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Query parameter 'q' (GET) or 'query' (POST) is required",
+            },
+            status=400,
+        )
 
     # Get search parameters
     limit = min(int(request.GET.get("limit", 20)), 100)  # Max 100 results
-    include_no_embedding = request.GET.get("include_no_embedding", "false").lower() == "true"
-    georeferenced_only = request.GET.get("georeferenced_only", "false").lower() == "true"
+    include_no_embedding = (
+        request.GET.get("include_no_embedding", "false").lower() == "true"
+    )
+    georeferenced_only = (
+        request.GET.get("georeferenced_only", "false").lower() == "true"
+    )
 
     # Year filtering parameters
     start_year = request.GET.get("start_year")
@@ -877,19 +892,25 @@ def semantic_search(request):
         try:
             start_year = int(start_year)
         except ValueError:
-            return JsonResponse({
-                "success": False,
-                "error": "Invalid start_year parameter. Must be an integer."
-            }, status=400)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid start_year parameter. Must be an integer.",
+                },
+                status=400,
+            )
 
     if end_year:
         try:
             end_year = int(end_year)
         except ValueError:
-            return JsonResponse({
-                "success": False,
-                "error": "Invalid end_year parameter. Must be an integer."
-            }, status=400)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid end_year parameter. Must be an integer.",
+                },
+                status=400,
+            )
 
     try:
         # First, detect the dimension of existing embeddings in the database
@@ -897,6 +918,7 @@ def semantic_search(request):
         expected_dimension = None
 
         from django.db import connection
+
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT embedding
@@ -922,15 +944,17 @@ def semantic_search(request):
 
         # Check dimension compatibility
         if expected_dimension and query_dimension != expected_dimension:
-            return JsonResponse({
-                "success": False,
-                "error": f"Model dimension mismatch. Database contains {expected_dimension}D embeddings, but current model produces {query_dimension}D embeddings. Please regenerate embeddings with the current model."
-            }, status=400)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f"Model dimension mismatch. Database contains {expected_dimension}D embeddings, but current model produces {query_dimension}D embeddings. Please regenerate embeddings with the current model.",
+                },
+                status=400,
+            )
 
         # Base queryset - only public images
         images = Image.objects.filter(
-            collection__public=True,
-            collection__source__public=True
+            collection__public=True, collection__source__public=True
         ).select_related("collection__source")
 
         # Filter to images with embeddings (unless explicitly including those without)
@@ -950,15 +974,21 @@ def semantic_search(request):
 
             # Add georeferenced filter
             if georeferenced_only:
-                where_conditions.append("EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)")
+                where_conditions.append(
+                    "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
 
             # Add year filtering conditions
             if start_year is not None:
-                where_conditions.append("(start_decdate >= %s OR fuzzy_start_decdate >= %s)")
+                where_conditions.append(
+                    "(start_decdate >= %s OR fuzzy_start_decdate >= %s)"
+                )
                 where_params.extend([start_year, start_year])
 
             if end_year is not None:
-                where_conditions.append("(end_decdate <= %s OR fuzzy_end_decdate <= %s)")
+                where_conditions.append(
+                    "(end_decdate <= %s OR fuzzy_end_decdate <= %s)"
+                )
                 where_params.extend([end_year, end_year])
 
             # Combine all WHERE conditions
@@ -1002,11 +1032,22 @@ def semantic_search(request):
         # Format results
         search_results = []
         for row in results:
-            image_id, title, permalink, original_date, edtf_date, start_decdate, end_decdate, distance = row
+            (
+                image_id,
+                title,
+                permalink,
+                original_date,
+                edtf_date,
+                start_decdate,
+                end_decdate,
+                distance,
+            ) = row
 
             # Get the full image object for additional data
             try:
-                image = Image.objects.select_related("collection__source").get(id=image_id)
+                image = Image.objects.select_related("collection__source").get(
+                    id=image_id
+                )
 
                 result = {
                     "id": image_id,
@@ -1015,7 +1056,8 @@ def semantic_search(request):
                     "original_date": str(original_date) if original_date else None,
                     "edtf_date": str(edtf_date) if edtf_date else None,
                     "distance": float(distance),
-                    "similarity": 1.0 - float(distance),  # Convert distance to similarity
+                    "similarity": 1.0
+                    - float(distance),  # Convert distance to similarity
                     "collection": {
                         "name": image.collection.name,
                         "slug": image.collection.slug,
@@ -1045,16 +1087,188 @@ def semantic_search(request):
                 # Skip if image was deleted between query and retrieval
                 continue
 
-        return JsonResponse({
-            "success": True,
-            "query": query,
-            "results": search_results,
-            "count": len(search_results),
-            "limit": limit,
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "query": query,
+                "results": search_results,
+                "count": len(search_results),
+                "limit": limit,
+            }
+        )
 
     except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Search failed: {str(e)}"
-        }, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"Search failed: {str(e)}"}, status=500
+        )
+
+
+class WordSimilarity(Func):
+    function = "word_similarity"
+    arity = 2
+
+
+@require_http_methods(["GET", "POST"])
+def text_search(request):
+    """API endpoint for text search using PostgreSQL trigram word similarity."""
+    if not HAS_POSTGRES_SEARCH:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Text search not available. PostgreSQL search dependencies not installed.",
+            },
+            status=503,
+        )
+
+    # Get search query
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            query = data.get("query", "").strip()
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {"success": False, "error": "Invalid JSON in request body"}, status=400
+            )
+    else:  # GET request
+        query = request.GET.get("q", "").strip()
+
+    if not query:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Query parameter 'q' (GET) or 'query' (POST) is required",
+            },
+            status=400,
+        )
+
+    # Get search parameters
+    limit = min(int(request.GET.get("limit", 20)), 100)
+    georeferenced_only = (
+        request.GET.get("georeferenced_only", "false").lower() == "true"
+    )
+    # Distance is 1 - similarity. A lower distance is a better match.
+    distance_threshold = float(request.GET.get("threshold", 0.7))
+
+    # Year filtering parameters
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+
+    # --- Start of Query Logic ---
+    try:
+        # 1. Use the ORM for initial filtering (easier for optional filters)
+        images = Image.objects.filter(
+            collection__public=True, collection__source__public=True
+        )
+
+        if georeferenced_only:
+            images = images.filter(georeferences__isnull=False).distinct()
+
+        if start_year:
+            try:
+                images = images.filter(
+                    models.Q(start_decdate__gte=int(start_year))
+                    | models.Q(fuzzy_start_decdate__gte=int(start_year))
+                )
+            except ValueError:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid start_year"}, status=400
+                )
+
+        if end_year:
+            try:
+                images = images.filter(
+                    models.Q(end_decdate__lte=int(end_year))
+                    | models.Q(fuzzy_end_decdate__lte=int(end_year))
+                )
+            except ValueError:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid end_year"}, status=400
+                )
+
+        filtered_ids = list(images.values_list("id", flat=True))
+
+        if not filtered_ids:
+            return JsonResponse(
+                {"success": True, "query": query, "results": [], "count": 0}
+            )
+
+        # 2. Use Raw SQL for the complex trigram query for performance and control
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            # Note: We use the word distance operator `<<->` which is ideal for this use case.
+            # It finds the distance between the query and the most similar word in the target text.
+            # A distance of 0 is a perfect match, 1 is a total mismatch.
+            sql = """
+                SELECT
+                    id, title, permalink, original_date, edtf_date,
+                    LEAST(
+                        COALESCE(%(query)s <<-> title, 1.0),
+                        COALESCE(%(query)s <<-> description, 1.0)
+                    ) as distance
+                FROM
+                    images_image
+                WHERE
+                    id = ANY(%(ids)s)
+                    AND LEAST(
+                        COALESCE(%(query)s <<-> title, 1.0),
+                        COALESCE(%(query)s <<-> description, 1.0)
+                    ) < %(threshold)s
+                ORDER BY
+                    distance ASC
+                LIMIT %(limit)s
+            """
+            params = {
+                "query": query,
+                "ids": filtered_ids,
+                "threshold": distance_threshold,
+                "limit": limit,
+            }
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        # 3. Format the results
+        search_results = []
+        for row in rows:
+            # Unpack row data
+            image_id, title, permalink, original_date, edtf_date, distance = row
+
+            # Get the full image object for properties that are not simple fields
+            image = Image.objects.get(id=image_id)
+
+            result = {
+                "id": image_id,
+                "title": title,
+                "permalink": permalink,
+                "original_date": str(original_date) if original_date else None,
+                "edtf_date": str(edtf_date) if edtf_date else None,
+                "similarity": 1.0
+                - float(distance),  # Convert distance back to similarity
+                "collection": {
+                    "name": image.collection.name,
+                    "slug": image.collection.slug,
+                },
+                "source": {
+                    "name": image.collection.source.name,
+                    "slug": image.collection.source.slug,
+                },
+                "detail_url": f"/{image.id}/",
+                "georeferenced": image.is_georeferenced,
+            }
+            search_results.append(result)
+
+        return JsonResponse(
+            {
+                "success": True,
+                "query": query,
+                "results": search_results,
+                "count": len(search_results),
+                "limit": limit,
+                "search_type": "word_distance",
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": f"Text search failed: {str(e)}"}, status=500
+        )

@@ -1,14 +1,21 @@
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+# Conditionally import SearchVectorField only if using PostgreSQL
+try:
+    from django.contrib.postgres.search import SearchVectorField
+
+    HAS_POSTGRES_SEARCH = True
+except ImportError:
+    HAS_POSTGRES_SEARCH = False
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
 from edtf import parse_edtf
-from edtf.parser.parser_classes import EDTFObject
 from edtf.parser.edtf_exceptions import EDTFParseException
 
 
@@ -171,8 +178,22 @@ class Image(models.Model):
         models.FloatField(),
         null=True,
         blank=True,
-        help_text="CLIP embedding vector for image similarity search (dimension varies by model)"
+        help_text="CLIP embedding vector for image similarity search (dimension varies by model)",
     )
+
+    # Full-text search vector (only works with PostgreSQL, ignored in SQLite)
+    if HAS_POSTGRES_SEARCH:
+        search_vector = SearchVectorField(
+            null=True,
+            blank=True,
+            help_text="Full-text search vector for title, description, location, and year",
+        )
+    else:
+        search_vector = models.TextField(
+            null=True,
+            blank=True,
+            help_text="Full-text search vector for title, description, location, and year",
+        )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -360,10 +381,16 @@ class ImageSkip(models.Model):
 class LayerCollection(models.Model):
     """Collection of map layers that can be toggled together"""
 
-    name = models.CharField(max_length=200, help_text="Display name for this collection")
+    name = models.CharField(
+        max_length=200, help_text="Display name for this collection"
+    )
 
-    description = models.TextField(blank=True, help_text="Optional description of this collection")
-    order = models.PositiveIntegerField(default=0, help_text="Display order (lower numbers first)")
+    description = models.TextField(
+        blank=True, help_text="Optional description of this collection"
+    )
+    order = models.PositiveIntegerField(
+        default=0, help_text="Display order (lower numbers first)"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -372,7 +399,7 @@ class LayerCollection(models.Model):
         return self.name
 
     class Meta:
-        ordering = ['order', 'name']
+        ordering = ["order", "name"]
 
 
 class MapLayer(models.Model):
@@ -389,20 +416,26 @@ class MapLayer(models.Model):
         max_length=10,
         choices=TYPE_CHOICES,
         default="pmtiles",
-        help_text="Type of map layer (PMTiles or XYZ)"
+        help_text="Type of map layer (PMTiles or XYZ)",
     )
-    url = models.URLField(help_text="URL to the tile source (PMTiles file or XYZ endpoint)")
+    url = models.URLField(
+        help_text="URL to the tile source (PMTiles file or XYZ endpoint)"
+    )
     attribution = models.TextField(blank=True, help_text="Optional attribution text")
     collection = models.ForeignKey(
         LayerCollection,
         on_delete=models.CASCADE,
         related_name="layers",
-        help_text="Collection this layer belongs to"
+        help_text="Collection this layer belongs to",
     )
-    order = models.PositiveIntegerField(default=0, help_text="Display order within collection (lower numbers first)")
+    order = models.PositiveIntegerField(
+        default=0, help_text="Display order within collection (lower numbers first)"
+    )
 
     # Optional metadata
-    description = models.TextField(blank=True, help_text="Optional description of this layer")
+    description = models.TextField(
+        blank=True, help_text="Optional description of this layer"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -411,7 +444,7 @@ class MapLayer(models.Model):
         return f"{self.name} ({self.collection.name})"
 
     class Meta:
-        ordering = ['collection__order', 'collection__name', 'order', 'name']
+        ordering = ["collection__order", "collection__name", "order", "name"]
 
 
 @receiver([post_save, post_delete], sender=ImageSkip)

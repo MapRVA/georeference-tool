@@ -63,10 +63,34 @@
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <p class="card-text">
-                        Search for images using natural language. Try queries like:
-                        <em>"church with a tall spire"</em>, or <em>"old building with columns"</em>.
-                    </p>
+                    <!-- Search Mode Toggle -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="btn-group w-100" role="group" aria-label="Search mode">
+                                <input type="radio" class="btn-check" name="searchMode" id="semanticMode" value="semantic" checked autocomplete="off">
+                                <label class="btn btn-outline-primary" for="semanticMode">
+                                    <i class="fas fa-magnifying-glass-plus me-1"></i>Semantic Search
+                                </label>
+
+                                <input type="radio" class="btn-check" name="searchMode" id="textMode" value="text" autocomplete="off">
+                                <label class="btn btn-outline-primary" for="textMode">
+                                    <i class="fas fa-font me-1"></i>Text Search
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search Description -->
+                    <div id="searchDescription">
+                        <p class="card-text mb-3" id="semanticDescription">
+                            Search for images using natural language descriptions. Try queries like:
+                            <em>"church with a tall spire"</em>, or <em>"old building with columns"</em>.
+                        </p>
+                        <p class="card-text mb-3" id="textDescription" style="display: none;">
+                            Search for images using keywords in titles and descriptions. Try queries like:
+                            <em>"17th Street"</em>, <em>"Adams Double House"</em>, or <em>"Gambles Hill"</em>.
+                        </p>
+                    </div>
 
                     <form id="searchForm">
                         <div class="input-group">
@@ -154,15 +178,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const georeferencedOnly = document.getElementById('georeferencedOnly');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const searchResults = document.getElementById('searchResults');
+    const semanticMode = document.getElementById('semanticMode');
+    const textMode = document.getElementById('textMode');
+    const semanticDescription = document.getElementById('semanticDescription');
+    const textDescription = document.getElementById('textDescription');
 
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         performSearch();
     });
 
+    // Handle search mode toggle
+    semanticMode.addEventListener('change', function() {
+        if (this.checked) {
+            semanticDescription.style.display = 'block';
+            textDescription.style.display = 'none';
+            searchQuery.placeholder = 'Describe what you\'re looking for...';
+        }
+    });
+
+    textMode.addEventListener('change', function() {
+        if (this.checked) {
+            semanticDescription.style.display = 'none';
+            textDescription.style.display = 'block';
+            searchQuery.placeholder = 'Search for keywords...';
+        }
+    });
+
     function performSearch() {
         const query = searchQuery.value.trim();
         if (!query) return;
+
+        // Determine search mode
+        const searchMode = semanticMode.checked ? 'semantic' : 'text';
+        const apiEndpoint = searchMode === 'semantic' ? '/api/v1/search/' : '/api/v1/search/text/';
 
         // Build query parameters
         const params = new URLSearchParams({
@@ -186,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
         searchResults.innerHTML = '';
 
         // Make API request
-        fetch(`/api/v1/search/?${params.toString()}`)
+        fetch(`${apiEndpoint}?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
                 loadingIndicator.style.display = 'none';
@@ -237,9 +286,13 @@ document.addEventListener('DOMContentLoaded', function() {
             filterSummary = ` (filtered: ${filters.join(', ')})`;
         }
 
+        // Get current search mode for display
+        const currentSearchMode = semanticMode.checked ? 'semantic' : 'text';
+        const searchModeLabel = currentSearchMode === 'semantic' ? 'semantic search' : 'text search';
+
         let html = `
             <div class="search-stats mb-3">
-                Found ${data.count} results for "<strong>${escapeHtml(data.query)}</strong>"${filterSummary}
+                Found ${data.count} results for "<strong>${escapeHtml(data.query)}</strong>" using ${searchModeLabel}${filterSummary}
             </div>
             <div class="row">
         `;

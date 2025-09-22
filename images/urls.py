@@ -1,4 +1,5 @@
 from django.urls import path
+
 from . import views
 
 app_name = "images"
@@ -43,4 +44,5 @@ urlpatterns = [
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
+    path("api/v1/search/text/", views.text_search, name="text_search"),
 ]
