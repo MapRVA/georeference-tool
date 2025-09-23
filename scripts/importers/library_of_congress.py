@@ -263,18 +263,30 @@ def extract_image_data(result_item):
 def month_to_number(month_name):
     """Convert month name to number (1-12)"""
     month_map = {
-        'january': 1, 'jan': 1,
-        'february': 2, 'feb': 2,
-        'march': 3, 'mar': 3,
-        'april': 4, 'apr': 4,
-        'may': 5,
-        'june': 6, 'jun': 6,
-        'july': 7, 'jul': 7,
-        'august': 8, 'aug': 8,
-        'september': 9, 'sep': 9, 'sept': 9,
-        'october': 10, 'oct': 10,
-        'november': 11, 'nov': 11,
-        'december': 12, 'dec': 12
+        "january": 1,
+        "jan": 1,
+        "february": 2,
+        "feb": 2,
+        "march": 3,
+        "mar": 3,
+        "april": 4,
+        "apr": 4,
+        "may": 5,
+        "june": 6,
+        "jun": 6,
+        "july": 7,
+        "jul": 7,
+        "august": 8,
+        "aug": 8,
+        "september": 9,
+        "sep": 9,
+        "sept": 9,
+        "october": 10,
+        "oct": 10,
+        "november": 11,
+        "nov": 11,
+        "december": 12,
+        "dec": 12,
     }
     return month_map.get(month_name.lower())
 
@@ -331,9 +343,10 @@ def parse_loc_date(date_str):
         if month:
             return f"{year}-{month:02d}~"
 
-
     # Handle "Month YYYY" format
-    month_year_match = re.match(r"^(\w+)\.?\s+\[?(\d{4})\]?\.?$", date_str, re.IGNORECASE)
+    month_year_match = re.match(
+        r"^(\w+)\.?\s+\[?(\d{4})\]?\.?$", date_str, re.IGNORECASE
+    )
     if month_year_match:
         month = month_to_number(month_year_match.group(1))
         year = month_year_match.group(2)
@@ -341,7 +354,9 @@ def parse_loc_date(date_str):
             return f"{year}-{month:02d}"
 
     # Handle uncertain "Month YYYY?" format
-    uncertain_month_year_match = re.match(r"^(\w+)\.?\s+\[?(\d{4})\]?\.?\?$", date_str, re.IGNORECASE)
+    uncertain_month_year_match = re.match(
+        r"^(\w+)\.?\s+\[?(\d{4})\]?\.?\?$", date_str, re.IGNORECASE
+    )
     if uncertain_month_year_match:
         month = month_to_number(uncertain_month_year_match.group(1))
         year = uncertain_month_year_match.group(2)
@@ -349,7 +364,9 @@ def parse_loc_date(date_str):
             return f"{year}-{month:02d}?"
 
     # Handle "YYYY Month DD" format
-    year_month_day_match = re.match(r"^(\d{4})\s+(\w+)\s+(\d{1,2})\.?$", date_str, re.IGNORECASE)
+    year_month_day_match = re.match(
+        r"^(\d{4})\s+(\w+)\s+(\d{1,2})\.?$", date_str, re.IGNORECASE
+    )
     if year_month_day_match:
         year = year_month_day_match.group(1)
         month = month_to_number(year_month_day_match.group(2))
@@ -358,7 +375,9 @@ def parse_loc_date(date_str):
             return f"{year}-{month:02d}-{day:02d}"
 
     # Handle "YYYY ca. Month DD" format
-    ca_month_day_match = re.match(r"^(\d{4})\s+ca?\.\s+(\w+)\s+(\d{1,2})$", date_str, re.IGNORECASE)
+    ca_month_day_match = re.match(
+        r"^(\d{4})\s+ca?\.\s+(\w+)\s+(\d{1,2})$", date_str, re.IGNORECASE
+    )
     if ca_month_day_match:
         year = ca_month_day_match.group(1)
         month = month_to_number(ca_month_day_match.group(2))
@@ -366,9 +385,10 @@ def parse_loc_date(date_str):
         if month:
             return f"{year}-{month:02d}-{day:02d}~"
 
-
     # Handle "YYYY Month-Month" format
-    month_range_match = re.match(r"^(\d{4})\s+\[?(\w+)-([A-Za-z]+)\]?$", date_str, re.IGNORECASE)
+    month_range_match = re.match(
+        r"^(\d{4})\s+\[?(\w+)-([A-Za-z]+)\]?$", date_str, re.IGNORECASE
+    )
     if month_range_match:
         year = month_range_match.group(1)
         month1 = month_to_number(month_range_match.group(2))
@@ -377,7 +397,9 @@ def parse_loc_date(date_str):
             return f"{year}-{month1:02d}/{year}-{month2:02d}"
 
     # Handle "YYYY ca. Month-Month" format
-    ca_month_range_match = re.match(r"^(\d{4})\s+ca?\.\s+(\w+)-(\w+)$", date_str, re.IGNORECASE)
+    ca_month_range_match = re.match(
+        r"^(\d{4})\s+ca?\.\s+(\w+)-(\w+)$", date_str, re.IGNORECASE
+    )
     if ca_month_range_match:
         year = ca_month_range_match.group(1)
         month1 = month_to_number(ca_month_range_match.group(2))
@@ -396,20 +418,31 @@ def parse_loc_date(date_str):
         return circa_match.group(1) + "~"
 
     # Handle "between YYYY and YYYY" format
-    between_match = re.match(r"^between (\d{4}) and (\d{4})(?:,\s*\[?printed\s+later\]?)?$", date_str, re.IGNORECASE)
+    between_match = re.match(
+        r"^between (\d{4}) and (\d{4})(?:,\s*\[?printed\s+later\]?)?$",
+        date_str,
+        re.IGNORECASE,
+    )
     if between_match:
         return between_match.group(1) + "/" + between_match.group(2)
 
-
     # Handle "between YYYY and YYYY uncertain" format
-    between_uncertain_match = re.match(r"^between (\d{4}) and (\d{4})\?$", date_str, re.IGNORECASE)
+    between_uncertain_match = re.match(
+        r"^between (\d{4}) and (\d{4})\?$", date_str, re.IGNORECASE
+    )
     if between_uncertain_match:
-        return between_uncertain_match.group(1) + "/" + between_uncertain_match.group(2) + "?"
-
+        return (
+            between_uncertain_match.group(1)
+            + "/"
+            + between_uncertain_match.group(2)
+            + "?"
+        )
 
     # Handle "between YYYY Month and YYYY Month" format
     between_month_match = re.match(
-        r"^between (\d{4}) (\w+) and (\d{4}) (\w+)[,?\s+\[?printed later\]?]?$", date_str, re.IGNORECASE
+        r"^between (\d{4}) (\w+) and (\d{4}) (\w+)[,?\s+\[?printed later\]?]?$",
+        date_str,
+        re.IGNORECASE,
     )
     if between_month_match:
         start_year = between_month_match.group(1)
@@ -426,17 +459,21 @@ def parse_loc_date(date_str):
     if circa_between_match:
         return circa_between_match.group(1) + "/" + circa_between_match.group(2) + "~"
 
-
     # Handle "between ca.YYYY and YYYY" format
     circa_between_match_2 = re.match(
         r"^\[?between ca?\.?(\d{4}) and (\d{4})\]?$", date_str, re.IGNORECASE
     )
     if circa_between_match_2:
-        return circa_between_match_2.group(1) + "/" + circa_between_match_2.group(2) + "~"
-
+        return (
+            circa_between_match_2.group(1) + "/" + circa_between_match_2.group(2) + "~"
+        )
 
     # Handle "YYYY Month, c<published month>" format
-    year_month_day_match = re.match(r"^(\d{4})\s+(\w+)(?:,\s+c\w+|\s+\[printed later\](?:,\s+c\d{4}\.)?)\.?$", date_str, re.IGNORECASE)
+    year_month_day_match = re.match(
+        r"^(\d{4})\s+(\w+)(?:,\s+c\w+|\s+\[printed later\](?:,\s+c\d{4}\.)?)\.?$",
+        date_str,
+        re.IGNORECASE,
+    )
     if year_month_day_match:
         year = year_month_day_match.group(1)
         month = month_to_number(year_month_day_match.group(2))
@@ -444,7 +481,9 @@ def parse_loc_date(date_str):
             return f"{year}-{month:02d}"
 
     # Handle "YYYY Month Day - <published month>" format
-    year_month_day__published_match = re.match(r"^(\d{4})\s+(\w+)\s+(\d{1,2})\s+-\s+\w+$", date_str, re.IGNORECASE)
+    year_month_day__published_match = re.match(
+        r"^(\d{4})\s+(\w+)\s+(\d{1,2})\s+-\s+\w+$", date_str, re.IGNORECASE
+    )
     if year_month_day__published_match:
         year = year_month_day__published_match.group(1)
         month = month_to_number(year_month_day__published_match.group(2))
@@ -452,39 +491,50 @@ def parse_loc_date(date_str):
         if month:
             return f"{year}-{month:02d}-{day:02d}"
 
-
-    year_printed_date_match = re.match(r"^photographed (\d{4}), \[?printed[\s\w]+\]?$", date_str)
+    year_printed_date_match = re.match(
+        r"^photographed (\d{4}), \[?printed[\s\w]+\]?$", date_str
+    )
     if year_printed_date_match:
         year = year_printed_date_match.group(1)
         return f"{year}"
 
-
-    month_year_printed_date_match = re.match(r"^(?:photographed )?(\w+),?\s+(\d{4}), \[?printed[\s\w]+\]?$", date_str)
+    month_year_printed_date_match = re.match(
+        r"^(?:photographed )?(\w+),?\s+(\d{4}), \[?printed[\s\w]+\]?$", date_str
+    )
     if month_year_printed_date_match:
         month = month_to_number(month_year_printed_date_match.group(1))
         year = month_year_printed_date_match.group(2)
         if month:
             return f"{year}-{month:02d}"
 
-    year_printed_year_match = re.match(r"^(?:photographed\s+)?(\d{4}),\s+c?\d{4}$", date_str)
+    year_printed_year_match = re.match(
+        r"^(?:photographed\s+)?(\d{4}),\s+c?\d{4}$", date_str
+    )
     if year_printed_year_match:
         return year_printed_year_match.group(1)
 
-
-    year_reproduced_year_match = re.match(r"^(?:photographed\s+)?(\d{4}),\s+reproduced\s+c?a?\.?\s*\d{4}$", date_str)
+    year_reproduced_year_match = re.match(
+        r"^(?:photographed\s+)?(\d{4}),\s+reproduced\s+c?a?\.?\s*\d{4}$", date_str
+    )
     if year_reproduced_year_match:
         return year_reproduced_year_match.group(1)
 
-    year_month_printed_date_match = re.match(r"^(?:photographed )?(\d{4}),?\s+(\w+), \[?printed[\s\w]+\]?$", date_str)
+    year_month_printed_date_match = re.match(
+        r"^(?:photographed )?(\d{4}),?\s+(\w+), \[?printed[\s\w]+\]?$", date_str
+    )
     if year_month_printed_date_match:
         year = year_month_printed_date_match.group(1)
         month = month_to_number(year_month_printed_date_match.group(2))
         if month:
             return f"{year}-{month:02d}"
 
-    year_range_printed_match = re.match(r"^photographed between (\d{4}) and (\d{4}), \[?printed[\s\w]+\]?$", date_str)
+    year_range_printed_match = re.match(
+        r"^photographed between (\d{4}) and (\d{4}), \[?printed[\s\w]+\]?$", date_str
+    )
     if year_range_printed_match:
-        return year_range_printed_match.group(1) + "/" + year_range_printed_match.group(2)
+        return (
+            year_range_printed_match.group(1) + "/" + year_range_printed_match.group(2)
+        )
 
     # Handle year ranges "1905-1910"
     range_match = re.match(r"^(\d{4})-(\d{4})$", date_str)

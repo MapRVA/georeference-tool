@@ -6,52 +6,128 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0006_image_text_search'),
+        ("images", "0006_image_text_search"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='image',
-            name='search_vector',
-            field=django.contrib.postgres.search.SearchVectorField(blank=True, help_text='Full-text search vector for title, description, location, and year', null=True),
+            model_name="image",
+            name="search_vector",
+            field=django.contrib.postgres.search.SearchVectorField(
+                blank=True,
+                help_text="Full-text search vector for title, description, location, and year",
+                null=True,
+            ),
         ),
         migrations.CreateModel(
-            name='PreCollection',
+            name="PreCollection",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=200)),
-                ('slug', models.SlugField()),
-                ('url', models.URLField()),
-                ('description', models.TextField(blank=True)),
-                ('complete', models.BooleanField(default=False, help_text='Whether this collection has been reviewed and is complete')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pre_collections', to='images.source')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("slug", models.SlugField()),
+                ("url", models.URLField()),
+                ("description", models.TextField(blank=True)),
+                (
+                    "complete",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Whether this collection has been reviewed and is complete",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "source",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="pre_collections",
+                        to="images.source",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['source__name', 'name'],
-                'unique_together': {('source', 'name', 'slug')},
+                "ordering": ["source__name", "name"],
+                "unique_together": {("source", "name", "slug")},
             },
         ),
         migrations.CreateModel(
-            name='PreImage',
+            name="PreImage",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=500)),
-                ('permalink', models.URLField(help_text='Direct link to the image (CDN or processed URL)')),
-                ('description', models.TextField(null=True)),
-                ('license_title', models.CharField(max_length=500, null=True)),
-                ('license_permalink', models.URLField(help_text='Link to license information', null=True)),
-                ('creator', models.CharField(help_text='Creator(s) of the work', max_length=100, null=True)),
-                ('ref', models.CharField(help_text='Source-specific reference', max_length=50, null=True)),
-                ('original_date', models.CharField(help_text='Date information from source', max_length=50, null=True)),
-                ('edtf_date', models.CharField(help_text='Date parsed as EDTF', max_length=50, null=True)),
-                ('keep', models.BooleanField(default=None, help_text='Whether to keep this image for the main collection', null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('collection', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='images', to='images.precollection')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=500)),
+                (
+                    "permalink",
+                    models.URLField(
+                        help_text="Direct link to the image (CDN or processed URL)"
+                    ),
+                ),
+                ("description", models.TextField(null=True)),
+                ("license_title", models.CharField(max_length=500, null=True)),
+                (
+                    "license_permalink",
+                    models.URLField(help_text="Link to license information", null=True),
+                ),
+                (
+                    "creator",
+                    models.CharField(
+                        help_text="Creator(s) of the work", max_length=100, null=True
+                    ),
+                ),
+                (
+                    "ref",
+                    models.CharField(
+                        help_text="Source-specific reference", max_length=50, null=True
+                    ),
+                ),
+                (
+                    "original_date",
+                    models.CharField(
+                        help_text="Date information from source",
+                        max_length=50,
+                        null=True,
+                    ),
+                ),
+                (
+                    "edtf_date",
+                    models.CharField(
+                        help_text="Date parsed as EDTF", max_length=50, null=True
+                    ),
+                ),
+                (
+                    "keep",
+                    models.BooleanField(
+                        default=None,
+                        help_text="Whether to keep this image for the main collection",
+                        null=True,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "collection",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="images",
+                        to="images.precollection",
+                    ),
+                ),
             ],
         ),
     ]

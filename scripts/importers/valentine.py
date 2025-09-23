@@ -61,12 +61,14 @@ def create_source_if_not_exist():
     return source
 
 
-def create_collection_if_not_exist(source, readable_primary_key, use_precollection=False):
+def create_collection_if_not_exist(
+    source, readable_primary_key, use_precollection=False
+):
     """Get or create a collection using the GetRecordDetails API for group data"""
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
     }
     data = {
         "TableName": "group",
@@ -151,9 +153,9 @@ def create_collection_if_not_exist(source, readable_primary_key, use_precollecti
 
 def get_archival_children(archival_number: str, table: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetArchivalChildren"
-    headers ={
+    headers = {
         "Content-Type": "application/json; charset=utf-8",
-        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
     }
     data = {
         "TableName": table,
@@ -172,9 +174,7 @@ def get_archival_children(archival_number: str, table: str):
             r"<ArchivalNumber>(.*?)</ArchivalNumber>", xml_content
         ),
         # Archival level (GROUP/SERIES-FILEUNIT#BIBLIO
-        "table_name": re.findall(
-            r"<TableName>(.*?)</TableName>", xml_content
-        ),
+        "table_name": re.findall(r"<TableName>(.*?)</TableName>", xml_content),
     }
     return member_data
 
@@ -183,7 +183,7 @@ def get_record_details(readable_primary_key: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
+        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
     }
     data = {
         "TableName": "biblio",
@@ -343,9 +343,7 @@ def get_record_details(readable_primary_key: str):
             season_name = season_year_match.group(1).lower()
             if season_name in season_map:
                 result["etdf_date"] = (
-                    season_year_match.group(2)
-                    + "-"
-                    + str(season_map[season_name])
+                    season_year_match.group(2) + "-" + str(season_map[season_name])
                 )
                 return result
 
@@ -363,59 +361,55 @@ def get_record_details(readable_primary_key: str):
     is_flag=True,
     help="Hotlink images instead of uploading to R2",
 )
-
 def main(archive_id, hotlink=False):
     """Scrape archival records from The Valentine Museum's digital archives."""
 
     source = create_source_if_not_exist()
-    collection = create_collection_if_not_exist(source, archive_id, use_precollection=hotlink)
+    collection = create_collection_if_not_exist(
+        source, archive_id, use_precollection=hotlink
+    )
 
     if collection:
         archival_children = get_archival_children(archive_id, "GROUP")
 
-        items_resolved = {
-            "archival_number": [],
-            "table_name": []
-        }
-        items_unresolved = {
-            "archival_number": [],
-            "table_name": []
-        }
+        items_resolved = {"archival_number": [], "table_name": []}
+        items_unresolved = {"archival_number": [], "table_name": []}
 
         for i, table in enumerate(archival_children["table_name"]):
             if table == "BIBLIO":
-                items_resolved["archival_number"].append(archival_children["archival_number"][i])
+                items_resolved["archival_number"].append(
+                    archival_children["archival_number"][i]
+                )
                 items_resolved["table_name"].append(table)
             if table != "BIBLIO":
-                items_unresolved["archival_number"].append(archival_children["archival_number"][i])
+                items_unresolved["archival_number"].append(
+                    archival_children["archival_number"][i]
+                )
                 items_unresolved["table_name"].append(table)
 
         # Recurse down the archival hierarchy until we have all BIBLIO items
         while len(items_unresolved["table_name"]) != 0:
-            hold = {
-                "archival_number": [],
-                "table_name": []
-            }
+            hold = {"archival_number": [], "table_name": []}
 
             for i in range(len(items_unresolved["archival_number"])):
                 archival_children = get_archival_children(
                     items_unresolved["archival_number"][i],
-                    items_unresolved["table_name"][i]
+                    items_unresolved["table_name"][i],
                 )
                 for i, table in enumerate(archival_children["table_name"]):
                     if table == "BIBLIO":
-                        items_resolved["archival_number"].append(archival_children["archival_number"][i])
+                        items_resolved["archival_number"].append(
+                            archival_children["archival_number"][i]
+                        )
                         items_resolved["table_name"].append(table)
                     if table != "BIBLIO":
-                        hold["archival_number"].append(archival_children["archival_number"][i])
+                        hold["archival_number"].append(
+                            archival_children["archival_number"][i]
+                        )
                         hold["table_name"].append(table)
 
             items_unresolved = hold
             sleep(POLITE_WAIT_SECS)
-
-
-
-
 
         r2_uploader = R2Uploader()
 
@@ -432,7 +426,6 @@ def main(archive_id, hotlink=False):
             elif skip_count > 0:
                 tqdm.write(f"Skipped {skip_count} images that already exist")
                 skip_count = 0
-
 
             sleep(POLITE_WAIT_SECS)
             record = get_record_details(child)

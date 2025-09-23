@@ -29,6 +29,7 @@ for map_item in data["MAPS"]:
 
 print(f"Found {len(prepared_slugs)} prepared entries")
 
+
 def extract_cogs_recursive(obj):
     """Recursively extract COG URLs, but only for prepared entries"""
     if isinstance(obj, dict):
@@ -37,7 +38,7 @@ def extract_cogs_recursive(obj):
                 # Extract base slug from COG URL to match against prepared entries
                 filename = os.path.basename(value)
                 # Remove the __XXXXX_XX.tif part to get the base slug
-                slug_match = re.match(r'(.+?)__[^_]+_\d+\.tif$', filename)
+                slug_match = re.match(r"(.+?)__[^_]+_\d+\.tif$", filename)
                 if slug_match:
                     base_slug = slug_match.group(1)
 
@@ -49,20 +50,23 @@ def extract_cogs_recursive(obj):
 
                     # Check for page-based match (e.g., p804_1 COG matches p804_2, p804_3, etc. prepared entries)
                     # Extract page pattern: richmond_va_YYYY_vol_X_pNNN
-                    page_pattern_match = re.match(r'^(.+_p\d+)_\d+$', base_slug)
+                    page_pattern_match = re.match(r"^(.+_p\d+)_\d+$", base_slug)
                     if page_pattern_match:
                         page_pattern = page_pattern_match.group(1)
                         # Check if any prepared slug starts with this page pattern
                         for prepared_slug in prepared_slugs:
                             if prepared_slug.startswith(page_pattern + "_"):
                                 cog_urls.append(value)
-                                print(f"Including COG {base_slug} for page with prepared regions starting with {page_pattern}")
+                                print(
+                                    f"Including COG {base_slug} for page with prepared regions starting with {page_pattern}"
+                                )
                                 break
             else:
                 extract_cogs_recursive(value)
     elif isinstance(obj, list):
         for item in obj:
             extract_cogs_recursive(item)
+
 
 # Extract COGs from the full data
 extract_cogs_recursive(data)
@@ -84,11 +88,13 @@ with open("cog_urls.txt", "w") as f:
 
 print(f"COG URLs saved to cog_urls.txt")
 
+
 # Download COG files organized by year
 def extract_year_from_url(url):
     """Extract year from URL like richmond_va_1952_vol_5_p501"""
-    match = re.search(r'richmond_va_(\d{4})', url)
+    match = re.search(r"richmond_va_(\d{4})", url)
     return match.group(1) if match else "unknown"
+
 
 def download_cog(url, filepath):
     """Download a COG file if it doesn't exist"""
@@ -104,7 +110,7 @@ def download_cog(url, filepath):
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
@@ -113,6 +119,7 @@ def download_cog(url, filepath):
     except Exception as e:
         print(f"Failed to download {url}: {e}")
         return False
+
 
 # Group URLs by year and download
 print(f"\nStarting download of {len(unique_cog_urls)} COG files...")

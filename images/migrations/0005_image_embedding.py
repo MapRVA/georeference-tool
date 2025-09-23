@@ -5,15 +5,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0004_image_end_decdate_image_fuzzy_end_decdate_and_more'),
+        ("images", "0004_image_end_decdate_image_fuzzy_end_decdate_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='embedding',
-            field=django.contrib.postgres.fields.ArrayField(base_field=models.FloatField(), blank=True, help_text='CLIP embedding vector for image similarity search (dimension varies by model)', null=True, size=None),
+            model_name="image",
+            name="embedding",
+            field=django.contrib.postgres.fields.ArrayField(
+                base_field=models.FloatField(),
+                blank=True,
+                help_text="CLIP embedding vector for image similarity search (dimension varies by model)",
+                null=True,
+                size=None,
+            ),
         ),
     ]

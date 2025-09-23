@@ -98,7 +98,8 @@ class PreCollection(models.Model):
     url = models.URLField()
     description = models.TextField(blank=True)
     complete = models.BooleanField(
-        default=False, help_text="Whether this collection has been reviewed and is complete"
+        default=False,
+        help_text="Whether this collection has been reviewed and is complete",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -114,9 +115,11 @@ class PreCollection(models.Model):
         if self.complete and self.pk:
             images_with_null_keep = self.images.filter(keep__isnull=True)
             if images_with_null_keep.exists():
-                raise ValidationError({
-                    "complete": f"Cannot mark collection as complete. {images_with_null_keep.count()} images still need review (keep field is null)."
-                })
+                raise ValidationError(
+                    {
+                        "complete": f"Cannot mark collection as complete. {images_with_null_keep.count()} images still need review (keep field is null)."
+                    }
+                )
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -353,7 +356,9 @@ class PreImage(models.Model):
 
     # Review metadata
     keep = models.BooleanField(
-        null=True, default=None, help_text="Whether to keep this image for the main collection"
+        null=True,
+        default=None,
+        help_text="Whether to keep this image for the main collection",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -367,6 +372,7 @@ class PreImage(models.Model):
     def get_absolute_url(self):
         # PreImages are for review only, link to admin interface
         from django.contrib.admin.utils import quote
+
         return f"/admin/images/preimage/{quote(self.pk)}/change/"
 
     @property

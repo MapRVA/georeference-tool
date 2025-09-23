@@ -4,30 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0003_layercollection_maplayer'),
+        ("images", "0003_layercollection_maplayer"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='end_decdate',
-            field=models.IntegerField(help_text='End of date range in decimal format', null=True),
+            model_name="image",
+            name="end_decdate",
+            field=models.IntegerField(
+                help_text="End of date range in decimal format", null=True
+            ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='fuzzy_end_decdate',
-            field=models.IntegerField(help_text='Fuzzy end of date range in decimal format', null=True),
+            model_name="image",
+            name="fuzzy_end_decdate",
+            field=models.IntegerField(
+                help_text="Fuzzy end of date range in decimal format", null=True
+            ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='fuzzy_start_decdate',
-            field=models.IntegerField(help_text='Fuzzy start of date range in decimal format', null=True),
+            model_name="image",
+            name="fuzzy_start_decdate",
+            field=models.IntegerField(
+                help_text="Fuzzy start of date range in decimal format", null=True
+            ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='start_decdate',
-            field=models.IntegerField(help_text='Start of date range in decimal format', null=True),
+            model_name="image",
+            name="start_decdate",
+            field=models.IntegerField(
+                help_text="Start of date range in decimal format", null=True
+            ),
         ),
     ]

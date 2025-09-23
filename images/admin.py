@@ -177,7 +177,9 @@ class PreCollectionAdmin(admin.ModelAdmin):
 
     def label_precollection_button(self, obj):
         if obj.complete:
-            return format_html('<span style="color: #28a745; font-weight: bold;">✓ Complete</span>')
+            return format_html(
+                '<span style="color: #28a745; font-weight: bold;">✓ Complete</span>'
+            )
         else:
             url = reverse("admin:images_precollection_label", args=[obj.pk])
             return format_html('<a class="button" href="{}">Review Images</a>', url)
@@ -228,7 +230,9 @@ class PreCollectionAdmin(admin.ModelAdmin):
         keep_value = request.POST.get("keep")
 
         try:
-            image = get_object_or_404(PreImage, id=image_id, collection_id=precollection_id)
+            image = get_object_or_404(
+                PreImage, id=image_id, collection_id=precollection_id
+            )
 
             if keep_value == "null":
                 image.keep = None
@@ -339,7 +343,10 @@ class PreImageAdmin(admin.ModelAdmin):
         ),
         (
             "Review",
-            {"fields": ("keep",), "description": "Whether to keep this image for the main collection"},
+            {
+                "fields": ("keep",),
+                "description": "Whether to keep this image for the main collection",
+            },
         ),
         ("Georeferencing", {"fields": ("difficulty", "will_not_georef")}),
         (
@@ -543,16 +550,15 @@ class MapLayerAdmin(admin.ModelAdmin):
     ordering = ("collection__order", "collection__name", "order", "name")
 
     fieldsets = (
-        ("Basic Information", {
-            "fields": ("name", "collection", "order", "description")
-        }),
-        ("Map Data", {
-            "fields": ("type", "url", "attribution")
-        }),
-        ("System Information", {
-            "fields": ("created_at", "updated_at"),
-            "classes": ("collapse",)
-        }),
+        (
+            "Basic Information",
+            {"fields": ("name", "collection", "order", "description")},
+        ),
+        ("Map Data", {"fields": ("type", "url", "attribution")}),
+        (
+            "System Information",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
     )
 
 

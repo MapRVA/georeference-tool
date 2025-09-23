@@ -5,42 +5,112 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0002_remove_image_images_imag_year_421258_idx_and_more'),
+        ("images", "0002_remove_image_images_imag_year_421258_idx_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='LayerCollection',
+            name="LayerCollection",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='Display name for this collection', max_length=200)),
-                ('description', models.TextField(blank=True, help_text='Optional description of this collection')),
-                ('order', models.PositiveIntegerField(default=0, help_text='Display order (lower numbers first)')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        help_text="Display name for this collection", max_length=200
+                    ),
+                ),
+                (
+                    "description",
+                    models.TextField(
+                        blank=True, help_text="Optional description of this collection"
+                    ),
+                ),
+                (
+                    "order",
+                    models.PositiveIntegerField(
+                        default=0, help_text="Display order (lower numbers first)"
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['order', 'name'],
+                "ordering": ["order", "name"],
             },
         ),
         migrations.CreateModel(
-            name='MapLayer',
+            name="MapLayer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='Display name for this layer', max_length=200)),
-                ('type', models.CharField(choices=[('pmtiles', 'PMTiles'), ('xyz', 'XYZ Tiles')], default='pmtiles', help_text='Type of map layer (PMTiles or XYZ)', max_length=10)),
-                ('url', models.URLField(help_text='URL to the tile source (PMTiles file or XYZ endpoint)')),
-                ('attribution', models.TextField(blank=True, help_text='Optional attribution text')),
-                ('order', models.PositiveIntegerField(default=0, help_text='Display order within collection (lower numbers first)')),
-                ('description', models.TextField(blank=True, help_text='Optional description of this layer')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('collection', models.ForeignKey(help_text='Collection this layer belongs to', on_delete=django.db.models.deletion.CASCADE, related_name='layers', to='images.layercollection')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        help_text="Display name for this layer", max_length=200
+                    ),
+                ),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[("pmtiles", "PMTiles"), ("xyz", "XYZ Tiles")],
+                        default="pmtiles",
+                        help_text="Type of map layer (PMTiles or XYZ)",
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "url",
+                    models.URLField(
+                        help_text="URL to the tile source (PMTiles file or XYZ endpoint)"
+                    ),
+                ),
+                (
+                    "attribution",
+                    models.TextField(blank=True, help_text="Optional attribution text"),
+                ),
+                (
+                    "order",
+                    models.PositiveIntegerField(
+                        default=0,
+                        help_text="Display order within collection (lower numbers first)",
+                    ),
+                ),
+                (
+                    "description",
+                    models.TextField(
+                        blank=True, help_text="Optional description of this layer"
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "collection",
+                    models.ForeignKey(
+                        help_text="Collection this layer belongs to",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="layers",
+                        to="images.layercollection",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['collection__order', 'collection__name', 'order', 'name'],
+                "ordering": ["collection__order", "collection__name", "order", "name"],
             },
         ),
     ]
