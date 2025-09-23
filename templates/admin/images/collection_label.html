@@ -42,7 +42,16 @@
         </div>
 
         <div class="image-display">
-            <img id="current-image" style="max-width: 100%; max-height: 400px; margin-bottom: 20px;" />
+            <div id="image-loading" class="loading-state" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Loading image...</p>
+            </div>
+            <div id="image-error" class="error-state" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <p>Failed to load image</p>
+                <button id="retry-btn" class="button default">Retry</button>
+            </div>
+            <img id="current-image" style="max-width: 100%; max-height: 400px; margin-bottom: 20px; display: none;" />
         </div>
 
         <div class="labeling-controls">
@@ -86,6 +95,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const imageContainer = document.getElementById('image-container');
     const currentImage = document.getElementById('current-image');
+    const imageLoading = document.getElementById('image-loading');
+    const imageError = document.getElementById('image-error');
+    const retryBtn = document.getElementById('retry-btn');
     const imageTitle = document.getElementById('image-title');
     const currentIndexSpan = document.getElementById('current-index');
     const imageDate = document.getElementById('image-date');
@@ -100,6 +112,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Convert Django template data to JavaScript
     const imageData = {{ image_data_json|safe }};
+
+    // Image preloading cache
+    const preloadedImages = new Map();
 
     // Jump to next unlabeled functionality (difficulty is null)
     function findNextUnlabeled() {
@@ -161,7 +176,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showImage(index) {
+    function showImageStates(loading = false, error = false, imageVisible = false) {
+        imageLoading.style.display = loading ? 'flex' : 'none';
+        imageError.style.display = error ? 'flex' : 'none';
+        currentImage.style.display = imageVisible ? 'block' : 'none';
+    }
+
+    function loadImage(src) {
+        // Check if image is already preloaded
+        if (preloadedImages.has(src)) {
+            return Promise.resolve(preloadedImages.get(src));
+        }
+
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                preloadedImages.set(src, img);
+                resolve(img);
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = src;
+        });
+    }
+
+    function preloadImages(startIndex, count = 5) {
+        for (let i = 1; i <= count && startIndex + i < imageData.length; i++) {
+            const nextImage = imageData[startIndex + i];
+            if (nextImage && !preloadedImages.has(nextImage.permalink)) {
+                // Preload silently in the background
+                loadImage(nextImage.permalink).catch(() => {
+                    // Ignore preload errors - they'll be handled when actually displaying
+                });
+            }
+        }
+    }
+
+    async function showImage(index) {
         if (index >= imageData.length) {
             imageContainer.style.display = 'none';
             completionMessage.style.display = 'block';
@@ -169,26 +219,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const image = imageData[index];
-        currentImage.src = image.permalink;
+
+        // Set metadata immediately
         imageTitle.textContent = image.title || `Image ${image.id}`;
         currentIndexSpan.textContent = index + 1;
-
-        // Set date and description
         imageDate.textContent = image.date_display ? `Date: ${image.date_display}` : '';
         imageDescription.textContent = image.description || '';
         imageDescription.style.display = image.description ? 'block' : 'none';
-
-        // Set image link
         imageLink.href = image.absolute_url;
-
-        // Set form values
         difficultySelect.value = image.difficulty || 'none';
         willNotGeorefCheckbox.checked = image.will_not_georef;
-
-        // Update button states
         prevBtn.disabled = index === 0;
-
         imageContainer.style.display = 'block';
+
+        // Show loading state
+        showImageStates(true, false, false);
+
+        try {
+            // Load the image
+            await loadImage(image.permalink);
+            currentImage.src = image.permalink;
+            showImageStates(false, false, true);
+
+            // Preload next few images for faster navigation
+            preloadImages(index);
+        } catch (error) {
+            console.error('Failed to load image:', image.permalink, error);
+            showImageStates(false, true, false);
+        }
     }
 
     function saveCurrentImage() {
@@ -234,6 +292,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     skipBtn.addEventListener('click', function() {
         currentIndex++;
+        showImage(currentIndex);
+    });
+
+    // Retry button event listener
+    retryBtn.addEventListener('click', function() {
         showImage(currentIndex);
     });
 
@@ -287,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Start with first image
+    // Start with first image and preload next ones
     showImage(currentIndex);
 });
 </script>
@@ -367,6 +430,53 @@ document.addEventListener('DOMContentLoaded', function() {
 .jump-controls .button {
     padding: 10px 16px;
     font-size: 14px;
+}
+
+.loading-state, .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    background: #f8f8f8;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f0f0f0;
+    border-left: 4px solid #007cba;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-state {
+    background: #ffe6e6;
+    border-color: #ffcccc;
+    color: #cc0000;
+}
+
+.error-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.loading-state p, .error-state p {
+    margin: 0 0 10px 0;
+    font-weight: bold;
+}
+
+#current-image {
+    transition: opacity 0.3s ease-in-out;
 }
 </style>
 
