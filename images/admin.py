@@ -14,6 +14,8 @@ from .models import (
     ImageSkip,
     LayerCollection,
     MapLayer,
+    PreCollection,
+    PreImage,
     Source,
 )
 
@@ -124,6 +126,235 @@ class CollectionAdmin(admin.ModelAdmin):
             return JsonResponse({"success": True})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+
+
+@admin.register(PreCollection)
+class PreCollectionAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "source",
+        "complete",
+        "url",
+        "created_at",
+        "image_count",
+        "reviewed_count",
+        "label_precollection_button",
+    )
+    list_filter = ("complete", "source", "created_at")
+    search_fields = ("name", "description", "source__name")
+    readonly_fields = ("created_at", "updated_at")
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<int:precollection_id>/label/",
+                self.admin_site.admin_view(self.label_precollection),
+                name="images_precollection_label",
+            ),
+            path(
+                "<int:precollection_id>/label/update/",
+                self.admin_site.admin_view(self.update_preimage_label),
+                name="images_precollection_update_label",
+            ),
+            path(
+                "<int:precollection_id>/mark-complete/",
+                self.admin_site.admin_view(self.mark_complete),
+                name="images_precollection_mark_complete",
+            ),
+        ]
+        return custom_urls + urls
+
+    def image_count(self, obj):
+        return obj.images.count()
+
+    image_count.short_description = "Images"
+
+    def reviewed_count(self, obj):
+        return obj.images.filter(keep__isnull=False).count()
+
+    reviewed_count.short_description = "Reviewed"
+
+    def label_precollection_button(self, obj):
+        if obj.complete:
+            return format_html('<span style="color: #28a745; font-weight: bold;">✓ Complete</span>')
+        else:
+            url = reverse("admin:images_precollection_label", args=[obj.pk])
+            return format_html('<a class="button" href="{}">Review Images</a>', url)
+
+    label_precollection_button.short_description = "Actions"
+
+    def label_precollection(self, request, precollection_id):
+        precollection = get_object_or_404(PreCollection, id=precollection_id)
+        images = precollection.images.all().order_by("id")
+
+        # Calculate counts
+        reviewed_count = images.filter(keep__isnull=False).count()
+        keep_count = images.filter(keep=True).count()
+        discard_count = images.filter(keep=False).count()
+
+        # Serialize image data for JavaScript
+        image_data = []
+        for image in images:
+            image_data.append(
+                {
+                    "id": image.id,
+                    "title": image.title,
+                    "permalink": image.permalink,
+                    "description": image.description,
+                    "date_display": image.date_display,
+                    "keep": image.keep,
+                    "absolute_url": image.get_absolute_url(),
+                }
+            )
+
+        context = {
+            "precollection": precollection,
+            "images": images,
+            "reviewed_count": reviewed_count,
+            "keep_count": keep_count,
+            "discard_count": discard_count,
+            "image_data_json": json.dumps(image_data),
+            "title": f"Review Pre-Collection: {precollection.name}",
+        }
+
+        return render(request, "admin/images/precollection_label.html", context)
+
+    def update_preimage_label(self, request, precollection_id):
+        if request.method != "POST":
+            return JsonResponse({"error": "POST required"}, status=400)
+
+        image_id = request.POST.get("image_id")
+        keep_value = request.POST.get("keep")
+
+        try:
+            image = get_object_or_404(PreImage, id=image_id, collection_id=precollection_id)
+
+            if keep_value == "null":
+                image.keep = None
+            elif keep_value == "true":
+                image.keep = True
+            elif keep_value == "false":
+                image.keep = False
+            else:
+                return JsonResponse({"error": "Invalid keep value"}, status=400)
+
+            image.save(update_fields=["keep"])
+
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    def mark_complete(self, request, precollection_id):
+        if request.method != "POST":
+            return JsonResponse({"error": "POST required"}, status=400)
+
+        try:
+            precollection = get_object_or_404(PreCollection, id=precollection_id)
+            precollection.complete = True
+            precollection.full_clean()  # This will trigger validation
+            precollection.save(update_fields=["complete"])
+
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+@admin.register(PreImage)
+class PreImageAdmin(admin.ModelAdmin):
+    list_display = (
+        "title_or_id",
+        "collection",
+        "date_display",
+        "edtf_date",
+        "keep",
+    )
+    list_filter = ("keep", "collection__source")
+    search_fields = ("title", "description", "collection__name")
+    readonly_fields = ("created_at", "updated_at")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Make nullable fields not required in admin form
+        nullable_fields = [
+            "original_url",
+            "description",
+            "license_title",
+            "license_permalink",
+            "creator",
+            "ref",
+            "original_date",
+            "edtf_date",
+            "difficulty",
+            "keep",
+        ]
+        for field_name in nullable_fields:
+            if field_name in form.base_fields:
+                form.base_fields[field_name].required = False
+        return form
+
+    def save_model(self, request, obj, form, change):
+        # Convert empty strings to None for nullable fields
+        nullable_fields = [
+            "original_url",
+            "description",
+            "license_title",
+            "license_permalink",
+            "creator",
+            "ref",
+            "original_date",
+            "edtf_date",
+            "difficulty",
+        ]
+        for field_name in nullable_fields:
+            if hasattr(obj, field_name) and getattr(obj, field_name) == "":
+                setattr(obj, field_name, None)
+        super().save_model(request, obj, form, change)
+
+    fieldsets = (
+        (
+            "Basic Information",
+            {
+                "fields": (
+                    "collection",
+                    "title",
+                    "creator",
+                    "permalink",
+                    "description",
+                    "ref",
+                    "original_url",
+                )
+            },
+        ),
+        (
+            "License Information",
+            {"fields": ("license_title", "license_permalink")},
+        ),
+        (
+            "Date Information",
+            {
+                "fields": ("original_date", "edtf_date"),
+                "description": "Leave fields blank if date information is not available",
+            },
+        ),
+        (
+            "Review",
+            {"fields": ("keep",), "description": "Whether to keep this image for the main collection"},
+        ),
+        ("Georeferencing", {"fields": ("difficulty", "will_not_georef")}),
+        (
+            "System Information",
+            {
+                "fields": ("skip_count", "created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def title_or_id(self, obj):
+        return obj.title if obj.title else f"PreImage {obj.id}"
+
+    title_or_id.short_description = "Title/ID"
 
 
 @admin.register(Image)

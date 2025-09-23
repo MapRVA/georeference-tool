@@ -27,7 +27,7 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image
+from images.models import Source, Collection, Image, PreCollection, PreImage
 
 # Import R2 uploader from the same directory
 try:
@@ -61,11 +61,11 @@ def create_source_if_not_exist():
     return source
 
 
-def create_collection_if_not_exist(source, readable_primary_key):
+def create_collection_if_not_exist(source, readable_primary_key, use_precollection=False):
     """Get or create a collection using the GetRecordDetails API for group data"""
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
-        "Content-Type": "application/json; charset=utf-8", 
+        "Content-Type": "application/json; charset=utf-8",
         'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
     }
     data = {
@@ -101,31 +101,49 @@ def create_collection_if_not_exist(source, readable_primary_key):
     inc_dte_match = re.search(r"<inc_dte>(.*?)</inc_dte>", xml_content)
     bulk_dte_match = re.search(r"<bulk_dte>(.*?)</bulk_dte>", xml_content)
 
-    # Check if collection already exists
-    existing_collection = Collection.objects.filter(
-        source=source, name=collection_name
-    ).first()
+    # Check if collection already exists (check both types)
+    if use_precollection:
+        existing_collection = PreCollection.objects.filter(
+            source=source, name=collection_name
+        ).first()
+        collection_type = "pre-collection"
+    else:
+        existing_collection = Collection.objects.filter(
+            source=source, name=collection_name
+        ).first()
+        collection_type = "collection"
+
     if existing_collection:
-        print(f"  ✓ Using existing collection: {existing_collection.name}")
+        print(f"  ✓ Using existing {collection_type}: {existing_collection.name}")
         return existing_collection
 
     collection_url = f"https://valentine.rediscoverysoftware.com/MADetailG.aspx?rID={readable_primary_key}&db=group&dir=VALARCH"
 
     # Show collection details to user for confirmation
-    print(f"\n  Collection Details for '{readable_primary_key}':")
+    print(f"\n  {collection_type.title()} Details for '{readable_primary_key}':")
     print(f"  Name: {collection_name}")
     print(f"  Source: {source.name}")
     print(f"  URL: {collection_url}")
     print(f"  Description: {description}")
+    if use_precollection:
+        print(f"  Type: Pre-collection (for review)")
 
-    if click.confirm("\n  Create this collection?"):
-        collection = Collection.objects.create(
-            source=source,
-            name=collection_name,
-            url=collection_url,
-            description=description,
-        )
-        print(f"Created collection: {collection.name}")
+    if click.confirm(f"\n  Create this {collection_type}?"):
+        if use_precollection:
+            collection = PreCollection.objects.create(
+                source=source,
+                name=collection_name,
+                url=collection_url,
+                description=description,
+            )
+        else:
+            collection = Collection.objects.create(
+                source=source,
+                name=collection_name,
+                url=collection_url,
+                description=description,
+            )
+        print(f"Created {collection_type}: {collection.name}")
         return collection
     else:
         return None
@@ -134,7 +152,7 @@ def create_collection_if_not_exist(source, readable_primary_key):
 def get_archival_children(archival_number: str, table: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetArchivalChildren"
     headers ={
-        "Content-Type": "application/json; charset=utf-8", 
+        "Content-Type": "application/json; charset=utf-8",
         'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
     }
     data = {
@@ -149,7 +167,7 @@ def get_archival_children(archival_number: str, table: str):
 
     # Report high-level info of children found
     member_data = {
-        # Official Valentine reference number   
+        # Official Valentine reference number
         "archival_number": re.findall(
             r"<ArchivalNumber>(.*?)</ArchivalNumber>", xml_content
         ),
@@ -164,7 +182,7 @@ def get_archival_children(archival_number: str, table: str):
 def get_record_details(readable_primary_key: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
-        "Content-Type": "application/json; charset=utf-8", 
+        "Content-Type": "application/json; charset=utf-8",
         'User-Agent': 'MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)'
     }
     data = {
@@ -350,7 +368,7 @@ def main(archive_id, hotlink=False):
     """Scrape archival records from The Valentine Museum's digital archives."""
 
     source = create_source_if_not_exist()
-    collection = create_collection_if_not_exist(source, archive_id)
+    collection = create_collection_if_not_exist(source, archive_id, use_precollection=hotlink)
 
     if collection:
         archival_children = get_archival_children(archive_id, "GROUP")
@@ -403,7 +421,11 @@ def main(archive_id, hotlink=False):
 
         skip_count = 0
         for child in tqdm(items_resolved["archival_number"]):
-            existing_by_ref = Image.objects.filter(ref=child).exists()
+            # Check for existing images in the appropriate model
+            if hotlink:
+                existing_by_ref = PreImage.objects.filter(ref=child).exists()
+            else:
+                existing_by_ref = Image.objects.filter(ref=child).exists()
             if existing_by_ref:
                 skip_count += 1
                 continue
@@ -435,18 +457,33 @@ def main(archive_id, hotlink=False):
 
             try:
                 tqdm.write("      → Inserting image {}".format(record["original_url"]))
-                image = Image.objects.create(
-                    collection=collection,
-                    title=record["title"],
-                    permalink=record["permalink"],
-                    ref=record["ref"],
-                    original_url=record["original_url"],
-                    description=record.get("description", ""),
-                    creator=record.get("creator", ""),
-                    original_date=record.get("original_date"),
-                    edtf_date=record.get("etdf_date"),
-                )
-                tqdm.write(f"      → Created image ID: {image.id}")
+
+                # Create the appropriate image type based on hotlink option
+                if hotlink:
+                    image = PreImage.objects.create(
+                        collection=collection,
+                        title=record["title"],
+                        permalink=record["permalink"],
+                        ref=record["ref"],
+                        description=record.get("description", ""),
+                        creator=record.get("creator", ""),
+                        original_date=record.get("original_date"),
+                        edtf_date=record.get("etdf_date"),
+                    )
+                    tqdm.write(f"      → Created pre-image ID: {image.id}")
+                else:
+                    image = Image.objects.create(
+                        collection=collection,
+                        title=record["title"],
+                        permalink=record["permalink"],
+                        ref=record["ref"],
+                        original_url=record["original_url"],
+                        description=record.get("description", ""),
+                        creator=record.get("creator", ""),
+                        original_date=record.get("original_date"),
+                        edtf_date=record.get("etdf_date"),
+                    )
+                    tqdm.write(f"      → Created image ID: {image.id}")
             except Exception as e:
                 tqdm.write(f"      ✗ Error creating image: {e}")
                 breakpoint()

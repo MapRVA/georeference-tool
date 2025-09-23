@@ -1,0 +1,672 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Django administration" }}</a></h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:images_precollection_changelist' %}">Pre-Collections</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="module">
+    <p><strong>Pre-Collection:</strong> {{ precollection.name }}</p>
+    <p><strong>Source:</strong> {{ precollection.source.name }}</p>
+    <p><strong>Total Images:</strong> {{ images.count }}</p>
+    <p><strong>Reviewed Images:</strong> <span id="reviewed-count">{{ reviewed_count }}</span> / {{ images.count }}</p>
+    <p><strong>Images to Keep:</strong> <span id="keep-count">{{ keep_count }}</span></p>
+    <p><strong>Images to Discard:</strong> <span id="discard-count">{{ discard_count }}</span></p>
+</div>
+
+<div class="jump-controls">
+    <button type="button" id="jump-unreviewed" class="button default">Jump to Next Unreviewed</button>
+    <button type="button" id="jump-keep" class="button">Jump to Next Keep</button>
+    <button type="button" id="jump-discard" class="button">Jump to Next Discard</button>
+</div>
+
+<div class="labeling-interface">
+    <div class="current-image" style="display: none;" id="image-container">
+        <div class="image-info">
+            <h2 id="image-title"></h2>
+            <p><strong>Image <span id="current-index"></span> of {{ images.count }}</strong></p>
+            <p id="image-date" style="margin: 5px 0;"></p>
+            <div id="image-description" style="margin: 10px 0; font-style: italic;"></div>
+            <p><a id="image-link" href="#" target="_blank">View image on site →</a></p>
+        </div>
+
+        <div class="image-display">
+            <div id="image-loading" class="loading-state" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Loading image...</p>
+            </div>
+            <div id="image-error" class="error-state" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <p>Failed to load image</p>
+                <button id="retry-btn" class="button default">Retry</button>
+            </div>
+            <img id="current-image" style="max-width: 100%; max-height: 400px; margin-bottom: 20px; display: none;" />
+        </div>
+
+        <div class="labeling-controls">
+            <h3>Review Decision</h3>
+
+            <div class="fieldset">
+                <label>Review Status:</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" id="keep-true" name="keep" value="true">
+                        <span class="radio-label keep">Keep for main collection</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" id="keep-false" name="keep" value="false">
+                        <span class="radio-label discard">Discard (do not include)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" id="keep-null" name="keep" value="null">
+                        <span class="radio-label unreviewed">Not yet reviewed</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="navigation-buttons">
+                <button type="button" id="prev-btn" class="default">← Previous</button>
+                <button type="button" id="save-next-btn" class="default">Save & Next →</button>
+                <button type="button" id="skip-btn">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="completion-message" style="display: none;">
+        <h2>Pre-Collection Review Complete!</h2>
+        <p>You have reviewed all {{ images.count }} images in this pre-collection.</p>
+        <p><strong>Summary:</strong></p>
+        <ul>
+            <li>Images to keep: <span id="final-keep-count">{{ keep_count }}</span></li>
+            <li>Images to discard: <span id="final-discard-count">{{ discard_count }}</span></li>
+        </ul>
+        <div class="completion-actions">
+            <a href="{% url 'admin:images_precollection_changelist' %}" class="button default">Back to Pre-Collections</a>
+            <button type="button" id="mark-complete-btn" class="button" style="background: #28a745; color: white;">Mark Collection as Complete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentIndex = 0;
+
+    const imageContainer = document.getElementById('image-container');
+    const currentImage = document.getElementById('current-image');
+    const imageLoading = document.getElementById('image-loading');
+    const imageError = document.getElementById('image-error');
+    const retryBtn = document.getElementById('retry-btn');
+    const imageTitle = document.getElementById('image-title');
+    const currentIndexSpan = document.getElementById('current-index');
+    const imageDate = document.getElementById('image-date');
+    const imageDescription = document.getElementById('image-description');
+    const imageLink = document.getElementById('image-link');
+    const keepTrueRadio = document.getElementById('keep-true');
+    const keepFalseRadio = document.getElementById('keep-false');
+    const keepNullRadio = document.getElementById('keep-null');
+    const prevBtn = document.getElementById('prev-btn');
+    const saveNextBtn = document.getElementById('save-next-btn');
+    const skipBtn = document.getElementById('skip-btn');
+    const completionMessage = document.getElementById('completion-message');
+    const reviewedCountSpan = document.getElementById('reviewed-count');
+    const keepCountSpan = document.getElementById('keep-count');
+    const discardCountSpan = document.getElementById('discard-count');
+
+    // Convert Django template data to JavaScript
+    const imageData = {{ image_data_json|safe }};
+
+    // Image preloading cache
+    const preloadedImages = new Map();
+
+    // Counters
+    let reviewedCount = {{ reviewed_count }};
+    let keepCount = {{ keep_count }};
+    let discardCount = {{ discard_count }};
+
+    function updateCounters() {
+        reviewedCountSpan.textContent = reviewedCount;
+        keepCountSpan.textContent = keepCount;
+        discardCountSpan.textContent = discardCount;
+        
+        // Update completion message counters too
+        const finalKeepCount = document.getElementById('final-keep-count');
+        const finalDiscardCount = document.getElementById('final-discard-count');
+        if (finalKeepCount) finalKeepCount.textContent = keepCount;
+        if (finalDiscardCount) finalDiscardCount.textContent = discardCount;
+    }
+
+    // Jump to next unreviewed functionality (keep is null)
+    function findNextUnreviewed() {
+        // Start searching from the next image after current position
+        for (let i = currentIndex + 1; i < imageData.length; i++) {
+            const image = imageData[i];
+            if (image.keep === null) {
+                return i;
+            }
+        }
+        // If nothing found after current position, search from the beginning
+        for (let i = 0; i <= currentIndex; i++) {
+            const image = imageData[i];
+            if (image.keep === null) {
+                return i;
+            }
+        }
+        return -1; // No unreviewed images found
+    }
+
+    function jumpToNextUnreviewed() {
+        const index = findNextUnreviewed();
+        if (index !== -1) {
+            currentIndex = index;
+            showImage(currentIndex);
+        } else {
+            alert('No unreviewed images found');
+        }
+    }
+
+    // Jump to next keep functionality
+    function findNextKeep() {
+        // Start searching from the next image after current position
+        for (let i = currentIndex + 1; i < imageData.length; i++) {
+            const image = imageData[i];
+            if (image.keep === true) {
+                return i;
+            }
+        }
+        // If nothing found after current position, search from the beginning
+        for (let i = 0; i <= currentIndex; i++) {
+            const image = imageData[i];
+            if (image.keep === true) {
+                return i;
+            }
+        }
+        return -1; // No keep images found
+    }
+
+    function jumpToNextKeep() {
+        const index = findNextKeep();
+        if (index !== -1) {
+            currentIndex = index;
+            showImage(currentIndex);
+        } else {
+            alert('No "keep" images found');
+        }
+    }
+
+    // Jump to next discard functionality
+    function findNextDiscard() {
+        // Start searching from the next image after current position
+        for (let i = currentIndex + 1; i < imageData.length; i++) {
+            const image = imageData[i];
+            if (image.keep === false) {
+                return i;
+            }
+        }
+        // If nothing found after current position, search from the beginning
+        for (let i = 0; i <= currentIndex; i++) {
+            const image = imageData[i];
+            if (image.keep === false) {
+                return i;
+            }
+        }
+        return -1; // No discard images found
+    }
+
+    function jumpToNextDiscard() {
+        const index = findNextDiscard();
+        if (index !== -1) {
+            currentIndex = index;
+            showImage(currentIndex);
+        } else {
+            alert('No "discard" images found');
+        }
+    }
+
+    function showImageStates(loading = false, error = false, imageVisible = false) {
+        imageLoading.style.display = loading ? 'flex' : 'none';
+        imageError.style.display = error ? 'flex' : 'none';
+        currentImage.style.display = imageVisible ? 'block' : 'none';
+    }
+
+    function loadImage(src) {
+        // Check if image is already preloaded
+        if (preloadedImages.has(src)) {
+            return Promise.resolve(preloadedImages.get(src));
+        }
+
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                preloadedImages.set(src, img);
+                resolve(img);
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = src;
+        });
+    }
+
+    function preloadImages(startIndex, count = 5) {
+        for (let i = 1; i <= count && startIndex + i < imageData.length; i++) {
+            const nextImage = imageData[startIndex + i];
+            if (nextImage && !preloadedImages.has(nextImage.permalink)) {
+                // Preload silently in the background
+                loadImage(nextImage.permalink).catch(() => {
+                    // Ignore preload errors - they'll be handled when actually displaying
+                });
+            }
+        }
+    }
+
+    async function showImage(index) {
+        if (index >= imageData.length) {
+            imageContainer.style.display = 'none';
+            completionMessage.style.display = 'block';
+            return;
+        }
+
+        const image = imageData[index];
+
+        // Set metadata immediately
+        imageTitle.textContent = image.title || `Image ${image.id}`;
+        currentIndexSpan.textContent = index + 1;
+        imageDate.textContent = image.date_display ? `Date: ${image.date_display}` : '';
+        imageDescription.textContent = image.description || '';
+        imageDescription.style.display = image.description ? 'block' : 'none';
+        imageLink.href = image.absolute_url;
+        
+        // Set keep radio buttons
+        if (image.keep === true) {
+            keepTrueRadio.checked = true;
+        } else if (image.keep === false) {
+            keepFalseRadio.checked = true;
+        } else {
+            keepNullRadio.checked = true;
+        }
+        
+        prevBtn.disabled = index === 0;
+        imageContainer.style.display = 'block';
+
+        // Show loading state
+        showImageStates(true, false, false);
+
+        try {
+            // Load the image
+            await loadImage(image.permalink);
+            currentImage.src = image.permalink;
+            showImageStates(false, false, true);
+
+            // Preload next few images for faster navigation
+            preloadImages(index);
+        } catch (error) {
+            console.error('Failed to load image:', image.permalink, error);
+            showImageStates(false, true, false);
+        }
+    }
+
+    function getSelectedKeepValue() {
+        if (keepTrueRadio.checked) return true;
+        if (keepFalseRadio.checked) return false;
+        return null;
+    }
+
+    function saveCurrentImage() {
+        const image = imageData[currentIndex];
+        const newKeepValue = getSelectedKeepValue();
+        const oldKeepValue = image.keep;
+        
+        const formData = new FormData();
+        formData.append('image_id', image.id);
+        formData.append('keep', newKeepValue === null ? 'null' : newKeepValue.toString());
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        return fetch(`{% url 'admin:images_precollection_update_label' precollection.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save');
+            }
+            
+            // Update local data and counters
+            const wasReviewed = oldKeepValue !== null;
+            const isReviewed = newKeepValue !== null;
+            
+            // Update review count
+            if (!wasReviewed && isReviewed) {
+                reviewedCount++;
+            } else if (wasReviewed && !isReviewed) {
+                reviewedCount--;
+            }
+            
+            // Update keep/discard counts
+            if (oldKeepValue === true) keepCount--;
+            if (oldKeepValue === false) discardCount--;
+            if (newKeepValue === true) keepCount++;
+            if (newKeepValue === false) discardCount++;
+            
+            // Update local data
+            imageData[currentIndex].keep = newKeepValue;
+            
+            // Update counter displays
+            updateCounters();
+        });
+    }
+
+    prevBtn.addEventListener('click', function() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            showImage(currentIndex);
+        }
+    });
+
+    saveNextBtn.addEventListener('click', function() {
+        saveCurrentImage()
+            .then(() => {
+                currentIndex++;
+                showImage(currentIndex);
+            })
+            .catch(error => {
+                alert('Error saving: ' + error.message);
+            });
+    });
+
+    skipBtn.addEventListener('click', function() {
+        currentIndex++;
+        showImage(currentIndex);
+    });
+
+    // Retry button event listener
+    retryBtn.addEventListener('click', function() {
+        showImage(currentIndex);
+    });
+
+    // Jump button event listeners
+    document.getElementById('jump-unreviewed').addEventListener('click', function() {
+        jumpToNextUnreviewed();
+    });
+
+    document.getElementById('jump-keep').addEventListener('click', function() {
+        jumpToNextKeep();
+    });
+
+    document.getElementById('jump-discard').addEventListener('click', function() {
+        jumpToNextDiscard();
+    });
+
+    // Mark complete button
+    const markCompleteBtn = document.getElementById('mark-complete-btn');
+    if (markCompleteBtn) {
+        markCompleteBtn.addEventListener('click', function() {
+            if (reviewedCount < imageData.length) {
+                alert(`Cannot mark as complete. ${imageData.length - reviewedCount} images still need review.`);
+                return;
+            }
+            
+            if (confirm('Mark this pre-collection as complete? This action cannot be undone.')) {
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                
+                fetch(`{% url 'admin:images_precollection_mark_complete' precollection.id %}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Pre-collection marked as complete!');
+                        window.location.href = "{% url 'admin:images_precollection_changelist' %}";
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to mark as complete'));
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
+        });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                prevBtn.click();
+                break;
+            case 'ArrowRight':
+            case 'Enter':
+                e.preventDefault();
+                saveNextBtn.click();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                skipBtn.click();
+                break;
+            case '1':
+                e.preventDefault();
+                keepTrueRadio.checked = true;
+                break;
+            case '2':
+                e.preventDefault();
+                keepFalseRadio.checked = true;
+                break;
+            case 'u':
+            case 'U':
+                e.preventDefault();
+                keepNullRadio.checked = true;
+                break;
+        }
+    });
+
+    // Start with first image and preload next ones
+    showImage(currentIndex);
+});
+</script>
+
+<style>
+.labeling-interface {
+    margin-top: 20px;
+}
+
+.image-info h2 {
+    margin: 0 0 10px 0;
+}
+
+.image-display {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.labeling-controls {
+    background: #f8f8f8;
+    padding: 20px;
+    border: 1px solid #ddd;
+}
+
+.fieldset {
+    margin-bottom: 15px;
+}
+
+.fieldset label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+    background: #f0f0f0;
+}
+
+.radio-option input[type="radio"] {
+    margin: 0 10px 0 0;
+    transform: scale(1.2);
+}
+
+.radio-option input[type="radio"]:checked + .radio-label.keep {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.radio-option input[type="radio"]:checked + .radio-label.discard {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.radio-option input[type="radio"]:checked + .radio-label.unreviewed {
+    color: #6c757d;
+    font-weight: bold;
+}
+
+.radio-option:has(input[type="radio"]:checked) {
+    background: #e8f5e9;
+    border-color: #4caf50;
+}
+
+.radio-option:has(input[type="radio"]:checked) .radio-label.discard {
+    background: #ffebee;
+}
+
+.radio-option:has(input[type="radio"]:checked).radio-label.discard {
+    border-color: #f44336;
+}
+
+.navigation-buttons {
+    margin-top: 20px;
+}
+
+.navigation-buttons button {
+    margin-right: 10px;
+    padding: 8px 16px;
+}
+
+#completion-message {
+    text-align: center;
+    padding: 40px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+}
+
+.completion-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.keyboard-help {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #666;
+}
+
+.jump-controls {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.jump-controls .button {
+    padding: 10px 16px;
+    font-size: 14px;
+}
+
+.loading-state, .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    background: #f8f8f8;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f0f0f0;
+    border-left: 4px solid #007cba;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-state {
+    background: #ffe6e6;
+    border-color: #ffcccc;
+    color: #cc0000;
+}
+
+.error-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.loading-state p, .error-state p {
+    margin: 0 0 10px 0;
+    font-weight: bold;
+}
+
+#current-image {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.module p {
+    margin: 5px 0;
+}
+</style>
+
+<div class="keyboard-help">
+    <strong>Keyboard shortcuts:</strong>
+    ← Previous | → or Enter: Save & Next | Esc: Skip | 1: Keep | 2: Discard | U: Unreviewed
+</div>
+
+{% csrf_token %}
+{% endblock %}

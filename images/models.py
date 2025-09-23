@@ -87,6 +87,58 @@ class Collection(models.Model):
         unique_together = ["source", "name", "slug"]
 
 
+class PreCollection(models.Model):
+    """Collection within a source containing images that have yet to be reviewed for inclusion"""
+
+    source = models.ForeignKey(
+        Source, on_delete=models.CASCADE, related_name="pre_collections"
+    )
+    name = models.CharField(max_length=200)
+    slug = models.SlugField()
+    url = models.URLField()
+    description = models.TextField(blank=True)
+    complete = models.BooleanField(
+        default=False, help_text="Whether this collection has been reviewed and is complete"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.source.name} - {self.name} (Pre-review)"
+
+    def clean(self):
+        """Validate model fields"""
+        super().clean()
+
+        # Prevent marking collection as complete if any images have null keep values
+        if self.complete and self.pk:
+            images_with_null_keep = self.images.filter(keep__isnull=True)
+            if images_with_null_keep.exists():
+                raise ValidationError({
+                    "complete": f"Cannot mark collection as complete. {images_with_null_keep.count()} images still need review (keep field is null)."
+                })
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name[:50])
+        super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse(
+            "images:pre_collection_detail",
+            kwargs={"source_slug": self.source.slug, "collection_slug": self.slug},
+        )
+
+    @property
+    def is_public(self):
+        """Check if both collection and source are public"""
+        return self.public and self.source.public
+
+    class Meta:
+        ordering = ["source__name", "name"]
+        unique_together = ["source", "name", "slug"]
+
+
 class Image(models.Model):
     """Individual image to be georeferenced"""
 
@@ -249,6 +301,79 @@ class Image(models.Model):
             models.Index(fields=["collection", "will_not_georef"]),
             models.Index(fields=["difficulty"]),
         ]
+
+
+class PreImage(models.Model):
+    """Individual image that has yet to be reviewed for inclusion in the site"""
+
+    DIFFICULTY_CHOICES = [
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    ]
+
+    collection = models.ForeignKey(
+        PreCollection, on_delete=models.CASCADE, related_name="images"
+    )
+
+    title = models.CharField(max_length=500)
+    permalink = models.URLField(
+        help_text="Direct link to the image (CDN or processed URL)"
+    )
+    description = models.TextField(null=True)
+    license_title = models.CharField(null=True, max_length=500)
+    license_permalink = models.URLField(
+        null=True, help_text="Link to license information"
+    )
+
+    creator = models.CharField(
+        null=True, max_length=100, help_text="Creator(s) of the work"
+    )
+    ref = models.CharField(
+        null=True, max_length=50, help_text="Source-specific reference"
+    )
+
+    original_date = models.CharField(
+        null=True, max_length=50, help_text="Date information from source"
+    )
+    edtf_date = models.CharField(
+        null=True, max_length=50, help_text="Date parsed as EDTF"
+    )
+
+    def clean(self):
+        """Validate model fields"""
+        super().clean()
+
+        # Validate EDTF date format if provided
+        if self.edtf_date:
+            try:
+                parse_edtf(self.edtf_date)
+            except EDTFParseException as e:
+                raise ValidationError({"edtf_date": f"Invalid EDTF format: {str(e)}"})
+
+    # Review metadata
+    keep = models.BooleanField(
+        null=True, default=None, help_text="Whether to keep this image for the main collection"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        if self.title:
+            return f"{self.title} (Pre-review)"
+        return f"PreImage {self.id} from {self.collection.name}"
+
+    def get_absolute_url(self):
+        # PreImages are for review only, link to admin interface
+        from django.contrib.admin.utils import quote
+        return f"/admin/images/preimage/{quote(self.pk)}/change/"
+
+    @property
+    def date_display(self):
+        if self.original_date:
+            return str(self.original_date)
+        return "Unknown date"
 
 
 class Georeference(models.Model):
