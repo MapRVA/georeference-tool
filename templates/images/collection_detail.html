@@ -147,7 +147,8 @@
                                          class="img-fluid w-100 h-100"
                                          style="object-fit: cover; cursor: pointer;"
                                          onclick="window.location.href='{% url 'images:image_detail' image.id %}'"
-                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                         loading="lazy">
                                     <div class="image-placeholder bg-light d-flex align-items-center justify-content-center h-100" style="display: none;">
                                         <div class="text-center">
                                             <i class="fas fa-image fa-2x text-muted mb-2"></i>
