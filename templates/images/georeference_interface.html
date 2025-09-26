@@ -1715,6 +1715,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         map.addControl(geocoder, 'top-left');
 
+        // fix geocoder search on mobile chrome
+        const geocoderInput = document.getElementsByClassName("maplibregl-ctrl-geocoder--input")[0];
+        geocoderInput.type = "search";
+
         // Initialize MapSwap link and update on map move
         updateMapSwapLink();
         map.on('moveend', updateMapSwapLink);
