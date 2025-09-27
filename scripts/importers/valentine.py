@@ -271,19 +271,19 @@ def get_record_details(readable_primary_key: str):
 
         year_match = re.match(r"^(\d{4})$", date_str)
         if year_match:
-            result["etdf_date"] = year_match.group(1)
+            result["edtf_date"] = year_match.group(1)
             return result
 
         # Try "Circa YYYY" format
         circa_match = re.match(r"(?i)(?:circa|c\.)\s+(\d{4})$", date_str)
         if circa_match:
-            result["etdf_date"] = circa_match.group(1) + "~"
+            result["edtf_date"] = circa_match.group(1) + "~"
             return result
 
         # Try YYYY-YYYY year range
         year_range_match = re.match(r"^(\d{4})-(\d{4})$", date_str)
         if year_range_match:
-            result["etdf_date"] = (
+            result["edtf_date"] = (
                 year_range_match.group(1) + "/" + year_range_match.group(2)
             )
             return result
@@ -291,7 +291,7 @@ def get_record_details(readable_primary_key: str):
         # Try "MM/YYYY" format
         month_year_match = re.match(r"^(\d{1,2})/(\d{4})$", date_str)
         if month_year_match:
-            result["etdf_date"] = (
+            result["edtf_date"] = (
                 month_year_match.group(2) + "-" + month_year_match.group(1).zfill(2)
             )
             return result
@@ -299,7 +299,7 @@ def get_record_details(readable_primary_key: str):
         month_day_year_match = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", date_str)
         if month_day_year_match:
             # BE CAREFUL! Take note of different order in EDTF
-            result["etdf_date"] = (
+            result["edtf_date"] = (
                 month_day_year_match.group(3)
                 + "-"
                 + month_day_year_match.group(1).zfill(2)
@@ -313,7 +313,7 @@ def get_record_details(readable_primary_key: str):
         if month_name_year_match:
             month_name = month_name_year_match.group(1).lower()
             if month_name in month_map:
-                result["etdf_date"] = (
+                result["edtf_date"] = (
                     month_name_year_match.group(2)
                     + "-"
                     + str(month_map[month_name]).zfill(2)
@@ -328,7 +328,7 @@ def get_record_details(readable_primary_key: str):
             month_name = month_name_day_year_match.group(1).lower()
             if month_name in month_map:
                 # BE CAREFUL! Take note of different order in EDTF
-                result["etdf_date"] = (
+                result["edtf_date"] = (
                     month_name_day_year_match.group(3)
                     + "-"
                     + str(month_map[month_name]).zfill(2)
@@ -342,7 +342,7 @@ def get_record_details(readable_primary_key: str):
         if season_year_match:
             season_name = season_year_match.group(1).lower()
             if season_name in season_map:
-                result["etdf_date"] = (
+                result["edtf_date"] = (
                     season_year_match.group(2) + "-" + str(season_map[season_name])
                 )
                 return result
@@ -461,7 +461,7 @@ def main(archive_id, hotlink=False):
                         description=record.get("description", ""),
                         creator=record.get("creator", ""),
                         original_date=record.get("original_date"),
-                        edtf_date=record.get("etdf_date"),
+                        edtf_date=record.get("edtf_date"),
                     )
                     tqdm.write(f"      → Created pre-image ID: {image.id}")
                 else:
@@ -474,12 +474,11 @@ def main(archive_id, hotlink=False):
                         description=record.get("description", ""),
                         creator=record.get("creator", ""),
                         original_date=record.get("original_date"),
-                        edtf_date=record.get("etdf_date"),
+                        edtf_date=record.get("edtf_date"),
                     )
                     tqdm.write(f"      → Created image ID: {image.id}")
             except Exception as e:
                 tqdm.write(f"      ✗ Error creating image: {e}")
-                breakpoint()
 
 
 if __name__ == "__main__":
