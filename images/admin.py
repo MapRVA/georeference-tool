@@ -385,6 +385,18 @@ class ImageAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at", "skip_count")
     autocomplete_fields = ["duplicate_of"]
 
+    def get_search_results(self, request, queryset, search_term):
+        queryset, use_distinct = super().get_search_results(
+            request, queryset, search_term
+        )
+        if search_term:
+            try:
+                image_id = int(search_term)
+                queryset |= self.model.objects.filter(id=image_id)
+            except (ValueError, TypeError):
+                pass
+        return queryset, use_distinct
+
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         # Make nullable fields not required in admin form

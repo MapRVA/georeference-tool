@@ -293,7 +293,7 @@ class Image(models.Model):
 
     def __str__(self):
         if self.title:
-            return self.title
+            return f"{self.title} ({self.id})"
         return f"Image {self.id} from {self.collection.name}"
 
     def get_absolute_url(self):
