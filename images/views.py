@@ -63,12 +63,13 @@ def browse_sources(request):
         total_collections += source.public_collections_count
 
         source.total_images = Image.objects.filter(
-            collection__source=source, collection__public=True
+            collection__source=source, collection__public=True, duplicate_of__isnull=True
         ).count()
         source.georeferenced_images = (
             Image.objects.filter(
                 collection__source=source,
                 collection__public=True,
+                duplicate_of__isnull=True,
                 georeferences__isnull=False,
             )
             .distinct()
@@ -105,22 +106,23 @@ def source_detail(request, slug):
 
     # Add statistics for each collection
     for collection in collections:
-        collection.total_images = collection.images.count()
+        collection.total_images = collection.images.filter(duplicate_of__isnull=True).count()
         collection.georeferenced_images = (
-            collection.images.filter(georeferences__isnull=False).distinct().count()
+            collection.images.filter(duplicate_of__isnull=True, georeferences__isnull=False).distinct().count()
         )
         collection.pending_images = (
             collection.total_images - collection.georeferenced_images
         )
 
-    # Overall source statistics (only from public collections)
+    # Overall source statistics (only from public collections, excluding duplicates)
     total_images = Image.objects.filter(
-        collection__source=source, collection__public=True
+        collection__source=source, collection__public=True, duplicate_of__isnull=True
     ).count()
     georeferenced_images = (
         Image.objects.filter(
             collection__source=source,
             collection__public=True,
+            duplicate_of__isnull=True,
             georeferences__isnull=False,
         )
         .distinct()
@@ -148,7 +150,8 @@ def collection_detail(request, source_slug, collection_slug):
     )
 
     # Sort images: georeferenced images second-to-last, "will not reference" images at the end
-    images = collection.images.annotate(
+    # Exclude duplicate images from the collection view
+    images = collection.images.filter(duplicate_of__isnull=True).annotate(
         has_georeference=Case(
             When(georeferences__isnull=False, then=Value(1)),
             default=Value(0),
@@ -190,9 +193,11 @@ def georeference_interface(request):
         try:
             # For specific image requests, allow both georeferenced and ungeoreferenced images
             # This enables corrections for already georeferenced images
+            # But exclude duplicate images
             current_image = Image.objects.get(
                 id=int(image_id),
                 will_not_georef=False,
+                duplicate_of__isnull=True,
                 collection__public=True,
                 collection__source__public=True,
             )
@@ -201,9 +206,11 @@ def georeference_interface(request):
             pass
 
     # Start with all ungeoreferenced images from public sources/collections
+    # Exclude duplicate images from being suggested
     images = Image.objects.filter(
         georeferences__isnull=True,
         will_not_georef=False,
+        duplicate_of__isnull=True,
         collection__public=True,
         collection__source__public=True,
     )
@@ -348,6 +355,16 @@ def georeference_image(request, image_id):
     try:
         data = json.loads(request.body)
         image = get_object_or_404(Image, id=image_id)
+
+        # Check if image is a duplicate
+        if image.duplicate_of:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Cannot georeference duplicate images. This image is marked as a duplicate of another image.",
+                },
+                status=400,
+            )
 
         # For anonymous users, check if they can still georeference
         # For authenticated users, allow corrections (multiple submissions)
@@ -617,9 +634,11 @@ def mark_will_not_georef(request, image_id):
 def get_random_image(request):
     """Get a random image for georeferencing"""
     # Get images that haven't been georeferenced and aren't marked as will_not_georef
+    # Exclude duplicate images from being suggested
     available_images = Image.objects.filter(
         georeferences__isnull=True,
         will_not_georef=False,
+        duplicate_of__isnull=True,
         collection__public=True,
         collection__source__public=True,
     )

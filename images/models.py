@@ -205,6 +205,22 @@ class Image(models.Model):
             except EDTFParseException as e:
                 raise ValidationError({"edtf_date": f"Invalid EDTF format: {str(e)}"})
 
+        # Prevent chains of duplicates
+        if self.duplicate_of:
+            # Check if any other image is already marked as a duplicate of this image
+            if self.pk and Image.objects.filter(duplicate_of=self.pk).exists():
+                raise ValidationError({
+                    "duplicate_of": "Cannot mark this image as a duplicate because other images are already marked as duplicates of this one. Chains of duplicates are not allowed."
+                })
+
+        # Prevent marking georeferenced images as duplicates
+        if self.duplicate_of and self.pk:
+            # Check if this image has any georeferences
+            if self.georeferences.exists():
+                raise ValidationError({
+                    "duplicate_of": "Cannot mark this image as a duplicate because it has already been georeferenced. Georeferenced images should not be marked as duplicates."
+                })
+
     def save(self, *args, **kwargs):
         """Validate EDTF date format and pre-calculate decimal dates before saving"""
         if self.edtf_date:
@@ -227,6 +243,14 @@ class Image(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, null=True)
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
+    duplicate_of = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='duplicates',
+        help_text="ID of another Image if this is a duplicate"
+    )
 
     # Image embedding for CLIP similarity search
     embedding = ArrayField(
@@ -280,7 +304,9 @@ class Image(models.Model):
     @property
     def georeference_status(self):
         """Get the current georeferencing status"""
-        if self.will_not_georef:
+        if self.duplicate_of:
+            return "duplicate"
+        elif self.will_not_georef:
             return "will_not_georef"
         elif self.is_georeferenced:
             # Check if any georeferences have validations

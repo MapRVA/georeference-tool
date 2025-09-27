@@ -379,6 +379,7 @@ class ImageAdmin(admin.ModelAdmin):
     list_filter = ("difficulty", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
+    autocomplete_fields = ["duplicate_of"]
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -429,6 +430,7 @@ class ImageAdmin(admin.ModelAdmin):
                     "description",
                     "ref",
                     "original_url",
+                    "duplicate_of",
                 )
             },
         ),

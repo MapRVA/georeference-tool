@@ -198,8 +198,10 @@
                                 </span>
                             {% endif %}
 
-                            <span class="badge status-badge {% if image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
-                                {% if image.is_georeferenced %}
+                            <span class="badge status-badge {% if image.duplicate_of %}bg-secondary{% elif image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                                {% if image.duplicate_of %}
+                                    <i class="fas fa-copy me-1"></i>Duplicate
+                                {% elif image.is_georeferenced %}
                                     <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
                                 {% elif image.will_not_georef %}
                                     <i class="fas fa-ban me-1"></i>Will Not Georeference
@@ -400,7 +402,15 @@
                         <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Actions</h6>
                     </div>
                     <div class="card-body">
-                        {% if not image.is_georeferenced and not image.will_not_georef %}
+                        {% if image.duplicate_of %}
+                            <div class="alert alert-info mb-3">
+                                <i class="fas fa-copy me-2"></i>
+                                This image is marked as a duplicate of 
+                                <a href="{% url 'images:image_detail' image.duplicate_of.id %}" class="text-decoration-none">
+                                    {% if image.duplicate_of.title %}{{ image.duplicate_of.title|truncatechars:30 }}{% else %}Image #{{ image.duplicate_of.id }}{% endif %}
+                                </a>.
+                            </div>
+                        {% elif not image.is_georeferenced and not image.will_not_georef %}
                             <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
                                class="btn btn-success w-100 mb-3 action-button">
                                 <i class="fas fa-map-marker-alt me-2"></i>Georeference This Image
@@ -505,6 +515,61 @@
                 </div>
             </div>
         </div>
+
+        <!-- Duplicate Images Section -->
+        {% if image.duplicates.exists %}
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-copy me-2"></i>Duplicate Images</h5>
+                        <small class="text-muted">{{ image.duplicates.count }} image{{ image.duplicates.count|pluralize }} marked as duplicate{{ image.duplicates.count|pluralize }} of this one</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            {% for duplicate in image.duplicates.all %}
+                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                <div class="card h-100 shadow-sm">
+                                    <img src="{{ duplicate.permalink }}" 
+                                         alt="{% if duplicate.title %}{{ duplicate.title }}{% else %}Duplicate Image #{{ duplicate.id }}{% endif %}"
+                                         class="card-img-top"
+                                         style="height: 200px; object-fit: cover; cursor: pointer;"
+                                         onclick="window.location.href='{% url 'images:image_detail' duplicate.id %}'">
+                                    <div class="card-body p-3">
+                                        <h6 class="card-title mb-2">
+                                            <a href="{% url 'images:image_detail' duplicate.id %}" class="text-decoration-none text-dark">
+                                                {% if duplicate.title %}
+                                                    {{ duplicate.title|truncatechars:50 }}
+                                                {% else %}
+                                                    Image #{{ duplicate.id }}
+                                                {% endif %}
+                                            </a>
+                                        </h6>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <a href="{% url 'images:image_detail' duplicate.id %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye me-1"></i>View
+                                            </a>
+                                        </div>
+                                        {% if duplicate.collection != image.collection %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-folder me-1"></i>
+                                                <a href="{{ duplicate.collection.get_absolute_url }}" class="text-decoration-none text-muted">
+                                                    {{ duplicate.collection.name|truncatechars:30 }}
+                                                </a>
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Timeline Section -->
         {% if image.georeferences.exists %}
