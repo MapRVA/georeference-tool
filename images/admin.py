@@ -1,10 +1,11 @@
 import json
 
-from django.contrib import admin
-from django.http import JsonResponse
+from django.contrib import admin, messages
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
+from django.core.exceptions import ValidationError
 
 from .models import (
     Collection,
@@ -17,6 +18,9 @@ from .models import (
     PreCollection,
     PreImage,
     Source,
+    Subject,
+    SubjectMapping,
+    WikidataItem,
 )
 
 
@@ -562,6 +566,293 @@ class MapLayerAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+
+def refresh_wikidata_info(modeladmin, request, queryset):
+    """Admin action to refresh Wikidata information for selected items"""
+    updated_count = 0
+    failed_count = 0
+
+    for item in queryset:
+        if item.populate_from_wikidata():
+            updated_count += 1
+        else:
+            failed_count += 1
+
+    if updated_count > 0:
+        modeladmin.message_user(request, f"Successfully updated {updated_count} Wikidata item(s).")
+    if failed_count > 0:
+        modeladmin.message_user(request, f"Failed to update {failed_count} Wikidata item(s).", level='WARNING')
+
+refresh_wikidata_info.short_description = "Refresh Wikidata information"
+
+
+@admin.register(WikidataItem)
+class WikidataItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "wikidata_id",
+        "title",
+        "description_truncated",
+        "va_landmark_id",
+        "inception",
+        "last_updated",
+    )
+    list_filter = ("last_updated", "inception")
+    search_fields = ("wikidata_id", "title", "description", "va_landmark_id")
+    readonly_fields = ("created_at", "last_updated", "wikidata_url", "refresh_button")
+    actions = ['refresh_selected_wikidata_items']
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<path:object_id>/refresh/',
+                self.admin_site.admin_view(self.refresh_individual_item),
+                name='images_wikidataitem_refresh',
+            ),
+        ]
+        return custom_urls + urls
+
+    def refresh_individual_item(self, request, object_id):
+        """Refresh Wikidata information for a single item"""
+        wikidata_item = get_object_or_404(WikidataItem, pk=object_id)
+
+        # Add progress message
+        messages.info(request, f"Refreshing Wikidata information for {wikidata_item.wikidata_id}... This may take a moment.")
+
+        try:
+            if wikidata_item.populate_from_wikidata():
+                wikidata_item.save()
+                messages.success(request,
+                    f"✓ Successfully refreshed Wikidata information for {wikidata_item.wikidata_id}. "
+                    f"Title: {wikidata_item.title}")
+            else:
+                messages.warning(request,
+                    f"⚠ No data found for {wikidata_item.wikidata_id}. "
+                    f"The item may not exist or may not have English labels.")
+        except ValidationError as e:
+            error_msg = str(e)
+            if "Network error" in error_msg:
+                messages.error(request,
+                    f"🔄 Network error refreshing {wikidata_item.wikidata_id}. "
+                    f"The system automatically retried the request. Please try again if this persists.")
+            else:
+                messages.error(request, f"❌ Error refreshing Wikidata information: {error_msg}")
+        except Exception as e:
+            messages.error(request, f"❌ Unexpected error refreshing Wikidata information: {e}")
+
+        return HttpResponseRedirect(reverse('admin:images_wikidataitem_change', args=[object_id]))
+
+    def refresh_selected_wikidata_items(self, request, queryset):
+        """Refresh Wikidata information for selected items"""
+        total_count = queryset.count()
+        updated_count = 0
+        failed_count = 0
+        network_errors = 0
+        error_messages = []
+
+        # Add progress message
+        self.message_user(request, f"Refreshing {total_count} Wikidata item(s)... This may take a moment.")
+
+        for item in queryset:
+            try:
+                if item.populate_from_wikidata():
+                    item.save()
+                    updated_count += 1
+                else:
+                    failed_count += 1
+            except ValidationError as e:
+                failed_count += 1
+                error_str = str(e)
+                if "Network error" in error_str:
+                    network_errors += 1
+                error_messages.append(f"{item.wikidata_id}: {error_str}")
+            except Exception as e:
+                failed_count += 1
+                error_messages.append(f"{item.wikidata_id}: Unexpected error - {e}")
+
+        # Provide detailed success/failure feedback
+        if updated_count > 0:
+            self.message_user(request, f"✓ Successfully updated {updated_count} Wikidata item(s).")
+
+        if failed_count > 0:
+            error_msg = f"⚠ Failed to update {failed_count} of {total_count} Wikidata item(s)."
+            if network_errors > 0:
+                error_msg += f" ({network_errors} network errors - these may succeed if retried)"
+            if error_messages and len(error_messages) <= 3:
+                error_msg += f" Errors: {'; '.join(error_messages)}"
+            elif error_messages:
+                error_msg += f" First 3 errors: {'; '.join(error_messages[:3])} (and {len(error_messages) - 3} more)"
+            self.message_user(request, error_msg, level=messages.WARNING)
+
+    refresh_selected_wikidata_items.short_description = "Refresh Wikidata information"
+
+    fieldsets = (
+        (
+            "Wikidata Information",
+            {
+                "fields": ("wikidata_id", "title", "description", "wikidata_url", "wikipedia_url", "refresh_button")
+            },
+        ),
+        (
+            "Additional Metadata",
+            {
+                "fields": ("va_landmark_id", "architect", "image_url", "inception"),
+                "description": "Optional additional information about the subject"
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": ("created_at", "last_updated"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def description_truncated(self, obj):
+        if obj.description:
+            return obj.description[:100] + "..." if len(obj.description) > 100 else obj.description
+        return ""
+
+    description_truncated.short_description = "Description"
+
+    def wikidata_url(self, obj):
+        return obj.wikidata_url if obj.wikidata_id else ""
+
+    wikidata_url.short_description = "Wikidata URL"
+
+    def refresh_button(self, obj):
+        if obj.pk:
+            return format_html(
+                '<a class="default" href="{}" style="background: #417690; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 5px 0; font-size: 12px;" title="Fetch latest information from Wikidata API">🔄 Refresh from Wikidata</a>',
+                reverse('admin:images_wikidataitem_refresh', args=[obj.pk])
+            )
+        return '<span style="color: #999; font-style: italic;">Save item first</span>'
+
+    refresh_button.short_description = "Actions"
+
+
+class SubjectMappingInline(admin.TabularInline):
+    """Inline editor for SubjectMapping relationships on Image admin"""
+    model = SubjectMapping
+    extra = 0
+    fields = ("subject", "order")
+    autocomplete_fields = ["subject"]
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "description_truncated",
+        "wikidata_item_link",
+        "image_count",
+        "created_at",
+    )
+    list_filter = ("created_at", "wikidata_item")
+    search_fields = ("title", "description", "wikidata_item__wikidata_id", "wikidata_item__title")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ["wikidata_item"]
+
+    fieldsets = (
+        (
+            "Subject Information",
+            {"fields": ("title", "description")},
+        ),
+        (
+            "Wikidata Link",
+            {
+                "fields": ("wikidata_item",),
+                "description": "Optional link to Wikidata item for additional metadata"
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def description_truncated(self, obj):
+        if obj.description:
+            return obj.description[:100] + "..." if len(obj.description) > 100 else obj.description
+        return ""
+
+    description_truncated.short_description = "Description"
+
+    def wikidata_item_link(self, obj):
+        if obj.wikidata_item:
+            return format_html(
+                '<a href="{}" target="_blank">{}</a>',
+                obj.wikidata_item.wikidata_url,
+                obj.wikidata_item.wikidata_id
+            )
+        return "None"
+
+    wikidata_item_link.short_description = "Wikidata"
+
+    def image_count(self, obj):
+        return obj.image_mappings.count()
+
+    image_count.short_description = "Images"
+
+
+@admin.register(SubjectMapping)
+class SubjectMappingAdmin(admin.ModelAdmin):
+    list_display = (
+        "image_link",
+        "subject_title",
+        "subject_wikidata",
+        "order",
+        "created_at",
+    )
+    list_filter = ("created_at", "subject__wikidata_item")
+    search_fields = (
+        "image__title",
+        "subject__title",
+        "subject__description",
+        "subject__wikidata_item__wikidata_id",
+    )
+    readonly_fields = ("created_at",)
+    autocomplete_fields = ["image", "subject"]
+
+    def image_link(self, obj):
+        return format_html(
+            '<a href="{}">{}</a>',
+            obj.image.get_absolute_url(),
+            obj.image.title if obj.image.title else f"Image {obj.image.id}"
+        )
+
+    image_link.short_description = "Image"
+
+    def subject_title(self, obj):
+        return obj.subject.title
+
+    subject_title.short_description = "Subject"
+
+    def subject_wikidata(self, obj):
+        if obj.subject.wikidata_item:
+            return format_html(
+                '<a href="{}" target="_blank">{}</a>',
+                obj.subject.wikidata_item.wikidata_url,
+                obj.subject.wikidata_item.wikidata_id
+            )
+        return "None"
+
+    subject_wikidata.short_description = "Wikidata"
+
+
+# Update the existing ImageAdmin to include subject inline
+# Find the existing ImageAdmin and add the subject inline
+class ImageAdminUpdated(ImageAdmin):
+    inlines = [SubjectMappingInline]
+
+# Unregister the existing ImageAdmin and register the updated one
+admin.site.unregister(Image)
+admin.site.register(Image, ImageAdminUpdated)
 
 
 # Custom admin site configuration

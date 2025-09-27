@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse Subjects - Georeference Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="mb-4">
+            <h1><i class="fas fa-landmark me-2"></i>Browse Subjects</h1>
+            <p class="text-muted">Explore image subjects, including notable buildings, statues, and natural features.</p>
+        </div>
+
+        <div class="row">
+            {% for subject in subjects %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        {% if subject.wikidata_item and subject.wikidata_item.image_url %}
+                            <a href="{{ subject.get_absolute_url }}" class="d-block">
+                                <img src="{{ subject.wikidata_item.image_url }}"
+                                     alt="{{ subject.title }}"
+                                     class="card-img-top"
+                                     style="height: 200px; object-fit: cover;">
+                            </a>
+                        {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="fas fa-tag fa-4x text-muted"></i>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title mb-2">
+                                <a href="{{ subject.get_absolute_url }}" class="text-decoration-none text-dark">
+                                    {{ subject.title }}
+                                </a>
+                                <small class="text-muted d-block mt-1">{{ subject.total_images }} image{{ subject.total_images|pluralize }}</small>
+                            </h5>
+
+                            {% if subject.wikidata_item and subject.wikidata_item.description %}
+                                <p class="card-text text-muted small">{{ subject.wikidata_item.description|truncatewords:20 }}</p>
+                            {% elif subject.description %}
+                                <p class="card-text text-muted small">{{ subject.description|truncatewords:20 }}</p>
+                            {% endif %}
+
+                            {% if subject.wikidata_item %}
+                                <div class="mb-3">
+                                    <small class="text-muted">
+                                        <a href="{{ subject.wikidata_item.wikidata_url }}" target="_blank" class="text-decoration-none">
+                                            {{ subject.wikidata_item.wikidata_id }}
+                                            <i class="fas fa-external-link-alt ms-1"></i>
+                                        </a>
+                                    </small>
+                                    {% if subject.wikidata_item.inception %}
+                                        <br><small class="text-muted">Built: {{ subject.wikidata_item.inception|date:"Y" }}</small>
+                                    {% endif %}
+                                    {% if subject.wikidata_item.va_landmark_id %}
+                                        <br><small class="text-muted">VA Landmark: {{ subject.wikidata_item.va_landmark_id }}</small>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-white border-top-0">
+                            <div class="d-flex justify-content-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ subject.get_absolute_url }}" class="btn btn-primary">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                    {% if subject.pending_images > 0 %}
+                                        <a href="{% url 'images:georeference_interface' %}?subject={{ subject.slug }}" class="btn btn-success">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                        <h3 class="text-muted">No Subjects Available</h3>
+                        <p class="text-muted">There are no subjects configured yet. Subjects can be added to images by staff members.</p>
+                        {% if user.is_staff %}
+                            <a href="/admin/images/subject/add/" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Add Subject
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if subjects %}
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress {
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}

@@ -13,6 +13,9 @@ urlpatterns = [
         views.collection_detail,
         name="collection_detail",
     ),
+    # Subject browsing
+    path("subjects/", views.browse_subjects, name="browse_subjects"),
+    path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
     # Georeferencing interface
     path("georeference/", views.georeference_interface, name="georeference_interface"),
     # List and detail views
@@ -40,9 +43,26 @@ urlpatterns = [
         views.mark_will_not_georef,
         name="mark_will_not_georef",
     ),
+    # Subject management endpoints
+    path(
+        "<int:image_id>/subjects/add/",
+        views.add_subject_to_image,
+        name="add_subject_to_image",
+    ),
+    path(
+        "<int:image_id>/subjects/<int:subject_id>/remove/",
+        views.remove_subject_from_image,
+        name="remove_subject_from_image",
+    ),
+    path(
+        "image/<int:image_id>/subjects/reorder/",
+        views.reorder_subjects,
+        name="reorder_subjects",
+    ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),
+    path('api/v1/subjects/autocomplete/', views.subject_autocomplete, name='subject_autocomplete'),
 ]

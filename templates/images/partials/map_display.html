@@ -297,6 +297,8 @@ document.addEventListener('DOMContentLoaded', function() {
     urlParams.append('collection', '{{ collection_id }}');
     {% elif source_id %}
     urlParams.append('source', '{{ source_id }}');
+    {% elif subject_id %}
+    urlParams.append('subject', '{{ subject_id }}');
     {% endif %}
 
     if (urlParams.toString()) {
