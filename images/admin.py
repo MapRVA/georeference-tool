@@ -385,18 +385,6 @@ class ImageAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at", "skip_count")
     autocomplete_fields = ["duplicate_of"]
 
-    def get_search_results(self, request, queryset, search_term):
-        queryset, use_distinct = super().get_search_results(
-            request, queryset, search_term
-        )
-        if search_term:
-            try:
-                image_id = int(search_term)
-                queryset |= self.model.objects.filter(id=image_id)
-            except (ValueError, TypeError):
-                pass
-        return queryset, use_distinct
-
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         # Make nullable fields not required in admin form
@@ -414,7 +402,34 @@ class ImageAdmin(admin.ModelAdmin):
         for field_name in nullable_fields:
             if field_name in form.base_fields:
                 form.base_fields[field_name].required = False
+
+        # Remove add, change, delete buttons for duplicate_of field
+        if 'duplicate_of' in form.base_fields:
+            form.base_fields['duplicate_of'].widget.can_add_related = False
+            form.base_fields['duplicate_of'].widget.can_change_related = False
+            form.base_fields['duplicate_of'].widget.can_delete_related = False
+
         return form
+
+    def get_search_results(self, request, queryset, search_term):
+        if search_term:
+            try:
+                # If search term is a number, only return exact ID match
+                image_id = int(search_term)
+                queryset = self.model.objects.filter(id=image_id)
+                use_distinct = False
+            except (ValueError, TypeError):
+                # If not a number, use normal fuzzy search
+                queryset, use_distinct = super().get_search_results(
+                    request, queryset, search_term
+                )
+        else:
+            queryset, use_distinct = super().get_search_results(
+                request, queryset, search_term
+            )
+        return queryset, use_distinct
+
+
 
     def save_model(self, request, obj, form, change):
         # Convert empty strings to None for nullable fields
