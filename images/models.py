@@ -400,6 +400,10 @@ class PreImage(models.Model):
         default=None,
         help_text="Whether to keep this image for the main collection",
     )
+    imported = models.BooleanField(
+        default=False,
+        help_text="Whether this image has been imported",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
