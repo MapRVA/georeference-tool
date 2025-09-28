@@ -19,8 +19,11 @@ else:
     with open("insurance_maps.json", "w") as f:
         json.dump(data, f)
 
-# Extract data and save to new JSON
-layers = []
+# Extract COG URLs that correspond to entries in "prepared" lists
+cog_urls = []
+prepared_slugs = set()
+
+# First, collect all slugs from prepared entries
 for map_item in data["MAPS"]:
     if "item_lookup" in map_item and "prepared" in map_item["item_lookup"]:
         for prepared_item in map_item["item_lookup"]["prepared"]:
