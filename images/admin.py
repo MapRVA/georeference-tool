@@ -192,7 +192,8 @@ class PreCollectionAdmin(admin.ModelAdmin):
 
     def label_precollection(self, request, precollection_id):
         precollection = get_object_or_404(PreCollection, id=precollection_id)
-        images = precollection.images.all().order_by("id")
+        # Exclude images that have already been imported
+        images = precollection.images.filter(imported=False).order_by("id")
 
         # Calculate counts
         reviewed_count = images.filter(keep__isnull=False).count()
