@@ -6,7 +6,7 @@
 <div class="row">
     <div class="col-12">
         <div class="mb-4">
-            <h1><i class="fas fa-landmark me-2"></i>Browse Subjects</h1>
+            <h1><i class="fas fa-map-pin me-3"></i>Browse Subjects</h1>
             <p class="text-muted">Explore image subjects, including notable buildings, statues, and natural features.</p>
         </div>
 
@@ -23,7 +23,7 @@
                             </a>
                         {% else %}
                             <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
-                                <i class="fas fa-tag fa-4x text-muted"></i>
+                                <i class="fas fa-map-pin fa-4x text-muted"></i>
                             </div>
                         {% endif %}
                         <div class="card-body">
@@ -76,7 +76,7 @@
             {% empty %}
                 <div class="col-12">
                     <div class="text-center py-5">
-                        <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                        <i class="fas fa-map-pin fa-3x text-muted mb-3"></i>
                         <h3 class="text-muted">No Subjects Available</h3>
                         <p class="text-muted">There are no subjects configured yet. Subjects can be added to images by staff members.</p>
                         {% if user.is_staff %}
