@@ -313,8 +313,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                             <!-- Georeferenced Status Badge -->
                             ${result.georeferenced ? `
-                                <span class="badge bg-success position-absolute top-0 start-0 m-2" style="z-index: 10;">
+                                <span class="badge bg-success position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Georeferenced">
                                     <i class="fas fa-map-marker-alt"></i>
+                                </span>
+                            ` : result.will_not_georef ? `
+                                <span class="badge bg-secondary position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Will not georeference">
+                                    <i class="fas fa-ban"></i>
                                 </span>
                             ` : ''}
 

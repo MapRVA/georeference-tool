@@ -1116,6 +1116,7 @@ def semantic_search(request):
                     },
                     "detail_url": f"/{image_id}/",
                     "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
                 }
 
                 # Add georeference data if available
@@ -1304,6 +1305,7 @@ def text_search(request):
                 },
                 "detail_url": f"/{image.id}/",
                 "georeferenced": image.is_georeferenced,
+                "will_not_georef": image.will_not_georef,
             }
             search_results.append(result)
 
