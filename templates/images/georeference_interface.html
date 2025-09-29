@@ -228,23 +228,6 @@
                                     <div id="mymap"></div>
                                 </div>
                                 <div id="controls-container">
-                                    <div id="coordinate-inputs">
-                                        <div class="input-row">
-                                            <label for="latitude-input">Latitude:</label>
-                                            <input type="text" id="latitude-input" class="coordinate-input" placeholder="YY.YYYY">
-                                        </div>
-                                        <div class="input-row">
-                                            <label for="longitude-input">Longitude:</label>
-                                            <input type="text" id="longitude-input" class="coordinate-input" placeholder="XX.XXXX">
-                                        </div>
-                                        <div class="input-row">
-                                            <label for="direction-input">Direction:</label>
-                                            <div class="direction-input-group">
-                                                <input type="text" class="inactive" id="direction-input" placeholder="e.g. 300">
-                                                <button type="button" id="reset-direction" title="Remove direction">✕</button>
-                                            </div>
-                                        </div>
-                                    </div>
                                     <div id="joystick-container">
                                         <div id="joystick-handle"></div>
                                     </div>
@@ -253,6 +236,33 @@
                                         <a href="#" id="mapswap-link" target="_blank" class="btn btn-outline-primary">
                                             <i class="fas fa-shuffle me-2"></i>MapSwap
                                         </a>
+                                    </div>
+                                </div>
+                                <div class="text-center mt-3">
+                                    <button class="btn btn-outline-secondary btn-sm advanced-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#advancedInputs" aria-expanded="false" aria-controls="advancedInputs">
+                                        <i class="fas fa-cog me-1"></i>Advanced
+                                        <i class="fas fa-chevron-down ms-1"></i>
+                                    </button>
+                                </div>
+                                <div class="collapse mt-2" id="advancedInputs">
+                                    <div class="d-flex justify-content-center">
+                                        <div id="coordinate-inputs">
+                                            <div class="input-row">
+                                                <label for="latitude-input">Latitude:</label>
+                                                <input type="text" id="latitude-input" class="coordinate-input" placeholder="YY.YYYY">
+                                            </div>
+                                            <div class="input-row">
+                                                <label for="longitude-input">Longitude:</label>
+                                                <input type="text" id="longitude-input" class="coordinate-input" placeholder="XX.XXXX">
+                                            </div>
+                                            <div class="input-row">
+                                                <label for="direction-input">Direction:</label>
+                                                <div class="direction-input-group">
+                                                    <input type="text" class="inactive" id="direction-input" placeholder="e.g. 300">
+                                                    <button type="button" id="reset-direction" title="Remove direction">✕</button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -426,6 +436,14 @@
 <link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
 <link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
 <style>
+    .advanced-toggle .fa-chevron-down {
+        transition: transform 0.3s ease;
+    }
+
+    .advanced-toggle[aria-expanded="true"] .fa-chevron-down {
+        transform: rotate(180deg);
+    }
+
     .breadcrumb {
         background: none;
         padding: 0;
