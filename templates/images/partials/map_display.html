@@ -539,8 +539,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        switchToOverlayLayer(layerId, tileUrl, title, tileType) {
-            console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType);
+        switchToOverlayLayer(layerId, tileUrl, title, tileType, attribution) {
+            console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType, attribution);
 
             // For PMTiles, check if protocol is set up
             if (tileType === 'pmtiles') {
@@ -587,13 +587,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.map.addSource(sourceId, {
                             type: 'raster',
                             url: `pmtiles://${tileUrl}`,
-                            tileSize: 256
+                            tileSize: 256,
+                            attribution: attribution
                         });
                     } else if (tileType === 'xyz') {
                         this.map.addSource(sourceId, {
                             type: 'raster',
                             tiles: [tileUrl],
-                            tileSize: 256
+                            tileSize: 256,
+                            attribution: attribution
                         });
                     }
                     console.log('Tile source added successfully');
@@ -736,7 +738,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             layerId,
                             layer.url,
                             layer.name,
-                            layer.type || 'pmtiles'
+                            layer.type || 'pmtiles',
+                            layer.attribution || ''
                         );
 
                         // Close dropdown
