@@ -6,6 +6,18 @@
 <link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
 
 <style>
+    .badge-group .badge {
+        border-radius: 0;
+    }
+    .badge-group .badge:first-child {
+        border-top-left-radius: var(--bs-border-radius);
+        border-bottom-left-radius: var(--bs-border-radius);
+    }
+    .badge-group .badge:last-child {
+        border-top-right-radius: var(--bs-border-radius);
+        border-bottom-right-radius: var(--bs-border-radius);
+    }
+
     .autoComplete_wrapper > ul {
         border: 1px solid var(--bs-border-color);
         border-radius: var(--bs-border-radius);
@@ -405,9 +417,29 @@
 
                                 <dt class="col-sm-5">Validations:</dt>
                                 <dd class="col-sm-7">
-                                    <span class="badge {% if image.get_georeference.validation_count > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                                        {{ image.get_georeference.validation_count }}
-                                    </span>
+                                    {% with validation_counts=image.get_georeference.get_validation_counts %}
+                                        {% if image.get_georeference.validation_count > 0 %}
+                                            <div class="badge-group d-flex flex-wrap">
+                                                {% if validation_counts.correct > 0 %}
+                                                    <span class="badge bg-success" title="{{ validation_counts.correct }} correct validation{{ validation_counts.correct|pluralize }}">
+                                                        {{ validation_counts.correct }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if validation_counts.uncertain > 0 %}
+                                                    <span class="badge bg-warning text-dark" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
+                                                        {{ validation_counts.uncertain }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if validation_counts.incorrect > 0 %}
+                                                    <span class="badge bg-danger" title="{{ validation_counts.incorrect }} incorrect validation{{ validation_counts.incorrect|pluralize }}">
+                                                        {{ validation_counts.incorrect }}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span class="badge bg-secondary">0</span>
+                                        {% endif %}
+                                    {% endwith %}
                                 </dd>
 
                                 {% if image.get_georeference.confidence_notes %}

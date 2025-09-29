@@ -1,14 +1,14 @@
-import requests
 import urllib.parse
-import time
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
+import requests
+from django.contrib.admin.utils import quote
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.contrib.admin.utils import quote
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Conditionally import SearchVectorField only if using PostgreSQL
 try:
@@ -215,17 +215,21 @@ class Image(models.Model):
         if self.duplicate_of:
             # Check if any other image is already marked as a duplicate of this image
             if self.pk and Image.objects.filter(duplicate_of=self.pk).exists():
-                raise ValidationError({
-                    "duplicate_of": "Cannot mark this image as a duplicate because other images are already marked as duplicates of this one. Chains of duplicates are not allowed."
-                })
+                raise ValidationError(
+                    {
+                        "duplicate_of": "Cannot mark this image as a duplicate because other images are already marked as duplicates of this one. Chains of duplicates are not allowed."
+                    }
+                )
 
         # Prevent marking georeferenced images as duplicates
         if self.duplicate_of and self.pk:
             # Check if this image has any georeferences
             if self.georeferences.exists():
-                raise ValidationError({
-                    "duplicate_of": "Cannot mark this image as a duplicate because it has already been georeferenced. Georeferenced images should not be marked as duplicates."
-                })
+                raise ValidationError(
+                    {
+                        "duplicate_of": "Cannot mark this image as a duplicate because it has already been georeferenced. Georeferenced images should not be marked as duplicates."
+                    }
+                )
 
     def save(self, *args, **kwargs):
         """Validate EDTF date format and pre-calculate decimal dates before saving"""
@@ -250,12 +254,12 @@ class Image(models.Model):
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
     duplicate_of = models.ForeignKey(
-        'self',
+        "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='duplicates',
-        help_text="ID of another Image if this is a duplicate"
+        related_name="duplicates",
+        help_text="ID of another Image if this is a duplicate",
     )
 
     # Image embedding for CLIP similarity search
@@ -271,7 +275,7 @@ class Image(models.Model):
         "Subject",
         through="SubjectMapping",
         blank=True,
-        help_text="Subjects (buildings, people, monuments, etc.) that appear in this image"
+        help_text="Subjects (buildings, people, monuments, etc.) that appear in this image",
     )
 
     # Full-text search vector (only works with PostgreSQL, ignored in SQLite)
@@ -486,6 +490,16 @@ class Georeference(models.Model):
         """Number of validations this georeference has received"""
         return self.validations.count()
 
+    def get_validation_counts(self):
+        """Get counts for each validation type"""
+        from django.db.models import Count, Q
+
+        return self.validations.aggregate(
+            correct=Count("pk", filter=Q(validation="correct")),
+            uncertain=Count("pk", filter=Q(validation="uncertain")),
+            incorrect=Count("pk", filter=Q(validation="incorrect")),
+        )
+
     class Meta:
         indexes = [
             models.Index(fields=["image", "georeferenced_by"]),
@@ -624,43 +638,27 @@ class WikidataItem(models.Model):
     """Wikidata item with cached metadata"""
 
     wikidata_id = models.CharField(
-        max_length=20,
-        unique=True,
-        help_text="Wikidata ID (e.g., Q123456)"
+        max_length=20, unique=True, help_text="Wikidata ID (e.g., Q123456)"
     )
-    title = models.CharField(
-        max_length=500,
-        help_text="Title from Wikidata"
-    )
-    description = models.TextField(
-        blank=True,
-        help_text="Description from Wikidata"
-    )
+    title = models.CharField(max_length=500, help_text="Title from Wikidata")
+    description = models.TextField(blank=True, help_text="Description from Wikidata")
     wikipedia_url = models.URLField(
-        blank=True,
-        help_text="URL to Wikipedia page (if available)"
+        blank=True, help_text="URL to Wikipedia page (if available)"
     )
     va_landmark_id = models.CharField(
-        max_length=30,
-        blank=True,
-        help_text="Virginia Landmarks Registry ID"
+        max_length=30, blank=True, help_text="Virginia Landmarks Registry ID"
     )
     architect = models.TextField(
-        blank=True,
-        help_text="Architect(s) - multiple names can be separated by commas"
+        blank=True, help_text="Architect(s) - multiple names can be separated by commas"
     )
     image_url = models.URLField(
-        blank=True,
-        help_text="URL to representative image from Wikidata"
+        blank=True, help_text="URL to representative image from Wikidata"
     )
     inception = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Date of construction/inception"
+        null=True, blank=True, help_text="Date of construction/inception"
     )
     last_updated = models.DateTimeField(
-        auto_now=True,
-        help_text="When metadata was last fetched from Wikidata"
+        auto_now=True, help_text="When metadata was last fetched from Wikidata"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -680,7 +678,7 @@ class WikidataItem(models.Model):
             total=3,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET"]
+            allowed_methods=["GET"],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
@@ -706,7 +704,11 @@ class WikidataItem(models.Model):
             title = entity.get("labels", {}).get("en", {}).get("value", "")
             description = entity.get("descriptions", {}).get("en", {}).get("value", "")
             wiki_title = entity.get("sitelinks", {}).get("enwiki", {}).get("title")
-            wikipedia_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(wiki_title.replace(' ', '_'))}" if wiki_title else ""
+            wikipedia_url = (
+                f"https://en.wikipedia.org/wiki/{urllib.parse.quote(wiki_title.replace(' ', '_'))}"
+                if wiki_title
+                else ""
+            )
 
             architect = ""
             image_url = ""
@@ -725,7 +727,9 @@ class WikidataItem(models.Model):
                 for claim in claims["P18"]:
                     if claim.get("mainsnak", {}).get("snaktype") == "value":
                         filename = claim["mainsnak"]["datavalue"]["value"]
-                        filename_encoded = urllib.parse.quote(filename.replace(" ", "_"))
+                        filename_encoded = urllib.parse.quote(
+                            filename.replace(" ", "_")
+                        )
                         image_url = f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{filename_encoded}&width=300"
                         break
 
@@ -748,9 +752,13 @@ class WikidataItem(models.Model):
 
         except requests.RequestException as e:
             # Raise a validation error to be caught by the save method
-            raise ValidationError(f"Network error fetching Wikidata info for {self.wikidata_id}: {e}")
+            raise ValidationError(
+                f"Network error fetching Wikidata info for {self.wikidata_id}: {e}"
+            )
         except Exception as e:
-            raise ValidationError(f"Unexpected error fetching Wikidata info for {self.wikidata_id}: {e}")
+            raise ValidationError(
+                f"Unexpected error fetching Wikidata info for {self.wikidata_id}: {e}"
+            )
         finally:
             session.close()
 
@@ -767,7 +775,10 @@ class WikidataItem(models.Model):
             if wikidata_info["inception"]:
                 try:
                     from datetime import datetime
-                    self.inception = datetime.strptime(wikidata_info["inception"], "%Y-%m-%d").date()
+
+                    self.inception = datetime.strptime(
+                        wikidata_info["inception"], "%Y-%m-%d"
+                    ).date()
                 except (ValueError, TypeError):
                     pass
             return True
@@ -790,20 +801,16 @@ class WikidataItem(models.Model):
 class Subject(models.Model):
     """Subject that can appear in images (buildings, people, monuments, etc.)"""
 
-    title = models.CharField(
-        max_length=500, help_text="Name/title of the subject"
-    )
+    title = models.CharField(max_length=500, help_text="Name/title of the subject")
     slug = models.SlugField(unique=True)
-    description = models.TextField(
-        help_text="Admin-written description of the subject"
-    )
+    description = models.TextField(help_text="Admin-written description of the subject")
     wikidata_item = models.ForeignKey(
         WikidataItem,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="subjects",
-        help_text="Optional linked Wikidata item"
+        help_text="Optional linked Wikidata item",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -827,18 +834,13 @@ class SubjectMapping(models.Model):
     """Through model connecting images to subjects with ordering"""
 
     image = models.ForeignKey(
-        Image,
-        on_delete=models.CASCADE,
-        related_name="subject_mappings"
+        Image, on_delete=models.CASCADE, related_name="subject_mappings"
     )
     subject = models.ForeignKey(
-        Subject,
-        on_delete=models.CASCADE,
-        related_name="image_mappings"
+        Subject, on_delete=models.CASCADE, related_name="image_mappings"
     )
     order = models.PositiveIntegerField(
-        default=0,
-        help_text="Display order on image page (lower numbers first)"
+        default=0, help_text="Display order on image page (lower numbers first)"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
