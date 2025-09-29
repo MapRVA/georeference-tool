@@ -652,7 +652,9 @@ class WikidataItem(models.Model):
         blank=True, help_text="Architect(s) - multiple names can be separated by commas"
     )
     image_url = models.URLField(
-        blank=True, help_text="URL to representative image from Wikidata"
+        max_length=500,
+        blank=True,
+        help_text="URL to representative image from Wikidata",
     )
     inception = models.DateField(
         null=True, blank=True, help_text="Date of construction/inception"
