@@ -50,7 +50,7 @@ urlpatterns = [
         name="add_subject_to_image",
     ),
     path(
-        "<int:image_id>/subjects/<int:subject_id>/remove/",
+        "subjects/mapping/<int:subject_mapping_id>/remove/",
         views.remove_subject_from_image,
         name="remove_subject_from_image",
     ),
@@ -64,5 +64,9 @@ urlpatterns = [
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),
-    path('api/v1/subjects/autocomplete/', views.subject_autocomplete, name='subject_autocomplete'),
+    path(
+        "api/v1/subjects/autocomplete/",
+        views.subject_autocomplete,
+        name="subject_autocomplete",
+    ),
 ]

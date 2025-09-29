@@ -648,7 +648,7 @@
                                         </div>
                                         {% if user.is_staff %}
                                         <div class="position-absolute top-0 end-0 p-1 subject-card-control">
-                                            <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-id="{{ subject_relation.subject.id }}" title="Remove subject">
+                                            <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="{{ subject_relation.id }}" title="Remove subject">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </div>
@@ -1376,10 +1376,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('click', function(e) {
             const removeButton = e.target.closest('.remove-subject');
             if (removeButton) {
-                const subjectId = removeButton.dataset.subjectId;
+                const subjectRelationId = removeButton.dataset.subjectRelationId;
                 const cardWrapper = removeButton.closest('.subject-card-wrapper');
 
-                if (!subjectId) return;
+                if (!subjectRelationId) return;
 
                 if (!confirm('Are you sure you want to remove this subject from the image?')) {
                     return;
@@ -1390,8 +1390,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 removeButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
                 const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+                const url = `{% url 'images:remove_subject_from_image' 0 %}`.replace('/0/', `/${subjectRelationId}/`);
 
-                fetch(`{% url 'images:remove_subject_from_image' image.id 0 %}`.replace('0', subjectId), {
+                fetch(url, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken
@@ -1399,7 +1400,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .then(response => {
                     if (!response.ok) {
-                        // Try to get error from JSON response, fallback to status text
                         return response.json().catch(() => null).then(errorData => {
                             throw new Error(errorData?.error || response.statusText);
                         });
@@ -1409,22 +1409,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     if (data.success) {
                         showAlert('success', data.message);
-                        // Animate out and remove
                         if (cardWrapper) {
                             cardWrapper.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
                             cardWrapper.style.opacity = '0';
                             cardWrapper.style.transform = 'scale(0.9)';
                             setTimeout(() => {
                                 cardWrapper.remove();
-                                // Check if no subjects are left
                                 const subjectRow = document.getElementById('image-subjects-row');
                                 if (subjectRow && subjectRow.children.length === 0) {
-                                    location.reload(); // Reload to show "No subjects" message
+                                    location.reload();
                                 }
                             }, 300);
                         }
                     } else {
-                        // This else block might not be reached if errors are thrown
                         showAlert('danger', data.error || 'An unknown error occurred.');
                         removeButton.disabled = false;
                         removeButton.innerHTML = originalIcon;

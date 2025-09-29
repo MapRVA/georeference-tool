@@ -1451,44 +1451,39 @@ def add_subject_to_image(request, image_id):
 
 
 @require_http_methods(["POST"])
-def remove_subject_from_image(request, image_id, subject_id):
+def remove_subject_from_image(request, subject_mapping_id):
     """Remove a subject from an image (admin only)"""
-    # Check if user is authenticated and is staff
-    if not request.user.is_authenticated:
-        return JsonResponse(
-            {"success": False, "error": "Authentication required"}, status=401
-        )
-
-    if not request.user.is_staff:
+    if not request.user.is_authenticated or not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Admin permissions required"}, status=403
         )
 
-    image = get_object_or_404(Image, id=image_id)
-
     try:
-        # Find and delete the SubjectMapping relationship
-        subject_relation = get_object_or_404(
-            SubjectMapping, image=image, subject_id=subject_id
-        )
-
+        # Find the specific subject mapping by its ID
+        subject_relation = get_object_or_404(SubjectMapping, id=subject_mapping_id)
         subject_title = subject_relation.subject.title
+
+        # Although we're not using the image for lookup, it's good practice
+        # to ensure it exists, though get_object_or_404 handles this implicitly.
+        # image = subject_relation.image
+
         subject_relation.delete()
 
         return JsonResponse(
             {
                 "success": True,
-                "message": f"Subject '{subject_title}' removed from image",
+                "message": f"Subject '{subject_title}' removed from image.",
             }
         )
-
-    except Exception as e:
+    except SubjectMapping.DoesNotExist:
         return JsonResponse(
-            {"success": False, "error": f"Error removing subject: {str(e)}"}, status=500
+            {"success": False, "error": "Subject mapping not found."}, status=404
         )
-
+    except Exception:
+        # Log the exception for debugging
+        # logger.error(f"Error removing subject mapping: {e}")
         return JsonResponse(
-            {"success": False, "error": f"An unexpected error occurred: {str(e)}"},
+            {"success": False, "error": "An unexpected error occurred."},
             status=500,
         )
 
