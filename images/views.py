@@ -1,17 +1,16 @@
 import json
-import requests
 from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Case, Func, IntegerField, Value, When
+from django.db.models.functions import Lower
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from django.db.models.functions import Lower
 
 # Try to import PostgreSQL search functions
 try:
@@ -68,7 +67,9 @@ def browse_sources(request):
         total_collections += source.public_collections_count
 
         source.total_images = Image.objects.filter(
-            collection__source=source, collection__public=True, duplicate_of__isnull=True
+            collection__source=source,
+            collection__public=True,
+            duplicate_of__isnull=True,
         ).count()
         source.georeferenced_images = (
             Image.objects.filter(
@@ -111,9 +112,15 @@ def source_detail(request, slug):
 
     # Add statistics for each collection
     for collection in collections:
-        collection.total_images = collection.images.filter(duplicate_of__isnull=True).count()
+        collection.total_images = collection.images.filter(
+            duplicate_of__isnull=True
+        ).count()
         collection.georeferenced_images = (
-            collection.images.filter(duplicate_of__isnull=True, georeferences__isnull=False).distinct().count()
+            collection.images.filter(
+                duplicate_of__isnull=True, georeferences__isnull=False
+            )
+            .distinct()
+            .count()
         )
         collection.pending_images = (
             collection.total_images - collection.georeferenced_images
@@ -156,13 +163,17 @@ def collection_detail(request, source_slug, collection_slug):
 
     # Sort images: georeferenced images second-to-last, "will not reference" images at the end
     # Exclude duplicate images from the collection view
-    images = collection.images.filter(duplicate_of__isnull=True).annotate(
-        has_georeference=Case(
-            When(georeferences__isnull=False, then=Value(1)),
-            default=Value(0),
-            output_field=IntegerField(),
+    images = (
+        collection.images.filter(duplicate_of__isnull=True)
+        .annotate(
+            has_georeference=Case(
+                When(georeferences__isnull=False, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
         )
-    ).order_by("will_not_georef", "has_georeference", "id")
+        .order_by("will_not_georef", "has_georeference", "id")
+    )
     total_images = images.count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
 
@@ -987,9 +998,11 @@ def semantic_search(request):
                 status=400,
             )
 
-        # Base queryset - only public images
+        # Base queryset - only public images, excluding duplicates
         images = Image.objects.filter(
-            collection__public=True, collection__source__public=True
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
         ).select_related("collection__source")
 
         # Filter to images with embeddings (unless explicitly including those without)
@@ -1192,7 +1205,9 @@ def text_search(request):
     try:
         # 1. Use the ORM for initial filtering (easier for optional filters)
         images = Image.objects.filter(
-            collection__public=True, collection__source__public=True
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
         )
 
         if georeferenced_only:
@@ -1309,19 +1324,19 @@ def text_search(request):
         )
 
 
-
-
 def subject_autocomplete(request):
-    if 'q' not in request.GET:
+    if "q" not in request.GET:
         return JsonResponse([], safe=False)
 
-    query = request.GET.get('q', '')
-    if len(query) < 2: # Don't search for very short strings
+    query = request.GET.get("q", "")
+    if len(query) < 2:  # Don't search for very short strings
         return JsonResponse([], safe=False)
 
-    subjects = Subject.objects.filter(title__icontains=query).annotate(
-        lower_title=Lower('title')
-    ).order_by('lower_title')[:10]
+    subjects = (
+        Subject.objects.filter(title__icontains=query)
+        .annotate(lower_title=Lower("title"))
+        .order_by("lower_title")[:10]
+    )
 
     results = []
     for subject in subjects:
@@ -1329,7 +1344,9 @@ def subject_autocomplete(request):
             "id": subject.id,
             "title": subject.title,
             "description": subject.description,
-            "wikidata_id": subject.wikidata_item.wikidata_id if subject.wikidata_item else None
+            "wikidata_id": subject.wikidata_item.wikidata_id
+            if subject.wikidata_item
+            else None,
         }
         results.append(result)
 
@@ -1340,7 +1357,9 @@ def subject_autocomplete(request):
 def add_subject_to_image(request, image_id):
     """Add a subject to an image via Wikidata ID (admin only)"""
     if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({"success": False, "error": "Admin permissions required"}, status=403)
+        return JsonResponse(
+            {"success": False, "error": "Admin permissions required"}, status=403
+        )
 
     image = get_object_or_404(Image, id=image_id)
 
@@ -1350,14 +1369,19 @@ def add_subject_to_image(request, image_id):
 
         if not wikidata_id or not wikidata_id.startswith("Q"):
             return JsonResponse(
-                {"success": False, "error": "Invalid Wikidata ID format. Must start with 'Q'."},
-                status=400
+                {
+                    "success": False,
+                    "error": "Invalid Wikidata ID format. Must start with 'Q'.",
+                },
+                status=400,
             )
 
         # The new model logic handles fetching on creation.
         # We wrap this in a try-except block to catch validation errors if fetching fails.
         try:
-            wikidata_item, created = WikidataItem.objects.get_or_create(wikidata_id=wikidata_id)
+            wikidata_item, created = WikidataItem.objects.get_or_create(
+                wikidata_id=wikidata_id
+            )
         except ValidationError as e:
             return JsonResponse({"success": False, "error": str(e)}, status=400)
 
@@ -1366,44 +1390,53 @@ def add_subject_to_image(request, image_id):
             wikidata_item=wikidata_item,
             defaults={
                 "title": wikidata_item.title,
-                "description": wikidata_item.description or f"Subject from Wikidata: {wikidata_id}",
-            }
+                "description": wikidata_item.description
+                or f"Subject from Wikidata: {wikidata_id}",
+            },
         )
 
         # Update Subject if it exists but has outdated info
-        if not subject_created and (subject.title == wikidata_id or not subject.description):
+        if not subject_created and (
+            subject.title == wikidata_id or not subject.description
+        ):
             subject.title = wikidata_item.title
-            subject.description = wikidata_item.description or f"Subject from Wikidata: {wikidata_id}"
+            subject.description = (
+                wikidata_item.description or f"Subject from Wikidata: {wikidata_id}"
+            )
             subject.save()
 
         if SubjectMapping.objects.filter(image=image, subject=subject).exists():
             return JsonResponse(
-                {"success": False, "error": "This subject is already associated with this image."},
-                status=400
+                {
+                    "success": False,
+                    "error": "This subject is already associated with this image.",
+                },
+                status=400,
             )
 
-        max_order = SubjectMapping.objects.filter(image=image).aggregate(
-            max_order=models.Max("order")
-        )["max_order"] or 0
-
-        SubjectMapping.objects.create(
-            image=image,
-            subject=subject,
-            order=max_order + 1
+        max_order = (
+            SubjectMapping.objects.filter(image=image).aggregate(
+                max_order=models.Max("order")
+            )["max_order"]
+            or 0
         )
 
-        return JsonResponse({
-            "success": True,
-            "message": f"Subject {wikidata_id} added to image",
-            "subject": {
-                "id": subject.id,
-                "title": subject.title,
-                "description": subject.description,
-                "wikidata_id": wikidata_id,
-                "wikidata_url": wikidata_item.wikidata_url,
-                "image_url": wikidata_item.image_url,
+        SubjectMapping.objects.create(image=image, subject=subject, order=max_order + 1)
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Subject {wikidata_id} added to image",
+                "subject": {
+                    "id": subject.id,
+                    "title": subject.title,
+                    "description": subject.description,
+                    "wikidata_id": wikidata_id,
+                    "wikidata_url": wikidata_item.wikidata_url,
+                    "image_url": wikidata_item.image_url,
+                },
             }
-        })
+        )
 
     except json.JSONDecodeError:
         return JsonResponse(
@@ -1434,33 +1467,37 @@ def remove_subject_from_image(request, image_id, subject_id):
     try:
         # Find and delete the SubjectMapping relationship
         subject_relation = get_object_or_404(
-            SubjectMapping,
-            image=image,
-            subject_id=subject_id
+            SubjectMapping, image=image, subject_id=subject_id
         )
 
         subject_title = subject_relation.subject.title
         subject_relation.delete()
 
-        return JsonResponse({
-            "success": True,
-            "message": f"Subject '{subject_title}' removed from image"
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Subject '{subject_title}' removed from image",
+            }
+        )
 
     except Exception as e:
         return JsonResponse(
             {"success": False, "error": f"Error removing subject: {str(e)}"}, status=500
         )
 
-
-        return JsonResponse({"success": False, "error": f"An unexpected error occurred: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"An unexpected error occurred: {str(e)}"},
+            status=500,
+        )
 
 
 @require_http_methods(["POST"])
 def reorder_subjects(request, image_id):
     """API endpoint to reorder subjects for an image (admin only)"""
     if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({"success": False, "error": "Admin permissions required"}, status=403)
+        return JsonResponse(
+            {"success": False, "error": "Admin permissions required"}, status=403
+        )
 
     image = get_object_or_404(Image, id=image_id)
 
@@ -1469,37 +1506,62 @@ def reorder_subjects(request, image_id):
         ordered_ids = data.get("order")
 
         if not isinstance(ordered_ids, list):
-            return JsonResponse({"success": False, "error": "Invalid data format: 'order' must be a list."}, status=400)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid data format: 'order' must be a list.",
+                },
+                status=400,
+            )
 
         with transaction.atomic():
             # Get all subject relations for this image
             subject_relations = SubjectMapping.objects.filter(image=image)
 
             # Create a map of ID to instance
-            relation_map = {str(relation.id): relation for relation in subject_relations}
+            relation_map = {
+                str(relation.id): relation for relation in subject_relations
+            }
 
             # Check if the received IDs match the existing relations
             if set(relation_map.keys()) != set(ordered_ids):
-                 return JsonResponse({"success": False, "error": "Submitted subject IDs do not match existing subjects for this image."}, status=400)
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Submitted subject IDs do not match existing subjects for this image.",
+                    },
+                    status=400,
+                )
 
             # Update the order field based on the new order
             for index, subject_relation_id in enumerate(ordered_ids):
                 relation = relation_map.get(str(subject_relation_id))
                 if relation:
                     relation.order = index
-                    relation.save(update_fields=['order'])
+                    relation.save(update_fields=["order"])
 
-        return JsonResponse({"success": True, "message": "Subject order updated successfully."})
+        return JsonResponse(
+            {"success": True, "message": "Subject order updated successfully."}
+        )
 
     except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid JSON in request body"}, status=400)
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"}, status=400
+        )
     except Exception as e:
-        return JsonResponse({"success": False, "error": f"An unexpected error occurred: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"An unexpected error occurred: {str(e)}"},
+            status=500,
+        )
 
 
 def browse_subjects(request):
     """Browse all subjects"""
-    subjects = Subject.objects.all().select_related('wikidata_item').prefetch_related('image_mappings__image')
+    subjects = (
+        Subject.objects.all()
+        .select_related("wikidata_item")
+        .prefetch_related("image_mappings__image")
+    )
 
     # Add statistics for each subject
     for subject in subjects:
@@ -1507,15 +1569,19 @@ def browse_subjects(request):
         subject.total_images = subject.image_mappings.filter(
             image__duplicate_of__isnull=True,
             image__collection__public=True,
-            image__collection__source__public=True
+            image__collection__source__public=True,
         ).count()
 
-        subject.georeferenced_images = subject.image_mappings.filter(
-            image__duplicate_of__isnull=True,
-            image__collection__public=True,
-            image__collection__source__public=True,
-            image__georeferences__isnull=False
-        ).distinct().count()
+        subject.georeferenced_images = (
+            subject.image_mappings.filter(
+                image__duplicate_of__isnull=True,
+                image__collection__public=True,
+                image__collection__source__public=True,
+                image__georeferences__isnull=False,
+            )
+            .distinct()
+            .count()
+        )
 
         subject.pending_images = subject.total_images - subject.georeferenced_images
 
@@ -1529,17 +1595,19 @@ def browse_subjects(request):
     total_georeferenced = sum(subject.georeferenced_images for subject in subjects)
 
     overall_stats = {
-        'total_subjects': total_subjects,
-        'total_images': total_images,
-        'total_georeferenced': total_georeferenced,
-        'georeferenced_percentage': round((total_georeferenced / total_images * 100), 1) if total_images > 0 else 0,
+        "total_subjects": total_subjects,
+        "total_images": total_images,
+        "total_georeferenced": total_georeferenced,
+        "georeferenced_percentage": round((total_georeferenced / total_images * 100), 1)
+        if total_images > 0
+        else 0,
     }
 
     context = {
-        'subjects': subjects,
-        'overall_stats': overall_stats,
+        "subjects": subjects,
+        "overall_stats": overall_stats,
     }
-    return render(request, 'images/browse_subjects.html', context)
+    return render(request, "images/browse_subjects.html", context)
 
 
 def subject_detail(request, subject_slug):
@@ -1547,18 +1615,24 @@ def subject_detail(request, subject_slug):
     subject = get_object_or_404(Subject, slug=subject_slug)
 
     # Get images associated with this subject (only from public collections, excluding duplicates)
-    images = Image.objects.filter(
-        subject_mappings__subject=subject,
-        duplicate_of__isnull=True,
-        collection__public=True,
-        collection__source__public=True
-    ).select_related('collection__source').annotate(
-        has_georeference=Case(
-            When(georeferences__isnull=False, then=Value(1)),
-            default=Value(0),
-            output_field=IntegerField(),
+    images = (
+        Image.objects.filter(
+            subject_mappings__subject=subject,
+            duplicate_of__isnull=True,
+            collection__public=True,
+            collection__source__public=True,
         )
-    ).order_by('will_not_georef', 'has_georeference', 'id').distinct()
+        .select_related("collection__source")
+        .annotate(
+            has_georeference=Case(
+                When(georeferences__isnull=False, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("will_not_georef", "has_georeference", "id")
+        .distinct()
+    )
 
     total_images = images.count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
@@ -1566,15 +1640,17 @@ def subject_detail(request, subject_slug):
 
     # Paginate images for browsing
     paginator = Paginator(images, 24)  # 24 images per page for grid layout
-    page_number = request.GET.get('page')
+    page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     context = {
-        'subject': subject,
-        'page_obj': page_obj,
-        'total_images': total_images,
-        'georeferenced_images': georeferenced_images,
-        'pending_images': pending_images,
-        'completion_percentage': (georeferenced_images / total_images * 100) if total_images > 0 else 0,
+        "subject": subject,
+        "page_obj": page_obj,
+        "total_images": total_images,
+        "georeferenced_images": georeferenced_images,
+        "pending_images": pending_images,
+        "completion_percentage": (georeferenced_images / total_images * 100)
+        if total_images > 0
+        else 0,
     }
-    return render(request, 'images/subject_detail.html', context)
+    return render(request, "images/subject_detail.html", context)
