@@ -880,7 +880,7 @@ def vector_tiles_endpoint(request, z, x, y):
         if result and result[0]:
             mvt_data = bytes(result[0])
             response = HttpResponse(mvt_data, content_type='application/x-protobuf')
-            response['Content-Encoding'] = 'gzip' if len(mvt_data) > 1024 else None
+            # response['Content-Encoding'] = 'gzip' if len(mvt_data) > 1024 else None
             return response
         else:
             # Return empty tile
