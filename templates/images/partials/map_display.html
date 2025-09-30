@@ -287,8 +287,7 @@ window.setupPMTilesProtocol = function() {
 document.addEventListener('DOMContentLoaded', function() {
     const mapId = '{{ map_id|default:'map-display' }}';
 
-    // Build GeoJSON URL with appropriate parameters
-    let geojsonUrl = '{% url "images:geojson" %}';
+    // Build vector tiles URL template
     const urlParams = new URLSearchParams();
 
     {% if image_id %}
@@ -301,8 +300,10 @@ document.addEventListener('DOMContentLoaded', function() {
     urlParams.append('subject', '{{ subject_id }}');
     {% endif %}
 
+    let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+    
     if (urlParams.toString()) {
-        geojsonUrl += '?' + urlParams.toString();
+        vectorTilesUrl += '?' + urlParams.toString();
     }
 
     // Layer Control Class
@@ -940,16 +941,72 @@ document.addEventListener('DOMContentLoaded', function() {
             console.warn('Could not load direction arrow image:', error);
         }
 
-        // Fetch GeoJSON data
-        try {
-            const response = await fetch(geojsonUrl);
-            const geojsonData = await response.json();
+        // Add vector tiles source for the georeferenced images
+        map.addSource('images', {
+            'type': 'vector',
+            'tiles': [vectorTilesUrl],
+            'minzoom': 0,
+            'maxzoom': 18
+        });
 
-            // Find min/max years for time slider
-            let minYear = null;
-            let maxYear = null;
-            if (geojsonData.features && geojsonData.features.length > 0) {
-                geojsonData.features.forEach(feature => {
+        // Add direction markers if image-direction image loaded successfully
+        if (map.hasImage('image-direction')) {
+            map.addLayer({
+                'id': 'image-directions',
+                'type': 'symbol',
+                'source': 'images',
+                'source-layer': 'image_points',
+                'layout': {
+                    'icon-image': 'image-direction',
+                    'icon-overlap': 'always',
+                    'icon-size': {
+                        'stops': [[5, 0.3], [15, 1]]
+                    },
+                    'icon-rotate': ['to-number', ['get', 'direction']],
+                    'icon-rotation-alignment': 'map',
+                    'icon-pitch-alignment': 'map'
+                },
+                'filter': ['has', 'direction']
+            });
+        }
+
+        // Add circle layer for image locations
+        map.addLayer({
+            'id': 'image-circles',
+            'type': 'circle',
+            'source': 'images',
+            'source-layer': 'image_points',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': 'green',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 2
+            }
+        });
+
+        // Wait for initial tile data to load to get metadata for time slider and bounds
+        map.on('sourcedata', function(e) {
+            if (e.sourceId === 'images' && e.isSourceLoaded) {
+                // Get features currently visible on the map to calculate bounds and date ranges
+                const features = map.querySourceFeatures('images', {
+                    sourceLayer: 'image_points'
+                });
+
+                if (features.length === 0) {
+                    // No data available
+                    document.getElementById(mapId).innerHTML =
+                        '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                        '<div class="text-center">' +
+                        '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+                        'No georeferenced images found' +
+                        '</div></div>';
+                    return;
+                }
+
+                // Calculate date range for time slider
+                let minYear = null;
+                let maxYear = null;
+                features.forEach(feature => {
                     const props = feature.properties;
                     if (props.fuzzy_start_decdate) {
                         if (minYear === null || props.fuzzy_start_decdate < minYear) {
@@ -963,127 +1020,76 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 });
-            }
 
-            // Only add slider if there's a valid date range and not a single image view
-            if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
-                const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
-                map.addControl(timeSlider, 'top-right');
-            }
-
-            if (!geojsonData.features || geojsonData.features.length === 0) {
-                // No data available
-                document.getElementById(mapId).innerHTML =
-                    '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                    '<div class="text-center">' +
-                    '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-                    'No georeferenced images found' +
-                    '</div></div>';
-                return;
-            }
-
-            // Add source for the georeferenced images
-            map.addSource('images', {
-                'type': 'geojson',
-                'data': geojsonData
-            });
-
-            // Add direction markers if image-direction image loaded successfully
-            if (map.hasImage('image-direction')) {
-                map.addLayer({
-                    'id': 'image-directions',
-                    'type': 'symbol',
-                    'source': 'images',
-                    'layout': {
-                        'icon-image': 'image-direction',
-                        'icon-overlap': 'always',
-                        'icon-size': {
-                            'stops': [[5, 0.3], [15, 1]]
-                        },
-                        'icon-rotate': ['to-number', ['get', 'direction']],
-                        'icon-rotation-alignment': 'map',
-                        'icon-pitch-alignment': 'map'
-                    },
-                    'filter': ['has', 'direction']
-                });
-            }
-
-            // Add circle layer for image locations
-            map.addLayer({
-                'id': 'image-circles',
-                'type': 'circle',
-                'source': 'images',
-                'paint': {
-                    'circle-radius': 8,
-                    'circle-color': 'green',
-                    'circle-stroke-color': '#fff',
-                    'circle-stroke-width': 2
+                // Only add slider if there's a valid date range and not a single image view
+                if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
+                    const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
+                    map.addControl(timeSlider, 'top-right');
                 }
-            });
 
-            // Only zoom to data if no custom location is specified
-            {% if not center_lng or not center_lat or not zoom_level %}
-            if (geojsonData.features.length > 0) {
-                const bounds = new maplibregl.LngLatBounds();
-                geojsonData.features.forEach(function(feature) {
-                    bounds.extend(feature.geometry.coordinates);
-                });
+                // Only zoom to data if no custom location is specified
+                {% if not center_lng or not center_lat or not zoom_level %}
+                if (features.length > 0) {
+                    const bounds = new maplibregl.LngLatBounds();
+                    features.forEach(function(feature) {
+                        bounds.extend([feature.geometry.coordinates[0], feature.geometry.coordinates[1]]);
+                    });
 
-                // For single images, zoom closer; for multiple images, fit bounds with padding
-                {% if image_id %}
-                map.setCenter(geojsonData.features[0].geometry.coordinates);
-                map.setZoom(16);
-                {% else %}
-                map.fitBounds(bounds, {
-                    padding: 50,
-                    maxZoom: 15
-                });
+                    // For single images, zoom closer; for multiple images, fit bounds with padding
+                    {% if image_id %}
+                    if (features[0]) {
+                        map.setCenter([features[0].geometry.coordinates[0], features[0].geometry.coordinates[1]]);
+                        map.setZoom(16);
+                    }
+                    {% else %}
+                    map.fitBounds(bounds, {
+                        padding: 50,
+                        maxZoom: 15
+                    });
+                    {% endif %}
+                }
                 {% endif %}
+
+                // Remove this event listener after first use
+                map.off('sourcedata', arguments.callee);
             }
-            {% endif %}
+        });
 
-            // Add click handlers for image markers (only for multi-image maps)
-            {% if not image_id %}
-            map.on('click', 'image-circles', function(e) {
-                const properties = e.features[0].properties;
+        // Add click handlers for image markers (only for multi-image maps)
+        {% if not image_id %}
+        map.on('click', 'image-circles', function(e) {
+            const properties = e.features[0].properties;
 
-                // Create popup content
-                const popupContent = `
-                  <div>
-                      <img src="${properties.img_url}"
-                            style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
-                      ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
-                      <a href="${properties.img_entry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                          <i class="fas fa-eye me-1"></i>View Details
-                      </a>
-                  </div>
-                `;
+            // Build absolute URL for image entry
+            const imgEntry = window.location.origin + '/' + properties.id + '/';
 
-                new maplibregl.Popup()
-                    .setLngLat(e.lngLat)
-                    .setHTML(popupContent)
-                    .addTo(map);
-            });
+            // Create popup content
+            const popupContent = `
+              <div>
+                  <img src="${properties.img_url}"
+                        style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                  ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
+                  <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                      <i class="fas fa-eye me-1"></i>View Details
+                  </a>
+              </div>
+            `;
 
-            // Change the cursor to pointer when hovering over markers
-            map.on('mouseenter', 'image-circles', function() {
-                map.getCanvas().style.cursor = 'pointer';
-            });
+            new maplibregl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(popupContent)
+                .addTo(map);
+        });
 
-            map.on('mouseleave', 'image-circles', function() {
-                map.getCanvas().style.cursor = '';
-            });
-            {% endif %}
+        // Change the cursor to pointer when hovering over markers
+        map.on('mouseenter', 'image-circles', function() {
+            map.getCanvas().style.cursor = 'pointer';
+        });
 
-        } catch (error) {
-            console.error('Error loading GeoJSON data:', error);
-            document.getElementById(mapId).innerHTML =
-                '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                '<div class="text-center">' +
-                '<i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i><br>' +
-                'Error loading map data' +
-                '</div></div>';
-        }
+        map.on('mouseleave', 'image-circles', function() {
+            map.getCanvas().style.cursor = '';
+        });
+        {% endif %}
     });
 });
 </script>

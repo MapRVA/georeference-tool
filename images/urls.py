@@ -61,6 +61,7 @@ urlpatterns = [
     ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
+    path("api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt", views.vector_tiles_endpoint, name="vector_tiles"),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),

@@ -6,7 +6,7 @@ from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Case, Func, IntegerField, Value, When
 from django.db.models.functions import Lower
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -801,6 +801,83 @@ def geojson_endpoint(request):
     geojson = {"type": "FeatureCollection", "features": features}
 
     return JsonResponse(geojson)
+
+
+def vector_tiles_endpoint(request, z, x, y):
+    """Return MVT vector tiles of georeferenced images"""
+    from django.db import connection
+
+    # Apply the same filters as GeoJSON endpoint
+    image_id = request.GET.get("image")
+    collection_id = request.GET.get("collection")
+    source_id = request.GET.get("source")
+    subject_id = request.GET.get("subject")
+
+    # Build WHERE conditions for filtering
+    where_conditions = [
+        "g.image_id = i.id",
+        "i.collection_id = c.id",
+        "c.source_id = s.id",
+        "c.public = true",
+        "s.public = true"
+    ]
+    where_params = []
+
+    if image_id:
+        where_conditions.append("i.id = %s")
+        where_params.append(image_id)
+    if collection_id:
+        where_conditions.append("c.id = %s")
+        where_params.append(collection_id)
+    if source_id:
+        where_conditions.append("s.id = %s")
+        where_params.append(source_id)
+    if subject_id:
+        where_conditions.append("EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id AND sm.subject_id = %s)")
+        where_params.append(subject_id)
+
+    where_clause = " AND ".join(where_conditions)
+
+    # SQL query using the provided template
+    sql = f"""
+        WITH mvtgeoms AS (
+            SELECT
+                ST_AsMVTGeom(ST_Transform(g.point, 3857), ST_TileEnvelope(%s, %s, %s)) AS geom,
+                i.id,
+                i.permalink as img_url,
+                i.original_date,
+                i.edtf_date,
+                i.start_decdate,
+                i.fuzzy_start_decdate,
+                i.end_decdate,
+                i.fuzzy_end_decdate,
+                g.direction,
+                g.confidence
+            FROM images_georeference g
+            JOIN images_image i ON g.image_id = i.id
+            JOIN images_collection c ON i.collection_id = c.id
+            JOIN images_source s ON c.source_id = s.id
+            WHERE {where_clause}
+            AND ST_Intersects(g.point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
+        )
+        SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM mvtgeoms
+    """
+
+    # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters, then Z, X, Y again
+    query_params = [z, x, y] + where_params + [z, x, y]
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, query_params)
+        result = cursor.fetchone()
+
+        if result and result[0]:
+            mvt_data = bytes(result[0])
+            response = HttpResponse(mvt_data, content_type='application/x-protobuf')
+            response['Content-Encoding'] = 'gzip' if len(mvt_data) > 1024 else None
+            return response
+        else:
+            # Return empty tile
+            return HttpResponse(b'', content_type='application/x-protobuf')
 
 
 def map_layers_view(request):
