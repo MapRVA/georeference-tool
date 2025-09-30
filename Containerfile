@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-RUN apt-get -y update && apt-get install -y --no-install-recommends git
+RUN apt-get -y update && apt-get install -y --no-install-recommends git binutils libproj-dev gdal-bin
 
 WORKDIR /app
 
