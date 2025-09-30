@@ -423,18 +423,7 @@ def georeference_image(request, image_id):
                 status=400,
             )
 
-        # Validate business rules
-        # Rule 1: High confidence requires a direction
-        if data["confidence"] == "high" and not data.get("direction"):
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": "High confidence requires specifying a direction",
-                },
-                status=400,
-            )
-
-        # Rule 2: Low confidence requires notes
+        # Validate rule: low confidence requires notes
         if data["confidence"] == "low" and not data.get("notes", "").strip():
             return JsonResponse(
                 {

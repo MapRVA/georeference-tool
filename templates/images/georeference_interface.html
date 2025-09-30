@@ -421,6 +421,15 @@
             <div class="modal-body">
                 <p>Unless you are truly unsure, <strong>please specify which direction the image was taken</strong> using the joystick interface.</p>
                 <p><i>You might also do this if the camera was pointed directly up or down.</i></p>
+                <div id="force-high-confidence-container" style="display: none;">
+                    <hr>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="force-high-confidence-checkbox">
+                        <label class="form-check-label" for="force-high-confidence-checkbox">
+                            I know what I'm doing, mark this georeference as high confidence
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -1938,6 +1947,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Check if direction is missing and show confirmation modal
         if (currentDirection === null) {
+            const forceHighConfidenceContainer = document.getElementById('force-high-confidence-container');
+            const forceHighConfidenceCheckbox = document.getElementById('force-high-confidence-checkbox');
+
+            if (selectedConfidence.value === 'medium') {
+                forceHighConfidenceContainer.style.display = 'block';
+            } else {
+                forceHighConfidenceContainer.style.display = 'none';
+            }
+            if (forceHighConfidenceCheckbox) {
+                forceHighConfidenceCheckbox.checked = false; // Always reset checkbox
+            }
+
             const directionModal = new bootstrap.Modal(document.getElementById('directionConfirmModal'));
             directionModal.show();
             return; // Don't proceed with submission yet
@@ -1961,7 +1982,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const dir = currentDirection !== null ? Math.round(currentDirection) : null;
         const notes = confidenceNotes.value.trim();
         const selectedConfidence = document.querySelector('input[name="confidence"]:checked');
-        const confidence = selectedConfidence ? selectedConfidence.value : 'medium';
+        let confidence = selectedConfidence ? selectedConfidence.value : 'medium';
+
+        // Check for the override from the modal
+        const forceHighConfidenceCheckbox = document.getElementById('force-high-confidence-checkbox');
+        if (forceHighConfidenceCheckbox && forceHighConfidenceCheckbox.checked) {
+            confidence = 'high';
+        }
 
         const data = {
             latitude: lat,
