@@ -98,7 +98,7 @@ if LOCAL_DEV:
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
+            "ENGINE": "django.contrib.gis.db.backends.postgis",
             "NAME": os.getenv("PG_DBNAME", "georef"),
             "USER": os.getenv("PG_USER", "django_user"),
             "PASSWORD": os.getenv("PG_PASSWORD", ""),

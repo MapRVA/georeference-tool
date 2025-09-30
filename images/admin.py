@@ -502,8 +502,7 @@ class ImageAdmin(admin.ModelAdmin):
 class GeoreferenceAdmin(admin.ModelAdmin):
     list_display = (
         "image",
-        "latitude",
-        "longitude",
+        "point",
         "direction",
         "georeferenced_by",
         "georeferenced_at",
@@ -518,7 +517,7 @@ class GeoreferenceAdmin(admin.ModelAdmin):
     readonly_fields = ("georeferenced_at", "updated_at", "validation_count")
     fieldsets = (
         ("Image Information", {"fields": ("image",)}),
-        ("Coordinates", {"fields": ("latitude", "longitude", "direction")}),
+        ("Coordinates", {"fields": ("point", "direction")}),
         ("Attribution", {"fields": ("georeferenced_by", "confidence_notes")}),
         (
             "System Information",

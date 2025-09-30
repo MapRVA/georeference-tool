@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.contrib.gis.db import models as gis_models
 from django.db import models
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -442,12 +443,7 @@ class Georeference(models.Model):
     )
 
     # Coordinate data
-    latitude = models.FloatField(
-        validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)]
-    )
-    longitude = models.FloatField(
-        validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)]
-    )
+    point = gis_models.PointField(spatial_index=True)
     direction = models.IntegerField(
         null=True,
         validators=[MinValueValidator(0), MaxValueValidator(359)],
@@ -503,7 +499,6 @@ class Georeference(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["image", "georeferenced_by"]),
-            models.Index(fields=["latitude", "longitude"]),
             models.Index(fields=["georeferenced_by"]),
             models.Index(fields=["georeferenced_at"]),
         ]

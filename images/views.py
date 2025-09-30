@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.contrib.gis.geos import Point
 
 # Try to import PostgreSQL search functions
 try:
@@ -451,8 +452,7 @@ def georeference_image(request, image_id):
             with transaction.atomic():
                 georeference = Georeference.objects.create(
                     image=image,
-                    latitude=float(data["latitude"]),
-                    longitude=float(data["longitude"]),
+                    point=Point(float(data["longitude"]), float(data["latitude"])),
                     direction=int(data["direction"]) if data.get("direction") else None,
                     confidence=data["confidence"],
                     georeferenced_by=request.user
@@ -468,8 +468,7 @@ def georeference_image(request, image_id):
                         image=image, georeferenced_by=request.user
                     ).first()
                     if georeference:
-                        georeference.latitude = float(data["latitude"])
-                        georeference.longitude = float(data["longitude"])
+                        georeference.point = Point(float(data["longitude"]), float(data["latitude"]))
                         georeference.direction = (
                             int(data["direction"]) if data.get("direction") else None
                         )
@@ -792,7 +791,7 @@ def geojson_endpoint(request):
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                "coordinates": [georeference.longitude, georeference.latitude],
+                "coordinates": [georeference.point.x, georeference.point.y],
             },
             "properties": properties,
         }
@@ -1124,8 +1123,8 @@ def semantic_search(request):
                     georeference = image.get_georeference()
                     if georeference:
                         result["georeference"] = {
-                            "latitude": georeference.latitude,
-                            "longitude": georeference.longitude,
+                            "latitude": georeference.point.y,
+                            "longitude": georeference.point.x,
                             "direction": georeference.direction,
                             "confidence": georeference.confidence,
                         }
