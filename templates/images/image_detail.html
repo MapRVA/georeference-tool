@@ -770,7 +770,7 @@
                                                 <div class="col-auto">
                                                     <span class="badge bg-light text-dark">
                                                         <i class="fas fa-crosshairs me-1"></i>
-                                                        {{ georeference.latitude|floatformat:6 }}, {{ georeference.longitude|floatformat:6 }}
+                                                        {{ georeference.point.y|floatformat:6 }}, {{ georeference.point.x|floatformat:6 }}
                                                     </span>
                                                 </div>
                                                 {% if georeference.direction is not None %}
