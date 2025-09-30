@@ -706,7 +706,7 @@ def parse_date(date_str, default_edtf=None):
         return circa_match.group(1) + "~"
 
     # Circa YYYY?
-    circa_match = re.match(r"(?i)(?:circa|ca?\.)\s+(\d{4})?$", date_str)
+    circa_match = re.match(r"(?i)(?:circa|ca?\.)\s+(\d{4})\?$", date_str)
     if circa_match:
         return circa_match.group(1) + "?"
 
