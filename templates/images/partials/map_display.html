@@ -301,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 
     let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
-    
+
     if (urlParams.toString()) {
         vectorTilesUrl += '?' + urlParams.toString();
     }
@@ -946,7 +946,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'type': 'vector',
             'tiles': [vectorTilesUrl],
             'minzoom': 0,
-            'maxzoom': 18
+            'maxzoom': 14
         });
 
         // Add direction markers if image-direction image loaded successfully
