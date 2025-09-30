@@ -291,7 +291,7 @@
                         <div class="row g-2 text-center">
                             <div class="col-md-4">
                                 <small class="text-muted d-block">Coordinates</small>
-                                <span class="coordinate-display">{{ image.get_georeference.latitude|floatformat:6 }}, {{ image.get_georeference.longitude|floatformat:6 }}</span>
+                                <span class="coordinate-display">{{ image.get_georeference.point.y|floatformat:6 }}, {{ image.get_georeference.point.x|floatformat:6 }}</span>
                             </div>
                             {% if image.get_georeference.direction is not None %}
                             <div class="col-md-4">
