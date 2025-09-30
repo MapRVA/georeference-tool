@@ -1076,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
 
             new maplibregl.Popup()
-                .setLngLat(e.lngLat)
+                .setLngLat(e.features[0].geometry.coordinates)
                 .setHTML(popupContent)
                 .addTo(map);
         });
