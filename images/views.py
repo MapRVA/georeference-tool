@@ -838,9 +838,15 @@ def vector_tiles_endpoint(request, z, x, y):
 
     where_clause = " AND ".join(where_conditions)
 
-    # SQL query using the provided template
+    # SQL query using the provided template - only select most recent georeference per image
     sql = f"""
-        WITH mvtgeoms AS (
+        WITH latest_georeferences AS (
+            SELECT
+                g.*,
+                ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
+            FROM images_georeference g
+        ),
+        mvtgeoms AS (
             SELECT
                 ST_AsMVTGeom(ST_Transform(g.point, 3857), ST_TileEnvelope(%s, %s, %s)) AS geom,
                 i.id,
@@ -853,11 +859,12 @@ def vector_tiles_endpoint(request, z, x, y):
                 i.fuzzy_end_decdate,
                 g.direction,
                 g.confidence
-            FROM images_georeference g
+            FROM latest_georeferences g
             JOIN images_image i ON g.image_id = i.id
             JOIN images_collection c ON i.collection_id = c.id
             JOIN images_source s ON c.source_id = s.id
-            WHERE {where_clause}
+            WHERE g.rn = 1
+            AND {where_clause}
             AND ST_Intersects(g.point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
         )
         SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM mvtgeoms
