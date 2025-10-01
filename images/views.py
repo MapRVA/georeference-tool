@@ -713,8 +713,10 @@ def image_stats(request):
 
 def search_page(request):
     """Display the semantic search interface"""
+    all_subjects = Subject.objects.all().values("id", "title")
     context = {
         "clip_available": CLIP_AVAILABLE,
+        "all_subjects_json": json.dumps(list(all_subjects)),
     }
     return render(request, "images/search.html", context)
 
