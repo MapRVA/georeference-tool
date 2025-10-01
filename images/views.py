@@ -992,8 +992,13 @@ def semantic_search(request):
             status=400,
         )
 
-    # Get search parameters
-    limit = min(int(request.GET.get("limit", 20)), 100)  # Max 100 results
+    # Get search and pagination parameters
+    limit = min(int(request.GET.get("pagelimit", 20)), 100)
+    page = int(request.GET.get("page", 1))
+    if page < 1:
+        page = 1
+    offset = (page - 1) * limit
+
     include_no_embedding = (
         request.GET.get("include_no_embedding", "false").lower() == "true"
     )
@@ -1026,6 +1031,41 @@ def semantic_search(request):
                 {
                     "success": False,
                     "error": "Invalid end_year parameter. Must be an integer.",
+                },
+                status=400,
+            )
+
+    # Subject filtering parameters
+    with_subjects_str = request.GET.get("with_subjects")
+    without_subjects_str = request.GET.get("without_subjects")
+    no_subjects = request.GET.get("no_subjects", "false").lower() == "true"
+
+    with_subject_ids = []
+    if with_subjects_str:
+        try:
+            with_subject_ids = [
+                int(s_id) for s_id in with_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid with_subjects parameter. Must be comma-separated integers.",
+                },
+                status=400,
+            )
+
+    without_subject_ids = []
+    if without_subjects_str:
+        try:
+            without_subject_ids = [
+                int(s_id) for s_id in without_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid without_subjects parameter. Must be comma-separated integers.",
                 },
                 status=400,
             )
@@ -1070,17 +1110,6 @@ def semantic_search(request):
                 status=400,
             )
 
-        # Base queryset - only public images, excluding duplicates
-        images = Image.objects.filter(
-            collection__public=True,
-            collection__source__public=True,
-            duplicate_of__isnull=True,
-        ).select_related("collection__source")
-
-        # Filter to images with embeddings (unless explicitly including those without)
-        if not include_no_embedding:
-            images = images.filter(embedding__isnull=False)
-
         # Use raw SQL for vector similarity search
         # Note: This requires pgvector extension to be installed
 
@@ -1111,11 +1140,45 @@ def semantic_search(request):
                 )
                 where_params.extend([end_year, end_year])
 
+            # Add subject filtering conditions
+            if no_subjects:
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id)"
+                )
+            else:
+                if with_subject_ids:
+                    for subject_id in with_subject_ids:
+                        where_conditions.append(
+                            "EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id AND sm.subject_id = %s)"
+                        )
+                        where_params.append(subject_id)
+
+                if without_subject_ids:
+                    where_conditions.append(
+                        "images_image.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%s))"
+                    )
+                    where_params.append(without_subject_ids)
+
             # Combine all WHERE conditions
             where_clause = " AND ".join(where_conditions)
 
+            # Get total count for pagination
+            count_sql = f"""
+                SELECT COUNT(images_image.id)
+                FROM images_image
+                WHERE {where_clause}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+            """
+            cursor.execute(count_sql, where_params)
+            total_count = cursor.fetchone()[0]
+
             # Raw SQL query for cosine similarity
-            # Cast the array to vector type for pgvector operations
             sql = f"""
                 SELECT
                     id,
@@ -1133,18 +1196,16 @@ def semantic_search(request):
                     FROM images_image i
                     JOIN images_collection c ON i.collection_id = c.id
                     JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
                 ORDER BY embedding::vector <=> %s::vector
                 LIMIT %s
+                OFFSET %s
             """
 
-            # Build the final parameter list in the correct order:
-            # 1. First embedding for distance calculation
-            # 2. WHERE clause parameters (years)
-            # 3. Second embedding for ORDER BY
-            # 4. LIMIT parameter
-            query_params = [embedding_str] + where_params + [embedding_str, limit]
+            query_params = (
+                [embedding_str] + where_params + [embedding_str, limit, offset]
+            )
 
             cursor.execute(sql, query_params)
             results = cursor.fetchall()
@@ -1213,7 +1274,8 @@ def semantic_search(request):
                 "success": True,
                 "query": query,
                 "results": search_results,
-                "count": len(search_results),
+                "count": total_count,
+                "page": page,
                 "limit": limit,
             }
         )
@@ -1262,8 +1324,12 @@ def text_search(request):
             status=400,
         )
 
-    # Get search parameters
-    limit = min(int(request.GET.get("limit", 20)), 100)
+    # Get search and pagination parameters
+    limit = min(int(request.GET.get("pagelimit", 20)), 100)
+    page = int(request.GET.get("page", 1))
+    if page < 1:
+        page = 1
+    offset = (page - 1) * limit
     georeferenced_only = (
         request.GET.get("georeferenced_only", "false").lower() == "true"
     )
@@ -1273,6 +1339,41 @@ def text_search(request):
     # Year filtering parameters
     start_year = request.GET.get("start_year")
     end_year = request.GET.get("end_year")
+
+    # Subject filtering parameters
+    with_subjects_str = request.GET.get("with_subjects")
+    without_subjects_str = request.GET.get("without_subjects")
+    no_subjects = request.GET.get("no_subjects", "false").lower() == "true"
+
+    with_subject_ids = []
+    if with_subjects_str:
+        try:
+            with_subject_ids = [
+                int(s_id) for s_id in with_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid with_subjects parameter. Must be comma-separated integers.",
+                },
+                status=400,
+            )
+
+    without_subject_ids = []
+    if without_subjects_str:
+        try:
+            without_subject_ids = [
+                int(s_id) for s_id in without_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid without_subjects parameter. Must be comma-separated integers.",
+                },
+                status=400,
+            )
 
     # --- Start of Query Logic ---
     try:
@@ -1308,20 +1409,55 @@ def text_search(request):
                     {"success": False, "error": "Invalid end_year"}, status=400
                 )
 
+        # Add subject filtering
+        if no_subjects:
+            images = images.filter(subjects__isnull=True)
+        else:
+            if with_subject_ids:
+                for subject_id in with_subject_ids:
+                    images = images.filter(subjects__id=subject_id)
+
+            if without_subject_ids:
+                images = images.exclude(subjects__id__in=without_subject_ids)
+
         filtered_ids = list(images.values_list("id", flat=True))
 
         if not filtered_ids:
             return JsonResponse(
-                {"success": True, "query": query, "results": [], "count": 0}
+                {
+                    "success": True,
+                    "query": query,
+                    "results": [],
+                    "count": 0,
+                    "page": page,
+                    "limit": limit,
+                }
             )
 
         # 2. Use Raw SQL for the complex trigram query for performance and control
         from django.db import connection
 
         with connection.cursor() as cursor:
-            # Note: We use the word distance operator `<<->` which is ideal for this use case.
-            # It finds the distance between the query and the most similar word in the target text.
-            # A distance of 0 is a perfect match, 1 is a total mismatch.
+            # First, get total count of results that meet the threshold
+            count_sql = """
+                SELECT COUNT(id)
+                FROM images_image
+                WHERE
+                    id = ANY(%(ids)s)
+                    AND LEAST(
+                        COALESCE(%(query)s <<-> title, 1.0),
+                        COALESCE(%(query)s <<-> description, 1.0)
+                    ) < %(threshold)s
+            """
+            count_params = {
+                "query": query,
+                "ids": filtered_ids,
+                "threshold": distance_threshold,
+            }
+            cursor.execute(count_sql, count_params)
+            total_count = cursor.fetchone()[0]
+
+            # Now, get the paginated results
             sql = """
                 SELECT
                     id, title, permalink, original_date, edtf_date,
@@ -1340,12 +1476,14 @@ def text_search(request):
                 ORDER BY
                     distance ASC
                 LIMIT %(limit)s
+                OFFSET %(offset)s
             """
             params = {
                 "query": query,
                 "ids": filtered_ids,
                 "threshold": distance_threshold,
                 "limit": limit,
+                "offset": offset,
             }
             cursor.execute(sql, params)
             rows = cursor.fetchall()
@@ -1386,7 +1524,8 @@ def text_search(request):
                 "success": True,
                 "query": query,
                 "results": search_results,
-                "count": len(search_results),
+                "count": total_count,
+                "page": page,
                 "limit": limit,
                 "search_type": "word_distance",
             }

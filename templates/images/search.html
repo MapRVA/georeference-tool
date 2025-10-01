@@ -109,7 +109,7 @@
                         <div class="card card-body">
                             <div class="row">
                                 <div class="col-md-4">
-                                    <label for="limitSelect" class="form-label">Results limit:</label>
+                                    <label for="limitSelect" class="form-label">Results per page:</label>
                                     <select class="form-select" id="limitSelect">
                                         <option value="10">10 results</option>
                                         <option value="20" selected>20 results</option>
@@ -158,7 +158,6 @@
     </div>
 </div>
 
-{% if clip_available %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchForm = document.getElementById('searchForm');
@@ -174,9 +173,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const semanticDescription = document.getElementById('semanticDescription');
     const textDescription = document.getElementById('textDescription');
 
+    function initializeFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const page = urlParams.has('page') ? parseInt(urlParams.get('page'), 10) : 1;
+
+        if (urlParams.has('mode') && urlParams.get('mode') === 'text') {
+            textMode.checked = true;
+            textMode.dispatchEvent(new Event('change'));
+        } else {
+            semanticMode.checked = true;
+            semanticMode.dispatchEvent(new Event('change'));
+        }
+
+        if (urlParams.has('q')) {
+            searchQuery.value = urlParams.get('q');
+        }
+        if (urlParams.has('pagelimit')) {
+            limitSelect.value = urlParams.get('pagelimit');
+        }
+        if (urlParams.has('start_year')) {
+            startYear.value = urlParams.get('start_year');
+        }
+        if (urlParams.has('end_year')) {
+            endYear.value = urlParams.get('end_year');
+        }
+        if (urlParams.get('georeferenced_only') === 'true') {
+            georeferencedOnly.checked = true;
+        }
+
+        if (urlParams.has('q')) {
+            const hasAdvanced = urlParams.has('start_year') || urlParams.has('end_year') || urlParams.has('georeferenced_only');
+            if (hasAdvanced) {
+                const advancedOptions = document.getElementById('advancedOptions');
+                new bootstrap.Collapse(advancedOptions, { toggle: false }).show();
+            }
+            performSearch(page);
+        }
+    }
+
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
-        performSearch();
+        performSearch(); // Defaults to page 1
+    });
+
+    searchResults.addEventListener('click', function(e) {
+        if (e.target.matches('a.page-link')) {
+            e.preventDefault();
+            const page = e.target.dataset.page;
+            if (page) {
+                performSearch(parseInt(page, 10));
+            }
+        }
     });
 
     // Handle search mode toggle
@@ -196,41 +243,40 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function performSearch() {
+    function performSearch(page = 1) {
         const query = searchQuery.value.trim();
         if (!query) return;
 
-        // Determine search mode
         const searchMode = semanticMode.checked ? 'semantic' : 'text';
         const apiEndpoint = searchMode === 'semantic' ? '/api/v1/search/' : '/api/v1/search/text/';
 
-        // Build query parameters
-        const params = new URLSearchParams({
-            q: query,
-            limit: limitSelect.value
-        });
+        const params = new URLSearchParams();
+        params.set('q', query);
+        params.set('mode', searchMode);
+        params.set('page', page);
 
-        // Add optional filters
+        if (limitSelect.value) {
+            params.set('pagelimit', limitSelect.value);
+        }
         if (startYear.value) {
-            params.append('start_year', startYear.value);
+            params.set('start_year', startYear.value);
         }
         if (endYear.value) {
-            params.append('end_year', endYear.value);
+            params.set('end_year', endYear.value);
         }
         if (georeferencedOnly.checked) {
-            params.append('georeferenced_only', 'true');
+            params.set('georeferenced_only', 'true');
         }
 
-        // Show loading
+        history.pushState(null, '', `${window.location.pathname}?${params.toString()}`);
+
         loadingIndicator.style.display = 'block';
         searchResults.innerHTML = '';
 
-        // Make API request
         fetch(`${apiEndpoint}?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
                 loadingIndicator.style.display = 'none';
-
                 if (data.success) {
                     displayResults(data);
                 } else {
@@ -241,6 +287,71 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadingIndicator.style.display = 'none';
                 displayError('Search failed: ' + error.message);
             });
+    }
+
+    function renderPagination(data) {
+        const { count, limit, page } = data;
+        const totalPages = Math.ceil(count / limit);
+        const currentPage = page;
+
+        if (totalPages <= 1) {
+            if (count > 0) {
+                const startIndex = (currentPage - 1) * limit + 1;
+                const endIndex = Math.min(currentPage * limit, count);
+                return `<div class="text-center text-muted mt-4">Showing ${startIndex}-${endIndex} of ${count} results</div>`;
+            }
+            return '';
+        }
+
+        let html = `<nav aria-label="Search results pagination" class="mt-4"><ul class="pagination justify-content-center">`;
+
+        // Previous link
+        if (currentPage > 1) {
+            html += `<li class="page-item">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </a>
+            </li>`;
+        } else {
+            html += `<li class="page-item disabled">
+                <span class="page-link"><i class="fas fa-chevron-left"></i> Previous</span>
+            </li>`;
+        }
+
+        // Page number links
+        for (let num = 1; num <= totalPages; num++) {
+            if (num === currentPage) {
+                html += `<li class="page-item active" aria-current="page">
+                    <span class="page-link">${num}</span>
+                </li>`;
+            } else if (num >= currentPage - 2 && num <= currentPage + 2) {
+                html += `<li class="page-item">
+                    <a class="page-link" href="#" data-page="${num}">${num}</a>
+                </li>`;
+            }
+        }
+
+        // Next link
+        if (currentPage < totalPages) {
+            html += `<li class="page-item">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">
+                    Next <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>`;
+        } else {
+            html += `<li class="page-item disabled">
+                <span class="page-link">Next <i class="fas fa-chevron-right"></i></span>
+            </li>`;
+        }
+
+        html += `</ul></nav>`;
+
+        // "Showing X-Y of Z" text
+        const startIndex = (currentPage - 1) * limit + 1;
+        const endIndex = Math.min(currentPage * limit, count);
+        html += `<div class="text-center text-muted mt-2">Showing ${startIndex}-${endIndex} of ${count} results</div>`;
+
+        return html;
     }
 
     function displayResults(data) {
@@ -257,7 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Build filter summary
         let filterSummary = '';
-        const urlParams = new URLSearchParams(window.location.search);
         const startYearVal = startYear.value;
         const endYearVal = endYear.value;
         const georeferencedVal = georeferencedOnly.checked;
@@ -366,6 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         html += '</div>';
+        html += renderPagination(data);
         searchResults.innerHTML = html;
     }
 
@@ -383,7 +494,8 @@ document.addEventListener('DOMContentLoaded', function() {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    initializeFromURL();
 });
 </script>
-{% endif %}
 {% endblock %}
