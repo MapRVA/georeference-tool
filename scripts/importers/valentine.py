@@ -179,7 +179,9 @@ def get_archival_children(archival_number: str, table: str):
     return member_data
 
 
-def get_record_details(readable_primary_key: str):
+def get_record_details(
+    readable_primary_key: str, last_possible_year=None, first_possible_year=None
+):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
@@ -269,23 +271,68 @@ def get_record_details(readable_primary_key: str):
         date_str = date_match.group(1).strip()
         result["original_date"] = date_str
 
+        if first_possible_year:
+            # Match "Pre YYYY-YYYY"
+            pre_year_range_match = re.match(r"^Pre\s+\d{4}-(\d{4})$", date_str)
+            if pre_year_range_match:
+                end_year = pre_year_range_match.group(1)
+                result["edtf_date"] = f"[{first_possible_year}..{end_year}]"
+                return result
+
+            # Match "Pre YYYY"
+            pre_year_match = re.match(r"^Pre\s+(\d{4})$", date_str)
+            if pre_year_match:
+                end_year = pre_year_match.group(1)
+                result["edtf_date"] = f"[{first_possible_year}..{end_year}]"
+                return result
+
+        if last_possible_year:
+            post_year_range_match = re.match(r"^Post\s+(\d{4})-\d{4}$", date_str)
+            if post_year_range_match:
+                first_year = post_year_range_match.group(1)
+                result["edtf_date"] = f"[{first_year}..{last_possible_year}]"
+                return result
+
+            # Match "Post YYYY"
+            post_year_match = re.match(r"^Post\s+(\d{4})$", date_str)
+            if post_year_match:
+                first_year = post_year_match.group(1)
+                result["edtf_date"] = f"[{first_year}..{last_possible_year}]"
+                return result
+
+        post_pre_year_match = re.match(r"^Post\s+(\d{4})\s*-\s*Pre\s+(\d{4})", date_str)
+        if post_pre_year_match:
+            first_year = post_pre_year_match.group(1)
+            last_year = post_pre_year_match.group(2)
+            result["edtf_date"] = f"[{first_year}..{last_year}]"
+            return result
+
         year_match = re.match(r"^(\d{4})$", date_str)
         if year_match:
             result["edtf_date"] = year_match.group(1)
             return result
 
+
+        early_year_match = re.match(r"^E|early\s+(\d{4})$", date_str)
+        if early_year_match:
+            year = early_year_match.group(1)
+            result["edtf_date"] = f"{year}-37"
+            return result
+
         # Try "Circa YYYY" format
-        circa_match = re.match(r"(?i)(?:circa|c\.)\s+(\d{4})$", date_str)
+        circa_match = re.match(r"(?i)(?:c|Circa|c\.)\s+(\d{4})$", date_str)
         if circa_match:
             result["edtf_date"] = circa_match.group(1) + "~"
             return result
 
         # Try YYYY-YYYY year range
-        year_range_match = re.match(r"^(\d{4})-(\d{4})$", date_str)
+        # Optionally allow Circa prefix...not much we can do about that.
+        year_range_match = re.match(r"^(?:(?:c|Circa|c\.)\s+)?(\d{4})\s*-\s*(?:(?:c|Circa|c\.)\s+)?(\d{4})$", date_str)
         if year_range_match:
-            result["edtf_date"] = (
-                year_range_match.group(1) + "/" + year_range_match.group(2)
-            )
+            first_year = int(year_range_match.group(1))
+            second_year = int(year_range_match.group(2))
+            if second_year == (first_year + 1):
+                result["edtf_date"] = f"[{first_year},{second_year}]"
             return result
 
         # Try "MM/YYYY" format
@@ -361,7 +408,17 @@ def get_record_details(readable_primary_key: str):
     is_flag=True,
     help="Hotlink images instead of uploading to R2",
 )
-def main(archive_id, hotlink=False):
+@click.option(
+    "--last-possible-year",
+    type=int,
+    help='Last possible year for date ranges like "Post YYYY-YYYY"',
+)
+@click.option(
+    "--first-possible-year",
+    type=int,
+    help='First possible year for date ranges like "Pre YYYY" or "Pre YYYY-YYYY"',
+)
+def main(archive_id, hotlink=False, last_possible_year=None, first_possible_year=None):
     """Scrape archival records from The Valentine Museum's digital archives."""
 
     source = create_source_if_not_exist()
@@ -428,7 +485,11 @@ def main(archive_id, hotlink=False):
                 skip_count = 0
 
             sleep(POLITE_WAIT_SECS)
-            record = get_record_details(child)
+            record = get_record_details(
+                child,
+                last_possible_year=last_possible_year,
+                first_possible_year=first_possible_year,
+            )
 
             # Do we have an image URL to try and download?
             if "permalink" not in record:
