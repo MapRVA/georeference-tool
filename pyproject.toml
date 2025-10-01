@@ -10,6 +10,7 @@ dependencies = [
     "click>=8.2.1",
     "clip",
     "django>=5.2.6",
+    "django-cors-headers>=4.9.0",
     "edtf>=5.0.0",
     "osm-login-python>=2.0.0",
     "psycopg[binary]>=3.2.10",
