@@ -1317,15 +1317,6 @@ def text_search(request):
     else:  # GET request
         query = request.GET.get("q", "").strip()
 
-    if not query:
-        return JsonResponse(
-            {
-                "success": False,
-                "error": "Query parameter 'q' (GET) or 'query' (POST) is required",
-            },
-            status=400,
-        )
-
     # Get search and pagination parameters
     limit = min(int(request.GET.get("pagelimit", 20)), 100)
     page = int(request.GET.get("page", 1))
@@ -1346,6 +1337,15 @@ def text_search(request):
     with_subjects_str = request.GET.get("with_subjects")
     without_subjects_str = request.GET.get("without_subjects")
     no_subjects = request.GET.get("no_subjects", "false").lower() == "true"
+
+    if not query and not any([with_subjects_str, without_subjects_str, no_subjects]):
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "A search query or subject filter is required.",
+            },
+            status=400,
+        )
 
     with_subject_ids = []
     if with_subjects_str:
@@ -1380,10 +1380,14 @@ def text_search(request):
     # --- Start of Query Logic ---
     try:
         # 1. Use the ORM for initial filtering (easier for optional filters)
-        images = Image.objects.filter(
-            collection__public=True,
-            collection__source__public=True,
-            duplicate_of__isnull=True,
+        images = (
+            Image.objects.filter(
+                collection__public=True,
+                collection__source__public=True,
+                duplicate_of__isnull=True,
+            )
+            .select_related("collection__source")
+            .prefetch_related("georeferences")
         )
 
         if georeferenced_only:
@@ -1422,6 +1426,47 @@ def text_search(request):
             if without_subject_ids:
                 images = images.exclude(subjects__id__in=without_subject_ids)
 
+        # Handle case where there is no text query (filter-only search)
+        if not query:
+            paginator = Paginator(images.distinct().order_by("id"), limit)
+            page_obj = paginator.get_page(page)
+            search_results = []
+            for image in page_obj.object_list:
+                result = {
+                    "id": image.id,
+                    "title": image.title,
+                    "permalink": image.permalink,
+                    "original_date": str(image.original_date)
+                    if image.original_date
+                    else None,
+                    "edtf_date": str(image.edtf_date) if image.edtf_date else None,
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image.id}/",
+                    "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
+                }
+                search_results.append(result)
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "query": query,
+                    "results": search_results,
+                    "count": paginator.count,
+                    "page": page,
+                    "limit": limit,
+                    "search_type": "filter_only",
+                }
+            )
+
+        # --- Text search logic for when a query is present ---
         filtered_ids = list(images.values_list("id", flat=True))
 
         if not filtered_ids:
@@ -1492,12 +1537,21 @@ def text_search(request):
 
         # 3. Format the results
         search_results = []
+        image_ids = [row[0] for row in rows]
+        images_by_id = {
+            img.id: img
+            for img in Image.objects.filter(id__in=image_ids).select_related(
+                "collection__source"
+            )
+        }
+
         for row in rows:
             # Unpack row data
             image_id, title, permalink, original_date, edtf_date, distance = row
+            image = images_by_id.get(image_id)
 
-            # Get the full image object for properties that are not simple fields
-            image = Image.objects.get(id=image_id)
+            if not image:
+                continue
 
             result = {
                 "id": image_id,

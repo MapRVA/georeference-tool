@@ -110,8 +110,7 @@
                             <input type="text"
                                    class="form-control form-control-lg"
                                    id="searchQuery"
-                                   placeholder="Describe what you're looking for..."
-                                   required>
+                                   placeholder="Describe what you're looking for...">
                             <button class="btn btn-primary btn-lg" type="submit">
                                 <i class="fas fa-search"></i> Search
                             </button>
@@ -166,7 +165,7 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="subjectOptions" id="withSubjects" value="with" checked>
                                         <label class="form-check-label" for="withSubjects">
-                                            Include images with ALL of these subjects
+                                            Include ONLY images with ALL of these subjects
                                         </label>
                                     </div>
                                     <div class="form-check">
@@ -209,6 +208,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js"></script>
 
 {% if clip_available %}
 <script>
@@ -286,7 +289,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Trigger change to hide/show subject input
         document.querySelector('input[name="subjectOptions"]:checked').dispatchEvent(new Event('change'));
 
-        if (urlParams.has('q')) {
+        const subjectOption = document.querySelector('input[name="subjectOptions"]:checked').value;
+        const hasSubjectFilter = subjectOption === 'none' || selectedSubjects.length > 0;
+
+        if (urlParams.has('q') || hasSubjectFilter) {
             const hasAdvanced = urlParams.has('start_year') || urlParams.has('end_year') || urlParams.has('georeferenced_only') || selectedSubjects.length > 0 || urlParams.has('no_subjects');
             if (hasAdvanced) {
                 const advancedOptions = document.getElementById('advancedOptions');
@@ -344,9 +350,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function performSearch(page = 1) {
         const query = searchQuery.value.trim();
-        if (!query) return;
+        const subjectOption = document.querySelector('input[name="subjectOptions"]:checked').value;
+        const hasSubjectFilter = subjectOption === 'none' || selectedSubjects.length > 0;
 
-        const searchMode = semanticMode.checked ? 'semantic' : 'text';
+        if (!query && !hasSubjectFilter) {
+            return; // Do not search if there is no query and no subject filter
+        }
+
+        let searchMode = semanticMode.checked ? 'semantic' : 'text';
+        // If query is empty, we must use the text search endpoint, as semantic search requires a query.
+        if (!query) {
+            searchMode = 'text';
+        }
+
         const apiEndpoint = searchMode === 'semantic' ? '/api/v1/search/' : '/api/v1/search/text/';
 
         const params = new URLSearchParams();
@@ -368,7 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Add subject params
-        const subjectOption = document.querySelector('input[name="subjectOptions"]:checked').value;
         const subjectIds = selectedSubjects.map(s => s.id).join(',');
 
         if (subjectOption === 'none') {
@@ -469,11 +484,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayResults(data) {
         if (data.results.length === 0) {
+            let message = `No results found for "<strong>${escapeHtml(data.query)}</strong>".`;
+            if (!data.query) {
+                message = "No results found for the selected filters.";
+            }
             searchResults.innerHTML = `
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    No results found for "<strong>${escapeHtml(data.query)}</strong>".
-                    Try a different search term.
+                    ${message}
+                    Try a different search term or filter.
                 </div>
             `;
             return;
@@ -502,28 +521,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Get current search mode for display
         const currentSearchMode = semanticMode.checked ? 'semantic' : 'text';
-        const searchModeLabel = currentSearchMode === 'semantic' ? 'semantic search' : 'text search';
+        const searchModeLabel = data.search_type === 'filter_only' ? 'filters' : (currentSearchMode === 'semantic' ? 'semantic search' : 'text search');
+        const forQuery = data.query ? ` for "<strong>${escapeHtml(data.query)}</strong>"` : '';
 
         let html = `
             <div class="search-stats mb-3">
-                Found ${data.count} results for "<strong>${escapeHtml(data.query)}</strong>" using ${searchModeLabel}${filterSummary}
+                Found ${data.count} results${forQuery} using ${searchModeLabel}${filterSummary}
             </div>
             <div class="row">
         `;
 
         data.results.forEach(result => {
-            const similarity = Math.round(result.similarity * 100);
-            const similarityClass = similarity > 80 ? 'bg-success' :
-                                  similarity > 60 ? 'bg-warning' : 'bg-secondary';
+            let similarityBadge = '';
+            if (typeof result.similarity !== 'undefined') {
+                const similarity = Math.round(result.similarity * 100);
+                const similarityClass = similarity > 80 ? 'bg-success' :
+                                      similarity > 60 ? 'bg-warning' : 'bg-secondary';
+                similarityBadge = `<span class="badge ${similarityClass} position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                    ${similarity}% match
+                </span>`;
+            }
 
             html += `
                 <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
                     <div class="card h-100 shadow-sm image-card">
                         <div class="position-relative">
-                            <!-- Similarity Badge -->
-                            <span class="badge ${similarityClass} position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                                ${similarity}% match
-                            </span>
+                            ${similarityBadge}
 
                             <!-- Georeferenced Status Badge -->
                             ${result.georeferenced ? `
@@ -658,8 +681,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endif %}
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js"></script>
 {% endblock %}
