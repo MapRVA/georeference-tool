@@ -627,23 +627,49 @@
                                 </div>
                                 <div class="collapse mt-2" id="advancedInputs">
                                     <div class="d-flex justify-content-center">
-                                        <div id="coordinate-inputs">
-                                            <div class="input-row">
-                                                <label for="latitude-input">Latitude:</label>
-                                                <input type="text" id="latitude-input" class="coordinate-input" placeholder="YY.YYYY">
+                                        <div class="d-flex flex-wrap gap-4 align-items-start">
+                                            <div id="coordinate-inputs">
+                                                <div class="input-row">
+                                                    <label for="latitude-input">Latitude:</label>
+                                                    <input type="text" id="latitude-input" class="coordinate-input" placeholder="YY.YYYY">
+                                                </div>
+                                                <div class="input-row">
+                                                    <label for="longitude-input">Longitude:</label>
+                                                    <input type="text" id="longitude-input" class="coordinate-input" placeholder="XX.XXXX">
+                                                </div>
+                                                <div class="input-row">
+                                                    <label for="direction-input">Direction:</label>
+                                                    <div class="direction-input-group">
+                                                        <input type="text" class="inactive" id="direction-input" placeholder="e.g. 300">
+                                                        <button type="button" id="reset-direction" title="Remove direction">✕</button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div class="input-row">
-                                                <label for="longitude-input">Longitude:</label>
-                                                <input type="text" id="longitude-input" class="coordinate-input" placeholder="XX.XXXX">
-                                            </div>
-                                            <div class="input-row">
-                                                <label for="direction-input">Direction:</label>
-                                                <div class="direction-input-group">
-                                                    <input type="text" class="inactive" id="direction-input" placeholder="e.g. 300">
-                                                    <button type="button" id="reset-direction" title="Remove direction">✕</button>
+                                            <div class="context-images-controls">
+                                                <label class="form-label fw-bold">Context Images:</label>
+                                                <div class="mt-2">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="contextDisplay" value="hidden" id="context-hidden">
+                                                        <label class="form-check-label" for="context-hidden">
+                                                            Hidden
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="contextDisplay" value="ghost" id="context-ghost" checked>
+                                                        <label class="form-check-label" for="context-ghost">
+                                                            Ghost (default)
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="contextDisplay" value="clickable" id="context-clickable">
+                                                        <label class="form-check-label" for="context-clickable">
+                                                            Clickable with popups
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -1512,11 +1538,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 map.addSource('context-images', {
                     'type': 'vector',
                     'tiles': [contextVectorTilesUrl],
-                    'minzoom': 0,
-                    'maxzoom': 14
+                    'minzoom': 16
                 });
 
-                // Add de-emphasized circles for existing images
+                // Add circles for existing images (styling depends on mode)
                 map.addLayer({
                     'id': 'context-image-circles',
                     'type': 'circle',
@@ -1529,6 +1554,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         'circle-stroke-color': '#fff',
                         'circle-stroke-width': 1,
                         'circle-stroke-opacity': 0.8
+                    },
+                    'layout': {
+                        'visibility': 'visible'
                     }
                 });
 
@@ -1552,6 +1580,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         'filter': ['has', 'direction']
                     });
                 }
+
+                // Update context images display based on initial mode
+                updateContextImagesDisplay();
 
             } catch (error) {
                 console.warn('Could not load context images:', error);
@@ -1595,6 +1626,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var pinPlaced = false;
     var currentDirection = null;
     var isJoystickDragging = false;
+    var contextDisplayMode = 'ghost'; // Default to ghost mode
+    var isHoveringContextImage = false; // Track when hovering over context images
+    var activePopup = null; // Track active popup
 
     map.getCanvas().style.cursor = 'crosshair';
 
@@ -1793,6 +1827,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     map.on('click', function(e) {
+        // If there's an open popup, close it and don't place pin
+        if (activePopup) {
+            activePopup.remove();
+            activePopup = null;
+            return;
+        }
+        
+        // Don't place pin if clicking on a context image
+        if (isHoveringContextImage) {
+            return;
+        }
+        
         var lng = e.lngLat.lng;
         var lat = e.lngLat.lat;
 
@@ -2335,6 +2381,151 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             alertDiv.remove();
         }, 5000);
+    }
+
+    // Handle context display mode changes
+    const contextDisplayRadios = document.querySelectorAll('input[name="contextDisplay"]');
+    
+    // Set initial mode from checked radio button
+    const checkedRadio = document.querySelector('input[name="contextDisplay"]:checked');
+    if (checkedRadio) {
+        contextDisplayMode = checkedRadio.value;
+    }
+    
+    contextDisplayRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                contextDisplayMode = this.value;
+                updateContextImagesDisplay();
+            }
+        });
+    });
+
+    // Function to update context images display based on mode
+    function updateContextImagesDisplay() {
+        if (!map.getLayer('context-image-circles')) return;
+
+        switch (contextDisplayMode) {
+            case 'hidden':
+                map.setLayoutProperty('context-image-circles', 'visibility', 'none');
+                if (map.getLayer('context-image-directions')) {
+                    map.setLayoutProperty('context-image-directions', 'visibility', 'none');
+                }
+                // Close any existing popup
+                if (activePopup) {
+                    activePopup.remove();
+                    activePopup = null;
+                }
+                // Remove click handlers
+                map.off('click', 'context-image-circles');
+                map.off('mouseenter', 'context-image-circles');
+                map.off('mouseleave', 'context-image-circles');
+                // Reset hover state and cursor
+                isHoveringContextImage = false;
+                map.getCanvas().style.cursor = 'crosshair';
+                break;
+            
+            case 'ghost':
+                map.setLayoutProperty('context-image-circles', 'visibility', 'visible');
+                if (map.getLayer('context-image-directions')) {
+                    map.setLayoutProperty('context-image-directions', 'visibility', 'visible');
+                }
+                // Set ghost styling
+                map.setPaintProperty('context-image-circles', 'circle-color', '#6c757d');
+                map.setPaintProperty('context-image-circles', 'circle-opacity', 0.6);
+                map.setPaintProperty('context-image-circles', 'circle-stroke-opacity', 0.8);
+                // Close any existing popup
+                if (activePopup) {
+                    activePopup.remove();
+                    activePopup = null;
+                }
+                // Remove ALL handlers to make completely non-interactive
+                map.off('click', 'context-image-circles');
+                map.off('mouseenter', 'context-image-circles');
+                map.off('mouseleave', 'context-image-circles');
+                // Reset hover state and cursor
+                isHoveringContextImage = false;
+                map.getCanvas().style.cursor = 'crosshair';
+                break;
+            
+            case 'clickable':
+                map.setLayoutProperty('context-image-circles', 'visibility', 'visible');
+                if (map.getLayer('context-image-directions')) {
+                    map.setLayoutProperty('context-image-directions', 'visibility', 'visible');
+                }
+                // Set active styling
+                map.setPaintProperty('context-image-circles', 'circle-color', 'green');
+                map.setPaintProperty('context-image-circles', 'circle-opacity', 1.0);
+                map.setPaintProperty('context-image-circles', 'circle-stroke-opacity', 1.0);
+                
+                // Add click handlers like in map_display.html
+                map.off('click', 'context-image-circles'); // Remove existing handlers first
+                map.on('click', 'context-image-circles', function(e) {
+                    // Only show popup if in clickable mode
+                    if (contextDisplayMode !== 'clickable') {
+                        return;
+                    }
+                    
+                    // Prevent the map click handler from firing when clicking on context images
+                    e.originalEvent.stopPropagation();
+                    
+                    const properties = e.features[0].properties;
+                    
+                    // Build absolute URL for image entry
+                    const imgEntry = window.location.origin + '/' + properties.id + '/';
+                    
+                    // Create popup content
+                    const popupContent = `
+                      <div>
+                          <img src="${properties.img_url}"
+                                style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                          ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
+                          <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                              <i class="fas fa-eye me-1"></i>View Details
+                          </a>
+                      </div>
+                    `;
+                    
+                    // Close any existing popup
+                    if (activePopup) {
+                        activePopup.remove();
+                    }
+                    
+                    // Create and track new popup
+                    activePopup = new maplibregl.Popup()
+                        .setLngLat(e.features[0].geometry.coordinates)
+                        .setHTML(popupContent)
+                        .addTo(map);
+                    
+                    // Clear the popup reference when it's closed
+                    activePopup.on('close', function() {
+                        activePopup = null;
+                        // Reset cursor to crosshairs when popup closes
+                        if (!isHoveringContextImage) {
+                            map.getCanvas().style.cursor = 'crosshair';
+                        }
+                    });
+                });
+                
+                // Add hover handlers
+                map.off('mouseenter', 'context-image-circles');
+                map.off('mouseleave', 'context-image-circles');
+                map.on('mouseenter', 'context-image-circles', function() {
+                    // Only change cursor if in clickable mode
+                    if (contextDisplayMode === 'clickable') {
+                        map.getCanvas().style.cursor = 'pointer';
+                        isHoveringContextImage = true;
+                    }
+                });
+                map.on('mouseleave', 'context-image-circles', function() {
+                    // Only reset cursor if in clickable mode
+                    if (contextDisplayMode === 'clickable') {
+                        map.getCanvas().style.cursor = '';
+                        isHoveringContextImage = false;
+                    }
+                });
+                break;
+        }
     }
 
     // Add CSRF token to the page if not already present
