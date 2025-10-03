@@ -5,6 +5,7 @@ Usage:
 - Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
 - Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng='-77.44' center_lat='37.53' zoom_level='11.5' %}
+- Geocoder: {% include 'images/partials/map_display.html' with include_geocoder=True %}
 {% endcomment %}
 
 <!-- MapLibre GL JS CSS and JS - only load once per page -->
@@ -12,6 +13,43 @@ Usage:
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 <!-- PMTiles library for Sanborn map support -->
 <script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+
+{% if include_geocoder %}
+<!-- MapLibre GL Geocoder -->
+<script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.css" />
+
+<style>
+/* Geocoder styling overrides */
+.maplibregl-ctrl-geocoder {
+    box-shadow: none;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.375rem;
+    font-size: 0.9rem;
+    max-width: 320px;
+}
+.maplibregl-ctrl-geocoder input[type="text"] {
+    height: 38px;
+    padding: 6px 35px;
+    border: none;
+    border-radius: 0.375rem;
+}
+.maplibregl-ctrl-geocoder .maplibregl-ctrl-geocoder--pin-right > * {
+    top: 8px;
+}
+.maplibregl-ctrl-geocoder .suggestions {
+    background-color: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-top: none;
+    border-bottom-left-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+}
+.maplibregl-ctrl-geocoder .suggestions > .active > a,
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover {
+    background-color: #f0f0f0;
+}
+</style>
+{% endif %}
 
 <style>
 .maplibregl-popup {
@@ -933,6 +971,66 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 
     map.on('load', async function() {
+        {% if include_geocoder %}
+        if (typeof MaplibreGeocoder === 'undefined') {
+            console.error('MaplibreGeocoder is not loaded. Make sure the script is included.');
+        } else {
+            // Add address search control powered by Nominatim
+            const geocoderApi = {
+                forwardGeocode: async (config) => {
+                    const features = [];
+                    try {
+                        const request =
+                `https://nominatim.openstreetmap.org/search?q=${
+                    config.query
+                }&format=geojson&polygon_geojson=1&addressdetails=1&layer=address&viewbox=-77.61976,37.60954,-77.36673,37.44393&bounded=1`;
+                        const response = await fetch(request);
+                        const geojson = await response.json();
+                        for (const feature of geojson.features) {
+                            const center = [
+                                feature.bbox[0] +
+                        (feature.bbox[2] - feature.bbox[0]) / 2,
+                                feature.bbox[1] +
+                        (feature.bbox[3] - feature.bbox[1]) / 2
+                            ];
+                            const point = {
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: center
+                                },
+                                place_name: feature.properties.display_name,
+                                properties: feature.properties,
+                                text: feature.properties.display_name,
+                                place_type: ['place'],
+                                center
+                            };
+                            features.push(point);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to forwardGeocode with error: ${e}`);
+                    }
+
+                    return {
+                        features
+                    };
+                }
+            };
+            const geocoder = new MaplibreGeocoder(geocoderApi, {
+                maplibregl,
+                placeholder: 'Search places',
+            });
+
+            map.addControl(geocoder, 'top-left');
+
+            // fix geocoder search on mobile chrome
+            const geocoderInput = document.getElementById(mapId).querySelector(".maplibregl-ctrl-geocoder--input");
+            if (geocoderInput) {
+                geocoderInput.type = "search";
+            }
+        }
+        {% endif %}
+
         try {
             // Load the direction arrow image
             const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');

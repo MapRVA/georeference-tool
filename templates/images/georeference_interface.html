@@ -1742,6 +1742,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         const geocoder = new MaplibreGeocoder(geocoderApi, {
             maplibregl,
+            placeholder: 'Search places',
         });
 
         map.addControl(geocoder, 'top-left');
