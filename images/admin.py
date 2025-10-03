@@ -286,7 +286,6 @@ class PreImageAdmin(admin.ModelAdmin):
         form = super().get_form(request, obj, **kwargs)
         # Make nullable fields not required in admin form
         nullable_fields = [
-            "original_url",
             "description",
             "license_title",
             "license_permalink",
@@ -294,7 +293,6 @@ class PreImageAdmin(admin.ModelAdmin):
             "ref",
             "original_date",
             "edtf_date",
-            "difficulty",
             "keep",
         ]
         for field_name in nullable_fields:
@@ -305,7 +303,6 @@ class PreImageAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         # Convert empty strings to None for nullable fields
         nullable_fields = [
-            "original_url",
             "description",
             "license_title",
             "license_permalink",
@@ -313,7 +310,6 @@ class PreImageAdmin(admin.ModelAdmin):
             "ref",
             "original_date",
             "edtf_date",
-            "difficulty",
         ]
         for field_name in nullable_fields:
             if hasattr(obj, field_name) and getattr(obj, field_name) == "":
@@ -331,7 +327,6 @@ class PreImageAdmin(admin.ModelAdmin):
                     "permalink",
                     "description",
                     "ref",
-                    "original_url",
                 )
             },
         ),
@@ -353,11 +348,10 @@ class PreImageAdmin(admin.ModelAdmin):
                 "description": "Whether to keep this image for the main collection",
             },
         ),
-        ("Georeferencing", {"fields": ("difficulty", "will_not_georef")}),
         (
             "System Information",
             {
-                "fields": ("skip_count", "created_at", "updated_at"),
+                "fields": ("created_at", "updated_at"),
                 "classes": ("collapse",),
             },
         ),
