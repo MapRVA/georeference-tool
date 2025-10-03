@@ -979,8 +979,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var map = new maplibregl.Map({
         container: 'mymap',
         style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
-        center: [-77.43916, 37.54376],
-        zoom: 13
+        center: [-77.44, 37.53],
+        zoom: 11.5
     });
 
     // Try to setup PMTiles protocol
@@ -1503,17 +1503,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Add existing georeferenced images from this collection for context
-        {% if collection %}
-            try {
-                const contextGeojsonUrl = '{% url "images:geojson" %}?collection={{ collection.id }}';
-                const contextResponse = await fetch(contextGeojsonUrl);
-                const contextGeojsonData = await contextResponse.json();
+        // Add all existing georeferenced images for context using vector tiles
+        try {
+            // Build vector tiles URL for all context images
+            let contextVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 
-                // Add source for existing georeferenced images in this collection
+                // Add vector tiles source for existing georeferenced images in this collection
                 map.addSource('context-images', {
-                    'type': 'geojson',
-                    'data': contextGeojsonData
+                    'type': 'vector',
+                    'tiles': [contextVectorTilesUrl],
+                    'minzoom': 0,
+                    'maxzoom': 14
                 });
 
                 // Add de-emphasized circles for existing images
@@ -1521,6 +1521,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'id': 'context-image-circles',
                     'type': 'circle',
                     'source': 'context-images',
+                    'source-layer': 'image_points',
                     'paint': {
                         'circle-radius': 6,
                         'circle-color': '#6c757d',
@@ -1537,6 +1538,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         'id': 'context-image-directions',
                         'type': 'symbol',
                         'source': 'context-images',
+                        'source-layer': 'image_points',
                         'layout': {
                             'icon-image': 'surveillance-direction',
                             'icon-overlap': 'always',
@@ -1551,24 +1553,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
 
-                // Auto-zoom to fit existing georeferenced images in the collection
-                if (contextGeojsonData.features && contextGeojsonData.features.length > 0) {
-                    const bounds = new maplibregl.LngLatBounds();
-                    contextGeojsonData.features.forEach(function(feature) {
-                        bounds.extend(feature.geometry.coordinates);
-                    });
-
-                    // Fit to bounds with some padding
-                    map.fitBounds(bounds, {
-                        padding: 80,
-                        maxZoom: 15
-                    });
-                }
-
             } catch (error) {
                 console.warn('Could not load context images:', error);
             }
-        {% endif %}
 
         // Restore any existing pin if there was one
         if (pinPlaced) {
