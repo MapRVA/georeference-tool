@@ -333,6 +333,8 @@ def get_record_details(
             second_year = int(year_range_match.group(2))
             if second_year == (first_year + 1):
                 result["edtf_date"] = f"[{first_year},{second_year}]"
+            else:
+                result["edtf_date"] = f"[{first_year}..{second_year}]"
             return result
 
         # Try "MM/YYYY" format
