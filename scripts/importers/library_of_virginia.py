@@ -19,10 +19,13 @@ import argparse
 import os
 import sys
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+from urllib.request import urlretrieve
 
 import requests
 from bs4 import BeautifulSoup
+
+LOCAL_DEV = os.getenv("LOCAL_DEV", "False").lower() in ("true", "1", "yes")
 
 # Add the Django project to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,7 +68,8 @@ class LibraryOfVirginiaScraper:
 
     def __init__(self):
         self.session = requests.Session()
-        self.r2_uploader = R2Uploader()
+        if not LOCAL_DEV:
+            self.r2_uploader = R2Uploader()
 
     def clean_image_url(self, url):
         """Remove square brackets from image URLs"""
@@ -257,7 +261,9 @@ class LibraryOfVirginiaScraper:
                 print(f"    [{j}/{len(images)}] {image_data['title']}")
 
                 # Upload image to R2 if uploader is available
-                if self.r2_uploader and not dry_run:
+                if LOCAL_DEV:
+                    pass
+                elif self.r2_uploader and not dry_run:
                     print("      → Uploading to R2...")
                     image_data["permalink"] = self.r2_uploader.upload_url(
                         image_data["url"],

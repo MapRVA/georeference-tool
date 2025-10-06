@@ -94,33 +94,25 @@ WSGI_APPLICATION = "georeference_tool.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # Use SQLite for local development, PostgreSQL for production
-if LOCAL_DEV:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": os.getenv("PG_DBNAME", "georef"),
+        "USER": os.getenv("PG_USER", "django_user"),
+        "PASSWORD": os.getenv("PG_PASSWORD", ""),
+        "HOST": os.getenv("PG_HOST", "georef-db-rw"),
+        "PORT": os.getenv("PG_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
+        },
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.contrib.gis.db.backends.postgis",
-            "NAME": os.getenv("PG_DBNAME", "georef"),
-            "USER": os.getenv("PG_USER", "django_user"),
-            "PASSWORD": os.getenv("PG_PASSWORD", ""),
-            "HOST": os.getenv("PG_HOST", "georef-db-rw"),
-            "PORT": os.getenv("PG_PORT", "5432"),
-            "OPTIONS": {
-                "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
-            },
-        }
-    }
+}
 
-    # Read database password from mounted secret if available
-    db_password_file = os.getenv("DB_PASSWORD_FILE", "/etc/georef-db/password")
-    if os.path.exists(db_password_file):
-        with open(db_password_file, "r") as f:
-            DATABASES["default"]["PASSWORD"] = f.read().strip()
+# Read database password from mounted secret if available
+db_password_file = os.getenv("DB_PASSWORD_FILE", "/etc/georef-db/password")
+if os.path.exists(db_password_file):
+    with open(db_password_file, "r") as f:
+        DATABASES["default"]["PASSWORD"] = f.read().strip()
 
 
 # Password validation
