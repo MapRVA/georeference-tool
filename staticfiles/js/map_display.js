@@ -1,0 +1,896 @@
+import maplibregl from "https://esm.sh/maplibre-gl@5.7.1";
+import pmtiles from "https://esm.sh/maplibre-gl@3.0.7";
+
+// Global PMTiles setup (outside DOMContentLoaded so it's available to all functions)
+window.pmtilesProtocolSetup = false;
+
+window.setupPMTilesProtocol = function() {
+    if (window.pmtilesProtocolSetup) return true;
+
+    if (typeof pmtiles !== 'undefined') {
+        try {
+            console.log('Setting up PMTiles protocol...');
+            let protocol = new pmtiles.Protocol();
+            maplibregl.addProtocol("pmtiles", protocol.tile);
+            console.log('PMTiles protocol setup complete');
+            window.pmtilesProtocolSetup = true;
+            return true;
+        } catch (error) {
+            console.error('Error setting up PMTiles protocol:', error);
+            return false;
+        }
+    } else {
+        console.log('PMTiles library not yet available');
+        return false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const mapId = '{{ map_id|default:'map-display' }}';
+
+    // Build vector tiles URL template
+    const urlParams = new URLSearchParams();
+
+    {% if image_id %}
+    urlParams.append('image', '{{ image_id }}');
+    {% elif collection_id %}
+    urlParams.append('collection', '{{ collection_id }}');
+    {% elif source_id %}
+    urlParams.append('source', '{{ source_id }}');
+    {% elif subject_id %}
+    urlParams.append('subject', '{{ subject_id }}');
+    {% endif %}
+
+    let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+
+    if (urlParams.toString()) {
+        vectorTilesUrl += '?' + urlParams.toString();
+    }
+
+    // Layer Control Class
+    class LayerControl {
+        constructor() {
+            this.baseLayers = {
+                'osm': {
+                    name: 'OpenStreetMap',
+                    isDefault: true,
+                    setupLayer: () => {
+                        // OSM is the default style, no additional setup needed
+                    },
+                    activate: () => this.showOSMLayers(),
+                    deactivate: () => this.hideOSMLayers()
+                },
+                'satellite': {
+                    name: 'Satellite',
+                    setupLayer: () => this.setupSatelliteLayer(),
+                    activate: () => this.showSatelliteLayer(),
+                    deactivate: () => this.hideSatelliteLayer()
+                },
+                'usgs': {
+                    name: 'USGS Topo',
+                    setupLayer: () => this.setupUSGSLayer(),
+                    activate: () => this.showUSGSLayer(),
+                    deactivate: () => this.hideUSGSLayer()
+                }
+            };
+            this.currentBaseLayer = 'osm';
+            this.currentOverlayLayer = null;
+            this.mapLayersLoaded = false;
+            this.collectionsData = null;
+        }
+
+        onAdd(map) {
+            this.map = map;
+            this.container = document.createElement('div');
+            this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group layer-control';
+
+            // Generate base layer options dynamically
+            const baseLayerOptions = Object.entries(this.baseLayers).map(([key, layer]) => {
+                const activeClass = layer.isDefault ? ' active' : '';
+                return `<li><a class="dropdown-item layer-option${activeClass}" href="#" data-layer="${key}">${layer.name}</a></li>`;
+            }).join('');
+
+            this.container.innerHTML = `
+                <div class="dropdown">
+                    <button class="dropdown-toggle" type="button" id="layerDropdown-${mapId}" data-bs-toggle="dropdown" aria-expanded="false" data-bs-container="body">
+                        ${this.baseLayers[this.currentBaseLayer].name}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="layerDropdown-${mapId}">
+                        ${baseLayerOptions}
+                    </ul>
+                </div>
+            `;
+
+            this.layerDropdown = this.container.querySelector('.dropdown-toggle');
+            this.setupEventListeners();
+
+            // Defer layer setup until map is loaded
+            if (this.map.loaded()) {
+                this.setupMapLayers();
+                this.loadMapLayers();
+            } else {
+                this.map.on('load', () => {
+                    this.setupMapLayers();
+                    this.loadMapLayers();
+                });
+            }
+
+            return this.container;
+        }
+
+        onRemove() {
+            this.container.parentNode.removeChild(this.container);
+            this.map = undefined;
+        }
+
+        setupMapLayers() {
+            // Setup all base layers
+            Object.entries(this.baseLayers).forEach(([key, layer]) => {
+                layer.setupLayer();
+            });
+        }
+
+        setupSatelliteLayer() {
+            if (!this.map.getSource('satellite')) {
+                this.map.addSource('satellite', {
+                    'type': 'raster',
+                    'tiles': ['https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'Virginia Geographic Information Network (VGIN)'
+                });
+            }
+
+            if (!this.map.getLayer('satellite-layer')) {
+                this.map.addLayer({
+                    'id': 'satellite-layer',
+                    'type': 'raster',
+                    'source': 'satellite',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupUSGSLayer() {
+            if (!this.map.getSource('usgs')) {
+                this.map.addSource('usgs', {
+                    'type': 'raster',
+                    'tiles': ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'USGS National Map'
+                });
+            }
+
+            if (!this.map.getLayer('usgs-layer')) {
+                this.map.addLayer({
+                    'id': 'usgs-layer',
+                    'type': 'raster',
+                    'source': 'usgs',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupEventListeners() {
+            // Add event listeners for base layer options
+            this.container.querySelectorAll('.layer-option').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const layerKey = item.dataset.layer;
+
+                    if (layerKey === this.currentBaseLayer) return;
+
+                    this.switchToBaseLayer(layerKey);
+                });
+            });
+        }
+
+        switchToBaseLayer(newLayerKey) {
+            if (!this.baseLayers[newLayerKey] || newLayerKey === this.currentBaseLayer) return;
+
+            // Deactivate current base layer
+            this.baseLayers[this.currentBaseLayer].deactivate();
+
+            // Activate new base layer
+            this.baseLayers[newLayerKey].activate();
+
+            // Update current layer
+            this.currentBaseLayer = newLayerKey;
+
+            // Update dropdown display
+            let currentLayerName;
+            if (this.currentOverlayLayer) {
+                // Get the overlay layer title from the current button text
+                const currentText = this.layerDropdown.textContent;
+                const overlayTitle = currentText.split(' + ')[1]; // Extract overlay name after " + "
+                currentLayerName = `${this.baseLayers[newLayerKey].name} + ${overlayTitle}`;
+            } else {
+                currentLayerName = this.baseLayers[newLayerKey].name;
+            }
+            this.updateDropdownSelection(currentLayerName, newLayerKey);
+        }
+
+        showOSMLayers() {
+            // Hide other base layers
+            this.hideOtherBaseLayers(['satellite-layer', 'usgs-layer']);
+
+            // Show OSM layers (all layers except our custom base layers and overlays)
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                }
+            });
+        }
+
+        hideOSMLayers() {
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+        }
+
+        showSatelliteLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['usgs-layer']);
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+            }
+        }
+
+        hideSatelliteLayer() {
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+            }
+        }
+
+        showUSGSLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['satellite-layer']);
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
+            }
+        }
+
+        hideUSGSLayer() {
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'none');
+            }
+        }
+
+        isOverlayLayer(layerId) {
+            return layerId === 'image-circles' ||
+                   layerId === 'image-directions' ||
+                   layerId.startsWith('overlay-');
+        }
+
+        isCustomBaseLayer(layerId) {
+            return layerId === 'satellite-layer' || layerId === 'usgs-layer';
+        }
+
+        hideOtherBaseLayers(layersToHide) {
+            layersToHide.forEach(layerId => {
+                if (this.map.getLayer(layerId)) {
+                    this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            });
+        }
+
+        switchToOverlayLayer(layerId, tileUrl, title, tileType, attribution) {
+            console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType, attribution);
+
+            // For PMTiles, check if protocol is set up
+            if (tileType === 'pmtiles') {
+                console.log('PMTiles protocol setup status:', window.pmtilesProtocolSetup);
+                console.log('PMTiles available:', typeof pmtiles !== 'undefined');
+
+                // Check if PMTiles protocol has been set up
+                if (!window.pmtilesProtocolSetup) {
+                    console.error('PMTiles protocol not available! Attempting to set up now...');
+                    // Try to set it up now
+                    if (!window.setupPMTilesProtocol()) {
+                        alert('PMTiles map overlay layers are not available - PMTiles protocol not loaded.');
+                        return;
+                    }
+                    console.log('PMTiles protocol setup successful, continuing...');
+                }
+            }
+
+            // If clicking the same layer, deactivate it
+            if (this.currentOverlayLayer === layerId) {
+                console.log('Deactivating current overlay layer:', layerId);
+                this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                this.currentOverlayLayer = null;
+                const baseLayerName = this.baseLayers[this.currentBaseLayer].name;
+                this.updateDropdownSelection(baseLayerName, this.currentBaseLayer);
+                return;
+            }
+
+            // Hide other overlay layers
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (layer.id.startsWith('overlay-') && layer.id !== layerId) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+
+            // Add source if it doesn't exist
+            const sourceId = `${layerId}-source`;
+            if (!this.map.getSource(sourceId)) {
+                console.log(`Adding ${tileType} source:`, sourceId, tileUrl);
+                try {
+                    // Different source configuration based on tile type
+                    if (tileType === 'pmtiles') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            url: `pmtiles://${tileUrl}`,
+                            tileSize: 256,
+                            attribution: attribution
+                        });
+                    } else if (tileType === 'xyz') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            tiles: [tileUrl],
+                            tileSize: 256,
+                            attribution: attribution
+                        });
+                    }
+                    console.log('Tile source added successfully');
+                } catch (error) {
+                    console.error(`Error adding ${tileType} source:`, error);
+                    return;
+                }
+            } else {
+                console.log('Tile source already exists:', sourceId);
+            }
+
+            // Add layer if it doesn't exist
+            if (!this.map.getLayer(layerId)) {
+                console.log('Adding overlay layer:', layerId);
+                try {
+                    // Add before image layers so markers appear on top
+                    const beforeId = this.map.getLayer('image-directions') ? 'image-directions' : undefined;
+
+                    this.map.addLayer({
+                        id: layerId,
+                        source: sourceId,
+                        type: 'raster',
+                        paint: {
+                            'raster-opacity': 1.0,
+                            'raster-fade-duration': 300,
+                            'raster-resampling': 'linear'
+                        },
+                        layout: {
+                            'visibility': 'visible'
+                        }
+                    }, beforeId);
+                    console.log('Overlay layer added successfully');
+                } catch (error) {
+                    console.error('Error adding overlay layer:', error);
+                    return;
+                }
+            } else {
+                console.log('Overlay layer already exists, showing it');
+            }
+
+            // Show the selected overlay layer
+            this.map.setLayoutProperty(layerId, 'visibility', 'visible');
+
+            this.currentOverlayLayer = layerId;
+            // Combine base layer name with overlay layer title
+            const combinedTitle = `${this.baseLayers[this.currentBaseLayer].name} + ${title}`;
+            this.updateDropdownSelection(combinedTitle, layerId);
+            console.log('Overlay layer switch complete');
+        }
+
+        updateDropdownSelection(buttonText, selectedLayer) {
+            this.layerDropdown.textContent = buttonText;
+
+            // Clear all active states
+            this.container.querySelectorAll('.layer-option, .overlay-layer').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Highlight active layers
+            if (this.currentOverlayLayer) {
+                // Highlight both base layer and overlay layer
+                const baseLayerItem = this.container.querySelector(`[data-layer="${this.currentBaseLayer}"]`);
+                if (baseLayerItem) baseLayerItem.classList.add('active');
+
+                const overlayLayerItem = this.container.querySelector(`[data-layer="${this.currentOverlayLayer}"]`);
+                if (overlayLayerItem) overlayLayerItem.classList.add('active');
+            } else {
+                // Only highlight base layer
+                const selectedItem = this.container.querySelector(`[data-layer="${selectedLayer}"]`);
+                if (selectedItem) selectedItem.classList.add('active');
+            }
+        }
+
+        async loadMapLayers() {
+            if (this.mapLayersLoaded) return;
+
+            try {
+                console.log('Loading map layers...');
+                const response = await fetch('{% url "images:map_layers" %}');
+                console.log('Map layers response:', response);
+
+                if (!response.ok) throw new Error(`Failed to fetch map layers: ${response.status}`);
+
+                const data = await response.json();
+                console.log('Map layers data:', data);
+
+                // Store collections data with proper structure
+                this.collectionsData = data.collections;
+
+                this.populateCollectionSubmenus();
+                this.mapLayersLoaded = true;
+                console.log('Map layers loaded successfully');
+            } catch (error) {
+                console.error('Error loading map layers:', error);
+                this.addErrorItem();
+            }
+        }
+
+        populateCollectionSubmenus() {
+            if (!this.collectionsData || this.collectionsData.length === 0) return;
+
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+            let layerIndex = 0;
+
+            this.collectionsData.forEach((collection, collectionIndex) => {
+                if (collection.layers.length === 0) return;
+
+                // Add divider before each collection (except if it's the first)
+                if (collectionIndex > 0 || dropdownMenu.children.length > 0) {
+                    const dividerItem = document.createElement('li');
+                    const divider = document.createElement('hr');
+                    divider.className = 'dropdown-divider';
+                    dividerItem.appendChild(divider);
+                    dropdownMenu.appendChild(dividerItem);
+                }
+
+                // Add collection header
+                const headerItem = document.createElement('li');
+                const header = document.createElement('h6');
+                header.className = 'dropdown-header';
+                header.textContent = collection.name;
+                headerItem.appendChild(header);
+                dropdownMenu.appendChild(headerItem);
+
+                // Add layers for this collection
+                collection.layers.forEach(layer => {
+                    const layerId = `overlay-${layerIndex}`;
+                    const listItem = document.createElement('li');
+                    const layerItem = document.createElement('a');
+                    layerItem.className = 'dropdown-item overlay-layer';
+                    layerItem.href = '#';
+                    layerItem.dataset.layer = layerId;
+                    layerItem.dataset.tileUrl = layer.url;
+                    layerItem.dataset.tileType = layer.type || 'pmtiles'; // Default to pmtiles for backward compatibility
+                    layerItem.textContent = layer.name;
+
+                    layerItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.switchToOverlayLayer(
+                            layerId,
+                            layer.url,
+                            layer.name,
+                            layer.type || 'pmtiles',
+                            layer.attribution || ''
+                        );
+
+                        // Close dropdown
+                        const dropdown = bootstrap.Dropdown.getInstance(this.layerDropdown);
+                        if (dropdown) dropdown.hide();
+                    });
+
+                    listItem.appendChild(layerItem);
+                    dropdownMenu.appendChild(listItem);
+                    layerIndex++;
+                });
+            });
+        }
+
+        addErrorItem() {
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+
+            const dividerItem = document.createElement('li');
+            const divider = document.createElement('hr');
+            divider.className = 'dropdown-divider';
+            dividerItem.appendChild(divider);
+            dropdownMenu.appendChild(dividerItem);
+
+            const errorItem = document.createElement('li');
+            const errorLink = document.createElement('div');
+            errorLink.className = 'dropdown-item-text text-muted';
+            errorLink.textContent = 'Failed to load map layers';
+            errorItem.appendChild(errorLink);
+            dropdownMenu.appendChild(errorItem);
+        }
+    }
+
+    // Time Slider Control Class
+    class TimeSliderControl {
+        constructor(minYear, maxYear, mapId) {
+            this._minYear = minYear;
+            this._maxYear = maxYear;
+            this._mapId = mapId;
+
+            this.closeHandler = (e) => {
+                if (this._outerContainer && !this._outerContainer.contains(e.target)) {
+                    if (this._sliderPanel) {
+                        this._sliderPanel.style.display = 'none';
+                    }
+                }
+            };
+        }
+
+        onAdd(map) {
+            this._map = map;
+            this._outerContainer = document.createElement('div');
+            this._outerContainer.className = 'maplibregl-ctrl';
+
+            this._outerContainer.innerHTML = `
+                <div class="maplibregl-ctrl-group">
+                    <button id="time-slider-toggle-${this._mapId}" type="button" title="Filter by date" style="width: 32px; height: 32px;">
+                        <i class="fas fa-calendar-alt" style="font-size: 1.1em;"></i>
+                    </button>
+                </div>
+                <div class="time-slider-control" style="display: none; position: absolute; top: 40px; right: 0; z-index: 1;">
+                    <div class="time-slider-values">
+                        <span id="time-slider-label-${this._mapId}">Date Range</span>
+                        <span id="time-slider-range-label-${this._mapId}"></span>
+                    </div>
+                    <div class="time-slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range" id="slider-range-${this._mapId}"></div>
+                        <input type="range" id="start-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._minYear}">
+                        <input type="range" id="end-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
+                    </div>
+                </div>
+            `;
+
+            this._button = this._outerContainer.querySelector('button');
+            this._sliderPanel = this._outerContainer.querySelector('.time-slider-control');
+
+            this._button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = this._sliderPanel.style.display === 'none';
+                this._sliderPanel.style.display = isHidden ? 'block' : 'none';
+            });
+
+            document.addEventListener('click', this.closeHandler, true);
+
+            this._sliderPanel.addEventListener('click', e => e.stopPropagation());
+
+            this._startSlider = this._sliderPanel.querySelector(`#start-slider-${this._mapId}`);
+            this._endSlider = this._sliderPanel.querySelector(`#end-slider-${this._mapId}`);
+            this._rangeLabel = this._sliderPanel.querySelector(`#time-slider-range-label-${this._mapId}`);
+            this._sliderRange = this._sliderPanel.querySelector(`#slider-range-${this._mapId}`);
+
+            this.setupEventListeners();
+            this.updateView();
+
+            return this._outerContainer;
+        }
+
+        setupEventListeners() {
+            this._startSlider.addEventListener('input', () => {
+                if (parseInt(this._startSlider.value) > parseInt(this._endSlider.value)) {
+                    this._endSlider.value = this._startSlider.value;
+                }
+                this.updateView();
+                this.applyFilter();
+            });
+
+            this._endSlider.addEventListener('input', () => {
+                if (parseInt(this._endSlider.value) < parseInt(this._startSlider.value)) {
+                    this._startSlider.value = this._endSlider.value;
+                }
+                this.updateView();
+                this.applyFilter();
+            });
+        }
+
+        updateView() {
+            this._rangeLabel.textContent = `${this._startSlider.value} - ${this._endSlider.value}`;
+
+            const range = this._maxYear - this._minYear;
+            if (range === 0) return;
+
+            const startPercent = ((this._startSlider.value - this._minYear) / range) * 100;
+            const endPercent = ((this._endSlider.value - this._minYear) / range) * 100;
+
+            this._sliderRange.style.left = `${startPercent}%`;
+            this._sliderRange.style.width = `${endPercent - startPercent}%`;
+        }
+
+        applyFilter() {
+            const startYear = parseInt(this._startSlider.value);
+            const endYear = parseInt(this._endSlider.value);
+
+            const filter = [
+                'all',
+                ['<=', ['get', 'fuzzy_start_decdate'], endYear],
+                ['>=', ['get', 'fuzzy_end_decdate'], startYear]
+            ];
+
+            if (this._map.getLayer('image-circles')) {
+                this._map.setFilter('image-circles', filter);
+            }
+            if (this._map.getLayer('image-directions')) {
+                this._map.setFilter('image-directions', [
+                    'all',
+                    ['has', 'direction'],
+                    ...filter.slice(1)
+                ]);
+            }
+        }
+
+        onRemove() {
+            document.removeEventListener('click', this.closeHandler, true);
+            if (this._outerContainer && this._outerContainer.parentNode) {
+                this._outerContainer.parentNode.removeChild(this._outerContainer);
+            }
+            this._map = undefined;
+        }
+    }
+
+    // Try to setup PMTiles protocol
+    window.setupPMTilesProtocol();
+
+    // Initialize the map
+    const map = new maplibregl.Map({
+        container: mapId,
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        {% if hash %}
+        hash: true,
+        {% endif %}
+        {% if center_lng and center_lat and zoom_level %}
+        center: [{{ center_lng }}, {{ center_lat }}],
+        zoom: {{ zoom_level }}
+        {% else %}
+        center: [-77.43916, 37.54376],
+        zoom: 10
+        {% endif %}
+    });
+
+    map.addControl(new LayerControl(), 'top-right');
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.FullscreenControl());
+
+    {% if geolocate %}
+    map.addControl(new maplibregl.GeolocateControl({
+        positionOptions: {
+            enableHighAccuracy: true
+        },
+        trackUserLocation: true
+    }));
+    {% endif %}
+
+    map.on('load', async function() {
+        {% if include_geocoder %}
+        if (typeof MaplibreGeocoder === 'undefined') {
+            console.error('MaplibreGeocoder is not loaded. Make sure the script is included.');
+        } else {
+            // Add address search control powered by Nominatim
+            const geocoderApi = {
+                forwardGeocode: async (config) => {
+                    const features = [];
+                    try {
+                        const request =
+                `https://nominatim.openstreetmap.org/search?q=${
+                    config.query
+                }&format=geojson&polygon_geojson=1&addressdetails=1&layer=address&viewbox=-77.61976,37.60954,-77.36673,37.44393&bounded=1`;
+                        const response = await fetch(request);
+                        const geojson = await response.json();
+                        for (const feature of geojson.features) {
+                            const center = [
+                                feature.bbox[0] +
+                        (feature.bbox[2] - feature.bbox[0]) / 2,
+                                feature.bbox[1] +
+                        (feature.bbox[3] - feature.bbox[1]) / 2
+                            ];
+                            const point = {
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: center
+                                },
+                                place_name: feature.properties.display_name,
+                                properties: feature.properties,
+                                text: feature.properties.display_name,
+                                place_type: ['place'],
+                                center
+                            };
+                            features.push(point);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to forwardGeocode with error: ${e}`);
+                    }
+
+                    return {
+                        features
+                    };
+                }
+            };
+            const geocoder = new MaplibreGeocoder(geocoderApi, {
+                maplibregl,
+                placeholder: 'Search places',
+            });
+
+            map.addControl(geocoder, 'top-left');
+
+            // fix geocoder search on mobile chrome
+            const geocoderInput = document.getElementById(mapId).querySelector(".maplibregl-ctrl-geocoder--input");
+            if (geocoderInput) {
+                geocoderInput.type = "search";
+            }
+        }
+        {% endif %}
+
+        try {
+            // Load the direction arrow image
+            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            map.addImage('image-direction', image.data);
+        } catch (error) {
+            console.warn('Could not load direction arrow image:', error);
+        }
+
+        // Add vector tiles source for the georeferenced images
+        map.addSource('images', {
+            'type': 'vector',
+            'tiles': [vectorTilesUrl],
+            'minzoom': 0,
+            'maxzoom': 14
+        });
+
+        // Add direction markers if image-direction image loaded successfully
+        if (map.hasImage('image-direction')) {
+            map.addLayer({
+                'id': 'image-directions',
+                'type': 'symbol',
+                'source': 'images',
+                'source-layer': 'image_points',
+                'layout': {
+                    'icon-image': 'image-direction',
+                    'icon-overlap': 'always',
+                    'icon-size': {
+                        'stops': [[5, 0.3], [15, 1]]
+                    },
+                    'icon-rotate': ['to-number', ['get', 'direction']],
+                    'icon-rotation-alignment': 'map',
+                    'icon-pitch-alignment': 'map'
+                },
+                'filter': ['has', 'direction']
+            });
+        }
+
+        // Add circle layer for image locations
+        map.addLayer({
+            'id': 'image-circles',
+            'type': 'circle',
+            'source': 'images',
+            'source-layer': 'image_points',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': 'green',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 2
+            }
+        });
+
+        // Wait for initial tile data to load to get metadata for time slider and bounds
+        map.on('sourcedata', function(e) {
+            if (e.sourceId === 'images' && e.isSourceLoaded) {
+                // Get features currently visible on the map to calculate bounds and date ranges
+                const features = map.querySourceFeatures('images', {
+                    sourceLayer: 'image_points'
+                });
+
+                if (features.length === 0) {
+                    // No data available
+                    document.getElementById(mapId).innerHTML =
+                        '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                        '<div class="text-center">' +
+                        '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+                        'No georeferenced images found' +
+                        '</div></div>';
+                    return;
+                }
+
+                // Calculate date range for time slider
+                let minYear = null;
+                let maxYear = null;
+                features.forEach(feature => {
+                    const props = feature.properties;
+                    if (props.fuzzy_start_decdate) {
+                        if (minYear === null || props.fuzzy_start_decdate < minYear) {
+                            minYear = props.fuzzy_start_decdate;
+                        }
+                    }
+                    const yearForMax = props.fuzzy_end_decdate || props.fuzzy_start_decdate;
+                    if (yearForMax) {
+                        if (maxYear === null || yearForMax > maxYear) {
+                            maxYear = yearForMax;
+                        }
+                    }
+                });
+
+                // Only add slider if there's a valid date range and not a single image view
+                if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
+                    const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
+                    map.addControl(timeSlider, 'top-right');
+                }
+
+                // Only zoom to data if no custom location is specified
+                {% if not center_lng or not center_lat or not zoom_level %}
+                if (features.length > 0) {
+                    const bounds = new maplibregl.LngLatBounds();
+                    features.forEach(function(feature) {
+                        bounds.extend([feature.geometry.coordinates[0], feature.geometry.coordinates[1]]);
+                    });
+
+                    // For single images, zoom closer; for multiple images, fit bounds with padding
+                    {% if image_id %}
+                    if (features[0]) {
+                        map.setCenter([features[0].geometry.coordinates[0], features[0].geometry.coordinates[1]]);
+                        map.setZoom(16);
+                    }
+                    {% else %}
+                    map.fitBounds(bounds, {
+                        padding: 50,
+                        maxZoom: 15
+                    });
+                    {% endif %}
+                }
+                {% endif %}
+
+                // Remove this event listener after first use
+                map.off('sourcedata', arguments.callee);
+            }
+        });
+
+        // Add click handlers for image markers (only for multi-image maps)
+        {% if not image_id %}
+        map.on('click', 'image-circles', function(e) {
+            const properties = e.features[0].properties;
+
+            // Build absolute URL for image entry
+            const imgEntry = window.location.origin + '/' + properties.id + '/';
+
+            // Create popup content
+            const popupContent = `
+              <div>
+                  <img src="${properties.img_url}"
+                        style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                  ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
+                  <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                      <i class="fas fa-eye me-1"></i>View Details
+                  </a>
+              </div>
+            `;
+
+            new maplibregl.Popup()
+                .setLngLat(e.features[0].geometry.coordinates)
+                .setHTML(popupContent)
+                .addTo(map);
+        });
+
+        // Change the cursor to pointer when hovering over markers
+        map.on('mouseenter', 'image-circles', function() {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.on('mouseleave', 'image-circles', function() {
+            map.getCanvas().style.cursor = '';
+        });
+        {% endif %}
+    });
+});
+
