@@ -509,6 +509,19 @@ class GeoreferenceAdmin(admin.ModelAdmin):
         "georeferenced_by__username",
     )
     readonly_fields = ("georeferenced_at", "updated_at", "validation_count")
+    autocomplete_fields = ["image"]
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+
+        # Remove add, change, delete buttons for image field
+        if 'image' in form.base_fields:
+            form.base_fields['image'].widget.can_add_related = False
+            form.base_fields['image'].widget.can_change_related = False
+            form.base_fields['image'].widget.can_delete_related = False
+
+        return form
+
     fieldsets = (
         ("Image Information", {"fields": ("image",)}),
         ("Coordinates", {"fields": ("point", "direction")}),
