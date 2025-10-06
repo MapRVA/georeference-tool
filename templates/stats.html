@@ -77,29 +77,59 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // Daily Georeferences Chart
         const dailyCtx = document.getElementById('dailyGeoreferencesChart').getContext('2d');
+        
+        // Convert labels and counts to data points with x (date) and y (count) values
+        const labels = {{ daily_labels|safe }};
+        const counts = {{ daily_counts|safe }};
+        const dataPoints = labels.map((label, index) => ({
+            x: label,
+            y: counts[index]
+        }));
+        
         new Chart(dailyCtx, {
             type: 'line',
             data: {
-                labels: {{ daily_labels|safe }},
                 datasets: [{
                     label: 'Cumulative Georeferences',
-                    data: {{ daily_counts|safe }},
+                    data: dataPoints,
                     borderColor: 'rgba(75, 192, 192, 1)',
                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                     fill: true,
-                    tension: 0.1
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            minUnit: 'hour',
+                            displayFormats: {
+                                day: 'MMM d, yyyy'
+                            },
+                            tooltipFormat: 'PPP p'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    },
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Cumulative Georeferences'
+                        }
                     }
                 }
             }

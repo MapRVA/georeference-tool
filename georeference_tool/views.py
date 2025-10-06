@@ -12,27 +12,27 @@ def home(request):
 import json
 
 from django.db.models import Count, F
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDate, TruncHour
 
 from images.models import Georeference, GeoreferenceValidation, Image
 
 
 def stats(request):
     """Stats page view"""
-    # Daily georeferences (cumulative)
-    daily_georeferences = (
-        Georeference.objects.annotate(date=TruncDate("georeferenced_at"))
-        .values("date")
+    # Hourly georeferences (cumulative, but displayed by day on chart)
+    hourly_georeferences = (
+        Georeference.objects.annotate(hour=TruncHour("georeferenced_at"))
+        .values("hour")
         .annotate(count=Count("id"))
-        .order_by("date")
+        .order_by("hour")
     )
 
     cumulative_data = []
     cumulative_count = 0
-    for entry in daily_georeferences:
+    for entry in hourly_georeferences:
         cumulative_count += entry["count"]
         cumulative_data.append(
-            {"date": entry["date"].strftime("%Y-%m-%d"), "count": cumulative_count}
+            {"date": entry["hour"].isoformat(), "count": cumulative_count}
         )
 
     daily_labels = [entry["date"] for entry in cumulative_data]
