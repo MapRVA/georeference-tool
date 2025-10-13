@@ -1102,75 +1102,97 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Wait for initial tile data to load to get metadata for time slider and bounds
+        let initialFeaturesLoaded = false;
         map.on('sourcedata', function(e) {
-            if (e.sourceId === 'images' && e.isSourceLoaded) {
-                // Get features currently visible on the map to calculate bounds and date ranges
-                const features = map.querySourceFeatures('images', {
+            if (e.sourceId === 'images' && e.isSourceLoaded && !initialFeaturesLoaded) {
+                // Try to get features from a larger area to avoid viewport-only queries
+                let features = map.querySourceFeatures('images', {
                     sourceLayer: 'image_points'
                 });
 
+                // If no features in current viewport, try querying rendered features across all zoom levels
                 if (features.length === 0) {
-                    // No data available
-                    document.getElementById(mapId).innerHTML =
-                        '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                        '<div class="text-center">' +
-                        '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-                        'No georeferenced images found' +
-                        '</div></div>';
-                    return;
+                    features = map.queryRenderedFeatures({
+                        layers: ['image-circles']
+                    });
                 }
 
-                // Calculate date range for time slider
-                let minYear = null;
-                let maxYear = null;
-                features.forEach(feature => {
-                    const props = feature.properties;
-                    if (props.fuzzy_start_decdate) {
-                        if (minYear === null || props.fuzzy_start_decdate < minYear) {
-                            minYear = props.fuzzy_start_decdate;
-                        }
-                    }
-                    const yearForMax = props.fuzzy_end_decdate || props.fuzzy_start_decdate;
-                    if (yearForMax) {
-                        if (maxYear === null || yearForMax > maxYear) {
-                            maxYear = yearForMax;
-                        }
-                    }
-                });
-
-                // Only add slider if there's a valid date range and not a single image view
-                if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
-                    const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
-                    map.addControl(timeSlider, 'top-right');
-                }
-
-                // Only zoom to data if no custom location is specified
-                {% if not center_lng or not center_lat or not zoom_level %}
                 if (features.length > 0) {
-                    const bounds = new maplibregl.LngLatBounds();
-                    features.forEach(function(feature) {
-                        bounds.extend([feature.geometry.coordinates[0], feature.geometry.coordinates[1]]);
-                    });
-
-                    // For single images, zoom closer; for multiple images, fit bounds with padding
-                    {% if image_id %}
-                    if (features[0]) {
-                        map.setCenter([features[0].geometry.coordinates[0], features[0].geometry.coordinates[1]]);
-                        map.setZoom(16);
-                    }
-                    {% else %}
-                    map.fitBounds(bounds, {
-                        padding: 50,
-                        maxZoom: 15
-                    });
-                    {% endif %}
+                    initialFeaturesLoaded = true;
+                    processFeatures(features);
+                } else {
+                    // If still no features, wait a bit longer for tiles to load before showing error
+                    setTimeout(() => {
+                        if (initialFeaturesLoaded) return; // Check flag again
+                        const retryFeatures = map.querySourceFeatures('images', {
+                            sourceLayer: 'image_points'
+                        });
+                        
+                        if (retryFeatures.length > 0) {
+                            initialFeaturesLoaded = true;
+                            processFeatures(retryFeatures);
+                        } else {
+                            // No data available after retry
+                            document.getElementById(mapId).innerHTML =
+                                '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                                '<div class="text-center">' +
+                                '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+                                'No georeferenced images found' +
+                                '</div></div>';
+                        }
+                    }, 1000);
                 }
-                {% endif %}
-
-                // Remove this event listener after first use
-                map.off('sourcedata', arguments.callee);
             }
         });
+
+        function processFeatures(features) {
+
+            // Calculate date range for time slider
+            let minYear = null;
+            let maxYear = null;
+            features.forEach(feature => {
+                const props = feature.properties;
+                if (props.fuzzy_start_decdate) {
+                    if (minYear === null || props.fuzzy_start_decdate < minYear) {
+                        minYear = props.fuzzy_start_decdate;
+                    }
+                }
+                const yearForMax = props.fuzzy_end_decdate || props.fuzzy_start_decdate;
+                if (yearForMax) {
+                    if (maxYear === null || yearForMax > maxYear) {
+                        maxYear = yearForMax;
+                    }
+                }
+            });
+
+            // Only add slider if there's a valid date range and not a single image view
+            if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
+                const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
+                map.addControl(timeSlider, 'top-right');
+            }
+
+            // Only zoom to data if no custom location is specified
+            {% if center_lng and center_lat and zoom_level %}
+            // A center is provided, so we honor it.
+            // The map is already centered on initialization, but we can fly to it to be sure.
+            map.flyTo({
+                center: [{{ center_lng }}, {{ center_lat }}],
+                zoom: {{ zoom_level }}
+            });
+            {% else %}
+            // No center provided, so we fit the features.
+            if (features.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                features.forEach(function(feature) {
+                    bounds.extend(feature.geometry.coordinates);
+                });
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 15
+                });
+            }
+            {% endif %}
+        }
 
         // Add click handlers for image markers (only for multi-image maps)
         {% if not image_id %}

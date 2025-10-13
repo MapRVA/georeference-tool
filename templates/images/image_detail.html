@@ -284,7 +284,7 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
-                            {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' %}
+                            {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 %}
                         </div>
                     </div>
                     <div class="card-footer bg-light">
