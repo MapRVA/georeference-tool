@@ -1288,9 +1288,134 @@ def semantic_search(request):
         )
 
 
+def find_similar_images(request, image_id):
+    """
+    Find and display images with embeddings most similar to a given image.
+    """
+    if not CLIP_AVAILABLE:
+        messages.error(request, "Similarity search is not available. CLIP dependencies not installed.")
+        return redirect("images:image_detail", image_id=image_id)
+
+    # Get the target image and its embedding
+    target_image = get_object_or_404(Image, id=image_id)
+    if not target_image.embedding:
+        messages.error(request, "The selected image does not have an embedding, so similar images cannot be found.")
+        return redirect("images:image_detail", image_id=image_id)
+
+    from django.db import connection
+
+    try:
+        with connection.cursor() as cursor:
+            # Convert embedding to PostgreSQL array format
+            embedding_str = "[" + ",".join(map(str, target_image.embedding)) + "]"
+
+            # Raw SQL query for cosine similarity to get all similar images
+            sql = """
+                SELECT
+                    id,
+                    (embedding::vector <=> %s::vector) as distance
+                FROM images_image
+                WHERE embedding IS NOT NULL
+                AND id != %s
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+                ORDER BY distance
+            """
+            cursor.execute(sql, [embedding_str, target_image.id])
+            all_results = cursor.fetchall()
+
+        # Get a list of all similar image IDs, ordered by similarity
+        all_similar_ids = [row[0] for row in all_results]
+
+        # Paginate the full list of IDs
+        paginator = Paginator(all_similar_ids, 24)  # 24 images per page
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+
+        # Get the full Image objects for the current page
+        current_page_ids = page_obj.object_list
+        images_on_page = Image.objects.filter(id__in=current_page_ids).select_related(
+            "collection__source"
+        )
+
+        # Create a dictionary to map IDs to image objects for correct ordering
+        images_by_id = {img.id: img for img in images_on_page}
+
+        # Re-order the fetched image objects based on the paginated ID list
+        ordered_images_on_page = [
+            images_by_id[img_id] for img_id in current_page_ids if img_id in images_by_id
+        ]
+
+        # Replace the list of IDs in the page object with the actual image objects
+        page_obj.object_list = ordered_images_on_page
+
+        context = {
+            "target_image": target_image,
+            "page_obj": page_obj,
+            "total_similar_count": paginator.count,
+        }
+
+        return render(request, "images/similar_images.html", context)
+
+    except Exception as e:
+        messages.error(request, f"An error occurred while finding similar images: {str(e)}")
+        return redirect("images:image_detail", image_id=image_id)
+
+
 class WordSimilarity(Func):
     function = "word_similarity"
     arity = 2
+
+
+def _generate_highlighted_snippet(text, query, max_length=200):
+    """
+    Generate a highlighted snippet from text based on query terms.
+    Returns a dict with highlighted text and snippet.
+    """
+    if not text or not query:
+        return {"snippet": text[:max_length] if text else "", "highlighted": text or ""}
+
+    import re
+
+    # Split query into individual terms
+    query_terms = [term.strip().lower() for term in query.split() if term.strip()]
+    if not query_terms:
+        return {"snippet": text[:max_length], "highlighted": text}
+
+    # Create regex pattern for highlighting (case insensitive)
+    pattern = '|'.join(re.escape(term) for term in query_terms)
+
+    # Find the best snippet position (around first match)
+    match = re.search(pattern, text, re.IGNORECASE)
+    if match:
+        start_pos = max(0, match.start() - max_length // 3)
+        end_pos = min(len(text), start_pos + max_length)
+        snippet = text[start_pos:end_pos]
+
+        # Add ellipsis if needed
+        if start_pos > 0:
+            snippet = "..." + snippet
+        if end_pos < len(text):
+            snippet = snippet + "..."
+    else:
+        snippet = text[:max_length]
+
+    # Highlight matching terms in both snippet and full text
+    def highlight_replacer(match):
+        return f'<mark>{match.group(0)}</mark>'
+
+    highlighted_snippet = re.sub(pattern, highlight_replacer, snippet, flags=re.IGNORECASE)
+    highlighted_full = re.sub(pattern, highlight_replacer, text, flags=re.IGNORECASE)
+
+    return {
+        "snippet": highlighted_snippet,
+        "highlighted": highlighted_full
+    }
 
 
 @require_http_methods(["GET", "POST"])

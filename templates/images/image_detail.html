@@ -514,10 +514,15 @@
                         </div>
 
                         <!-- External links -->
-                        <div class="d-grid">
+                        <div class="d-grid gap-2">
                             <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-info btn-sm">
                                 <i class="fas fa-external-link-alt me-1"></i>View Original Source
                             </a>
+                            {% if image.embedding %}
+                            <a href="{% url 'images:find_similar_images' image.id %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-search me-1"></i>Find Similar Images
+                            </a>
+                            {% endif %}
                         </div>
 
                         <!-- Admin controls -->

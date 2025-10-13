@@ -21,6 +21,7 @@ urlpatterns = [
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("<int:image_id>/", views.image_detail, name="image_detail"),
+    path("<int:image_id>/similar/", views.find_similar_images, name="find_similar_images"),
     path("stats/", views.image_stats, name="image_stats"),
     path("search/", views.search_page, name="search_page"),
     path("random/", views.get_random_image, name="random_image"),
