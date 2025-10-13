@@ -1690,7 +1690,7 @@ def add_subject_to_image(request, image_id):
             or 0
         )
 
-        SubjectMapping.objects.create(image=image, subject=subject, order=max_order + 1)
+        subject_mapping = SubjectMapping.objects.create(image=image, subject=subject, order=max_order + 1)
 
         return JsonResponse(
             {
@@ -1703,6 +1703,8 @@ def add_subject_to_image(request, image_id):
                     "wikidata_id": wikidata_id,
                     "wikidata_url": wikidata_item.wikidata_url,
                     "image_url": wikidata_item.image_url,
+                    "relation_id": subject_mapping.id,
+                    "url": subject.get_absolute_url(),
                 },
             }
         )
