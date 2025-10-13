@@ -65,6 +65,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No images found to process."))
             return
 
+        # Convert queryset to list to avoid re-evaluation during processing
+        images_list = list(images_queryset)
+
         self.stdout.write(
             self.style.SUCCESS(
                 f"Processing {total_images} images in batches of {options['batch_size']}"
@@ -77,7 +80,7 @@ class Command(BaseCommand):
         failed_count = 0
 
         for i in range(0, total_images, batch_size):
-            batch_images = images_queryset[i : i + batch_size]
+            batch_images = images_list[i : i + batch_size]
 
             self.stdout.write(f"Processing batch {i // batch_size + 1}...")
 
