@@ -520,6 +520,10 @@ class GeoreferenceAdmin(admin.ModelAdmin):
             form.base_fields['image'].widget.can_change_related = False
             form.base_fields['image'].widget.can_delete_related = False
 
+        # Make georeferenced_by not required to allow anonymous submissions
+        if 'georeferenced_by' in form.base_fields:
+            form.base_fields['georeferenced_by'].required = False
+
         return form
 
     fieldsets = (
