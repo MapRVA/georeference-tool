@@ -55,10 +55,10 @@ from .models import (
 # the determined scale for that zoom level will be displayed.
 SCALE_VISIBILITY = {
     0: 5,   # Scale 5 and up visible from this zoom
-    13: 4,  # Scale 4 and up visible from this zoom
-    14: 3,  # Scale 3 and up visible from this zoom
-    16: 2,  # Scale 2 and up visible from this zoom
-    17: 1,  # Scale 1 and up visible from this zoom
+    10: 4,  # Scale 4 and up visible from this zoom
+    11: 3,  # Scale 3 and up visible from this zoom
+    12: 2,  # Scale 2 and up visible from this zoom
+    14: 1,  # Scale 1 and up visible from this zoom
 }
 
 def get_min_scale_for_zoom(z):

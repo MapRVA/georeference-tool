@@ -403,35 +403,56 @@ document.addEventListener('DOMContentLoaded', function() {
     // Build MapLibre expression for direction icon opacity based on config
     const buildDirectionOpacityExpression = () => {
         {% if enable_scale_visibility %}
-        const expr = ['step', ['zoom'], 0]; // Start with 0 opacity at zoom 0
+        // Helper function to build case expression for direction opacity at a given zoom
+        const buildCaseForZoom = (atZoom) => {
+            const caseExpr = ['case'];
 
-        // Sort scales from highest to lowest to build zoom thresholds
-        const scales = [5, 4, 3, 2, 1];
-        const zoomThresholds = new Map();
+            const scales = [5, 4, 3, 2, 1];
+            scales.forEach(scale => {
+                const config = SCALE_VISIBILITY_CONFIG[scale];
+                if (!config) return;
 
-        // Collect all unique zoom thresholds and their scale requirements
-        scales.forEach(scale => {
-            const config = SCALE_VISIBILITY_CONFIG[scale];
-            if (config && config.fullDetailZoom > 0) {
-                if (!zoomThresholds.has(config.fullDetailZoom)) {
-                    zoomThresholds.set(config.fullDetailZoom, []);
+                // Direction arrows only show at full detail zoom
+                if (atZoom >= config.fullDetailZoom) {
+                    caseExpr.push(
+                        ['==', ['coalesce', ['get', 'scale'], 6], scale],
+                        1
+                    );
                 }
-                zoomThresholds.get(config.fullDetailZoom).push(scale);
-            }
-        });
+            });
 
-        // Sort thresholds and build expression
-        const sortedZooms = Array.from(zoomThresholds.keys()).sort((a, b) => a - b);
-        sortedZooms.forEach(zoom => {
-            const minScale = Math.min(...zoomThresholds.get(zoom));
-            expr.push(
-                zoom,
-                ['case',
-                    ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScale],
-                    1,
-                    0
-                ]
+            // Handle scale 0 or 6 or null: always visible
+            caseExpr.push(
+                ['any',
+                    ['==', ['coalesce', ['get', 'scale'], 6], 6],
+                    ['==', ['coalesce', ['get', 'scale'], 6], 0],
+                    ['!', ['has', 'scale']]
+                ],
+                1
             );
+
+            // Default: invisible
+            caseExpr.push(0);
+
+            return caseExpr;
+        };
+
+        // Collect all unique zoom thresholds (only fullDetailZoom matters for directions)
+        const zoomThresholds = new Set();
+        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
+            zoomThresholds.add(config.fullDetailZoom);
+        });
+        const sortedZooms = Array.from(zoomThresholds).sort((a, b) => a - b);
+
+        // Build step expression
+        const expr = ['step', ['zoom']];
+
+        // Default (zoom 0)
+        expr.push(buildCaseForZoom(0));
+
+        // Add case expressions for each zoom threshold
+        sortedZooms.forEach(zoom => {
+            expr.push(zoom, buildCaseForZoom(zoom));
         });
 
         return expr;
@@ -444,70 +465,66 @@ document.addEventListener('DOMContentLoaded', function() {
     // Build MapLibre expression for circle radius based on config
     const buildCircleRadiusExpression = () => {
         {% if enable_scale_visibility %}
+        // Helper function to build case expression for a given zoom level
+        // This determines what size each scale should be at this zoom
+        const buildCaseForZoom = (atZoom) => {
+            const caseExpr = ['case'];
+
+            const scales = [5, 4, 3, 2, 1];
+            scales.forEach(scale => {
+                const config = SCALE_VISIBILITY_CONFIG[scale];
+                if (!config) return;
+
+                // At atZoom, what should this scale show?
+                if (atZoom >= config.fullDetailZoom) {
+                    // Full detail: 8px
+                    caseExpr.push(
+                        ['==', ['coalesce', ['get', 'scale'], 6], scale],
+                        8
+                    );
+                } else if (atZoom >= config.pinpointZoom) {
+                    // Pinpoint: 4px
+                    caseExpr.push(
+                        ['==', ['coalesce', ['get', 'scale'], 6], scale],
+                        4
+                    );
+                }
+                // else: invisible (not added, falls through to default)
+            });
+
+            // Handle scale 0 or 6 or null: always 8px
+            caseExpr.push(
+                ['any',
+                    ['==', ['coalesce', ['get', 'scale'], 6], 6],
+                    ['==', ['coalesce', ['get', 'scale'], 6], 0],
+                    ['!', ['has', 'scale']]
+                ],
+                8
+            );
+
+            // Default: invisible
+            caseExpr.push(0);
+
+            return caseExpr;
+        };
+
+        // Collect all unique zoom thresholds
+        const zoomThresholds = new Set();
+        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
+            zoomThresholds.add(config.pinpointZoom);
+            zoomThresholds.add(config.fullDetailZoom);
+        });
+        const sortedZooms = Array.from(zoomThresholds).sort((a, b) => a - b);
+
+        // Build step expression: ['step', ['zoom'], defaultValue, zoom1, value1, ...]
         const expr = ['step', ['zoom']];
 
-        // Find the earliest pinpoint zoom for default
-        const earliestPinpoint = Math.min(...Object.values(SCALE_VISIBILITY_CONFIG).map(c => c.pinpointZoom));
-        const scalesAtEarliest = Object.entries(SCALE_VISIBILITY_CONFIG)
-            .filter(([_, config]) => config.pinpointZoom === earliestPinpoint)
-            .map(([scale, _]) => parseInt(scale));
-        const minScaleAtEarliest = Math.max(...scalesAtEarliest);
+        // Default (zoom 0): what's visible at the start?
+        expr.push(buildCaseForZoom(0));
 
-        expr.push(['case',
-            ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScaleAtEarliest],
-            4,
-            0
-        ]);
-
-        // Collect all zoom thresholds
-        const zoomSet = new Set();
-        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
-            zoomSet.add(config.pinpointZoom);
-            zoomSet.add(config.fullDetailZoom);
-        });
-
-        const sortedZooms = Array.from(zoomSet).filter(z => z > earliestPinpoint).sort((a, b) => a - b);
-
+        // Add a case expression for each zoom threshold
         sortedZooms.forEach(zoom => {
-            // Determine which scales should be full detail (8px) vs pinpoint (4px) vs invisible (0px)
-            const fullDetailScales = Object.entries(SCALE_VISIBILITY_CONFIG)
-                .filter(([_, config]) => zoom >= config.fullDetailZoom)
-                .map(([scale, _]) => parseInt(scale));
-            const pinpointScales = Object.entries(SCALE_VISIBILITY_CONFIG)
-                .filter(([_, config]) => zoom >= config.pinpointZoom && zoom < config.fullDetailZoom)
-                .map(([scale, _]) => parseInt(scale));
-
-            if (fullDetailScales.length > 0 || pinpointScales.length > 0) {
-                const scaleValue = ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']];
-
-                if (fullDetailScales.length > 0 && pinpointScales.length > 0) {
-                    const minFullDetail = Math.min(...fullDetailScales);
-                    const minPinpoint = Math.min(...pinpointScales);
-                    expr.push(zoom, ['case',
-                        ['>=', scaleValue, minFullDetail],
-                        8,
-                        ['case',
-                            ['>=', scaleValue, minPinpoint],
-                            4,
-                            0
-                        ]
-                    ]);
-                } else if (fullDetailScales.length > 0) {
-                    const minFullDetail = Math.min(...fullDetailScales);
-                    expr.push(zoom, ['case',
-                        ['>=', scaleValue, minFullDetail],
-                        8,
-                        0
-                    ]);
-                } else {
-                    const minPinpoint = Math.min(...pinpointScales);
-                    expr.push(zoom, ['case',
-                        ['>=', scaleValue, minPinpoint],
-                        4,
-                        0
-                    ]);
-                }
-            }
+            expr.push(zoom, buildCaseForZoom(zoom));
         });
 
         return expr;
@@ -521,47 +538,57 @@ document.addEventListener('DOMContentLoaded', function() {
     // This mirrors the logic of buildCircleRadiusExpression but outputs stroke widths
     const buildCircleStrokeWidthExpression = () => {
         {% if enable_scale_visibility %}
+        // Helper function to build case expression for stroke width at a given zoom
+        const buildCaseForZoom = (atZoom) => {
+            const caseExpr = ['case'];
+
+            const scales = [5, 4, 3, 2, 1];
+            scales.forEach(scale => {
+                const config = SCALE_VISIBILITY_CONFIG[scale];
+                if (!config) return;
+
+                // Stroke is visible if at or above pinpointZoom
+                if (atZoom >= config.pinpointZoom) {
+                    caseExpr.push(
+                        ['==', ['coalesce', ['get', 'scale'], 6], scale],
+                        2
+                    );
+                }
+            });
+
+            // Handle scale 0 or 6 or null: always visible with stroke
+            caseExpr.push(
+                ['any',
+                    ['==', ['coalesce', ['get', 'scale'], 6], 6],
+                    ['==', ['coalesce', ['get', 'scale'], 6], 0],
+                    ['!', ['has', 'scale']]
+                ],
+                2
+            );
+
+            // Default: no stroke
+            caseExpr.push(0);
+
+            return caseExpr;
+        };
+
+        // Collect all unique zoom thresholds
+        const zoomThresholds = new Set();
+        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
+            zoomThresholds.add(config.pinpointZoom);
+            zoomThresholds.add(config.fullDetailZoom);
+        });
+        const sortedZooms = Array.from(zoomThresholds).sort((a, b) => a - b);
+
+        // Build step expression
         const expr = ['step', ['zoom']];
 
-        // Find the earliest pinpoint zoom for default
-        const earliestPinpoint = Math.min(...Object.values(SCALE_VISIBILITY_CONFIG).map(c => c.pinpointZoom));
-        const scalesAtEarliest = Object.entries(SCALE_VISIBILITY_CONFIG)
-            .filter(([_, config]) => config.pinpointZoom === earliestPinpoint)
-            .map(([scale, _]) => parseInt(scale));
-        const minScaleAtEarliest = Math.max(...scalesAtEarliest);
+        // Default (zoom 0)
+        expr.push(buildCaseForZoom(0));
 
-        // Default: 2 if visible, 0 if not
-        expr.push(['case',
-            ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScaleAtEarliest],
-            2,
-            0
-        ]);
-
-        // Collect all zoom thresholds
-        const zoomSet = new Set();
-        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
-            zoomSet.add(config.pinpointZoom);
-            zoomSet.add(config.fullDetailZoom);
-        });
-
-        const sortedZooms = Array.from(zoomSet).filter(z => z > earliestPinpoint).sort((a, b) => a - b);
-
+        // Add case expressions for each zoom threshold
         sortedZooms.forEach(zoom => {
-            // Determine which scales should be visible (stroke width 2) vs invisible (stroke width 0)
-            const visibleScales = Object.entries(SCALE_VISIBILITY_CONFIG)
-                .filter(([_, config]) => zoom >= config.pinpointZoom)
-                .map(([scale, _]) => parseInt(scale));
-
-            if (visibleScales.length > 0) {
-                const scaleValue = ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']];
-                const minVisible = Math.min(...visibleScales);
-
-                expr.push(zoom, ['case',
-                    ['>=', scaleValue, minVisible],
-                    2,
-                    0
-                ]);
-            }
+            expr.push(zoom, buildCaseForZoom(zoom));
         });
 
         return expr;
