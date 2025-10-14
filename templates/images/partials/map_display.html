@@ -344,6 +344,209 @@ window.setupPMTilesProtocol = function() {
 document.addEventListener('DOMContentLoaded', function() {
     const mapId = '{{ map_id|default:'map-display' }}';
 
+    // ====================================================================================
+    // SCALE VISIBILITY CONFIGURATION - EDIT THIS TO ADJUST WHEN IMAGES APPEAR
+    // ====================================================================================
+    // Configure when images appear as pinpoints vs full detail based on their scale value
+    //
+    // Scale values explained:
+    //   1 = Most detailed images (street level, individual buildings)
+    //   2 = Neighborhood level
+    //   3 = District level
+    //   4 = City/town level
+    //   5 = County/regional level (least detailed, widest area)
+    //   0 or null = Always visible (treated as scale 6)
+    //
+    // For each scale level, set two zoom thresholds:
+    //   - pinpointZoom: When small 4px green dots first appear
+    //   - fullDetailZoom: When full 8px circles + direction arrows + clickable popups appear
+    //
+    // Example: Scale 5 images appear as pinpoints at zoom 0, full detail at zoom 12
+    //
+    const SCALE_VISIBILITY_CONFIG = {
+        5: { pinpointZoom: 0,  fullDetailZoom: 13 },  // Wide area: pinpoints from far away, detail at zoom 12
+        4: { pinpointZoom: 13, fullDetailZoom: 14 },  // City level: pinpoints at 12, detail at 13
+        3: { pinpointZoom: 14, fullDetailZoom: 15 },  // District level: pinpoints at 13, detail at 14
+        2: { pinpointZoom: 15, fullDetailZoom: 16.5 },  // Neighborhood: pinpoints at 14, detail at 15
+        1: { pinpointZoom: 16.5, fullDetailZoom: 17.5 },  // Street level: pinpoints at 15, detail at 16
+    };
+    // ====================================================================================
+
+    // Helper functions to work with scale visibility config
+    const getScaleConfig = (scale) => {
+        // Treat 0, null, undefined, or 6 as always visible from zoom 0
+        if (!scale || scale === 0 || scale === 6) {
+            return { pinpointZoom: 0, fullDetailZoom: 0 };
+        }
+        return SCALE_VISIBILITY_CONFIG[scale] || { pinpointZoom: 99, fullDetailZoom: 99 };
+    };
+
+    const isFullDetail = (scale, zoom) => {
+        const config = getScaleConfig(scale);
+        return zoom >= config.fullDetailZoom;
+    };
+
+    const isPinpointVisible = (scale, zoom) => {
+        const config = getScaleConfig(scale);
+        return zoom >= config.pinpointZoom;
+    };
+
+    // Build MapLibre expression for direction icon opacity based on config
+    const buildDirectionOpacityExpression = () => {
+        const expr = ['step', ['zoom'], 0]; // Start with 0 opacity at zoom 0
+
+        // Sort scales from highest to lowest to build zoom thresholds
+        const scales = [5, 4, 3, 2, 1];
+        const zoomThresholds = new Map();
+
+        // Collect all unique zoom thresholds and their scale requirements
+        scales.forEach(scale => {
+            const config = SCALE_VISIBILITY_CONFIG[scale];
+            if (config && config.fullDetailZoom > 0) {
+                if (!zoomThresholds.has(config.fullDetailZoom)) {
+                    zoomThresholds.set(config.fullDetailZoom, []);
+                }
+                zoomThresholds.get(config.fullDetailZoom).push(scale);
+            }
+        });
+
+        // Sort thresholds and build expression
+        const sortedZooms = Array.from(zoomThresholds.keys()).sort((a, b) => a - b);
+        sortedZooms.forEach(zoom => {
+            const minScale = Math.min(...zoomThresholds.get(zoom));
+            expr.push(
+                zoom,
+                ['case',
+                    ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScale],
+                    1,
+                    0
+                ]
+            );
+        });
+
+        return expr;
+    };
+
+    // Build MapLibre expression for circle radius based on config
+    const buildCircleRadiusExpression = () => {
+        const expr = ['step', ['zoom']];
+
+        // Find the earliest pinpoint zoom for default
+        const earliestPinpoint = Math.min(...Object.values(SCALE_VISIBILITY_CONFIG).map(c => c.pinpointZoom));
+        const scalesAtEarliest = Object.entries(SCALE_VISIBILITY_CONFIG)
+            .filter(([_, config]) => config.pinpointZoom === earliestPinpoint)
+            .map(([scale, _]) => parseInt(scale));
+        const minScaleAtEarliest = Math.max(...scalesAtEarliest);
+
+        expr.push(['case',
+            ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScaleAtEarliest],
+            4,
+            0
+        ]);
+
+        // Collect all zoom thresholds
+        const zoomSet = new Set();
+        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
+            zoomSet.add(config.pinpointZoom);
+            zoomSet.add(config.fullDetailZoom);
+        });
+
+        const sortedZooms = Array.from(zoomSet).filter(z => z > earliestPinpoint).sort((a, b) => a - b);
+
+        sortedZooms.forEach(zoom => {
+            // Determine which scales should be full detail (8px) vs pinpoint (4px) vs invisible (0px)
+            const fullDetailScales = Object.entries(SCALE_VISIBILITY_CONFIG)
+                .filter(([_, config]) => zoom >= config.fullDetailZoom)
+                .map(([scale, _]) => parseInt(scale));
+            const pinpointScales = Object.entries(SCALE_VISIBILITY_CONFIG)
+                .filter(([_, config]) => zoom >= config.pinpointZoom && zoom < config.fullDetailZoom)
+                .map(([scale, _]) => parseInt(scale));
+
+            if (fullDetailScales.length > 0 || pinpointScales.length > 0) {
+                const scaleValue = ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']];
+
+                if (fullDetailScales.length > 0 && pinpointScales.length > 0) {
+                    const minFullDetail = Math.min(...fullDetailScales);
+                    const minPinpoint = Math.min(...pinpointScales);
+                    expr.push(zoom, ['case',
+                        ['>=', scaleValue, minFullDetail],
+                        8,
+                        ['case',
+                            ['>=', scaleValue, minPinpoint],
+                            4,
+                            0
+                        ]
+                    ]);
+                } else if (fullDetailScales.length > 0) {
+                    const minFullDetail = Math.min(...fullDetailScales);
+                    expr.push(zoom, ['case',
+                        ['>=', scaleValue, minFullDetail],
+                        8,
+                        0
+                    ]);
+                } else {
+                    const minPinpoint = Math.min(...pinpointScales);
+                    expr.push(zoom, ['case',
+                        ['>=', scaleValue, minPinpoint],
+                        4,
+                        0
+                    ]);
+                }
+            }
+        });
+
+        return expr;
+    };
+
+    // Build MapLibre expression for circle stroke width (0 when invisible, 2 when visible)
+    // This mirrors the logic of buildCircleRadiusExpression but outputs stroke widths
+    const buildCircleStrokeWidthExpression = () => {
+        const expr = ['step', ['zoom']];
+        
+        // Find the earliest pinpoint zoom for default
+        const earliestPinpoint = Math.min(...Object.values(SCALE_VISIBILITY_CONFIG).map(c => c.pinpointZoom));
+        const scalesAtEarliest = Object.entries(SCALE_VISIBILITY_CONFIG)
+            .filter(([_, config]) => config.pinpointZoom === earliestPinpoint)
+            .map(([scale, _]) => parseInt(scale));
+        const minScaleAtEarliest = Math.max(...scalesAtEarliest);
+        
+        // Default: 2 if visible, 0 if not
+        expr.push(['case',
+            ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScaleAtEarliest],
+            2,
+            0
+        ]);
+        
+        // Collect all zoom thresholds
+        const zoomSet = new Set();
+        Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
+            zoomSet.add(config.pinpointZoom);
+            zoomSet.add(config.fullDetailZoom);
+        });
+        
+        const sortedZooms = Array.from(zoomSet).filter(z => z > earliestPinpoint).sort((a, b) => a - b);
+        
+        sortedZooms.forEach(zoom => {
+            // Determine which scales should be visible (stroke width 2) vs invisible (stroke width 0)
+            const visibleScales = Object.entries(SCALE_VISIBILITY_CONFIG)
+                .filter(([_, config]) => zoom >= config.pinpointZoom)
+                .map(([scale, _]) => parseInt(scale));
+            
+            if (visibleScales.length > 0) {
+                const scaleValue = ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']];
+                const minVisible = Math.min(...visibleScales);
+                
+                expr.push(zoom, ['case',
+                    ['>=', scaleValue, minVisible],
+                    2,
+                    0
+                ]);
+            }
+        });
+        
+        return expr;
+    };
+
     // Build vector tiles URL template
     const urlParams = new URLSearchParams();
 
@@ -1071,12 +1274,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Add direction markers if image-direction image loaded successfully
+        // Directions only show at "full detail" zoom levels
         if (map.hasImage('image-direction')) {
             map.addLayer({
                 'id': 'image-directions',
                 'type': 'symbol',
                 'source': 'images',
                 'source-layer': 'image_points',
+                'filter': ['has', 'direction'],
                 'layout': {
                     'icon-image': 'image-direction',
                     'icon-overlap': 'always',
@@ -1087,21 +1292,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     'icon-rotation-alignment': 'map',
                     'icon-pitch-alignment': 'map'
                 },
-                'filter': ['has', 'direction']
+                'paint': {
+                    'icon-opacity': buildDirectionOpacityExpression()
+                }
             });
         }
 
         // Add circle layer for image locations
+        // Pinpoints (small) show first, then full detail (large) at higher zoom
         map.addLayer({
             'id': 'image-circles',
             'type': 'circle',
             'source': 'images',
             'source-layer': 'image_points',
             'paint': {
-                'circle-radius': 8,
+                'circle-radius': buildCircleRadiusExpression(),
                 'circle-color': 'green',
                 'circle-stroke-color': '#fff',
-                'circle-stroke-width': 2
+                'circle-stroke-width': buildCircleStrokeWidthExpression()
             }
         });
 
@@ -1114,8 +1322,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     sourceLayer: 'image_points'
                 });
 
-                // If no features in current viewport, try querying rendered features across all zoom levels
-                if (features.length === 0) {
+                // If no features in current viewport, try querying rendered features if layer exists
+                if (features.length === 0 && map.getLayer('image-circles')) {
                     features = map.queryRenderedFeatures({
                         layers: ['image-circles']
                     });
@@ -1175,58 +1383,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 map.addControl(timeSlider, 'top-right');
             }
 
-            // Only zoom to data if no custom location is specified
+            // Manual zoom only - never zoom to content automatically
             {% if center_lng and center_lat and zoom_level %}
             // A center is provided, so we honor it.
-            // The map is already centered on initialization, but we can fly to it to be sure.
-            map.flyTo({
-                center: [{{ center_lng }}, {{ center_lat }}],
-                zoom: {{ zoom_level }}
-            });
+            // The map is already centered on initialization via the Map constructor.
             {% else %}
-            // No center provided, so we fit the features.
-            if (features.length > 0) {
-                const bounds = new maplibregl.LngLatBounds();
-                features.forEach(function(feature) {
-                    bounds.extend(feature.geometry.coordinates);
-                });
-                map.fitBounds(bounds, {
-                    padding: 50,
-                    maxZoom: 15
-                });
-            }
+            // No automatic zoom to content - map stays at default position
             {% endif %}
         }
 
         // Add click handlers for image markers (only for multi-image maps)
         {% if not image_id %}
         map.on('click', 'image-circles', function(e) {
+            if (!e.features.length) return;
             const properties = e.features[0].properties;
+            // Handle null, undefined, and 0 as scale 6 (always visible)
+            const scale = (!properties.scale || properties.scale === 0) ? 6 : properties.scale;
+            const zoom = map.getZoom();
 
-            // Build absolute URL for image entry
-            const imgEntry = window.location.origin + '/' + properties.id + '/';
+            console.log('Click:', { scale: properties.scale, normalizedScale: scale, zoom, isFullDetail: isFullDetail(scale, zoom) });
 
-            // Create popup content
-            const popupContent = `
-              <div>
-                  <img src="${properties.img_url}"
-                        style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
-                  ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
-                  <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                      <i class="fas fa-eye me-1"></i>View Details
-                  </a>
-              </div>
-            `;
+            // Only show popup if at "full detail" zoom level
+            if (isFullDetail(scale, zoom)) {
+                // Build absolute URL for image entry
+                const imgEntry = window.location.origin + '/' + properties.id + '/';
 
-            new maplibregl.Popup()
-                .setLngLat(e.features[0].geometry.coordinates)
-                .setHTML(popupContent)
-                .addTo(map);
+                // Create popup content
+                const popupContent = `
+                  <div>
+                      <img src="${properties.img_url}"
+                            style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                      ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
+                      <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                          <i class="fas fa-eye me-1"></i>View Details
+                      </a>
+                  </div>
+                `;
+
+                new maplibregl.Popup()
+                    .setLngLat(e.features[0].geometry.coordinates)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            }
         });
 
-        // Change the cursor to pointer when hovering over markers
-        map.on('mouseenter', 'image-circles', function() {
-            map.getCanvas().style.cursor = 'pointer';
+        // Change the cursor to pointer when hovering over full detail markers
+        map.on('mouseenter', 'image-circles', function(e) {
+            if (!e.features.length) return;
+            const properties = e.features[0].properties;
+            // Handle null, undefined, and 0 as scale 6 (always visible)
+            const scale = (!properties.scale || properties.scale === 0) ? 6 : properties.scale;
+            const zoom = map.getZoom();
+
+            // Only show pointer cursor for full detail images
+            if (isFullDetail(scale, zoom)) {
+                map.getCanvas().style.cursor = 'pointer';
+            } else {
+                map.getCanvas().style.cursor = '';
+            }
         });
 
         map.on('mouseleave', 'image-circles', function() {

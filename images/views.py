@@ -54,11 +54,11 @@ from .models import (
 # At a given zoom level, all images with a scale value greater than or equal to
 # the determined scale for that zoom level will be displayed.
 SCALE_VISIBILITY = {
-    0: 5,   # Scale 5 and up visible from zoom 0
-    14: 4,  # Scale 4 and up visible from zoom 12
-    15: 3,  # Scale 3 and up visible from zoom 14
-    16: 2,  # Scale 2 and up visible from zoom 16
-    17: 1,  # Scale 1 and up visible from zoom 18 (all scales)
+    0: 5,   # Scale 5 and up visible from this zoom
+    13: 4,  # Scale 4 and up visible from this zoom
+    14: 3,  # Scale 3 and up visible from this zoom
+    16: 2,  # Scale 2 and up visible from this zoom
+    17: 1,  # Scale 1 and up visible from this zoom
 }
 
 def get_min_scale_for_zoom(z):
@@ -916,7 +916,7 @@ def vector_tiles_endpoint(request, z, x, y):
                 i.fuzzy_start_decdate,
                 i.end_decdate,
                 i.fuzzy_end_decdate,
-                i.scale,
+                COALESCE(i.scale, 0) as scale,
                 g.direction,
                 g.confidence
             FROM latest_georeferences g
