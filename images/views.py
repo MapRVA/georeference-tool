@@ -50,6 +50,31 @@ from .models import (
 )
 
 
+# Defines the minimum zoom level at which a scale becomes visible.
+# At a given zoom level, all images with a scale value greater than or equal to
+# the determined scale for that zoom level will be displayed.
+SCALE_VISIBILITY = {
+    0: 5,   # Scale 5 and up visible from zoom 0
+    14: 4,  # Scale 4 and up visible from zoom 12
+    15: 3,  # Scale 3 and up visible from zoom 14
+    16: 2,  # Scale 2 and up visible from zoom 16
+    17: 1,  # Scale 1 and up visible from zoom 18 (all scales)
+}
+
+def get_min_scale_for_zoom(z):
+    """
+    Determines the minimum image scale to display for a given map zoom level.
+    Returns None if no scales should be visible at this zoom level.
+    """
+    min_scale_to_show = None
+    for zoom_threshold, scale in sorted(SCALE_VISIBILITY.items()):
+        if z >= zoom_threshold:
+            min_scale_to_show = scale
+        else:
+            break  # Since zoom levels are sorted, no need to check further
+    return min_scale_to_show
+
+
 def browse_sources(request):
     """Browse all public sources"""
     sources = (
@@ -833,6 +858,8 @@ def vector_tiles_endpoint(request, z, x, y):
     """Return MVT vector tiles of georeferenced images"""
     from django.db import connection
 
+    enable_scale_filter = request.GET.get('enable_scale_filter', 'false').lower() == 'true'
+
     # Apply the same filters as GeoJSON endpoint
     image_id = request.GET.get("image")
     collection_id = request.GET.get("collection")
@@ -848,6 +875,12 @@ def vector_tiles_endpoint(request, z, x, y):
         "s.public = true"
     ]
     where_params = []
+
+    if enable_scale_filter:
+        min_scale = get_min_scale_for_zoom(z)
+        if min_scale is not None:
+            where_conditions.append("(i.scale >= %s OR i.scale IS NULL)")
+            where_params.append(min_scale)
 
     if image_id:
         where_conditions.append("i.id = %s")
@@ -883,6 +916,7 @@ def vector_tiles_endpoint(request, z, x, y):
                 i.fuzzy_start_decdate,
                 i.end_decdate,
                 i.fuzzy_end_decdate,
+                i.scale,
                 g.direction,
                 g.confidence
             FROM latest_georeferences g
@@ -906,12 +940,9 @@ def vector_tiles_endpoint(request, z, x, y):
         if result and result[0]:
             mvt_data = bytes(result[0])
             response = HttpResponse(mvt_data, content_type='application/x-protobuf')
-            # response['Content-Encoding'] = 'gzip' if len(mvt_data) > 1024 else None
             return response
         else:
-            # Return empty tile
             return HttpResponse(b'', content_type='application/x-protobuf')
-
 
 def map_layers_view(request):
     """Return all map layers organized by collections in a single object"""

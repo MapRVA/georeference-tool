@@ -347,6 +347,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Build vector tiles URL template
     const urlParams = new URLSearchParams();
 
+    {% if enable_scale_filter %}
+    urlParams.append('enable_scale_filter', 'true');
+    {% endif %}
+
     {% if image_id %}
     urlParams.append('image', '{{ image_id }}');
     {% elif collection_id %}
@@ -1063,7 +1067,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'type': 'vector',
             'tiles': [vectorTilesUrl],
             'minzoom': 0,
-            'maxzoom': 14
+            'maxzoom': 18
         });
 
         // Add direction markers if image-direction image loaded successfully
@@ -1127,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const retryFeatures = map.querySourceFeatures('images', {
                             sourceLayer: 'image_points'
                         });
-                        
+
                         if (retryFeatures.length > 0) {
                             initialFeaturesLoaded = true;
                             processFeatures(retryFeatures);
