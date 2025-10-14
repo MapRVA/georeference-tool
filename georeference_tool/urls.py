@@ -26,7 +26,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("stats/", views.stats, name="stats"),
     path("admin/login/", auth_views.admin_login, name="admin_login"),
+    path("", include("images.urls")),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
-    path("", include("images.urls")),
 ]

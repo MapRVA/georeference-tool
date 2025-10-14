@@ -1,0 +1,291 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Django administration" }}</a></h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:app_list' 'images' %}">Images</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="module">
+    <p><strong>Images to label:</strong> <span id="image-count">{{ images.count }}</span></p>
+    <div class="filter-controls" style="margin-top: 10px;">
+        <strong>Filter by:</strong>
+        <a href="{% url 'images:label_scales' %}" class="button {% if not georeferenced_only %}default{% endif %}">All Unlabeled</a>
+        <a href="{% url 'images:label_scales' %}?georeferenced_only=true" class="button {% if georeferenced_only %}default{% endif %}">Georeferenced Only</a>
+    </div>
+</div>
+
+<div class="labeling-interface">
+    <div class="current-image" style="display: none;" id="image-container">
+        <div class="image-info">
+            <h2 id="image-title"></h2>
+            <p><strong>Image <span id="current-index"></span> of <span id="total-count"></span></strong></p>
+            <p id="image-date" style="margin: 5px 0;"></p>
+            <div id="image-description" style="margin: 10px 0; font-style: italic;"></div>
+            <p><a id="image-link" href="#" target="_blank">View image on site →</a></p>
+        </div>
+
+        <div class="image-display">
+            <div id="image-loading" class="loading-state" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Loading image...</p>
+            </div>
+            <div id="image-error" class="error-state" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <p>Failed to load image</p>
+                <button id="retry-btn" class="button default">Retry</button>
+            </div>
+            <img id="current-image" style="max-width: 100%; max-height: 400px; margin-bottom: 20px; display: none;" />
+        </div>
+
+        <div class="labeling-controls">
+            <h3>Scale</h3>
+            <div class="fieldset">
+                <div class="btn-group" role="group" id="scale-button-group" style="display: flex; gap: 5px;">
+                    <button type="button" class="button" data-scale="1">1</button>
+                    <button type="button" class="button" data-scale="2">2</button>
+                    <button type="button" class="button" data-scale="3">3</button>
+                    <button type="button" class="button" data-scale="4">4</button>
+                    <button type="button" class="button" data-scale="5">5</button>
+                </div>
+                 <div class="form-text text-muted small mt-1" style="margin-top: 10px;">
+                    1: close-up/indoor<br>
+                    2: single building<br>
+                    3: multiple buildings<br>
+                    4: a city block<br>
+                    5: wide landscape
+                </div>
+            </div>
+
+            <div class="navigation-buttons">
+                <button type="button" id="prev-btn" class="button">← Previous</button>
+                <button type="button" id="save-next-btn" class="button default">Save & Next →</button>
+                <button type="button" id="skip-btn" class="button">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="completion-message" style="display: none;">
+        <h2>Labeling Complete!</h2>
+        <p>You have reviewed all available images.</p>
+        <a href="{% url 'admin:index' %}" class="button default">Back to Admin Home</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentIndex = 0;
+    let currentScale = null;
+
+    const imageContainer = document.getElementById('image-container');
+    const currentImage = document.getElementById('current-image');
+    const imageLoading = document.getElementById('image-loading');
+    const imageError = document.getElementById('image-error');
+    const retryBtn = document.getElementById('retry-btn');
+    const imageTitle = document.getElementById('image-title');
+    const currentIndexSpan = document.getElementById('current-index');
+    const totalCountSpan = document.getElementById('total-count');
+    const imageDate = document.getElementById('image-date');
+    const imageDescription = document.getElementById('image-description');
+    const imageLink = document.getElementById('image-link');
+    const scaleButtonGroup = document.getElementById('scale-button-group');
+    const prevBtn = document.getElementById('prev-btn');
+    const saveNextBtn = document.getElementById('save-next-btn');
+    const skipBtn = document.getElementById('skip-btn');
+    const completionMessage = document.getElementById('completion-message');
+    const imageCountSpan = document.getElementById('image-count');
+
+    const imageData = {{ image_data_json|safe }};
+    let initialImageCount = imageData.length;
+    totalCountSpan.textContent = initialImageCount;
+
+    function showImage(index) {
+        if (imageData.length === 0 || index >= imageData.length) {
+            imageContainer.style.display = 'none';
+            completionMessage.style.display = 'block';
+            return;
+        }
+
+        const image = imageData[index];
+        imageTitle.textContent = image.title || `Image ${image.id}`;
+        currentIndexSpan.textContent = index + 1;
+        totalCountSpan.textContent = imageData.length;
+        imageDate.textContent = image.date_display ? `Date: ${image.date_display}` : '';
+        imageDescription.textContent = image.description || '';
+        imageDescription.style.display = image.description ? 'block' : 'none';
+        imageLink.href = image.absolute_url;
+        prevBtn.disabled = index === 0;
+        imageContainer.style.display = 'block';
+
+        currentScale = image.scale;
+        scaleButtonGroup.querySelectorAll('button').forEach(btn => {
+            if (btn.dataset.scale == currentScale) {
+                btn.classList.add('default');
+            } else {
+                btn.classList.remove('default');
+            }
+        });
+
+        showImageStates(true, false, false);
+        loadImage(image.permalink)
+            .then(() => {
+                currentImage.src = image.permalink;
+                showImageStates(false, false, true);
+            })
+            .catch(() => {
+                showImageStates(false, true, false);
+            });
+    }
+
+    function saveCurrentImage() {
+        if (currentScale === null) {
+            alert('Please select a scale.');
+            return Promise.reject('No scale selected');
+        }
+
+        const image = imageData[currentIndex];
+        const formData = new FormData();
+        formData.append('image_id', image.id);
+        formData.append('scale', currentScale);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        return fetch(`{% url 'images:update_image_scale' %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save');
+            }
+            imageData[currentIndex].scale = parseInt(currentScale);
+        });
+    }
+    
+    function showImageStates(loading, error, imageVisible) {
+        imageLoading.style.display = loading ? 'flex' : 'none';
+        imageError.style.display = error ? 'flex' : 'none';
+        currentImage.style.display = imageVisible ? 'block' : 'none';
+    }
+
+    function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = src;
+        });
+    }
+
+    scaleButtonGroup.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentScale = this.dataset.scale;
+            scaleButtonGroup.querySelectorAll('button').forEach(b => b.classList.remove('default'));
+            this.classList.add('default');
+        });
+    });
+
+    prevBtn.addEventListener('click', function() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            showImage(currentIndex);
+        }
+    });
+
+    saveNextBtn.addEventListener('click', function() {
+        saveCurrentImage()
+            .then(() => {
+                currentIndex++;
+                showImage(currentIndex);
+            })
+            .catch(error => {
+                alert('Error saving: ' + error.message);
+            });
+    });
+
+    skipBtn.addEventListener('click', function() {
+        currentIndex++;
+        if (currentIndex >= imageData.length) {
+            currentIndex = 0;
+        }
+        showImage(currentIndex);
+    });
+
+    retryBtn.addEventListener('click', () => showImage(currentIndex));
+
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                prevBtn.click();
+                break;
+            case 'ArrowRight':
+            case 'Enter':
+                e.preventDefault();
+                saveNextBtn.click();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                skipBtn.click();
+                break;
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+                e.preventDefault();
+                const scaleBtn = document.querySelector(`#scale-button-group button[data-scale="${e.key}"]`);
+                if (scaleBtn) {
+                    scaleBtn.click();
+                }
+                break;
+        }
+    });
+
+    showImage(currentIndex);
+});
+</script>
+
+<style>
+/* Styles from collection_label.html, slightly adapted */
+.labeling-interface { margin-top: 20px; }
+.image-info h2 { margin: 0 0 10px 0; }
+.image-display { text-align: center; margin: 20px 0; }
+.labeling-controls { background: #f8f8f8; padding: 20px; border: 1px solid #ddd; }
+.fieldset { margin-bottom: 15px; }
+.fieldset label { display: block; margin-bottom: 5px; font-weight: bold; }
+.navigation-buttons { margin-top: 20px; }
+.navigation-buttons button { margin-right: 10px; }
+#completion-message { text-align: center; padding: 40px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; }
+.loading-state, .error-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; background: #f8f8f8; border: 2px dashed #ddd; border-radius: 8px; margin-bottom: 20px; }
+.loading-spinner { width: 40px; height: 40px; border: 4px solid #f0f0f0; border-left: 4px solid #007cba; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.error-state { background: #ffe6e6; border-color: #ffcccc; color: #cc0000; }
+.error-icon { font-size: 24px; margin-bottom: 10px; }
+#current-image { transition: opacity 0.3s ease-in-out; }
+.btn-group .button.default {
+    background-color: #007cba;
+    color: white;
+    border: 2px solid #005f8a;
+    transform: scale(1.05);
+    box-shadow: 0 0 5px rgba(0, 124, 186, 0.5);
+}
+</style>
+
+{% csrf_token %}
+{% endblock %}

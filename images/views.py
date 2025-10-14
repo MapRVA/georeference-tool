@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
 
 # Try to import PostgreSQL search functions
@@ -606,6 +607,40 @@ def mark_difficulty(request, image_id):
     else:
         return JsonResponse(
             {"success": False, "error": "Invalid difficulty level"}, status=400
+        )
+
+
+@require_http_methods(["POST"])
+def mark_scale(request, image_id):
+    """Mark the scale of an image (admin only)"""
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Admin permissions required"}, status=403
+        )
+
+    image = get_object_or_404(Image, id=image_id)
+    scale = request.POST.get("scale")
+
+    if scale == "none":
+        image.scale = None
+        image.save(update_fields=["scale"])
+        return JsonResponse({"success": True, "message": "Image scale removed"})
+
+    try:
+        scale_val = int(scale)
+        if 1 <= scale_val <= 5:
+            image.scale = scale_val
+            image.save(update_fields=["scale"])
+            return JsonResponse(
+                {"success": True, "message": f"Image scale marked as {scale}"}
+            )
+        else:
+            return JsonResponse(
+                {"success": False, "error": "Invalid scale value"}, status=400
+            )
+    except (ValueError, TypeError):
+        return JsonResponse(
+            {"success": False, "error": "Invalid scale value"}, status=400
         )
 
 
@@ -1962,7 +1997,6 @@ def browse_subjects(request):
             image__collection__public=True,
             image__collection__source__public=True,
         ).count()
-
         subject.georeferenced_images = (
             subject.image_mappings.filter(
                 image__duplicate_of__isnull=True,
@@ -2045,3 +2079,71 @@ def subject_detail(request, subject_slug):
         else 0,
     }
     return render(request, "images/subject_detail.html", context)
+
+@staff_member_required
+def label_scales(request):
+    """
+    Admin interface for labeling the scale of images.
+    """
+    georeferenced_only = request.GET.get('georeferenced_only', 'false').lower() == 'true'
+
+    images = Image.objects.filter(scale__isnull=True)
+
+    if georeferenced_only:
+        images = images.filter(georeferences__isnull=False).distinct()
+
+    images = images.order_by("id")
+
+    image_data = []
+    for image in images:
+        image_data.append(
+            {
+                "id": image.id,
+                "title": image.title,
+                "permalink": image.permalink,
+                "description": image.description,
+                "date_display": image.date_display,
+                "scale": image.scale,
+                "absolute_url": image.get_absolute_url(),
+            }
+        )
+
+    context = {
+        "title": "Label Image Scales",
+        "images": images,
+        "image_data_json": json.dumps(image_data),
+        "site_title": "Georef Admin",
+        "site_header": "Image Georeferencing Admin",
+        "georeferenced_only": georeferenced_only,
+    }
+
+    return render(request, "admin/images/label_scales.html", context)
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+def update_image_scale(request):
+    """
+    API endpoint to update the scale of an image from the labeling interface.
+    """
+    image_id = request.POST.get("image_id")
+    scale = request.POST.get("scale")
+
+    image = get_object_or_404(Image, id=image_id)
+
+    try:
+        scale_val = int(scale)
+        if 1 <= scale_val <= 5:
+            image.scale = scale_val
+            image.save(update_fields=["scale"])
+            return JsonResponse(
+                {"success": True, "message": f"Image scale marked as {scale}"}
+            )
+        else:
+            return JsonResponse(
+                {"success": False, "error": "Invalid scale value"}, status=400
+            )
+    except (ValueError, TypeError):
+        return JsonResponse(
+            {"success": False, "error": "Invalid scale value"}, status=400
+        )

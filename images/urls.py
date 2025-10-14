@@ -39,11 +39,14 @@ urlpatterns = [
     path("<int:image_id>/skip/", views.skip_image, name="skip_image"),
     # Image management endpoints
     path("<int:image_id>/difficulty/", views.mark_difficulty, name="mark_difficulty"),
+    path("<int:image_id>/scale/", views.mark_scale, name="mark_scale"),
     path(
         "<int:image_id>/will-not-georef/",
         views.mark_will_not_georef,
         name="mark_will_not_georef",
     ),
+    path("admin/label-scales/", views.label_scales, name="label_scales"),
+    path("admin/update-scale/", views.update_image_scale, name="update_image_scale"),
     # Subject management endpoints
     path(
         "<int:image_id>/subjects/add/",

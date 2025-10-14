@@ -94,6 +94,7 @@ class CollectionAdmin(admin.ModelAdmin):
                     "description": image.description,
                     "date_display": image.date_display,
                     "difficulty": image.difficulty,
+                    "scale": image.scale,
                     "will_not_georef": image.will_not_georef,
                     "absolute_url": image.get_absolute_url(),
                 }
@@ -114,6 +115,7 @@ class CollectionAdmin(admin.ModelAdmin):
 
         image_id = request.POST.get("image_id")
         difficulty = request.POST.get("difficulty")
+        scale = request.POST.get("scale")
         will_not_georef = request.POST.get("will_not_georef") == "true"
 
         try:
@@ -124,8 +126,13 @@ class CollectionAdmin(admin.ModelAdmin):
             elif difficulty == "none":
                 image.difficulty = None
 
+            if scale and scale.isdigit():
+                image.scale = int(scale)
+            elif scale == "none":
+                image.scale = None
+
             image.will_not_georef = will_not_georef
-            image.save(update_fields=["difficulty", "will_not_georef"])
+            image.save(update_fields=["difficulty", "scale", "will_not_georef"])
 
             return JsonResponse({"success": True})
         except Exception as e:
@@ -371,14 +378,20 @@ class ImageAdmin(admin.ModelAdmin):
         "date_display",
         "edtf_date",
         "difficulty",
+        "scale",
         "will_not_georef",
         "skip_count",
         "georeference_status",
     )
-    list_filter = ("difficulty", "will_not_georef", "collection__source")
+    list_filter = ("difficulty", "scale", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
     autocomplete_fields = ["duplicate_of"]
+    actions = ['label_scales_action']
+
+    def label_scales_action(self, request, queryset):
+        return HttpResponseRedirect(reverse('images:label_scales'))
+    label_scales_action.short_description = "Label Image Scales"
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -393,6 +406,7 @@ class ImageAdmin(admin.ModelAdmin):
             "original_date",
             "edtf_date",
             "difficulty",
+            "scale",
         ]
         for field_name in nullable_fields:
             if field_name in form.base_fields:
@@ -438,6 +452,7 @@ class ImageAdmin(admin.ModelAdmin):
             "original_date",
             "edtf_date",
             "difficulty",
+            "scale",
         ]
         for field_name in nullable_fields:
             if hasattr(obj, field_name) and getattr(obj, field_name) == "":
@@ -471,7 +486,7 @@ class ImageAdmin(admin.ModelAdmin):
                 "description": "Leave fields blank if date information is not available",
             },
         ),
-        ("Georeferencing", {"fields": ("difficulty", "will_not_georef")}),
+        ("Georeferencing", {"fields": ("difficulty", "scale", "will_not_georef")}),
         (
             "System Information",
             {

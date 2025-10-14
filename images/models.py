@@ -252,6 +252,13 @@ class Image(models.Model):
 
     # Georeferencing metadata
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, null=True)
+    scale = models.IntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Scale: 1 (close-up/indoor), 2 (single building), 3 (multiple buildings), 4 (city block), 5 (wide landscape).",
+    )
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
     duplicate_of = models.ForeignKey(

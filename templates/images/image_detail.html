@@ -228,6 +228,7 @@
                             {% endif %}
                         </h5>
                         <div class="d-flex gap-2 flex-wrap">
+
                             {% if image.difficulty %}
                                 <span class="badge status-badge
                                     {% if image.difficulty == 'easy' %}bg-success
@@ -559,6 +560,27 @@
                                     </div>
                                 </div>
                             {% endif %}
+
+                            <!-- Scale marking buttons -->
+                            <div class="mb-2">
+                                <small class="text-muted d-block mb-1">Scale Level:</small>
+                                <div class="btn-group w-100" role="group" id="scale-button-group">
+                                    {% for i in "12345" %}
+                                    <button type="button" class="btn btn-sm {% if image.scale == i|add:0 %}btn-primary{% else %}btn-outline-primary mark-scale{% endif %}"
+                                            data-value="{{ i }}"
+                                            {% if image.scale == i|add:0 %}disabled{% else %}data-scale="{{ i }}"{% endif %}>
+                                        {{ i }}
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                                <div class="form-text text-muted small mt-1">
+                                    1: close-up/indoor<br>
+                                    2: single building<br>
+                                    3: multiple buildings<br>
+                                    4: a city block<br>
+                                    5: wide landscape
+                                </div>
+                            </div>
 
                             <!-- Will Not Georeference Toggle Button -->
                             <button type="button" class="btn btn-sm w-100 mb-2 toggle-will-not-georeference
@@ -1121,6 +1143,80 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function handleScaleClick() {
+        const scale = this.dataset.scale;
+        const clickedButton = this;
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+        const buttonGroup = document.getElementById('scale-button-group');
+        if(buttonGroup){
+            buttonGroup.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        }
+
+        const originalText = clickedButton.innerHTML;
+        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const formData = new FormData();
+        formData.append('scale', scale);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(`{% url 'images:mark_scale' image.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            return response.json().then(err => { throw new Error(err.error || 'Network response was not ok'); });
+        })
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message || `Image scale marked as ${scale}`);
+                setTimeout(() => {
+                    updateScaleButtons(scale);
+                }, 10);
+            } else {
+                throw new Error(data.error || 'Error marking scale.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', error.message || 'Error marking scale. Please try again.');
+            const originalScale = '{{ image.scale|default_if_none:"" }}';
+            updateScaleButtons(originalScale);
+        });
+    }
+
+    function updateScaleButtons(newScale) {
+        const buttonGroup = document.getElementById('scale-button-group');
+        if (!buttonGroup) return;
+
+        const buttons = buttonGroup.querySelectorAll('button');
+
+        buttons.forEach(button => {
+            const buttonValue = button.dataset.value;
+            button.disabled = false;
+
+            if (buttonValue === newScale) {
+                button.disabled = true;
+                button.className = 'btn btn-sm btn-primary';
+                button.removeAttribute('data-scale');
+            } else {
+                button.className = 'btn btn-sm btn-outline-primary mark-scale';
+                button.setAttribute('data-scale', buttonValue);
+
+                if (!button.hasEventListener) {
+                    button.addEventListener('click', handleScaleClick);
+                    button.hasEventListener = true;
+                }
+            }
+            button.innerHTML = buttonValue;
+        });
+    }
+
+
+
     function updateWillNotGeoreferenceStatus(willNotGeoref) {
         const cardHeader = document.querySelector('.card-header');
         if (!cardHeader) return;
@@ -1160,6 +1256,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isStaff) {
         document.querySelectorAll('.mark-difficulty').forEach(button => {
             button.addEventListener('click', handleDifficultyClick);
+            button.hasEventListener = true;
+        });
+
+        document.querySelectorAll('.mark-scale').forEach(button => {
+            button.addEventListener('click', handleScaleClick);
             button.hasEventListener = true;
         });
 
