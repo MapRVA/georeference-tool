@@ -21,10 +21,23 @@
 
 <div class="module">
     <p><strong>Images to label:</strong> <span id="image-count">{{ images.count }}</span></p>
-    <div class="filter-controls" style="margin-top: 10px;">
+
+    <form method="get" action="{% url 'images:label_scales' %}" id="search-filter-form" style="margin-top: 10px; padding-bottom: 10px; border-bottom: 1px solid #ccc; margin-bottom: 10px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+            <input type="text" name="q" value="{{ search_query|default:'' }}" placeholder="Search by text or semantics..." size="40">
+            <select name="search_type">
+                <option value="text" {% if search_type == 'text' %}selected{% endif %}>Text Search</option>
+                <option value="semantic" {% if search_type == 'semantic' %}selected{% endif %}>Semantic Search</option>
+            </select>
+            <button type="submit" class="button">Search</button>
+            <a href="{% url 'images:label_scales' %}" class="button">Clear Search</a>
+        </div>
+    </form>
+
+    <div class="filter-controls">
         <strong>Filter by:</strong>
-        <a href="{% url 'images:label_scales' %}" class="button {% if not georeferenced_only %}default{% endif %}">All Unlabeled</a>
-        <a href="{% url 'images:label_scales' %}?georeferenced_only=true" class="button {% if georeferenced_only %}default{% endif %}">Georeferenced Only</a>
+        <a href="{% url 'images:label_scales' %}?q={{ search_query|urlencode }}&search_type={{ search_type }}" class="button {% if not georeferenced_only %}default{% endif %}">All Unlabeled</a>
+        <a href="{% url 'images:label_scales' %}?q={{ search_query|urlencode }}&search_type={{ search_type }}&georeferenced_only=true" class="button {% if georeferenced_only %}default{% endif %}">Georeferenced Only</a>
     </div>
 </div>
 
