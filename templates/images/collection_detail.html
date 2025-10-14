@@ -101,7 +101,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='60vh' %}
+                    {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='60vh' zoom_to_contents=True %}
                 </div>
             </div>
         {% endif %}

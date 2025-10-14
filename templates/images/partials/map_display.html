@@ -6,6 +6,8 @@ Usage:
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
 - Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng='-77.44' center_lat='37.53' zoom_level='11.5' %}
 - Geocoder: {% include 'images/partials/map_display.html' with include_geocoder=True %}
+- Scale-based visibility: {% include 'images/partials/map_display.html' with enable_scale_visibility=True %}
+- Auto-zoom to contents: {% include 'images/partials/map_display.html' with zoom_to_contents=True %}
 {% endcomment %}
 
 <!-- MapLibre GL JS CSS and JS - only load once per page -->
@@ -343,7 +345,9 @@ window.setupPMTilesProtocol = function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     const mapId = '{{ map_id|default:'map-display' }}';
+    const enableScaleVisibility = {{ enable_scale_visibility|yesno:"true,false,false" }};
 
+    {% if enable_scale_visibility %}
     // ====================================================================================
     // SCALE VISIBILITY CONFIGURATION - EDIT THIS TO ADJUST WHEN IMAGES APPEAR
     // ====================================================================================
@@ -364,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Example: Scale 5 images appear as pinpoints at zoom 0, full detail at zoom 12
     //
     const SCALE_VISIBILITY_CONFIG = {
-        5: { pinpointZoom: 0,  fullDetailZoom: 13 },  // Wide area: pinpoints from far away, detail at zoom 12
+        5: { pinpointZoom: 0,  fullDetailZoom: 10 },  // Wide area: pinpoints from far away, detail at zoom 12
         4: { pinpointZoom: 13, fullDetailZoom: 14 },  // City level: pinpoints at 12, detail at 13
         3: { pinpointZoom: 14, fullDetailZoom: 15 },  // District level: pinpoints at 13, detail at 14
         2: { pinpointZoom: 15, fullDetailZoom: 16.5 },  // Neighborhood: pinpoints at 14, detail at 15
@@ -390,9 +394,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const config = getScaleConfig(scale);
         return zoom >= config.pinpointZoom;
     };
+    {% else %}
+    // Default mode: all images always visible with full detail
+    const isFullDetail = (scale, zoom) => true;
+    const isPinpointVisible = (scale, zoom) => true;
+    {% endif %}
 
     // Build MapLibre expression for direction icon opacity based on config
     const buildDirectionOpacityExpression = () => {
+        {% if enable_scale_visibility %}
         const expr = ['step', ['zoom'], 0]; // Start with 0 opacity at zoom 0
 
         // Sort scales from highest to lowest to build zoom thresholds
@@ -425,10 +435,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         return expr;
+        {% else %}
+        // Default mode: always show direction icons at full opacity
+        return 1;
+        {% endif %}
     };
 
     // Build MapLibre expression for circle radius based on config
     const buildCircleRadiusExpression = () => {
+        {% if enable_scale_visibility %}
         const expr = ['step', ['zoom']];
 
         // Find the earliest pinpoint zoom for default
@@ -496,46 +511,51 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         return expr;
+        {% else %}
+        // Default mode: always show circles at full size (8px)
+        return 8;
+        {% endif %}
     };
 
     // Build MapLibre expression for circle stroke width (0 when invisible, 2 when visible)
     // This mirrors the logic of buildCircleRadiusExpression but outputs stroke widths
     const buildCircleStrokeWidthExpression = () => {
+        {% if enable_scale_visibility %}
         const expr = ['step', ['zoom']];
-        
+
         // Find the earliest pinpoint zoom for default
         const earliestPinpoint = Math.min(...Object.values(SCALE_VISIBILITY_CONFIG).map(c => c.pinpointZoom));
         const scalesAtEarliest = Object.entries(SCALE_VISIBILITY_CONFIG)
             .filter(([_, config]) => config.pinpointZoom === earliestPinpoint)
             .map(([scale, _]) => parseInt(scale));
         const minScaleAtEarliest = Math.max(...scalesAtEarliest);
-        
+
         // Default: 2 if visible, 0 if not
         expr.push(['case',
             ['>=', ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']], minScaleAtEarliest],
             2,
             0
         ]);
-        
+
         // Collect all zoom thresholds
         const zoomSet = new Set();
         Object.values(SCALE_VISIBILITY_CONFIG).forEach(config => {
             zoomSet.add(config.pinpointZoom);
             zoomSet.add(config.fullDetailZoom);
         });
-        
+
         const sortedZooms = Array.from(zoomSet).filter(z => z > earliestPinpoint).sort((a, b) => a - b);
-        
+
         sortedZooms.forEach(zoom => {
             // Determine which scales should be visible (stroke width 2) vs invisible (stroke width 0)
             const visibleScales = Object.entries(SCALE_VISIBILITY_CONFIG)
                 .filter(([_, config]) => zoom >= config.pinpointZoom)
                 .map(([scale, _]) => parseInt(scale));
-            
+
             if (visibleScales.length > 0) {
                 const scaleValue = ['case', ['==', ['get', 'scale'], 0], 6, ['get', 'scale']];
                 const minVisible = Math.min(...visibleScales);
-                
+
                 expr.push(zoom, ['case',
                     ['>=', scaleValue, minVisible],
                     2,
@@ -543,8 +563,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 ]);
             }
         });
-        
+
         return expr;
+        {% else %}
+        // Default mode: always show stroke at full width (2px)
+        return 2;
+        {% endif %}
     };
 
     // Build vector tiles URL template
@@ -1383,12 +1407,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 map.addControl(timeSlider, 'top-right');
             }
 
-            // Manual zoom only - never zoom to content automatically
+            {% if zoom_to_contents %}
+            // Auto-zoom to contents enabled
             {% if center_lng and center_lat and zoom_level %}
-            // A center is provided, so we honor it.
-            // The map is already centered on initialization via the Map constructor.
+            // Custom location provided - fly to it
+            map.flyTo({
+                center: [{{ center_lng }}, {{ center_lat }}],
+                zoom: {{ zoom_level }}
+            });
             {% else %}
-            // No automatic zoom to content - map stays at default position
+            // No custom location - fit bounds to all features
+            if (features.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                features.forEach(function(feature) {
+                    bounds.extend(feature.geometry.coordinates);
+                });
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 15
+                });
+            }
+            {% endif %}
+            {% else %}
+            // Manual zoom only - no automatic zoom to content
+            {% if center_lng and center_lat and zoom_level %}
+            // Custom location provided - map is already centered on initialization
+            {% else %}
+            // No custom location - map stays at default position
+            {% endif %}
             {% endif %}
         }
 
@@ -1397,50 +1443,56 @@ document.addEventListener('DOMContentLoaded', function() {
         map.on('click', 'image-circles', function(e) {
             if (!e.features.length) return;
             const properties = e.features[0].properties;
-            // Handle null, undefined, and 0 as scale 6 (always visible)
+
+            {% if enable_scale_visibility %}
+            // Scale visibility mode: only show popup at full detail zoom level
             const scale = (!properties.scale || properties.scale === 0) ? 6 : properties.scale;
             const zoom = map.getZoom();
 
             console.log('Click:', { scale: properties.scale, normalizedScale: scale, zoom, isFullDetail: isFullDetail(scale, zoom) });
 
-            // Only show popup if at "full detail" zoom level
-            if (isFullDetail(scale, zoom)) {
-                // Build absolute URL for image entry
-                const imgEntry = window.location.origin + '/' + properties.id + '/';
+            if (!isFullDetail(scale, zoom)) return;
+            {% endif %}
 
-                // Create popup content
-                const popupContent = `
-                  <div>
-                      <img src="${properties.img_url}"
-                            style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
-                      ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
-                      <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                          <i class="fas fa-eye me-1"></i>View Details
-                      </a>
-                  </div>
-                `;
+            // Build absolute URL for image entry
+            const imgEntry = window.location.origin + '/' + properties.id + '/';
 
-                new maplibregl.Popup()
-                    .setLngLat(e.features[0].geometry.coordinates)
-                    .setHTML(popupContent)
-                    .addTo(map);
-            }
+            // Create popup content
+            const popupContent = `
+              <div>
+                  <img src="${properties.img_url}"
+                        style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
+                  ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ''}
+                  <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                      <i class="fas fa-eye me-1"></i>View Details
+                  </a>
+              </div>
+            `;
+
+            new maplibregl.Popup()
+                .setLngLat(e.features[0].geometry.coordinates)
+                .setHTML(popupContent)
+                .addTo(map);
         });
 
-        // Change the cursor to pointer when hovering over full detail markers
+        // Change the cursor to pointer when hovering over markers
         map.on('mouseenter', 'image-circles', function(e) {
+            {% if enable_scale_visibility %}
+            // Scale visibility mode: only show pointer for full detail images
             if (!e.features.length) return;
             const properties = e.features[0].properties;
-            // Handle null, undefined, and 0 as scale 6 (always visible)
             const scale = (!properties.scale || properties.scale === 0) ? 6 : properties.scale;
             const zoom = map.getZoom();
 
-            // Only show pointer cursor for full detail images
             if (isFullDetail(scale, zoom)) {
                 map.getCanvas().style.cursor = 'pointer';
             } else {
                 map.getCanvas().style.cursor = '';
             }
+            {% else %}
+            // Default mode: always show pointer cursor
+            map.getCanvas().style.cursor = 'pointer';
+            {% endif %}
         });
 
         map.on('mouseleave', 'image-circles', function() {
