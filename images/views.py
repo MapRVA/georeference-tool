@@ -13,6 +13,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
+import json
+from pathlib import Path
 
 # Try to import PostgreSQL search functions
 try:
@@ -2059,8 +2061,12 @@ def browse_subjects(request):
         else 0,
     }
 
+    # Paginate subjects for browsing
+    paginator = Paginator(subjects, 12)  # 12 subjects per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
     context = {
-        "subjects": subjects,
+        "page_obj": page_obj,
         "overall_stats": overall_stats,
     }
     return render(request, "images/browse_subjects.html", context)

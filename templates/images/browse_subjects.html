@@ -11,7 +11,7 @@
         </div>
 
         <div class="row">
-            {% for subject in subjects %}
+            {% for subject in page_obj %}
                 <div class="col-lg-6 col-xl-4 mb-4">
                     <div class="card h-100 shadow-sm">
                         {% if subject.wikidata_item and subject.wikidata_item.image_url %}
@@ -89,8 +89,43 @@
             {% endfor %}
         </div>
 
-        {% if subjects %}
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+            <nav aria-label="Subjects pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                    {% endif %}
 
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+
+            <div class="text-center text-muted mt-2">
+                Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} subjects
+            </div>
         {% endif %}
     </div>
 </div>
