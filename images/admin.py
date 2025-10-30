@@ -387,10 +387,11 @@ class ImageAdmin(admin.ModelAdmin):
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
     autocomplete_fields = ["duplicate_of"]
-    actions = ['label_scales_action']
+    actions = ["label_scales_action"]
 
     def label_scales_action(self, request, queryset):
-        return HttpResponseRedirect(reverse('images:label_scales'))
+        return HttpResponseRedirect(reverse("images:label_scales"))
+
     label_scales_action.short_description = "Label Image Scales"
 
     def get_form(self, request, obj=None, **kwargs):
@@ -413,10 +414,10 @@ class ImageAdmin(admin.ModelAdmin):
                 form.base_fields[field_name].required = False
 
         # Remove add, change, delete buttons for duplicate_of field
-        if 'duplicate_of' in form.base_fields:
-            form.base_fields['duplicate_of'].widget.can_add_related = False
-            form.base_fields['duplicate_of'].widget.can_change_related = False
-            form.base_fields['duplicate_of'].widget.can_delete_related = False
+        if "duplicate_of" in form.base_fields:
+            form.base_fields["duplicate_of"].widget.can_add_related = False
+            form.base_fields["duplicate_of"].widget.can_change_related = False
+            form.base_fields["duplicate_of"].widget.can_delete_related = False
 
         return form
 
@@ -437,8 +438,6 @@ class ImageAdmin(admin.ModelAdmin):
                 request, queryset, search_term
             )
         return queryset, use_distinct
-
-
 
     def save_model(self, request, obj, form, change):
         # Convert empty strings to None for nullable fields
@@ -530,14 +529,14 @@ class GeoreferenceAdmin(admin.ModelAdmin):
         form = super().get_form(request, obj, **kwargs)
 
         # Remove add, change, delete buttons for image field
-        if 'image' in form.base_fields:
-            form.base_fields['image'].widget.can_add_related = False
-            form.base_fields['image'].widget.can_change_related = False
-            form.base_fields['image'].widget.can_delete_related = False
+        if "image" in form.base_fields:
+            form.base_fields["image"].widget.can_add_related = False
+            form.base_fields["image"].widget.can_change_related = False
+            form.base_fields["image"].widget.can_delete_related = False
 
         # Make georeferenced_by not required to allow anonymous submissions
-        if 'georeferenced_by' in form.base_fields:
-            form.base_fields['georeferenced_by'].required = False
+        if "georeferenced_by" in form.base_fields:
+            form.base_fields["georeferenced_by"].required = False
 
         return form
 
@@ -633,9 +632,16 @@ def refresh_wikidata_info(modeladmin, request, queryset):
             failed_count += 1
 
     if updated_count > 0:
-        modeladmin.message_user(request, f"Successfully updated {updated_count} Wikidata item(s).")
+        modeladmin.message_user(
+            request, f"Successfully updated {updated_count} Wikidata item(s)."
+        )
     if failed_count > 0:
-        modeladmin.message_user(request, f"Failed to update {failed_count} Wikidata item(s).", level='WARNING')
+        modeladmin.message_user(
+            request,
+            f"Failed to update {failed_count} Wikidata item(s).",
+            level="WARNING",
+        )
+
 
 refresh_wikidata_info.short_description = "Refresh Wikidata information"
 
@@ -653,15 +659,15 @@ class WikidataItemAdmin(admin.ModelAdmin):
     list_filter = ("last_updated", "inception")
     search_fields = ("wikidata_id", "title", "description", "va_landmark_id")
     readonly_fields = ("created_at", "last_updated", "wikidata_url", "refresh_button")
-    actions = ['refresh_selected_wikidata_items']
+    actions = ["refresh_selected_wikidata_items"]
 
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
             path(
-                '<path:object_id>/refresh/',
+                "<path:object_id>/refresh/",
                 self.admin_site.admin_view(self.refresh_individual_item),
-                name='images_wikidataitem_refresh',
+                name="images_wikidataitem_refresh",
             ),
         ]
         return custom_urls + urls
@@ -671,30 +677,45 @@ class WikidataItemAdmin(admin.ModelAdmin):
         wikidata_item = get_object_or_404(WikidataItem, pk=object_id)
 
         # Add progress message
-        messages.info(request, f"Refreshing Wikidata information for {wikidata_item.wikidata_id}... This may take a moment.")
+        messages.info(
+            request,
+            f"Refreshing Wikidata information for {wikidata_item.wikidata_id}... This may take a moment.",
+        )
 
         try:
             if wikidata_item.populate_from_wikidata():
                 wikidata_item.save()
-                messages.success(request,
+                messages.success(
+                    request,
                     f"✓ Successfully refreshed Wikidata information for {wikidata_item.wikidata_id}. "
-                    f"Title: {wikidata_item.title}")
+                    f"Title: {wikidata_item.title}",
+                )
             else:
-                messages.warning(request,
+                messages.warning(
+                    request,
                     f"⚠ No data found for {wikidata_item.wikidata_id}. "
-                    f"The item may not exist or may not have English labels.")
+                    f"The item may not exist or may not have English labels.",
+                )
         except ValidationError as e:
             error_msg = str(e)
             if "Network error" in error_msg:
-                messages.error(request,
+                messages.error(
+                    request,
                     f"🔄 Network error refreshing {wikidata_item.wikidata_id}. "
-                    f"The system automatically retried the request. Please try again if this persists.")
+                    f"The system automatically retried the request. Please try again if this persists.",
+                )
             else:
-                messages.error(request, f"❌ Error refreshing Wikidata information: {error_msg}")
+                messages.error(
+                    request, f"❌ Error refreshing Wikidata information: {error_msg}"
+                )
         except Exception as e:
-            messages.error(request, f"❌ Unexpected error refreshing Wikidata information: {e}")
+            messages.error(
+                request, f"❌ Unexpected error refreshing Wikidata information: {e}"
+            )
 
-        return HttpResponseRedirect(reverse('admin:images_wikidataitem_change', args=[object_id]))
+        return HttpResponseRedirect(
+            reverse("admin:images_wikidataitem_change", args=[object_id])
+        )
 
     def refresh_selected_wikidata_items(self, request, queryset):
         """Refresh Wikidata information for selected items"""
@@ -705,7 +726,10 @@ class WikidataItemAdmin(admin.ModelAdmin):
         error_messages = []
 
         # Add progress message
-        self.message_user(request, f"Refreshing {total_count} Wikidata item(s)... This may take a moment.")
+        self.message_user(
+            request,
+            f"Refreshing {total_count} Wikidata item(s)... This may take a moment.",
+        )
 
         for item in queryset:
             try:
@@ -726,12 +750,18 @@ class WikidataItemAdmin(admin.ModelAdmin):
 
         # Provide detailed success/failure feedback
         if updated_count > 0:
-            self.message_user(request, f"✓ Successfully updated {updated_count} Wikidata item(s).")
+            self.message_user(
+                request, f"✓ Successfully updated {updated_count} Wikidata item(s)."
+            )
 
         if failed_count > 0:
-            error_msg = f"⚠ Failed to update {failed_count} of {total_count} Wikidata item(s)."
+            error_msg = (
+                f"⚠ Failed to update {failed_count} of {total_count} Wikidata item(s)."
+            )
             if network_errors > 0:
-                error_msg += f" ({network_errors} network errors - these may succeed if retried)"
+                error_msg += (
+                    f" ({network_errors} network errors - these may succeed if retried)"
+                )
             if error_messages and len(error_messages) <= 3:
                 error_msg += f" Errors: {'; '.join(error_messages)}"
             elif error_messages:
@@ -744,14 +774,21 @@ class WikidataItemAdmin(admin.ModelAdmin):
         (
             "Wikidata Information",
             {
-                "fields": ("wikidata_id", "title", "description", "wikidata_url", "wikipedia_url", "refresh_button")
+                "fields": (
+                    "wikidata_id",
+                    "title",
+                    "description",
+                    "wikidata_url",
+                    "wikipedia_url",
+                    "refresh_button",
+                )
             },
         ),
         (
             "Additional Metadata",
             {
                 "fields": ("va_landmark_id", "architect", "image_url", "inception"),
-                "description": "Optional additional information about the subject"
+                "description": "Optional additional information about the subject",
             },
         ),
         (
@@ -765,7 +802,11 @@ class WikidataItemAdmin(admin.ModelAdmin):
 
     def description_truncated(self, obj):
         if obj.description:
-            return obj.description[:100] + "..." if len(obj.description) > 100 else obj.description
+            return (
+                obj.description[:100] + "..."
+                if len(obj.description) > 100
+                else obj.description
+            )
         return ""
 
     description_truncated.short_description = "Description"
@@ -779,7 +820,7 @@ class WikidataItemAdmin(admin.ModelAdmin):
         if obj.pk:
             return format_html(
                 '<a class="default" href="{}" style="background: #417690; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 5px 0; font-size: 12px;" title="Fetch latest information from Wikidata API">🔄 Refresh from Wikidata</a>',
-                reverse('admin:images_wikidataitem_refresh', args=[obj.pk])
+                reverse("admin:images_wikidataitem_refresh", args=[obj.pk]),
             )
         return '<span style="color: #999; font-style: italic;">Save item first</span>'
 
@@ -788,6 +829,7 @@ class WikidataItemAdmin(admin.ModelAdmin):
 
 class SubjectMappingInline(admin.TabularInline):
     """Inline editor for SubjectMapping relationships on Image admin"""
+
     model = SubjectMapping
     extra = 0
     fields = ("subject", "order")
@@ -804,7 +846,12 @@ class SubjectAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("created_at", "wikidata_item")
-    search_fields = ("title", "description", "wikidata_item__wikidata_id", "wikidata_item__title")
+    search_fields = (
+        "title",
+        "description",
+        "wikidata_item__wikidata_id",
+        "wikidata_item__title",
+    )
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ["wikidata_item"]
 
@@ -817,7 +864,7 @@ class SubjectAdmin(admin.ModelAdmin):
             "Wikidata Link",
             {
                 "fields": ("wikidata_item",),
-                "description": "Optional link to Wikidata item for additional metadata"
+                "description": "Optional link to Wikidata item for additional metadata",
             },
         ),
         (
@@ -831,7 +878,11 @@ class SubjectAdmin(admin.ModelAdmin):
 
     def description_truncated(self, obj):
         if obj.description:
-            return obj.description[:100] + "..." if len(obj.description) > 100 else obj.description
+            return (
+                obj.description[:100] + "..."
+                if len(obj.description) > 100
+                else obj.description
+            )
         return ""
 
     description_truncated.short_description = "Description"
@@ -841,7 +892,7 @@ class SubjectAdmin(admin.ModelAdmin):
             return format_html(
                 '<a href="{}" target="_blank">{}</a>',
                 obj.wikidata_item.wikidata_url,
-                obj.wikidata_item.wikidata_id
+                obj.wikidata_item.wikidata_id,
             )
         return "None"
 
@@ -876,7 +927,7 @@ class SubjectMappingAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}">{}</a>',
             obj.image.get_absolute_url(),
-            obj.image.title if obj.image.title else f"Image {obj.image.id}"
+            obj.image.title if obj.image.title else f"Image {obj.image.id}",
         )
 
     image_link.short_description = "Image"
@@ -891,7 +942,7 @@ class SubjectMappingAdmin(admin.ModelAdmin):
             return format_html(
                 '<a href="{}" target="_blank">{}</a>',
                 obj.subject.wikidata_item.wikidata_url,
-                obj.subject.wikidata_item.wikidata_id
+                obj.subject.wikidata_item.wikidata_id,
             )
         return "None"
 
@@ -902,6 +953,7 @@ class SubjectMappingAdmin(admin.ModelAdmin):
 # Find the existing ImageAdmin and add the subject inline
 class ImageAdminUpdated(ImageAdmin):
     inlines = [SubjectMappingInline]
+
 
 # Unregister the existing ImageAdmin and register the updated one
 admin.site.unregister(Image)

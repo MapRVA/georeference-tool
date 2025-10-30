@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0009_subject_wikidataitem_subjectmapping_image_subjects_and_more'),
+        ("images", "0009_subject_wikidataitem_subjectmapping_image_subjects_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='preimage',
-            name='imported',
-            field=models.BooleanField(default=False, help_text='Whether this image has been imported'),
+            model_name="preimage",
+            name="imported",
+            field=models.BooleanField(
+                default=False, help_text="Whether this image has been imported"
+            ),
         ),
     ]

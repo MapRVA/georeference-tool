@@ -5,67 +5,182 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0008_image_duplicate_of'),
+        ("images", "0008_image_duplicate_of"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Subject',
+            name="Subject",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(help_text='Name/title of the subject', max_length=500)),
-                ('slug', models.SlugField(unique=True)),
-                ('description', models.TextField(help_text='Admin-written description of the subject')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "title",
+                    models.CharField(
+                        help_text="Name/title of the subject", max_length=500
+                    ),
+                ),
+                ("slug", models.SlugField(unique=True)),
+                (
+                    "description",
+                    models.TextField(
+                        help_text="Admin-written description of the subject"
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['title'],
+                "ordering": ["title"],
             },
         ),
         migrations.CreateModel(
-            name='WikidataItem',
+            name="WikidataItem",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('wikidata_id', models.CharField(help_text='Wikidata ID (e.g., Q123456)', max_length=20, unique=True)),
-                ('title', models.CharField(help_text='Title from Wikidata', max_length=500)),
-                ('description', models.TextField(blank=True, help_text='Description from Wikidata')),
-                ('wikipedia_url', models.URLField(blank=True, help_text='URL to Wikipedia page (if available)')),
-                ('va_landmark_id', models.CharField(blank=True, help_text='Virginia Landmarks Registry ID', max_length=30)),
-                ('architect', models.TextField(blank=True, help_text='Architect(s) - multiple names can be separated by commas')),
-                ('image_url', models.URLField(blank=True, help_text='URL to representative image from Wikidata')),
-                ('inception', models.DateField(blank=True, help_text='Date of construction/inception', null=True)),
-                ('last_updated', models.DateTimeField(auto_now=True, help_text='When metadata was last fetched from Wikidata')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "wikidata_id",
+                    models.CharField(
+                        help_text="Wikidata ID (e.g., Q123456)",
+                        max_length=20,
+                        unique=True,
+                    ),
+                ),
+                (
+                    "title",
+                    models.CharField(help_text="Title from Wikidata", max_length=500),
+                ),
+                (
+                    "description",
+                    models.TextField(blank=True, help_text="Description from Wikidata"),
+                ),
+                (
+                    "wikipedia_url",
+                    models.URLField(
+                        blank=True, help_text="URL to Wikipedia page (if available)"
+                    ),
+                ),
+                (
+                    "va_landmark_id",
+                    models.CharField(
+                        blank=True,
+                        help_text="Virginia Landmarks Registry ID",
+                        max_length=30,
+                    ),
+                ),
+                (
+                    "architect",
+                    models.TextField(
+                        blank=True,
+                        help_text="Architect(s) - multiple names can be separated by commas",
+                    ),
+                ),
+                (
+                    "image_url",
+                    models.URLField(
+                        blank=True,
+                        help_text="URL to representative image from Wikidata",
+                    ),
+                ),
+                (
+                    "inception",
+                    models.DateField(
+                        blank=True,
+                        help_text="Date of construction/inception",
+                        null=True,
+                    ),
+                ),
+                (
+                    "last_updated",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="When metadata was last fetched from Wikidata",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'ordering': ['title'],
+                "ordering": ["title"],
             },
         ),
         migrations.CreateModel(
-            name='SubjectMapping',
+            name="SubjectMapping",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('order', models.PositiveIntegerField(default=0, help_text='Display order on image page (lower numbers first)')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('image', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='subject_mappings', to='images.image')),
-                ('subject', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='image_mappings', to='images.subject')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "order",
+                    models.PositiveIntegerField(
+                        default=0,
+                        help_text="Display order on image page (lower numbers first)",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "image",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="subject_mappings",
+                        to="images.image",
+                    ),
+                ),
+                (
+                    "subject",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="image_mappings",
+                        to="images.subject",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['image', 'order', 'subject__title'],
-                'unique_together': {('image', 'subject')},
+                "ordering": ["image", "order", "subject__title"],
+                "unique_together": {("image", "subject")},
             },
         ),
         migrations.AddField(
-            model_name='image',
-            name='subjects',
-            field=models.ManyToManyField(blank=True, help_text='Subjects (buildings, people, monuments, etc.) that appear in this image', through='images.SubjectMapping', to='images.subject'),
+            model_name="image",
+            name="subjects",
+            field=models.ManyToManyField(
+                blank=True,
+                help_text="Subjects (buildings, people, monuments, etc.) that appear in this image",
+                through="images.SubjectMapping",
+                to="images.subject",
+            ),
         ),
         migrations.AddField(
-            model_name='subject',
-            name='wikidata_item',
-            field=models.ForeignKey(blank=True, help_text='Optional linked Wikidata item', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='subjects', to='images.wikidataitem'),
+            model_name="subject",
+            name="wikidata_item",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Optional linked Wikidata item",
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="subjects",
+                to="images.wikidataitem",
+            ),
         ),
     ]

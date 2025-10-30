@@ -5,15 +5,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0007_alter_image_search_vector_precollection_preimage'),
+        ("images", "0007_alter_image_search_vector_precollection_preimage"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='duplicate_of',
-            field=models.ForeignKey(blank=True, help_text='ID of another Image if this is a duplicate', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='duplicates', to='images.image'),
+            model_name="image",
+            name="duplicate_of",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="ID of another Image if this is a duplicate",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="duplicates",
+                to="images.image",
+            ),
         ),
     ]

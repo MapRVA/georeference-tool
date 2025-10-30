@@ -14,7 +14,13 @@ import json
 from django.db.models import Count, F
 from django.db.models.functions import TruncDate, TruncHour
 
-from images.models import Collection, Georeference, GeoreferenceValidation, Image, Source
+from images.models import (
+    Collection,
+    Georeference,
+    GeoreferenceValidation,
+    Image,
+    Source,
+)
 
 
 def stats(request):
@@ -103,9 +109,13 @@ def stats(request):
 
     # Overall statistics
     total_sources = Source.objects.filter(public=True).count()
-    total_collections = Collection.objects.filter(public=True, source__public=True).count()
+    total_collections = Collection.objects.filter(
+        public=True, source__public=True
+    ).count()
     georeferenced_count = georeferenced_images.count()
-    georeferenced_percentage = round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
+    georeferenced_percentage = (
+        round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
+    )
 
     overall_stats = {
         "total_sources": total_sources,

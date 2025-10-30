@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0010_preimage_imported'),
+        ("images", "0010_preimage_imported"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='wikidataitem',
-            name='image_url',
-            field=models.URLField(blank=True, help_text='URL to representative image from Wikidata', max_length=500),
+            model_name="wikidataitem",
+            name="image_url",
+            field=models.URLField(
+                blank=True,
+                help_text="URL to representative image from Wikidata",
+                max_length=500,
+            ),
         ),
     ]

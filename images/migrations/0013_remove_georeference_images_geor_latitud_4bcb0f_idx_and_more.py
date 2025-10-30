@@ -5,19 +5,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0012_migrate_lat_lon_to_point'),
+        ("images", "0012_migrate_lat_lon_to_point"),
     ]
 
     operations = [
         migrations.RemoveIndex(
-            model_name='georeference',
-            name='images_geor_latitud_4bcb0f_idx',
+            model_name="georeference",
+            name="images_geor_latitud_4bcb0f_idx",
         ),
         migrations.AddField(
-            model_name='image',
-            name='scale',
-            field=models.IntegerField(blank=True, default=None, help_text='Scale of the map, from 1 (close-up) to 5 (wide landscape).', null=True, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(5)]),
+            model_name="image",
+            name="scale",
+            field=models.IntegerField(
+                blank=True,
+                default=None,
+                help_text="Scale of the map, from 1 (close-up) to 5 (wide landscape).",
+                null=True,
+                validators=[
+                    django.core.validators.MinValueValidator(1),
+                    django.core.validators.MaxValueValidator(5),
+                ],
+            ),
         ),
     ]

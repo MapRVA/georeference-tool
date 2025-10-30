@@ -56,12 +56,13 @@ from .models import (
 # At a given zoom level, all images with a scale value greater than or equal to
 # the determined scale for that zoom level will be displayed.
 SCALE_VISIBILITY = {
-    0: 5,   # Scale 5 and up visible from this zoom
+    0: 5,  # Scale 5 and up visible from this zoom
     10: 4,  # Scale 4 and up visible from this zoom
     11: 3,  # Scale 3 and up visible from this zoom
     12: 2,  # Scale 2 and up visible from this zoom
     14: 1,  # Scale 1 and up visible from this zoom
 }
+
 
 def get_min_scale_for_zoom(z):
     """
@@ -485,7 +486,9 @@ def georeference_image(request, image_id):
                         image=image, georeferenced_by=request.user
                     ).first()
                     if georeference:
-                        georeference.point = Point(float(data["longitude"]), float(data["latitude"]))
+                        georeference.point = Point(
+                            float(data["longitude"]), float(data["latitude"])
+                        )
                         georeference.direction = (
                             int(data["direction"]) if data.get("direction") else None
                         )
@@ -860,7 +863,9 @@ def vector_tiles_endpoint(request, z, x, y):
     """Return MVT vector tiles of georeferenced images"""
     from django.db import connection
 
-    enable_scale_filter = request.GET.get('enable_scale_filter', 'false').lower() == 'true'
+    enable_scale_filter = (
+        request.GET.get("enable_scale_filter", "false").lower() == "true"
+    )
 
     # Apply the same filters as GeoJSON endpoint
     image_id = request.GET.get("image")
@@ -874,7 +879,7 @@ def vector_tiles_endpoint(request, z, x, y):
         "i.collection_id = c.id",
         "c.source_id = s.id",
         "c.public = true",
-        "s.public = true"
+        "s.public = true",
     ]
     where_params = []
 
@@ -894,7 +899,9 @@ def vector_tiles_endpoint(request, z, x, y):
         where_conditions.append("s.id = %s")
         where_params.append(source_id)
     if subject_id:
-        where_conditions.append("EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id AND sm.subject_id = %s)")
+        where_conditions.append(
+            "EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id AND sm.subject_id = %s)"
+        )
         where_params.append(subject_id)
 
     where_clause = " AND ".join(where_conditions)
@@ -941,10 +948,11 @@ def vector_tiles_endpoint(request, z, x, y):
 
         if result and result[0]:
             mvt_data = bytes(result[0])
-            response = HttpResponse(mvt_data, content_type='application/x-protobuf')
+            response = HttpResponse(mvt_data, content_type="application/x-protobuf")
             return response
         else:
-            return HttpResponse(b'', content_type='application/x-protobuf')
+            return HttpResponse(b"", content_type="application/x-protobuf")
+
 
 def map_layers_view(request):
     """Return all map layers organized by collections in a single object"""
@@ -1361,13 +1369,19 @@ def find_similar_images(request, image_id):
     Find and display images with embeddings most similar to a given image.
     """
     if not CLIP_AVAILABLE:
-        messages.error(request, "Similarity search is not available. CLIP dependencies not installed.")
+        messages.error(
+            request,
+            "Similarity search is not available. CLIP dependencies not installed.",
+        )
         return redirect("images:image_detail", image_id=image_id)
 
     # Get the target image and its embedding
     target_image = get_object_or_404(Image, id=image_id)
     if not target_image.embedding:
-        messages.error(request, "The selected image does not have an embedding, so similar images cannot be found.")
+        messages.error(
+            request,
+            "The selected image does not have an embedding, so similar images cannot be found.",
+        )
         return redirect("images:image_detail", image_id=image_id)
 
     from django.db import connection
@@ -1416,7 +1430,9 @@ def find_similar_images(request, image_id):
 
         # Re-order the fetched image objects based on the paginated ID list
         ordered_images_on_page = [
-            images_by_id[img_id] for img_id in current_page_ids if img_id in images_by_id
+            images_by_id[img_id]
+            for img_id in current_page_ids
+            if img_id in images_by_id
         ]
 
         # Replace the list of IDs in the page object with the actual image objects
@@ -1431,7 +1447,9 @@ def find_similar_images(request, image_id):
         return render(request, "images/similar_images.html", context)
 
     except Exception as e:
-        messages.error(request, f"An error occurred while finding similar images: {str(e)}")
+        messages.error(
+            request, f"An error occurred while finding similar images: {str(e)}"
+        )
         return redirect("images:image_detail", image_id=image_id)
 
 
@@ -1456,7 +1474,7 @@ def _generate_highlighted_snippet(text, query, max_length=200):
         return {"snippet": text[:max_length], "highlighted": text}
 
     # Create regex pattern for highlighting (case insensitive)
-    pattern = '|'.join(re.escape(term) for term in query_terms)
+    pattern = "|".join(re.escape(term) for term in query_terms)
 
     # Find the best snippet position (around first match)
     match = re.search(pattern, text, re.IGNORECASE)
@@ -1475,15 +1493,14 @@ def _generate_highlighted_snippet(text, query, max_length=200):
 
     # Highlight matching terms in both snippet and full text
     def highlight_replacer(match):
-        return f'<mark>{match.group(0)}</mark>'
+        return f"<mark>{match.group(0)}</mark>"
 
-    highlighted_snippet = re.sub(pattern, highlight_replacer, snippet, flags=re.IGNORECASE)
+    highlighted_snippet = re.sub(
+        pattern, highlight_replacer, snippet, flags=re.IGNORECASE
+    )
     highlighted_full = re.sub(pattern, highlight_replacer, text, flags=re.IGNORECASE)
 
-    return {
-        "snippet": highlighted_snippet,
-        "highlighted": highlighted_full
-    }
+    return {"snippet": highlighted_snippet, "highlighted": highlighted_full}
 
 
 @require_http_methods(["GET", "POST"])
@@ -1883,7 +1900,9 @@ def add_subject_to_image(request, image_id):
             or 0
         )
 
-        subject_mapping = SubjectMapping.objects.create(image=image, subject=subject, order=max_order + 1)
+        subject_mapping = SubjectMapping.objects.create(
+            image=image, subject=subject, order=max_order + 1
+        )
 
         return JsonResponse(
             {
@@ -2117,15 +2136,18 @@ def subject_detail(request, subject_slug):
     }
     return render(request, "images/subject_detail.html", context)
 
+
 @staff_member_required
 def label_scales(request):
     """
     Admin interface for labeling the scale of images.
     Can be filtered by a search query.
     """
-    georeferenced_only = request.GET.get('georeferenced_only', 'false').lower() == 'true'
-    query = request.GET.get('q', '').strip()
-    search_type = request.GET.get('search_type', 'text')  # 'text' or 'semantic'
+    georeferenced_only = (
+        request.GET.get("georeferenced_only", "false").lower() == "true"
+    )
+    query = request.GET.get("q", "").strip()
+    search_type = request.GET.get("search_type", "text")  # 'text' or 'semantic'
 
     # Start with images that need scale labeling
     images = Image.objects.filter(scale__isnull=True)
@@ -2134,13 +2156,13 @@ def label_scales(request):
         images = images.filter(georeferences__isnull=False).distinct()
 
     if query:
-        if search_type == 'semantic' and CLIP_AVAILABLE:
+        if search_type == "semantic" and CLIP_AVAILABLE:
             try:
                 from django.db import connection
 
                 query_embedding = _get_text_embedding(query)
                 embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
-                base_image_ids = list(images.values_list('id', flat=True))
+                base_image_ids = list(images.values_list("id", flat=True))
 
                 if not base_image_ids:
                     images = Image.objects.none()
@@ -2160,18 +2182,25 @@ def label_scales(request):
                         images = Image.objects.none()
                     else:
                         # Preserve the search order
-                        preserved_order = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(result_ids)])
-                        images = Image.objects.filter(id__in=result_ids).order_by(preserved_order)
+                        preserved_order = Case(
+                            *[
+                                When(pk=pk, then=pos)
+                                for pos, pk in enumerate(result_ids)
+                            ]
+                        )
+                        images = Image.objects.filter(id__in=result_ids).order_by(
+                            preserved_order
+                        )
 
-            except Exception: # Broad exception to avoid crashing the admin page
+            except Exception:  # Broad exception to avoid crashing the admin page
                 # Could log this error
-                images = images.order_by('id') # Fallback to default ordering
+                images = images.order_by("id")  # Fallback to default ordering
 
-        elif search_type == 'text' and HAS_POSTGRES_SEARCH:
+        elif search_type == "text" and HAS_POSTGRES_SEARCH:
             try:
                 from django.db import connection
 
-                base_image_ids = list(images.values_list('id', flat=True))
+                base_image_ids = list(images.values_list("id", flat=True))
                 distance_threshold = 0.7  # A reasonable default
 
                 if not base_image_ids:
@@ -2202,10 +2231,17 @@ def label_scales(request):
                     if not result_ids:
                         images = Image.objects.none()
                     else:
-                        preserved_order = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(result_ids)])
-                        images = Image.objects.filter(id__in=result_ids).order_by(preserved_order)
+                        preserved_order = Case(
+                            *[
+                                When(pk=pk, then=pos)
+                                for pos, pk in enumerate(result_ids)
+                            ]
+                        )
+                        images = Image.objects.filter(id__in=result_ids).order_by(
+                            preserved_order
+                        )
             except Exception:
-                images = images.order_by('id')
+                images = images.order_by("id")
         else:
             # If search is requested but not possible, just order by ID
             images = images.order_by("id")

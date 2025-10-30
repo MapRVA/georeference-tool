@@ -21,7 +21,9 @@ urlpatterns = [
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("<int:image_id>/", views.image_detail, name="image_detail"),
-    path("<int:image_id>/similar/", views.find_similar_images, name="find_similar_images"),
+    path(
+        "<int:image_id>/similar/", views.find_similar_images, name="find_similar_images"
+    ),
     path("stats/", views.image_stats, name="image_stats"),
     path("search/", views.search_page, name="search_page"),
     path("random/", views.get_random_image, name="random_image"),
@@ -65,7 +67,11 @@ urlpatterns = [
     ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
-    path("api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt", views.vector_tiles_endpoint, name="vector_tiles"),
+    path(
+        "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
+        views.vector_tiles_endpoint,
+        name="vector_tiles",
+    ),
     path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),
