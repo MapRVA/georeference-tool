@@ -136,7 +136,7 @@ def admin_login(request):
             success_url="/admin/",
             extra_context={
                 "title": "Log in",
-                "site_title": "Georeference Tool Admin",
+                "site_title": "Yesterdays Admin",
                 "site_header": "Development Mode - Use admin/admin",
                 "site_url": "/",
             },

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Georeference Image - Georeference Tool{% endblock %}
+{% block title %}Georeference Image - Yesterdays{% endblock %}
 
 
 {% block extra_css %}
@@ -1954,12 +1954,12 @@ document.addEventListener('DOMContentLoaded', function() {
             activePopup = null;
             return;
         }
-        
+
         // Don't place pin if clicking on a context image
         if (isHoveringContextImage) {
             return;
         }
-        
+
         var lng = e.lngLat.lng;
         var lat = e.lngLat.lat;
 
@@ -2506,13 +2506,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle context display mode changes
     const contextDisplayRadios = document.querySelectorAll('input[name="contextDisplay"]');
-    
+
     // Set initial mode from checked radio button
     const checkedRadio = document.querySelector('input[name="contextDisplay"]:checked');
     if (checkedRadio) {
         contextDisplayMode = checkedRadio.value;
     }
-    
+
     contextDisplayRadios.forEach(radio => {
         radio.addEventListener('change', function() {
             if (this.checked) {
@@ -2545,7 +2545,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 isHoveringContextImage = false;
                 map.getCanvas().style.cursor = 'crosshair';
                 break;
-            
+
             case 'ghost':
                 map.setLayoutProperty('context-image-circles', 'visibility', 'visible');
                 if (map.getLayer('context-image-directions')) {
@@ -2568,7 +2568,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 isHoveringContextImage = false;
                 map.getCanvas().style.cursor = 'crosshair';
                 break;
-            
+
             case 'clickable':
                 map.setLayoutProperty('context-image-circles', 'visibility', 'visible');
                 if (map.getLayer('context-image-directions')) {
@@ -2578,7 +2578,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 map.setPaintProperty('context-image-circles', 'circle-color', 'green');
                 map.setPaintProperty('context-image-circles', 'circle-opacity', 1.0);
                 map.setPaintProperty('context-image-circles', 'circle-stroke-opacity', 1.0);
-                
+
                 // Add click handlers like in map_display.html
                 map.off('click', 'context-image-circles'); // Remove existing handlers first
                 map.on('click', 'context-image-circles', function(e) {
@@ -2586,15 +2586,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (contextDisplayMode !== 'clickable') {
                         return;
                     }
-                    
+
                     // Prevent the map click handler from firing when clicking on context images
                     e.originalEvent.stopPropagation();
-                    
+
                     const properties = e.features[0].properties;
-                    
+
                     // Build absolute URL for image entry
                     const imgEntry = window.location.origin + '/' + properties.id + '/';
-                    
+
                     // Create popup content
                     const popupContent = `
                       <div>
@@ -2606,18 +2606,18 @@ document.addEventListener('DOMContentLoaded', function() {
                           </a>
                       </div>
                     `;
-                    
+
                     // Close any existing popup
                     if (activePopup) {
                         activePopup.remove();
                     }
-                    
+
                     // Create and track new popup
                     activePopup = new maplibregl.Popup()
                         .setLngLat(e.features[0].geometry.coordinates)
                         .setHTML(popupContent)
                         .addTo(map);
-                    
+
                     // Clear the popup reference when it's closed
                     activePopup.on('close', function() {
                         activePopup = null;
@@ -2627,7 +2627,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     });
                 });
-                
+
                 // Add hover handlers
                 map.off('mouseenter', 'context-image-circles');
                 map.off('mouseleave', 'context-image-circles');
@@ -2688,7 +2688,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="drag-handle subject-card-control position-absolute top-0 start-0 p-2" style="cursor: move; z-index: 10;">
                             <i class="fas fa-grip-vertical text-muted"></i>
                         </div>
-                        ${subject.image_url ? 
+                        ${subject.image_url ?
                             `<a href="${subject.url}" class="d-block">
                                 <img src="${subject.image_url}" alt="${subject.title}" class="card-img-top" style="height: 150px; object-fit: cover;">
                              </a>` :

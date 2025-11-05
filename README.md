@@ -1,4 +1,4 @@
-# Georeference Tool
+# Yesterdays
 
 A Django web application for georeferencing historical images.
 

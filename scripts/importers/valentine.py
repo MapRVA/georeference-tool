@@ -68,7 +68,7 @@ def create_collection_if_not_exist(
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
+        "User-Agent": "MapRVA Yesterdays (https://github.com/MapRVA/yesterdays)",
     }
     data = {
         "TableName": "group",
@@ -155,7 +155,7 @@ def get_archival_children(archival_number: str, table: str):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetArchivalChildren"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
+        "User-Agent": "MapRVA Yesterdays (https://github.com/MapRVA/yesterdays)",
     }
     data = {
         "TableName": table,
@@ -185,7 +185,7 @@ def get_record_details(
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "User-Agent": "MapRVA Georeference Tool (https://github.com/MapRVA/georeference-tool)",
+        "User-Agent": "MapRVA Yesterdays (https://github.com/MapRVA/yesterdays)",
     }
     data = {
         "TableName": "biblio",
