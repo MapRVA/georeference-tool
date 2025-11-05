@@ -197,6 +197,47 @@
     .validation-notes {
         font-style: italic;
     }
+
+    /* Markdown content styling */
+    .markdown-content {
+        line-height: 1.6;
+    }
+
+    .markdown-content p {
+        margin-bottom: 0.75rem;
+    }
+
+    .markdown-content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .markdown-content ul,
+    .markdown-content ol {
+        margin-bottom: 0.75rem;
+        padding-left: 2rem;
+    }
+
+    .markdown-content li {
+        margin-bottom: 0.25rem;
+    }
+
+    .markdown-content blockquote {
+        border-left: 4px solid #dee2e6;
+        padding-left: 1rem;
+        margin-left: 0;
+        margin-bottom: 0.75rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .markdown-content a {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+
+    .markdown-content a:hover {
+        text-decoration: underline;
+    }
 </style>
 {% endblock %}
 
@@ -443,11 +484,11 @@
                                     {% endwith %}
                                 </dd>
 
-                                {% if image.get_georeference.confidence_notes %}
+                                {% if rendered_notes %}
                                     <dt class="col-sm-12 mt-2">Notes:</dt>
                                     <dd class="col-sm-12">
-                                        <div class="bg-light p-2 rounded">
-                                            <small>{{ image.get_georeference.confidence_notes }}</small>
+                                        <div class="bg-light p-2 rounded markdown-content">
+                                            {{ rendered_notes|safe }}
                                         </div>
                                     </dd>
                                 {% endif %}
@@ -761,7 +802,8 @@
                     </div>
                     <div class="card-body">
                         <div class="timeline">
-                            {% for georeference in image.georeferences.all %}
+                            {% for item in georeferences_with_notes %}
+                                {% with georeference=item.georeference rendered_geo_notes=item.rendered_notes %}
                                 <div class="timeline-item">
                                     <div class="timeline-marker">
                                         <i class="fas fa-map-marker-alt"></i>
@@ -820,12 +862,12 @@
                                                     </span>
                                                 </div>
                                             </div>
-                                            {% if georeference.confidence_notes %}
-                                                <div class="timeline-notes">
+                                            {% if rendered_geo_notes %}
+                                                <div class="timeline-notes markdown-content">
                                                     <small class="text-muted">
                                                         <i class="fas fa-sticky-note me-1"></i>
-                                                        {{ georeference.confidence_notes }}
                                                     </small>
+                                                    {{ rendered_geo_notes|safe }}
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -878,6 +920,7 @@
                                         {% endif %}
                                     </div>
                                 </div>
+                                {% endwith %}
                             {% endfor %}
                         </div>
                     </div>

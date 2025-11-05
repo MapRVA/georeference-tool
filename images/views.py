@@ -50,6 +50,7 @@ from .models import (
     SubjectMapping,
     WikidataItem,
 )
+from .utils import render_markdown_safe
 
 
 # Defines the minimum zoom level at which a scale becomes visible.
@@ -390,13 +391,30 @@ def image_detail(request, image_id):
     """Display detailed view of an image for georeferencing"""
     image = get_object_or_404(Image, id=image_id)
 
+    # Render confidence notes as markdown for the current georeference
+    georeference = image.get_georeference()
+    rendered_notes = None
+    if georeference and georeference.confidence_notes:
+        rendered_notes = render_markdown_safe(georeference.confidence_notes)
+
+    # Render notes for all georeferences in the timeline
+    georeferences_with_notes = []
+    for geo in image.georeferences.all():
+        rendered_geo_notes = None
+        if geo.confidence_notes:
+            rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
+        georeferences_with_notes.append({
+            'georeference': geo,
+            'rendered_notes': rendered_geo_notes,
+        })
+
     context = {
         "image": image,
         "has_georeference": image.georeferences.exists(),
-        "georeference": image.get_georeference(),
-        "validations": image.get_georeference().validations.all()
-        if image.get_georeference()
-        else [],
+        "georeference": georeference,
+        "rendered_notes": rendered_notes,
+        "validations": georeference.validations.all() if georeference else [],
+        "georeferences_with_notes": georeferences_with_notes,
     }
 
     return render(request, "images/image_detail.html", context)
