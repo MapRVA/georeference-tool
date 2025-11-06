@@ -354,9 +354,8 @@
                             {% endif %}
                             <div class="col-md-4">
                                 <small class="text-muted d-block">Map Tools</small>
-                                <a href="https://mapswap.trailsta.sh/swap/#url=geo:{{ image.get_georeference.latitude }},{{ image.get_georeference.longitude }};z=18"
-                                   target="_blank" class="btn btn-outline-primary btn-sm">
-                                    MapSwap
+                                <a href="#" id="mapswap-link" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-shuffle me-2"></i>MapSwap
                                 </a>
                             </div>
                         </div>
@@ -1052,6 +1051,21 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
             sourceDomain.textContent = 'Source';
         }
+    }
+
+    // Update MapSwap link for georeferenced images
+    const mapswapLink = document.getElementById('mapswap-link');
+    if (mapswapLink) {
+        {% if image.is_georeferenced and image.get_georeference %}
+            // Use actual georeference coordinates
+            const lat = {{ image.get_georeference.point.y|floatformat:6 }};
+            const lng = {{ image.get_georeference.point.x|floatformat:6 }};
+            const zoom = '18';
+            mapswapLink.href = `https://mapswap.trailsta.sh/swap/#type=m&url=geo:${lat},${lng};z=${zoom}`;
+        {% else %}
+            // No georeferencing - set default link to Richmond, VA
+            mapswapLink.href = 'https://mapswap.trailsta.sh/swap/#type=m&url=geo:37.5407,-77.4360;z=12';
+        {% endif %}
     }
 
     // Set validation URL if georeference exists
