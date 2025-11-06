@@ -396,6 +396,14 @@
                                 <dd class="col-sm-7">{{ image.description }}</dd>
                             {% endif %}
 
+                            <dt class="col-sm-5">Source:</dt>
+                            <dd class="col-sm-7">
+                                <a href="{{ image.original_url }}" target="_blank" class="text-decoration-none" id="source-link">
+                                    <span id="source-domain">Loading...</span>
+                                    <i class="fas fa-external-link-alt ms-1 small"></i>
+                                </a>
+                            </dd>
+
                             {% if image.license_title %}
                                 <dt class="col-sm-5">License:</dt>
                                 <dd class="col-sm-7">
@@ -1034,6 +1042,18 @@ const lightbox = new PhotoSwipeLightbox({
 lightbox.init();
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Extract and display domain from source link
+    const sourceLink = document.getElementById('source-link');
+    const sourceDomain = document.getElementById('source-domain');
+    if (sourceLink && sourceDomain) {
+        try {
+            const url = new URL(sourceLink.href);
+            sourceDomain.textContent = url.hostname;
+        } catch (e) {
+            sourceDomain.textContent = 'Source';
+        }
+    }
+
     // Set validation URL if georeference exists
     {% if image.is_georeferenced and image.get_georeference and image.get_georeference.id %}
     const validationUrl = "{% url 'images:validate_georeference' image.get_georeference.id %}";
