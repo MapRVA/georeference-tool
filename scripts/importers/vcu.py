@@ -267,17 +267,11 @@ def get_image_details(
     # Parse the date if we found one
     if date_str and "original_date" in details:
         # Try to convert to EDTF format
-        # MM-1-YYYY format (month-day-year with day always 1)
+        # MM-DD-YYYY format (month-day-year)
         if mm_dd_yyyy_match := re.match(r"^(\d{1,2})-(\d{1,2})-(\d{4})$", date_str):
             month = int(mm_dd_yyyy_match.group(1))
             day = int(mm_dd_yyyy_match.group(2))
             year = int(mm_dd_yyyy_match.group(3))
-
-            # Validate that day is always 1 (false precision)
-            if day != 1:
-                print(f"\n✗ Image {image_id} has unexpected day value in date: {date_str}")
-                print(f"  Expected day to be 1, but got {day}")
-                sys.exit(1)
 
             # Convert month number to name for readable date
             month_names = ["", "January", "February", "March", "April", "May", "June",
@@ -285,8 +279,14 @@ def get_image_details(
             month_name = month_names[month] if 1 <= month <= 12 else None
 
             if month_name:
-                details["original_date"] = f"{month_name} {year}"
-                details["edtf_date"] = f"{year}-{month:02d}"
+                # If day is 1, it's false precision - only show month and year
+                if day == 1:
+                    details["original_date"] = f"{month_name} {year}"
+                    details["edtf_date"] = f"{year}-{month:02d}"
+                else:
+                    # Day is not 1, so we trust the precision - show full date
+                    details["original_date"] = f"{month_name} {day}, {year}"
+                    details["edtf_date"] = f"{year}-{month:02d}-{day:02d}"
             else:
                 print(f"\n✗ Image {image_id} has invalid month in date: {date_str}")
                 print(f"  Month should be between 1 and 12, but got {month}")
