@@ -168,6 +168,31 @@ def get_image_ids_from_page(url, collection_id):
     return get_image_ids_from_page_content(response.text, collection_id)
 
 
+def extract_license_from_rights(html_content):
+    """
+    Extracts license information from the rights section.
+    Returns a dict with 'license_title' and optionally 'license_permalink' if
+    the public domain text is found.
+    """
+    # Extract the rights section
+    rights_match = re.search(
+        r"<div id='rights' class='element'>.*?<h2 class='field-heading'>Rights</h2>\s*<p>(.*?)</p>\s*</div>",
+        html_content,
+        re.DOTALL,
+    )
+
+    if not rights_match:
+        return {}
+
+    rights_text = rights_match.group(1).strip()
+
+    # Check for public domain text
+    if "This material is in the public domain in the United States and thus is free of any copyright restriction." in rights_text:
+        return {"license_title": "Public Domain"}
+
+    return {}
+
+
 def get_image_details(
     image_id, collection_id, first_possible_year=None, last_possible_year=None
 ):
@@ -329,6 +354,10 @@ def get_image_details(
             f"https://scholarscompass.vcu.edu/context/{collection_id}/article/{internal_id}/type/native/viewcontent"
         )
 
+    # --- License ---
+    license_info = extract_license_from_rights(html_content)
+    details.update(license_info)
+
     return details
 
 
@@ -437,6 +466,7 @@ def cli(
     r2_uploader = None if hotlink else R2Uploader()
 
     skip_count = 0
+    non_public_domain_count = 0
     for image_id in tqdm(all_image_ids, desc="Processing images"):
         sleep(POLITE_WAIT_SECS)
         details = get_image_details(
@@ -480,6 +510,11 @@ def cli(
             print(f"\n  Please provide --first-possible-year and/or --last-possible-year")
             sys.exit(1)
 
+        # Check if image is public domain
+        if "license_title" not in details or details["license_title"] != "Public Domain":
+            non_public_domain_count += 1
+            continue
+
         # Try downloading the image (and uploading it to R2 if not hotlinking)
         if not hotlink:
             details["permalink"] = r2_uploader.upload_url(
@@ -507,6 +542,7 @@ def cli(
                     creator=details.get("creator", ""),
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
+                    license_title=details.get("license_title"),
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
             else:
@@ -520,6 +556,7 @@ def cli(
                     creator=details.get("creator", ""),
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
+                    license_title=details.get("license_title"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
         except Exception as e:
@@ -527,6 +564,9 @@ def cli(
 
     if skip_count > 0:
         print(f"\nSkipped {skip_count} images that already exist")
+
+    if non_public_domain_count > 0:
+        print(f"Skipped {non_public_domain_count} images that were not public domain")
 
     print("\n✓ Import complete!")
 
