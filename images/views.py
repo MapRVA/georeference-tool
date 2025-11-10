@@ -974,6 +974,10 @@ def geojson_endpoint(request):
         if georeference.direction is not None:
             properties["direction"] = georeference.direction
 
+        # Only include scale if it's not None
+        if image.scale is not None:
+            properties["scale"] = image.scale
+
         feature = {
             "type": "Feature",
             "geometry": {
