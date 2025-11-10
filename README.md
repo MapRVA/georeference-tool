@@ -4,7 +4,7 @@ A Django web application for georeferencing historical images.
 
 ## Local development
 
-To run georeference-tool locally, you need [`uv`](https://docs.astral.sh/uv/) and a PostgreSQL
+To run yesterdays locally, you need [`uv`](https://docs.astral.sh/uv/) and a PostgreSQL
 database with pgvector and postgis.
 
 ### Run Database
