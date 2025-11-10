@@ -64,7 +64,7 @@
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'osm_auth:login' %}">
+                            <a class="nav-link" href="{% url 'osm_auth:login' %}{% if current_image %}?image={{ current_image.id }}{% endif %}">
                                 <i class="fas fa-sign-in-alt me-2"></i>Login with OSM
                             </a>
                         </li>

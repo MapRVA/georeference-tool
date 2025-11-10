@@ -1,5 +1,3 @@
-import json
-from django.conf import settings
 from django.http import JsonResponse, HttpResponseRedirect
 from django.shortcuts import render, redirect
 from django.urls import reverse
@@ -7,6 +5,7 @@ from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login as auth_login
 from django.contrib.admin.views.decorators import staff_member_required
+from django.conf import settings
 from osm_login_python.core import Auth
 
 
@@ -28,6 +27,10 @@ def login(request):
         [settings.OSM_CLIENT_ID, settings.OSM_CLIENT_SECRET, settings.OSM_SECRET_KEY]
     ):
         messages.error(request, "OSM authentication is not properly configured.")
+        # Try to redirect back to where they came from
+        referrer = request.META.get('HTTP_REFERER')
+        if referrer:
+            return redirect(referrer)
         return redirect("/")
 
     # Clear any existing authentication session data before starting new login
@@ -40,6 +43,18 @@ def login(request):
     ]
     for key in session_keys_to_clear:
         request.session.pop(key, None)
+
+    # Check if there's an image parameter (for georeference page)
+    image_id = request.GET.get('image')
+    if image_id:
+        # Store the redirect URL for the specific image
+        redirect_url = reverse('images:georeference_interface') + f'?image={image_id}'
+        request.session['login_redirect_url'] = request.build_absolute_uri(redirect_url)
+    else:
+        # Store the referrer URL to redirect back after login
+        referrer = request.META.get('HTTP_REFERER')
+        if referrer:
+            request.session['login_redirect_url'] = referrer
 
     try:
         osm_auth = get_osm_auth()
@@ -55,32 +70,31 @@ def callback(request):
     try:
         osm_auth = get_osm_auth()
         current_url = request.build_absolute_uri()
-
         # Get token and user data from OSM
         token_data = osm_auth.callback(current_url)
-
         # Deserialize the user data
         user_data = osm_auth.deserialize_data(token_data["user_data"])
-
         # Validate that we have the essential user data
         if not user_data or not user_data.get("id") or not user_data.get("username"):
             raise ValueError("Invalid user data received from OSM")
-
         # Store user info in session
         request.session["osm_user_id"] = user_data.get("id")
         request.session["osm_username"] = user_data.get("username")
         request.session["osm_user_data"] = user_data
         request.session["osm_oauth_token"] = token_data.get("oauth_token")
         request.session["is_authenticated"] = True
-
         # Always authenticate with Django's auth system to create/update user
         django_user = authenticate(request=request)
         if django_user:
             auth_login(request, django_user)
-
         messages.success(
             request, f"Successfully logged in as {user_data.get('username')}!"
         )
+
+        # Check if there's a login redirect URL stored
+        login_redirect_url = request.session.pop('login_redirect_url', None)
+        if login_redirect_url:
+            return redirect(login_redirect_url)
 
         # Check if this was an admin login attempt
         admin_redirect = request.session.pop("admin_login_redirect", None)
@@ -93,7 +107,6 @@ def callback(request):
                 )
 
         return redirect("/")
-
     except Exception as e:
         # Clear any partial session data on error
         session_keys_to_clear = [
@@ -105,7 +118,6 @@ def callback(request):
         ]
         for key in session_keys_to_clear:
             request.session.pop(key, None)
-
         messages.error(request, f"Authentication failed. Please try again.")
         return redirect("/")
 
@@ -113,7 +125,6 @@ def callback(request):
 def admin_login(request):
     """Custom admin login view with dev mode fallback"""
     from django.contrib.auth.views import LoginView
-
     # If user is already authenticated via OSM and has admin rights, redirect to admin
     if request.session.get("is_authenticated"):
         # Try to authenticate with Django's auth system using OSM backend
@@ -127,7 +138,6 @@ def admin_login(request):
                 request, "You don't have permission to access the admin area."
             )
             return redirect("/")
-
     # In DEBUG mode with hardcoded admin enabled, use Django's built-in admin login
     if settings.DEBUG and getattr(settings, "ALLOW_HARDCODED_ADMIN", False):
         # Use Django's built-in LoginView with admin template
@@ -142,10 +152,8 @@ def admin_login(request):
             },
         )
         return login_view(request)
-
     # Store the admin redirect in session so we can redirect back after OAuth
     request.session["admin_login_redirect"] = request.GET.get("next", "/admin/")
-
     # Redirect to OSM OAuth login
     messages.info(
         request,
@@ -157,7 +165,6 @@ def admin_login(request):
 def logout(request):
     """Log out user by clearing session and Django auth"""
     from django.contrib.auth import logout as auth_logout
-
     # Clear OSM-related session data
     session_keys_to_remove = [
         "osm_user_id",
@@ -166,14 +173,11 @@ def logout(request):
         "osm_oauth_token",
         "is_authenticated",
     ]
-
     for key in session_keys_to_remove:
         if key in request.session:
             del request.session[key]
-
     # Also log out of Django's authentication system
     auth_logout(request)
-
     messages.success(request, "Successfully logged out!")
     return redirect("/")
 
@@ -182,14 +186,12 @@ def user_data(request):
     """API endpoint to get current user data"""
     if not request.session.get("is_authenticated"):
         return JsonResponse({"error": "Not authenticated"}, status=401)
-
     user_data = {
         "id": request.session.get("osm_user_id"),
         "username": request.session.get("osm_username"),
         "user_data": request.session.get("osm_user_data"),
         "is_authenticated": True,
     }
-
     return JsonResponse(user_data)
 
 
@@ -198,10 +200,8 @@ def profile(request):
     if not request.session.get("is_authenticated"):
         messages.info(request, "Please log in to view your profile.")
         return redirect("/")
-
     context = {
         "user_data": request.session.get("osm_user_data"),
         "username": request.session.get("osm_username"),
     }
-
     return render(request, "auth/profile.html", context)
