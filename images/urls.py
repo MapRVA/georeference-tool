@@ -85,4 +85,6 @@ urlpatterns = [
         views.subject_autocomplete,
         name="subject_autocomplete",
     ),
+    # Embeddable map URL
+    path("map/embed/", views.map_embed, name="map_embed"),
 ]

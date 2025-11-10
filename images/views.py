@@ -10,6 +10,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
@@ -78,6 +79,33 @@ def get_min_scale_for_zoom(z):
         else:
             break  # Since zoom levels are sorted, no need to check further
     return min_scale_to_show
+
+
+from django.views.decorators.clickjacking import xframe_options_exempt
+
+
+@xframe_options_exempt
+def map_embed(request):
+    """
+    A view to display a map that can be embedded in other websites.
+    Accepts query parameters to configure the map.
+    """
+    context = {
+        'image_id': request.GET.get('image_id'),
+        'collection_id': request.GET.get('collection_id'),
+        'source_id': request.GET.get('source_id'),
+        'subject_id': request.GET.get('subject_id'),
+        'center_lng': request.GET.get('center_lng'),
+        'center_lat': request.GET.get('center_lat'),
+        'zoom_level': request.GET.get('zoom_level'),
+        'include_geocoder': request.GET.get('include_geocoder', 'false').lower() == 'true',
+        'enable_scale_visibility': request.GET.get('enable_scale_visibility', 'false').lower() == 'true',
+        'zoom_to_contents': request.GET.get('zoom_to_contents', 'true').lower() == 'true',
+        'geolocate': request.GET.get('geolocate', 'false').lower() == 'true',
+        'hash': request.GET.get('hash', 'false').lower() == 'true',
+        'map_id': request.GET.get('map_id', 'embedded-map'),
+    }
+    return render(request, 'images/map_embed.html', context)
 
 
 def browse_sources(request):
