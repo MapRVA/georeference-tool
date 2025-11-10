@@ -153,8 +153,11 @@ def source_detail(request, slug):
             .distinct()
             .count()
         )
+        will_not_georef_images = collection.images.filter(
+            duplicate_of__isnull=True, will_not_georef=True
+        ).count()
         collection.pending_images = (
-            collection.total_images - collection.georeferenced_images
+            collection.total_images - collection.georeferenced_images - will_not_georef_images
         )
 
     # Overall source statistics (only from public collections, excluding duplicates)
@@ -177,7 +180,12 @@ def source_detail(request, slug):
         "collections": collections,
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
-        "pending_images": total_images - georeferenced_images,
+        "pending_images": total_images - georeferenced_images - Image.objects.filter(
+            collection__source=source,
+            collection__public=True,
+            duplicate_of__isnull=True,
+            will_not_georef=True,
+        ).count(),
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
@@ -205,8 +213,11 @@ def collection_detail(request, source_slug, collection_slug):
         )
         .order_by("will_not_georef", "has_georeference", "id")
     )
-    total_images = images.count()
+    total_images = images.distinct().count()
     georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
+    will_not_georef_images = collection.images.filter(
+        duplicate_of__isnull=True, will_not_georef=True
+    ).count()
 
     # Paginate images for browsing
     paginator = Paginator(images, 24)  # 24 images per page for grid layout
@@ -219,7 +230,7 @@ def collection_detail(request, source_slug, collection_slug):
         "page_obj": page_obj,
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
-        "pending_images": total_images - georeferenced_images,
+        "pending_images": total_images - georeferenced_images - will_not_georef_images,
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
