@@ -552,6 +552,13 @@
                             {% endif %}
                         {% endif %}
 
+                        <!-- Comment button (for authenticated users) -->
+                        {% if request.user.is_authenticated %}
+                            <button class="btn btn-info w-100 mb-3 action-button" data-bs-toggle="modal" data-bs-target="#commentModal">
+                                <i class="fas fa-comment me-2"></i>Add a Comment
+                            </button>
+                        {% endif %}
+
                         <!-- Navigation buttons -->
                         <div class="btn-group w-100 mb-3" role="group">
                             <a href="{{ image.collection.get_absolute_url }}" class="btn btn-outline-secondary">
@@ -799,18 +806,19 @@
         {% endif %}
 
         <!-- Timeline Section -->
-        {% if image.georeferences.exists %}
+        {% if timeline_items %}
         <div class="row mt-5">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-history me-2"></i>Timeline</h5>
-                        <small class="text-muted">All georeferencing activity for this image</small>
+                        <small class="text-muted">All georeferencing activity and comments for this image</small>
                     </div>
                     <div class="card-body">
                         <div class="timeline">
-                            {% for item in georeferences_with_notes %}
-                                {% with georeference=item.georeference rendered_geo_notes=item.rendered_notes %}
+                            {% for item in timeline_items %}
+                                {% if item.type == 'georeference' %}
+                                    {% with georeference=item.georeference rendered_geo_notes=item.rendered_notes %}
                                 <div class="timeline-item">
                                     <div class="timeline-marker">
                                         <i class="fas fa-map-marker-alt"></i>
@@ -871,9 +879,6 @@
                                             </div>
                                             {% if rendered_geo_notes %}
                                                 <div class="timeline-notes markdown-content">
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-sticky-note me-1"></i>
-                                                    </small>
                                                     {{ rendered_geo_notes|safe }}
                                                 </div>
                                             {% endif %}
@@ -927,7 +932,45 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                {% endwith %}
+                                    {% endwith %}
+                                {% elif item.type == 'comment' %}
+                                    {% with comment=item.comment rendered_text=item.rendered_text %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker">
+                                        <i class="fas fa-comment"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-header">
+                                            <h6 class="timeline-title">
+                                                Comment by
+                                                {% if comment.commented_by.get_profile_url %}
+                                                    <strong>
+                                                        <a href="{{ comment.commented_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
+                                                            {{ comment.commented_by.get_display_name }}
+                                                            <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                                        </a>
+                                                    </strong>
+                                                {% else %}
+                                                    <strong>{{ comment.commented_by.get_display_name }}</strong>
+                                                {% endif %}
+                                            </h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar me-1"></i>{{ comment.created_at|date:"M j, Y g:i A" }}
+                                            </small>
+                                        </div>
+                                        {% if rendered_text %}
+                                            <div class="timeline-notes markdown-content">
+                                                {{ rendered_text|safe }}
+                                            </div>
+                                        {% else %}
+                                            <div class="timeline-notes markdown-content">
+                                                {{ comment.text }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                    {% endwith %}
+                                {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -994,6 +1037,36 @@
     </div>
 </div>
     {% endif %}
+{% endif %}
+
+<!-- Comment Modal -->
+{% if request.user.is_authenticated %}
+<div class="modal fade" id="commentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add a Comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="commentForm">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="commentText" class="form-label">Comment</label>
+                        <textarea class="form-control" id="commentText" name="text" rows="5"
+                                  placeholder="Share your thoughts about this image..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-comment me-1"></i>Submit Comment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -1439,6 +1512,78 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error:', error);
                 alert('An error occurred while submitting the validation.');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+    }
+
+    // Comment form handler
+    const commentForm = document.getElementById('commentForm');
+    if (commentForm) {
+        commentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(commentForm);
+            const commentText = formData.get('text').trim();
+
+            if (!commentText) {
+                showAlert('warning', 'Please enter a comment.');
+                return;
+            }
+
+            const submitBtn = commentForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+            submitBtn.disabled = true;
+
+            const csrfToken = formData.get('csrfmiddlewaretoken');
+            const imageId = {{ image.id }};
+
+            fetch(`/${imageId}/add-comment/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    text: commentText
+                })
+            })
+            .then(response => {
+                // Check content-type to determine how to parse response
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => ({
+                        status: response.status,
+                        ok: response.ok,
+                        data: data
+                    }));
+                } else {
+                    return response.text().then(text => {
+                        console.error('Non-JSON response:', text);
+                        throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                    });
+                }
+            })
+            .then(result => {
+                if (!result.ok) {
+                    throw new Error(result.data.error || `Server error: ${result.status}`);
+                }
+                if (result.data.success) {
+                    showAlert('success', 'Comment added successfully!');
+                    // Close modal and reload page
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('commentModal'));
+                    if (modal) modal.hide();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    throw new Error(result.data.error || 'Error adding comment');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', `Error: ${error.message}`);
             })
             .finally(() => {
                 submitBtn.innerHTML = originalText;

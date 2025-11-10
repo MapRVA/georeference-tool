@@ -1,5 +1,4 @@
 from django.urls import path
-
 from . import views
 
 app_name = "images"
@@ -20,25 +19,31 @@ urlpatterns = [
     path("georeference/", views.georeference_interface, name="georeference_interface"),
     # List and detail views
     path("", views.image_list, name="image_list"),
-    path("<int:image_id>/", views.image_detail, name="image_detail"),
-    path(
-        "<int:image_id>/similar/", views.find_similar_images, name="find_similar_images"
-    ),
     path("stats/", views.image_stats, name="image_stats"),
     path("search/", views.search_page, name="search_page"),
     path("random/", views.get_random_image, name="random_image"),
-    # API endpoints for georeferencing
+    # API endpoints for georeferencing (must come before generic <int:image_id>/)
     path(
         "<int:image_id>/georeference/",
         views.georeference_image,
         name="georeference_image",
     ),
     path(
+        "<int:image_id>/similar/", views.find_similar_images, name="find_similar_images"
+    ),
+    path(
+        "<int:image_id>/add-comment/",
+        views.add_comment,
+        name="add_comment",
+    ),
+    path("<int:image_id>/skip/", views.skip_image, name="skip_image"),
+    path(
         "georeference/<int:georeference_id>/validate/",
         views.validate_georeference,
         name="validate_georeference",
     ),
-    path("<int:image_id>/skip/", views.skip_image, name="skip_image"),
+    # Generic image detail view (must come last)
+    path("<int:image_id>/", views.image_detail, name="image_detail"),
     # Image management endpoints
     path("<int:image_id>/difficulty/", views.mark_difficulty, name="mark_difficulty"),
     path("<int:image_id>/scale/", views.mark_scale, name="mark_scale"),

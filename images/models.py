@@ -856,6 +856,38 @@ class SubjectMapping(models.Model):
         ordering = ["image", "order", "subject__title"]
 
 
+class Comment(models.Model):
+    """Comments on images"""
+
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, related_name="comments"
+    )
+
+    # Content
+    text = models.TextField(help_text="Comment text content")
+
+    # Tracking information
+    commented_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="image_comments",
+        help_text="User who made the comment",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        preview = self.text[:50]
+        return f"Comment by {self.commented_by.username}: {preview}..."
+
+    class Meta:
+        ordering = ["image", "-created_at"]
+        indexes = [
+            models.Index(fields=["image"]),
+            models.Index(fields=["commented_by"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+
 @receiver([post_save, post_delete], sender=ImageSkip)
 def update_skip_count(sender, instance, **kwargs):
     """Update the skip_count on Image when ImageSkip is created/deleted"""

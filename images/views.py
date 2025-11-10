@@ -40,6 +40,7 @@ except ImportError:
 
 from .models import (
     Collection,
+    Comment,
     Georeference,
     GeoreferenceValidation,
     Image,
@@ -419,6 +420,36 @@ def image_detail(request, image_id):
             'rendered_notes': rendered_geo_notes,
         })
 
+    # Build timeline combining georeferences and comments in chronological order
+    timeline_items = []
+
+    # Add georeferences
+    for geo in image.georeferences.all():
+        rendered_geo_notes = None
+        if geo.confidence_notes:
+            rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
+        timeline_items.append({
+            'type': 'georeference',
+            'timestamp': geo.georeferenced_at,
+            'georeference': geo,
+            'rendered_notes': rendered_geo_notes,
+        })
+
+    # Add comments
+    for comment in image.comments.all():
+        rendered_comment_text = None
+        if comment.text:
+            rendered_comment_text = render_markdown_safe(comment.text)
+        timeline_items.append({
+            'type': 'comment',
+            'timestamp': comment.created_at,
+            'comment': comment,
+            'rendered_text': rendered_comment_text,
+        })
+
+    # Sort by timestamp (oldest first, newest at bottom)
+    timeline_items.sort(key=lambda x: x['timestamp'], reverse=False)
+
     context = {
         "image": image,
         "has_georeference": image.georeferences.exists(),
@@ -426,6 +457,7 @@ def image_detail(request, image_id):
         "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
+        "timeline_items": timeline_items,
     }
 
     return render(request, "images/image_detail.html", context)
@@ -613,6 +645,48 @@ def validate_georeference(request, georeference_id):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
+@require_http_methods(["POST"])
+@csrf_exempt
+def add_comment(request, image_id):
+    """API endpoint to add a comment to an image"""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "Authentication required"}, status=401
+        )
+
+    try:
+        data = json.loads(request.body)
+        image = get_object_or_404(Image, id=image_id)
+
+        comment_text = data.get("text", "").strip()
+        if not comment_text:
+            return JsonResponse(
+                {"success": False, "error": "Comment text is required"}, status=400
+            )
+
+        comment = Comment.objects.create(
+            image=image,
+            text=comment_text,
+            commented_by=request.user
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Comment added successfully",
+            "comment_id": comment.id
+        }, status=201)
+    except json.JSONDecodeError as e:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"}, status=400
+        )
+    except Image.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Image not found"}, status=404
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 @require_http_methods(["POST"])
 @csrf_exempt
