@@ -655,12 +655,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     setupLayer: () => this.setupUSGSLayer(),
                     activate: () => this.showUSGSLayer(),
                     deactivate: () => this.hideUSGSLayer()
+                },
+                'ohm': {
+                    name: 'OpenHistoricalMap',
+                    setupLayer: () => this.setupOHMLayer(),
+                    activate: () => this.showOHMLayer(),
+                    deactivate: () => this.hideOHMLayer()
                 }
             };
             this.currentBaseLayer = 'osm';
             this.currentOverlayLayer = null;
             this.mapLayersLoaded = false;
             this.collectionsData = null;
+            this.ohmLayerIds = [];
+            this.ohmStyleFetched = false;
+            this.ohmOriginalFilters = new Map();
         }
 
         onAdd(map) {
@@ -714,6 +723,70 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        async setupOHMLayer() {
+            if (this.ohmStyleFetched) return;
+
+            try {
+                const response = await fetch('/static/styles/ohm.json');
+                const style = await response.json();
+
+                // Add sources
+                for (const [sourceId, source] of Object.entries(style.sources)) {
+                    const prefixedSourceId = `ohm-${sourceId}`;
+                    if (!this.map.getSource(prefixedSourceId)) {
+                        this.map.addSource(prefixedSourceId, source);
+                    }
+                }
+
+                // Add layers
+                const beforeId = this.map.getLayer('image-directions') ? 'image-directions' : undefined;
+                style.layers.forEach(layer => {
+                    const prefixedLayerId = `ohm-${layer.id}`;
+                    this.ohmLayerIds.push(prefixedLayerId);
+                    if (layer.filter) {
+                        this.ohmOriginalFilters.set(prefixedLayerId, layer.filter);
+                    }
+
+                    let layerSpec = {
+                        ...layer,
+                        id: prefixedLayerId,
+                        source: `ohm-${layer.source}`,
+                        layout: {
+                            ...layer.layout,
+                            visibility: 'none'
+                        }
+                    };
+
+                    if (!this.map.getLayer(prefixedLayerId)) {
+                        this.map.addLayer(layerSpec, beforeId);
+                    }
+                });
+
+                this.ohmStyleFetched = true;
+
+            } catch (error) {
+                console.error('Error loading OpenHistoricalMap style:', error);
+            }
+        }
+
+        showOHMLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['satellite-layer', 'usgs-layer']);
+            this.ohmLayerIds.forEach(layerId => {
+                if (this.map.getLayer(layerId)) {
+                    this.map.setLayoutProperty(layerId, 'visibility', 'visible');
+                }
+            });
+        }
+
+        hideOHMLayer() {
+            this.ohmLayerIds.forEach(layerId => {
+                if (this.map.getLayer(layerId)) {
+                    this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            });
+        }
+
         setupSatelliteLayer() {
             if (!this.map.getSource('satellite')) {
                 this.map.addSource('satellite', {
@@ -761,19 +834,23 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners() {
             // Add event listeners for base layer options
             this.container.querySelectorAll('.layer-option').forEach(item => {
-                item.addEventListener('click', (e) => {
+                item.addEventListener('click', async (e) => {
                     e.preventDefault();
                     const layerKey = item.dataset.layer;
 
                     if (layerKey === this.currentBaseLayer) return;
 
-                    this.switchToBaseLayer(layerKey);
+                    await this.switchToBaseLayer(layerKey);
                 });
             });
         }
 
-        switchToBaseLayer(newLayerKey) {
+        async switchToBaseLayer(newLayerKey) {
             if (!this.baseLayers[newLayerKey] || newLayerKey === this.currentBaseLayer) return;
+
+            if (newLayerKey === 'ohm') {
+                await this.setupOHMLayer();
+            }
 
             // Deactivate current base layer
             this.baseLayers[this.currentBaseLayer].deactivate();
@@ -800,6 +877,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showOSMLayers() {
             // Hide other base layers
             this.hideOtherBaseLayers(['satellite-layer', 'usgs-layer']);
+            this.hideOHMLayer();
 
             // Show OSM layers (all layers except our custom base layers and overlays)
             const layers = this.map.getStyle().layers;
@@ -822,6 +900,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showSatelliteLayer() {
             this.hideOSMLayers();
             this.hideOtherBaseLayers(['usgs-layer']);
+            this.hideOHMLayer();
             if (this.map.getLayer('satellite-layer')) {
                 this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
             }
@@ -836,6 +915,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showUSGSLayer() {
             this.hideOSMLayers();
             this.hideOtherBaseLayers(['satellite-layer']);
+            this.hideOHMLayer();
             if (this.map.getLayer('usgs-layer')) {
                 this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
             }
@@ -854,7 +934,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         isCustomBaseLayer(layerId) {
-            return layerId === 'satellite-layer' || layerId === 'usgs-layer';
+            return layerId === 'satellite-layer' || layerId === 'usgs-layer' || layerId.startsWith('ohm-');
         }
 
         hideOtherBaseLayers(layersToHide) {
@@ -1100,10 +1180,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Time Slider Control Class
     class TimeSliderControl {
-        constructor(minYear, maxYear, mapId) {
+        constructor(minYear, maxYear, mapId, layerControl) {
             this._minYear = minYear;
             this._maxYear = maxYear;
             this._mapId = mapId;
+            this._layerControl = layerControl;
+            this._ohmYear = null; // Track separate OHM date
         }
 
         onAdd(map) {
@@ -1123,6 +1205,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         <input type="range" id="start-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._minYear}">
                         <input type="range" id="end-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
                     </div>
+                    <div class="time-slider-values" id="ohm-slider-section-${this._mapId}" style="display: none; margin-top: 12px;">
+                        <span id="ohm-slider-label-${this._mapId}">Map Date: </span>
+                        <span id="ohm-slider-year-label-${this._mapId}"></span>
+                    </div>
+                    <div class="time-slider-container" id="ohm-slider-container-${this._mapId}" style="display: none;">
+                        <div class="slider-track"></div>
+                        <div class="slider-range" id="ohm-slider-range-${this._mapId}" style="background: #6c757d;"></div>
+                        <input type="range" id="ohm-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
+                    </div>
                 </div>
             `;
 
@@ -1133,8 +1224,15 @@ document.addEventListener('DOMContentLoaded', function() {
             this._rangeLabel = this._sliderPanel.querySelector(`#time-slider-range-label-${this._mapId}`);
             this._sliderRange = this._sliderPanel.querySelector(`#slider-range-${this._mapId}`);
 
+            this._ohmSliderSection = this._sliderPanel.querySelector(`#ohm-slider-section-${this._mapId}`);
+            this._ohmSliderContainer = this._sliderPanel.querySelector(`#ohm-slider-container-${this._mapId}`);
+            this._ohmSlider = this._sliderPanel.querySelector(`#ohm-slider-${this._mapId}`);
+            this._ohmYearLabel = this._sliderPanel.querySelector(`#ohm-slider-year-label-${this._mapId}`);
+            this._ohmSliderRange = this._sliderPanel.querySelector(`#ohm-slider-range-${this._mapId}`);
+
             this.setupEventListeners();
             this.updateView();
+            this.setupOHMLayerToggle();
 
             return this._outerContainer;
         }
@@ -1155,6 +1253,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.updateView();
                 this.applyFilter();
             });
+
+            // Debounce map updates to avoid lag when dragging slider
+            let ohmUpdateTimeout;
+            this._ohmSlider.addEventListener('input', () => {
+                this._ohmYear = parseInt(this._ohmSlider.value);
+                this.updateOHMView(); // Always update the visual label immediately
+
+                // Only update the map after slider movement stops (300ms)
+                clearTimeout(ohmUpdateTimeout);
+                ohmUpdateTimeout = setTimeout(() => {
+                    this.applyFilter();
+                }, 300);
+            });
+        }
+
+        setupOHMLayerToggle() {
+            // Monitor base layer changes to show/hide OHM slider
+            const originalShowOHMLayer = this._layerControl.showOHMLayer;
+            const originalHideOHMLayer = this._layerControl.hideOHMLayer;
+            const self = this;
+
+            this._layerControl.showOHMLayer = function() {
+                originalShowOHMLayer.call(this);
+                self._ohmSliderSection.style.display = 'block';
+                self._ohmSliderContainer.style.display = 'block';
+                self.updateOHMView();
+                self.applyFilter();
+            };
+
+            this._layerControl.hideOHMLayer = function() {
+                originalHideOHMLayer.call(this);
+                self._ohmSliderSection.style.display = 'none';
+                self._ohmSliderContainer.style.display = 'none';
+            };
         }
 
         updateView() {
@@ -1168,6 +1300,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             this._sliderRange.style.left = `${startPercent}%`;
             this._sliderRange.style.width = `${endPercent - startPercent}%`;
+        }
+
+        updateOHMView() {
+            const year = this._ohmYear !== null ? this._ohmYear : this._maxYear;
+            this._ohmYearLabel.textContent = year;
+
+            const range = this._maxYear - this._minYear;
+            if (range === 0) return;
+
+            const yearPercent = ((year - this._minYear) / range) * 100;
+
+            this._ohmSliderRange.style.left = `${yearPercent}%`;
+            this._ohmSliderRange.style.width = '0%';
         }
 
         applyFilter() {
@@ -1190,6 +1335,45 @@ document.addEventListener('DOMContentLoaded', function() {
                     ...filter.slice(1)
                 ]);
             }
+
+            if (this._layerControl.currentBaseLayer === 'ohm') {
+                // Use OHM slider date if set, otherwise use end year from date range slider
+                const ohmDate = this._ohmYear !== null ? this._ohmYear : endYear;
+
+                const ohmDateFilter = [
+                    'all',
+                    ['any',
+                        ['!', ['has', 'start_date']],
+                        ['<=', ['to-number', ['slice', ['get', 'start_date'], 0, 4]], ohmDate]
+                    ],
+                    ['any',
+                        ['!', ['has', 'end_date']],
+                        ['>=', ['to-number', ['slice', ['get', 'end_date'], 0, 4]], ohmDate]
+                    ]
+                ];
+
+                this._layerControl.ohmLayerIds.forEach(layerId => {
+                    const layer = this._map.getLayer(layerId);
+                    if (layer) {
+                        const originalFilter = this._layerControl.ohmOriginalFilters.get(layerId);
+                        let newFilter = ['all'];
+                        if (originalFilter) {
+                            newFilter.push(originalFilter);
+                        }
+
+                        // Only add date filter to layers that have start_date or end_date properties
+                        const source = this._map.getSource(layer.source);
+                        if (source && source.type === 'vector') {
+                            // This is a simplification. We assume layers from 'osm' source in OHM style have date properties.
+                            if (layer.source === 'ohm-osm') {
+                                newFilter.push(ohmDateFilter);
+                            }
+                        }
+
+                        this._map.setFilter(layerId, newFilter.length > 1 ? newFilter : null);
+                    }
+                });
+            }
         }
 
         onRemove() {
@@ -1206,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the map
     const map = new maplibregl.Map({
         container: mapId,
-        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        style: '/static/styles/osm.json',
         {% if hash %}
         hash: true,
         {% endif %}
@@ -1421,7 +1605,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Only add slider if there's a valid date range and not a single image view
             if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
-                const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
+                const timeSlider = new TimeSliderControl(minYear, maxYear, mapId, layerControl);
                 map.addControl(timeSlider, 'top-right');
 
                 // Re-add other controls to enforce order: Layer, Time, Nav, Fullscreen, Geolocate
