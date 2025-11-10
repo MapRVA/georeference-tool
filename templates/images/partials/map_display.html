@@ -25,7 +25,7 @@ Usage:
 /* Geocoder styling overrides */
 .maplibregl-ctrl-geocoder {
     box-shadow: none;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
     border-radius: 0.375rem;
     font-size: 0.9rem;
     max-width: 320px;
@@ -40,7 +40,7 @@ Usage:
 }
 .maplibregl-ctrl-geocoder .suggestions {
     background-color: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
     border-top: none;
     border-bottom-left-radius: 0.375rem;
     border-bottom-right-radius: 0.375rem;
@@ -98,7 +98,7 @@ Usage:
 }
 .layer-control .dropdown-toggle {
     background-color: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
     border-radius: 0.375rem;
     color: #495057;
     font-size: 0.875rem;
@@ -173,6 +173,10 @@ Usage:
     margin: 0.5rem 0;
 }
 
+.maplibregl-ctrl-group.layer-control {
+    border: none;
+}
+
 /* Time Slider Control */
 .time-slider-control {
     width: 280px;
@@ -180,7 +184,8 @@ Usage:
     background-color: #fff;
     font-size: 0.9rem;
     border-radius: 0.375rem;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
+    box-shadow: none;
 }
 .time-slider-values {
     display: flex;
@@ -248,17 +253,18 @@ Usage:
 .maplibregl-ctrl-group {
     border-radius: 0.375rem;
     box-shadow: none;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: none;
 }
 
 .maplibregl-ctrl-group:not(.layer-control) {
     overflow: hidden;
+    border: 1px solid rgba(0,0,0,.1);
 }
 
 .maplibregl-ctrl-group button {
     background-color: #fff;
     border: none;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    border-bottom: 1px solid rgba(0,0,0,.1);
     color: #495057;
     font-size: 0.875rem;
     transition: all 0.15s ease-in-out;
@@ -287,6 +293,10 @@ Usage:
     background-color: #e9ecef;
 }
 
+.maplibregl-ctrl-group:not(:empty) {
+    box-shadow: none !important;
+}
+
 
 
 /* Fullscreen control specific styling */
@@ -294,7 +304,7 @@ Usage:
     background-color: #fff;
     border-radius: 0.375rem;
     box-shadow: none;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
 }
 
 /* Geolocate control specific styling */
@@ -302,7 +312,7 @@ Usage:
     background-color: #fff;
     border-radius: 0.375rem;
     box-shadow: none;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    border: 1px solid rgba(0,0,0,.1);
 }
 
 .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active {
@@ -1094,14 +1104,6 @@ document.addEventListener('DOMContentLoaded', function() {
             this._minYear = minYear;
             this._maxYear = maxYear;
             this._mapId = mapId;
-
-            this.closeHandler = (e) => {
-                if (this._outerContainer && !this._outerContainer.contains(e.target)) {
-                    if (this._sliderPanel) {
-                        this._sliderPanel.style.display = 'none';
-                    }
-                }
-            };
         }
 
         onAdd(map) {
@@ -1110,12 +1112,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this._outerContainer.className = 'maplibregl-ctrl';
 
             this._outerContainer.innerHTML = `
-                <div class="maplibregl-ctrl-group">
-                    <button id="time-slider-toggle-${this._mapId}" type="button" title="Filter by date" style="width: 32px; height: 32px;">
-                        <i class="fas fa-calendar-alt" style="font-size: 1.1em;"></i>
-                    </button>
-                </div>
-                <div class="time-slider-control" style="display: none; position: absolute; top: 40px; right: 0; z-index: 1;">
+                <div class="time-slider-control">
                     <div class="time-slider-values">
                         <span id="time-slider-label-${this._mapId}">Date Range</span>
                         <span id="time-slider-range-label-${this._mapId}"></span>
@@ -1129,18 +1126,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
 
-            this._button = this._outerContainer.querySelector('button');
             this._sliderPanel = this._outerContainer.querySelector('.time-slider-control');
-
-            this._button.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = this._sliderPanel.style.display === 'none';
-                this._sliderPanel.style.display = isHidden ? 'block' : 'none';
-            });
-
-            document.addEventListener('click', this.closeHandler, true);
-
-            this._sliderPanel.addEventListener('click', e => e.stopPropagation());
 
             this._startSlider = this._sliderPanel.querySelector(`#start-slider-${this._mapId}`);
             this._endSlider = this._sliderPanel.querySelector(`#end-slider-${this._mapId}`);
@@ -1207,7 +1193,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         onRemove() {
-            document.removeEventListener('click', this.closeHandler, true);
             if (this._outerContainer && this._outerContainer.parentNode) {
                 this._outerContainer.parentNode.removeChild(this._outerContainer);
             }
@@ -1234,17 +1219,23 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endif %}
     });
 
-    map.addControl(new LayerControl(), 'top-right');
-    map.addControl(new maplibregl.NavigationControl());
-    map.addControl(new maplibregl.FullscreenControl());
-
+    const layerControl = new LayerControl();
+    const navControl = new maplibregl.NavigationControl();
+    const fullscreenControl = new maplibregl.FullscreenControl();
     {% if geolocate %}
-    map.addControl(new maplibregl.GeolocateControl({
+    const geolocateControl = new maplibregl.GeolocateControl({
         positionOptions: {
             enableHighAccuracy: true
         },
         trackUserLocation: true
-    }));
+    });
+    {% endif %}
+
+    map.addControl(layerControl, 'top-right');
+    map.addControl(navControl);
+    map.addControl(fullscreenControl);
+    {% if geolocate %}
+    map.addControl(geolocateControl);
     {% endif %}
 
     map.on('load', async function() {
@@ -1432,6 +1423,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (minYear !== null && maxYear !== null && minYear < maxYear && !urlParams.has('image')) {
                 const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
                 map.addControl(timeSlider, 'top-right');
+
+                // Re-add other controls to enforce order: Layer, Time, Nav, Fullscreen, Geolocate
+                map.removeControl(navControl);
+                map.removeControl(fullscreenControl);
+                {% if geolocate %}
+                map.removeControl(geolocateControl);
+                {% endif %}
+
+                map.addControl(navControl);
+                map.addControl(fullscreenControl);
+                {% if geolocate %}
+                map.addControl(geolocateControl);
+                {% endif %}
             }
 
             {% if zoom_to_contents %}
