@@ -2,20 +2,18 @@ import json
 from pathlib import Path
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.gis.geos import Point
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Case, Func, IntegerField, Value, When
 from django.db.models.functions import Lower
-from django.http import JsonResponse, HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.gis.geos import Point
-import json
-from pathlib import Path
 
 # Try to import PostgreSQL search functions
 try:
@@ -54,7 +52,6 @@ from .models import (
 )
 from .utils import render_markdown_safe
 
-
 # Defines the minimum zoom level at which a scale becomes visible.
 # At a given zoom level, all images with a scale value greater than or equal to
 # the determined scale for that zoom level will be displayed.
@@ -81,9 +78,6 @@ def get_min_scale_for_zoom(z):
     return min_scale_to_show
 
 
-from django.views.decorators.clickjacking import xframe_options_exempt
-
-
 @xframe_options_exempt
 def map_embed(request):
     """
@@ -91,21 +85,26 @@ def map_embed(request):
     Accepts query parameters to configure the map.
     """
     context = {
-        'image_id': request.GET.get('image_id'),
-        'collection_id': request.GET.get('collection_id'),
-        'source_id': request.GET.get('source_id'),
-        'subject_id': request.GET.get('subject_id'),
-        'center_lng': request.GET.get('center_lng'),
-        'center_lat': request.GET.get('center_lat'),
-        'zoom_level': request.GET.get('zoom_level'),
-        'include_geocoder': request.GET.get('include_geocoder', 'false').lower() == 'true',
-        'enable_scale_visibility': request.GET.get('enable_scale_visibility', 'false').lower() == 'true',
-        'zoom_to_contents': request.GET.get('zoom_to_contents', 'true').lower() == 'true',
-        'geolocate': request.GET.get('geolocate', 'false').lower() == 'true',
-        'hash': request.GET.get('hash', 'false').lower() == 'true',
-        'map_id': request.GET.get('map_id', 'embedded-map'),
+        "image_id": request.GET.get("image_id"),
+        "collection_id": request.GET.get("collection_id"),
+        "source_id": request.GET.get("source_id"),
+        "subject_id": request.GET.get("subject_id"),
+        "center_lng": request.GET.get("center_lng"),
+        "center_lat": request.GET.get("center_lat"),
+        "zoom_level": request.GET.get("zoom_level"),
+        "include_geocoder": request.GET.get("include_geocoder", "false").lower()
+        == "true",
+        "enable_scale_visibility": request.GET.get(
+            "enable_scale_visibility", "false"
+        ).lower()
+        == "true",
+        "zoom_to_contents": request.GET.get("zoom_to_contents", "true").lower()
+        == "true",
+        "geolocate": request.GET.get("geolocate", "false").lower() == "true",
+        "hash": request.GET.get("hash", "false").lower() == "true",
+        "map_id": request.GET.get("map_id", "embedded-map"),
     }
-    return render(request, 'images/map_embed.html', context)
+    return render(request, "images/map_embed.html", context)
 
 
 def browse_sources(request):
@@ -186,7 +185,9 @@ def source_detail(request, slug):
             duplicate_of__isnull=True, will_not_georef=True
         ).count()
         collection.pending_images = (
-            collection.total_images - collection.georeferenced_images - will_not_georef_images
+            collection.total_images
+            - collection.georeferenced_images
+            - will_not_georef_images
         )
 
     # Overall source statistics (only from public collections, excluding duplicates)
@@ -209,7 +210,9 @@ def source_detail(request, slug):
         "collections": collections,
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
-        "pending_images": total_images - georeferenced_images - Image.objects.filter(
+        "pending_images": total_images
+        - georeferenced_images
+        - Image.objects.filter(
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
@@ -443,10 +446,12 @@ def image_detail(request, image_id):
         rendered_geo_notes = None
         if geo.confidence_notes:
             rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
-        georeferences_with_notes.append({
-            'georeference': geo,
-            'rendered_notes': rendered_geo_notes,
-        })
+        georeferences_with_notes.append(
+            {
+                "georeference": geo,
+                "rendered_notes": rendered_geo_notes,
+            }
+        )
 
     # Build timeline combining georeferences and comments in chronological order
     timeline_items = []
@@ -456,27 +461,31 @@ def image_detail(request, image_id):
         rendered_geo_notes = None
         if geo.confidence_notes:
             rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
-        timeline_items.append({
-            'type': 'georeference',
-            'timestamp': geo.georeferenced_at,
-            'georeference': geo,
-            'rendered_notes': rendered_geo_notes,
-        })
+        timeline_items.append(
+            {
+                "type": "georeference",
+                "timestamp": geo.georeferenced_at,
+                "georeference": geo,
+                "rendered_notes": rendered_geo_notes,
+            }
+        )
 
     # Add comments
     for comment in image.comments.all():
         rendered_comment_text = None
         if comment.text:
             rendered_comment_text = render_markdown_safe(comment.text)
-        timeline_items.append({
-            'type': 'comment',
-            'timestamp': comment.created_at,
-            'comment': comment,
-            'rendered_text': rendered_comment_text,
-        })
+        timeline_items.append(
+            {
+                "type": "comment",
+                "timestamp": comment.created_at,
+                "comment": comment,
+                "rendered_text": rendered_comment_text,
+            }
+        )
 
     # Sort by timestamp (oldest first, newest at bottom)
-    timeline_items.sort(key=lambda x: x['timestamp'], reverse=False)
+    timeline_items.sort(key=lambda x: x["timestamp"], reverse=False)
 
     context = {
         "image": image,
@@ -673,6 +682,7 @@ def validate_georeference(request, georeference_id):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
+
 @require_http_methods(["POST"])
 @csrf_exempt
 def add_comment(request, image_id):
@@ -693,28 +703,29 @@ def add_comment(request, image_id):
             )
 
         comment = Comment.objects.create(
-            image=image,
-            text=comment_text,
-            commented_by=request.user
+            image=image, text=comment_text, commented_by=request.user
         )
 
-        return JsonResponse({
-            "success": True,
-            "message": "Comment added successfully",
-            "comment_id": comment.id
-        }, status=201)
-    except json.JSONDecodeError as e:
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Comment added successfully",
+                "comment_id": comment.id,
+            },
+            status=201,
+        )
+    except json.JSONDecodeError:
         return JsonResponse(
             {"success": False, "error": "Invalid JSON in request body"}, status=400
         )
     except Image.DoesNotExist:
-        return JsonResponse(
-            {"success": False, "error": "Image not found"}, status=404
-        )
+        return JsonResponse({"success": False, "error": "Image not found"}, status=404)
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
 
 @require_http_methods(["POST"])
 @csrf_exempt
@@ -923,7 +934,7 @@ def geojson_endpoint(request):
     # Start with all georeferenced images from public collections/sources
     images = (
         Image.objects.select_related("collection__source")
-        .prefetch_related("georeferences")
+        .prefetch_related("georeferences", "subject_mappings__subject__wikidata_item")
         .filter(
             georeferences__isnull=False,  # Must be georeferenced
             collection__public=True,  # Collection must be public
@@ -978,6 +989,15 @@ def geojson_endpoint(request):
         if image.scale is not None:
             properties["scale"] = image.scale
 
+        # Add subjects as Wikidata IDs if they exist
+        subject_wikidata_ids = [
+            mapping.subject.wikidata_item.wikidata_id
+            for mapping in image.subject_mappings.all()
+            if mapping.subject.wikidata_item
+        ]
+        if subject_wikidata_ids:
+            properties["subjects"] = subject_wikidata_ids
+
         feature = {
             "type": "Feature",
             "geometry": {
@@ -1022,7 +1042,9 @@ def vector_tiles_endpoint(request, z, x, y):
         where_conditions.append("image_id = %s")
         where_params.append(image_id)
     if collection_id:
-        where_conditions.append("image_id IN (SELECT id FROM images_image WHERE collection_id = %s)")
+        where_conditions.append(
+            "image_id IN (SELECT id FROM images_image WHERE collection_id = %s)"
+        )
         where_params.append(collection_id)
     if source_id:
         where_conditions.append(
@@ -1961,7 +1983,8 @@ def add_subject_to_image(request, image_id):
     """Add a subject to an image via Wikidata ID (logged-in users only)"""
     if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"},
+            status=403,
         )
 
     image = get_object_or_404(Image, id=image_id)
@@ -2060,7 +2083,8 @@ def remove_subject_from_image(request, subject_mapping_id):
     """Remove a subject from an image (logged-in users only)"""
     if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"},
+            status=403,
         )
 
     try:
@@ -2098,7 +2122,8 @@ def reorder_subjects(request, image_id):
     """API endpoint to reorder subjects for an image (logged-in users only)"""
     if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"},
+            status=403,
         )
 
     image = get_object_or_404(Image, id=image_id)
