@@ -81,7 +81,11 @@ class CollectionAdmin(admin.ModelAdmin):
 
     def label_collection(self, request, collection_id):
         collection = get_object_or_404(Collection, id=collection_id)
-        images = collection.images.all().order_by("id")
+        images = collection.images.filter(duplicate_of__isnull=True).order_by("id")
+
+        # Count duplicates
+        total_images = collection.images.count()
+        duplicate_count = total_images - images.count()
 
         # Serialize image data for JavaScript
         image_data = []
@@ -105,6 +109,7 @@ class CollectionAdmin(admin.ModelAdmin):
             "images": images,
             "image_data_json": json.dumps(image_data),
             "title": f"Label Collection: {collection.name}",
+            "duplicate_count": duplicate_count,
         }
 
         return render(request, "admin/images/collection_label.html", context)
@@ -119,7 +124,7 @@ class CollectionAdmin(admin.ModelAdmin):
         will_not_georef = request.POST.get("will_not_georef") == "true"
 
         try:
-            image = get_object_or_404(Image, id=image_id, collection_id=collection_id)
+            image = get_object_or_404(Image, id=image_id, collection_id=collection_id, duplicate_of__isnull=True)
 
             if difficulty and difficulty != "none":
                 image.difficulty = difficulty

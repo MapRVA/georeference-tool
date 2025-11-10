@@ -23,7 +23,7 @@
 <div class="module">
     <p><strong>Collection:</strong> {{ collection.name }}</p>
     <p><strong>Source:</strong> {{ collection.source.name }}</p>
-    <p><strong>Total Images:</strong> {{ images.count }}</p>
+    <p><strong>Total Images:</strong> {{ images.count }}{% if duplicate_count %} ({{ duplicate_count }} duplicate{{ duplicate_count|pluralize }} not included){% endif %}</p>
 </div>
 
 <div class="jump-controls">
