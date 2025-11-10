@@ -878,7 +878,7 @@ def geojson_endpoint(request):
 
 
 def vector_tiles_endpoint(request, z, x, y):
-    """Return MVT vector tiles of georeferenced images"""
+    """Return MVT vector tiles of georeferenced images (using materialized view for performance)"""
     from django.db import connection
 
     enable_scale_filter = (
@@ -891,73 +891,62 @@ def vector_tiles_endpoint(request, z, x, y):
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
 
-    # Build WHERE conditions for filtering
-    where_conditions = [
-        "g.image_id = i.id",
-        "i.collection_id = c.id",
-        "c.source_id = s.id",
-        "c.public = true",
-        "s.public = true",
-    ]
+    # Build WHERE conditions for filtering on pre-filtered materialized view
+    where_conditions = []
     where_params = []
 
     if enable_scale_filter:
         min_scale = get_min_scale_for_zoom(z)
         if min_scale is not None:
-            where_conditions.append("(i.scale >= %s OR i.scale IS NULL)")
+            where_conditions.append("(scale >= %s OR scale = 0)")
             where_params.append(min_scale)
 
     if image_id:
-        where_conditions.append("i.id = %s")
+        where_conditions.append("image_id = %s")
         where_params.append(image_id)
     if collection_id:
-        where_conditions.append("c.id = %s")
+        where_conditions.append("image_id IN (SELECT id FROM images_image WHERE collection_id = %s)")
         where_params.append(collection_id)
     if source_id:
-        where_conditions.append("s.id = %s")
+        where_conditions.append(
+            "image_id IN (SELECT i.id FROM images_image i JOIN images_collection c ON i.collection_id = c.id WHERE c.source_id = %s)"
+        )
         where_params.append(source_id)
     if subject_id:
         where_conditions.append(
-            "EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id AND sm.subject_id = %s)"
+            "image_id IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = %s)"
         )
         where_params.append(subject_id)
 
     where_clause = " AND ".join(where_conditions)
 
-    # SQL query using the provided template - only select most recent georeference per image
+    # Build WHERE clause - add filter conditions if any exist
+    if where_clause:
+        where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+    else:
+        where_clause_sql = "WHERE ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+
     sql = f"""
-        WITH latest_georeferences AS (
+        SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM (
             SELECT
-                g.*,
-                ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
-            FROM images_georeference g
-        ),
-        mvtgeoms AS (
-            SELECT
-                ST_AsMVTGeom(ST_Transform(g.point, 3857), ST_TileEnvelope(%s, %s, %s)) AS geom,
-                i.id,
-                i.permalink as img_url,
-                i.original_date,
-                i.edtf_date,
-                i.start_decdate,
-                i.fuzzy_start_decdate,
-                i.end_decdate,
-                i.fuzzy_end_decdate,
-                COALESCE(i.scale, 0) as scale,
-                g.direction,
-                g.confidence
-            FROM latest_georeferences g
-            JOIN images_image i ON g.image_id = i.id
-            JOIN images_collection c ON i.collection_id = c.id
-            JOIN images_source s ON c.source_id = s.id
-            WHERE g.rn = 1
-            AND {where_clause}
-            AND ST_Intersects(g.point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
-        )
-        SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM mvtgeoms
+                ST_AsMVTGeom(point_3857, ST_TileEnvelope(%s, %s, %s)) AS geom,
+                image_id as id,
+                img_url,
+                original_date,
+                edtf_date,
+                start_decdate,
+                fuzzy_start_decdate,
+                end_decdate,
+                fuzzy_end_decdate,
+                scale,
+                direction,
+                confidence
+            FROM public_georeferences_mvt
+            {where_clause_sql}
+        ) mvtgeoms
     """
 
-    # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters, then Z, X, Y again
+    # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters
     query_params = [z, x, y] + where_params + [z, x, y]
 
     with connection.cursor() as cursor:
