@@ -413,6 +413,14 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
+        <!-- Login Warning Banner -->
+        {% if not request.user.is_authenticated %}
+        <div class="alert mb-4" role="alert" style="background-color: #ffc107; border-color: #ffb300; color: black;">
+            <i class="fas fa-info-circle me-2"></i>
+            Please <a href="{% url 'osm_auth:login' %}" class="fw-bold" style="color: black; text-decoration: underline;">login with OpenStreetMap</a> to get credit for your work and track your contributions. Creating an account is free! Thank you.
+        </div>
+        {% endif %}
+
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
