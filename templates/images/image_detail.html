@@ -652,20 +652,20 @@
         </div>
 
         <!-- Image Subjects Gallery -->
-        {% if image.subjects.exists or user.is_staff %}
+        {% if image.subjects.exists or request.user.is_authenticated %}
         <div class="row mt-5">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-map-pin me-2"></i>Image Subjects</h5>
-                        {% if user.is_staff %}
+                        {% if request.user.is_authenticated %}
                         <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#add-subject-collapse" aria-expanded="false" aria-controls="add-subject-collapse">
                             <i class="fas fa-plus me-1"></i> Add Subject
                         </button>
                         {% endif %}
                     </div>
                     <div class="card-body">
-                        {% if user.is_staff %}
+                        {% if request.user.is_authenticated %}
                         <div class="collapse" id="add-subject-collapse">
                             <div class="border-bottom pt-2 pb-4 mb-4">
                                 <small class="text-muted d-block mb-2">Add Subject:</small>
@@ -697,7 +697,7 @@
                                 {% for subject_relation in image.subject_mappings.all %}
                                 <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 subject-card-wrapper">
                                     <div class="card h-100 shadow-sm subject-card" data-subject-relation-id="{{ subject_relation.id }}">
-                                        {% if user.is_staff %}
+                                        {% if request.user.is_authenticated %}
                                         <div class="drag-handle subject-card-control position-absolute top-0 start-0 p-2" style="cursor: move; z-index: 10;">
                                             <i class="fas fa-grip-vertical text-muted"></i>
                                         </div>
@@ -721,7 +721,7 @@
                                                 </a>
                                             </h6>
                                         </div>
-                                        {% if user.is_staff %}
+                                        {% if request.user.is_authenticated %}
                                         <div class="position-absolute top-0 end-0 p-1 subject-card-control">
                                             <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="{{ subject_relation.id }}" title="Remove subject">
                                                 <i class="fas fa-times"></i>
@@ -1447,10 +1447,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Subject management functionality (admin only)
-    console.log('User is staff:', isStaff);
+    // Subject management functionality (logged-in users only)
+    const isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
+    console.log('User is authenticated:', isAuthenticated);
 
-    if (isStaff) {
+    if (isAuthenticated) {
         const addBtn = document.getElementById('add-subject-btn');
         const subjectInput = document.getElementById('subject-autocomplete');
 
@@ -1620,8 +1621,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Sortable subjects (admin only)
-    if (isStaff) {
+    // Sortable subjects (logged-in users only)
+    if (isAuthenticated) {
         const subjectRow = document.querySelector('#image-subjects-row');
         if (subjectRow) {
             const sortable = new Sortable(subjectRow, {

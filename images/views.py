@@ -1841,10 +1841,10 @@ def subject_autocomplete(request):
 
 @require_http_methods(["POST"])
 def add_subject_to_image(request, image_id):
-    """Add a subject to an image via Wikidata ID (admin only)"""
-    if not request.user.is_authenticated or not request.user.is_staff:
+    """Add a subject to an image via Wikidata ID (logged-in users only)"""
+    if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "Admin permissions required"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
         )
 
     image = get_object_or_404(Image, id=image_id)
@@ -1940,10 +1940,10 @@ def add_subject_to_image(request, image_id):
 
 @require_http_methods(["POST"])
 def remove_subject_from_image(request, subject_mapping_id):
-    """Remove a subject from an image (admin only)"""
-    if not request.user.is_authenticated or not request.user.is_staff:
+    """Remove a subject from an image (logged-in users only)"""
+    if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "Admin permissions required"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
         )
 
     try:
@@ -1978,10 +1978,10 @@ def remove_subject_from_image(request, subject_mapping_id):
 
 @require_http_methods(["POST"])
 def reorder_subjects(request, image_id):
-    """API endpoint to reorder subjects for an image (admin only)"""
-    if not request.user.is_authenticated or not request.user.is_staff:
+    """API endpoint to reorder subjects for an image (logged-in users only)"""
+    if not request.user.is_authenticated:
         return JsonResponse(
-            {"success": False, "error": "Admin permissions required"}, status=403
+            {"success": False, "error": "You must be logged in to edit subjects"}, status=403
         )
 
     image = get_object_or_404(Image, id=image_id)
