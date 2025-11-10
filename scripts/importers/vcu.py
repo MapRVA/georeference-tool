@@ -239,6 +239,7 @@ def get_image_details(
     date_patterns = [
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
+        r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date on Slide</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='pub_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
     ]
 
