@@ -35,6 +35,29 @@
             </div>
         </div>
 
+        <!-- Filter Section (Collapsible) -->
+        <div class="col-12 mb-3">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel" aria-expanded="false" aria-controls="filterPanel">
+                <i class="fas fa-filter me-1"></i>Filter
+            </button>
+            <div class="collapse" id="filterPanel">
+                <div class="card card-body mt-2 border-light">
+                    <label class="form-label mb-2">Georeferenced Status:</label>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Georeferenced filter">
+                        <a href="?page={{ page_obj.number }}" class="btn btn-outline-primary {% if georeferenced_status == 'all' %}active{% endif %}">
+                            <i class="fas fa-images me-1"></i>All
+                        </a>
+                        <a href="?page={{ page_obj.number }}&georeferenced=yes" class="btn btn-outline-primary {% if georeferenced_status == 'yes' %}active{% endif %}">
+                            <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
+                        </a>
+                        <a href="?page={{ page_obj.number }}&georeferenced=none" class="btn btn-outline-primary {% if georeferenced_status == 'none' %}active{% endif %}">
+                            <i class="fas fa-ban me-1"></i>Not Georeferenced
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Similar Images Grid -->
         <div class="col-12">
             {% if page_obj %}
@@ -108,7 +131,7 @@
                         <ul class="pagination justify-content-center">
                             {% if page_obj.has_previous %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if georeferenced_status != 'all' %}&georeferenced={{ georeferenced_status }}{% endif %}">
                                         <i class="fas fa-chevron-left"></i> Previous
                                     </a>
                                 </li>
@@ -121,14 +144,14 @@
                                     </li>
                                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                     <li class="page-item">
-                                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                        <a class="page-link" href="?page={{ num }}{% if georeferenced_status != 'all' %}&georeferenced={{ georeferenced_status }}{% endif %}">{{ num }}</a>
                                     </li>
                                 {% endif %}
                             {% endfor %}
 
                             {% if page_obj.has_next %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if georeferenced_status != 'all' %}&georeferenced={{ georeferenced_status }}{% endif %}">
                                         Next <i class="fas fa-chevron-right"></i>
                                     </a>
                                 </li>

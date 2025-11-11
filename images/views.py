@@ -1520,6 +1520,7 @@ def semantic_search(request):
 def find_similar_images(request, image_id):
     """
     Find and display images with embeddings most similar to a given image.
+    Supports filtering by georeferenced status via query parameter.
     """
     if not CLIP_AVAILABLE:
         messages.error(
@@ -1537,6 +1538,9 @@ def find_similar_images(request, image_id):
         )
         return redirect("images:image_detail", image_id=image_id)
 
+    # Get georeferenced filter from query parameter
+    georeferenced_status = request.GET.get("georeferenced", "all")  # 'all', 'yes', or 'none'
+
     from django.db import connection
 
     try:
@@ -1544,14 +1548,22 @@ def find_similar_images(request, image_id):
             # Convert embedding to PostgreSQL array format
             embedding_str = "[" + ",".join(map(str, target_image.embedding)) + "]"
 
+            # Build WHERE conditions based on georeferenced filter
+            georeference_condition = ""
+            if georeferenced_status == "yes":
+                georeference_condition = "AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+            elif georeferenced_status == "none":
+                georeference_condition = "AND NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+
             # Raw SQL query for cosine similarity to get all similar images
-            sql = """
+            sql = f"""
                 SELECT
                     id,
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
                 WHERE embedding IS NOT NULL
                 AND id != %s
+                {georeference_condition}
                 AND id IN (
                     SELECT i.id
                     FROM images_image i
@@ -1595,6 +1607,7 @@ def find_similar_images(request, image_id):
             "target_image": target_image,
             "page_obj": page_obj,
             "total_similar_count": paginator.count,
+            "georeferenced_status": georeferenced_status,
         }
 
         return render(request, "images/similar_images.html", context)
