@@ -1229,6 +1229,9 @@ def semantic_search(request):
     georeferenced_only = (
         request.GET.get("georeferenced_only", "false").lower() == "true"
     )
+    non_georeferenced_only = (
+        request.GET.get("non_georeferenced_only", "false").lower() == "true"
+    )
 
     # Year filtering parameters
     start_year = request.GET.get("start_year")
@@ -1349,6 +1352,10 @@ def semantic_search(request):
             if georeferenced_only:
                 where_conditions.append(
                     "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
+            elif non_georeferenced_only:
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
                 )
 
             # Add year filtering conditions
@@ -1682,6 +1689,9 @@ def text_search(request):
     georeferenced_only = (
         request.GET.get("georeferenced_only", "false").lower() == "true"
     )
+    non_georeferenced_only = (
+        request.GET.get("non_georeferenced_only", "false").lower() == "true"
+    )
     # Distance is 1 - similarity. A lower distance is a better match.
     distance_threshold = float(request.GET.get("threshold", 0.7))
 
@@ -1748,6 +1758,8 @@ def text_search(request):
 
         if georeferenced_only:
             images = images.filter(georeferences__isnull=False).distinct()
+        elif non_georeferenced_only:
+            images = images.filter(georeferences__isnull=True)
 
         if start_year:
             try:

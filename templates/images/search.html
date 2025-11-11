@@ -149,11 +149,24 @@
                             </div>
 
                             <div class="row mt-3">
-                                <div class="col-md-6">
+                                <div class="col-12">
+                                    <label class="form-label">Georeferenced Status:</label>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="georeferencedOnly">
+                                        <input class="form-check-input" type="radio" name="georeferencedOptions" id="allImages" value="all" checked>
+                                        <label class="form-check-label" for="allImages">
+                                            All images
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="georeferencedOptions" id="georeferencedOnly" value="georeferenced">
                                         <label class="form-check-label" for="georeferencedOnly">
-                                            <i class="fas fa-map-marker-alt me-1"></i>Only show georeferenced images
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeferenced only
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="georeferencedOptions" id="notGeoreferencedOnly" value="not_georeferenced">
+                                        <label class="form-check-label" for="notGeoreferencedOnly">
+                                            <i class="fas fa-ban me-1"></i>Not georeferenced only
                                         </label>
                                     </div>
                                 </div>
@@ -225,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const pagelimitSelect = document.getElementById('pagelimitSelect');
     const startYear = document.getElementById('startYear');
     const endYear = document.getElementById('endYear');
-    const georeferencedOnly = document.getElementById('georeferencedOnly');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const searchResults = document.getElementById('searchResults');
     const semanticMode = document.getElementById('semanticMode');
@@ -270,7 +282,11 @@ document.addEventListener('DOMContentLoaded', function() {
             endYear.value = urlParams.get('end_year');
         }
         if (urlParams.get('georeferenced_only') === 'true') {
-            georeferencedOnly.checked = true;
+            document.getElementById('georeferencedOnly').checked = true;
+        } else if (urlParams.get('non_georeferenced_only') === 'true') {
+            document.getElementById('notGeoreferencedOnly').checked = true;
+        } else {
+            document.getElementById('allImages').checked = true;
         }
 
         // Handle subject params
@@ -379,8 +395,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (endYear.value) {
             params.set('end_year', endYear.value);
         }
-        if (georeferencedOnly.checked) {
+        
+        const georeferencedOption = document.querySelector('input[name="georeferencedOptions"]:checked').value;
+        if (georeferencedOption === 'georeferenced') {
             params.set('georeferenced_only', 'true');
+        } else if (georeferencedOption === 'not_georeferenced') {
+            params.set('non_georeferenced_only', 'true');
         }
 
         // Add subject params
@@ -502,9 +522,9 @@ document.addEventListener('DOMContentLoaded', function() {
         let filterSummary = '';
         const startYearVal = startYear.value;
         const endYearVal = endYear.value;
-        const georeferencedVal = georeferencedOnly.checked;
+        const georeferencedOption = document.querySelector('input[name="georeferencedOptions"]:checked').value;
 
-        if (startYearVal || endYearVal || georeferencedVal) {
+        if (startYearVal || endYearVal || georeferencedOption !== 'all') {
             let filters = [];
             if (startYearVal && endYearVal) {
                 filters.push(`${startYearVal}-${endYearVal}`);
@@ -513,8 +533,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (endYearVal) {
                 filters.push(`until ${endYearVal}`);
             }
-            if (georeferencedVal) {
+            if (georeferencedOption === 'georeferenced') {
                 filters.push('georeferenced only');
+            } else if (georeferencedOption === 'not_georeferenced') {
+                filters.push('not georeferenced only');
             }
             filterSummary = ` (filtered: ${filters.join(', ')})`;
         }
