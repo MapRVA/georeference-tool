@@ -1156,17 +1156,26 @@ def _load_clip_model():
     # Determine device
     _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Check for local model
-    local_model_path = Path("./models/ViT-L-14-336px.pt").absolute()
-    print(local_model_path)
     model_name = "ViT-L/14@336px"
+    local_model_dir = Path("./models").absolute()
 
-    if local_model_path.exists():
-        _clip_model, _clip_preprocess = clip.load(
-            model_name, device=_clip_device, download_root=local_model_path.parent
+    # Download model if it doesn't exist
+    from django.core.management import call_command
+    try:
+        call_command(
+            "download_clip_model",
+            model_name=model_name,
+            device=_clip_device,
+            verbosity=0,  # Suppress output
         )
-    else:
-        _clip_model, _clip_preprocess = clip.load(model_name, device=_clip_device)
+    except Exception:
+        # If download command fails, continue anyway - clip.load will handle it
+        pass
+
+    # Load from local directory
+    _clip_model, _clip_preprocess = clip.load(
+        model_name, device=_clip_device, download_root=local_model_dir
+    )
 
     return _clip_model, _clip_preprocess, _clip_device
 
