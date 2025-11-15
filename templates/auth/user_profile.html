@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ display_name }} - User Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">Users</li>
+                <li class="breadcrumb-item active">{{ display_name }}</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">
+                    <i class="fas fa-user-circle me-2"></i>{{ display_name }}
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-sm-3">
+                        <strong>Username:</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        {{ profile_user.username }}
+                    </div>
+                </div>
+
+                {% if profile_url %}
+                <div class="row mb-3">
+                    <div class="col-sm-3">
+                        <strong>OSM Profile:</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        <a href="{{ profile_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>View on OpenStreetMap
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="row mb-3">
+                    <div class="col-sm-3">
+                        <strong>Albums:</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        <a href="{% url 'user_albums_list' profile_user.username %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-photo-video me-1"></i>View Albums
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -53,7 +53,7 @@
                                 {{ request.session.osm_username }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{% url 'osm_auth:profile' %}">
+                                <li><a class="dropdown-item" href="{% url 'user_profile' request.session.osm_username %}">
                                     <i class="fas fa-user-circle me-2"></i>Profile
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ display_name }}'s Albums - Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">Users</li>
+                <li class="breadcrumb-item"><a href="{% url 'user_profile' profile_user.username %}">{{ display_name }}</a></li>
+                <li class="breadcrumb-item active">Albums</li>
+            </ol>
+        </nav>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">
+                    <i class="fas fa-photo-video me-2"></i>{{ display_name }}'s Albums
+                </h3>
+                {% if is_own_albums %}
+                <a href="{% url 'user_profile' profile_user.username %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Profile
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if albums %}
+                    <div class="row g-3">
+                        {% for album in albums %}
+                            <div class="col-lg-4 col-md-6">
+                                <a href="{% url 'images:album_detail' profile_user.username album.id %}" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm">
+                                        {% if album.images.exists %}
+                                            {% with first_image=album.album_images.first %}
+                                                {% if first_image and first_image.image.permalink %}
+                                                    <img src="{{ first_image.image.permalink }}"
+                                                         alt="{{ album.title }}"
+                                                         class="card-img-top"
+                                                         style="height: 200px; object-fit: cover;">
+                                                {% else %}
+                                                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                                        <i class="fas fa-images fa-3x text-muted"></i>
+                                                    </div>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                                <i class="fas fa-images fa-3x text-muted"></i>
+                                            </div>
+                                        {% endif %}
+                                        <div class="card-body">
+                                            <h5 class="card-title">{{ album.title }}</h5>
+                                            {% if album.description %}
+                                                <p class="card-text small text-muted">
+                                                    {{ album.description|truncatechars:100 }}
+                                                </p>
+                                            {% endif %}
+                                            <div class="text-muted small">
+                                                <i class="fas fa-images me-1"></i>{{ album.images.count }} image{{ album.images.count|pluralize }}
+                                            </div>
+                                            {% if not album.public %}
+                                                <div class="mt-2">
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas fa-lock me-1"></i>Private
+                                                    </span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-photo-video fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Albums Yet</h4>
+                        <p class="text-muted">
+                            {% if is_own_albums %}
+                                Start creating albums to organize your favorite images!
+                            {% else %}
+                                {{ display_name }} hasn't created any public albums yet.
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

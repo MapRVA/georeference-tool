@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Page Not Found - Yesterdays{% endblock %}
+
+{% block extra_css %}
+<style>
+    .error-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        min-height: 60vh;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .error-code {
+        font-size: 8rem;
+        font-weight: bold;
+        color: #0d6efd;
+        line-height: 1;
+        margin: 0;
+    }
+
+    .error-title {
+        font-size: 2rem;
+        color: #333;
+        margin: 1rem 0;
+    }
+
+    .error-message {
+        font-size: 1.1rem;
+        color: #666;
+        margin: 1rem 0 2rem 0;
+        max-width: 600px;
+    }
+
+    .error-icon {
+        font-size: 5rem;
+        color: #ddd;
+        margin-bottom: 1rem;
+    }
+
+    .error-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-icon">
+        <i class="fas fa-map-pin"></i>
+    </div>
+    <h1 class="error-code">404</h1>
+    <h2 class="error-title">Page Not Found</h2>
+    <p class="error-message">
+        The page you're looking for doesn't exist or has been moved.
+    </p>
+
+    <div class="error-buttons">
+        <a href="/" class="btn btn-primary btn-lg">
+            <i class="fas fa-home me-2"></i>Go Home
+        </a>
+        <a href="{% url 'images:browse_sources' %}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-compass me-2"></i>Browse Collections
+        </a>
+    </div>
+</div>
+{% endblock %}

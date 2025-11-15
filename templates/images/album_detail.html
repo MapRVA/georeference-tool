@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ album.title }} - Album{% endblock %}
+
+{% block extra_css %}
+<style>
+    .album-image-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .album-image-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .breadcrumb {
+        background: none;
+        padding: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">Users</li>
+                <li class="breadcrumb-item"><a href="{% url 'user_profile' profile_user.username %}">{{ display_name }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'user_albums_list' profile_user.username %}">Albums</a></li>
+                <li class="breadcrumb-item active">{{ album.title }}</li>
+            </ol>
+        </nav>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h2 class="mb-2">
+                            <i class="fas fa-photo-video me-2"></i>{{ album.title }}
+                        </h2>
+                        <p class="text-muted mb-0">
+                            by <a href="{% url 'user_profile' profile_user.username %}" class="text-decoration-none">{{ display_name }}</a>
+                        </p>
+                    </div>
+                    <div class="d-flex gap-2 align-items-start">
+                        {% if is_owner %}
+                            <button id="togglePublicBtn" class="btn btn-sm {% if album.public %}btn-outline-primary{% else %}btn-secondary{% endif %}" data-album-id="{{ album.id }}" data-is-public="{{ album.public|yesno:'true,false' }}">
+                                {% if album.public %}
+                                    <i class="fas fa-globe me-1"></i>Public
+                                {% else %}
+                                    <i class="fas fa-lock me-1"></i>Private
+                                {% endif %}
+                            </button>
+                        {% else %}
+                            {% if not album.public %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-lock me-1"></i>Private
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if album.description %}
+                <div class="card-body border-bottom">
+                    <p class="mb-0">{{ album.description }}</p>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if album_images %}
+            <div class="row g-4">
+                {% for album_image in album_images %}
+                    <div class="col-lg-3 col-md-4 col-sm-6">
+                        <a href="{% url 'images:image_detail' album_image.image.id %}" class="text-decoration-none">
+                            <div class="card h-100 shadow-sm album-image-card">
+                                <div class="position-relative" style="height: 200px; overflow: hidden;">
+                                    <img src="{{ album_image.image.permalink }}"
+                                         alt="{% if album_image.image.title %}{{ album_image.image.title }}{% else %}Image #{{ album_image.image.id }}{% endif %}"
+                                         class="w-100 h-100"
+                                         style="object-fit: cover;"
+                                         loading="lazy">
+                                    <div class="position-absolute top-0 end-0 m-2">
+                                        <span class="badge bg-primary">
+                                            #{{ album_image.order }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="card-body p-3">
+                                    <h6 class="card-title">
+                                        {% if album_image.image.title %}
+                                            {{ album_image.image.title|truncatechars:50 }}
+                                        {% else %}
+                                            Image #{{ album_image.image.id }}
+                                        {% endif %}
+                                    </h6>
+                                    {% if album_image.image.date_display != "Unknown date" %}
+                                        <p class="text-muted small mb-0">
+                                            <i class="fas fa-calendar me-1"></i>{{ album_image.image.date_display }}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="text-center text-muted small">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Showing {{ album_images.count }} image{{ album_images.count|pluralize }}
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-images fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Images Yet</h4>
+                    <p class="text-muted">This album doesn't have any images yet.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('togglePublicBtn');
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            const albumId = this.dataset.albumId;
+            const isCurrentlyPublic = this.dataset.isPublic === 'true';
+            const newPublicStatus = !isCurrentlyPublic;
+            
+            this.disabled = true;
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+            
+            const csrfInput = document.querySelector('[name="csrfmiddlewaretoken"]');
+            const csrfToken = csrfInput ? csrfInput.value : '';
+            
+            if (!csrfToken) {
+                console.error('CSRF token not found');
+                toggleBtn.disabled = false;
+                toggleBtn.innerHTML = originalText;
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+                alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                alertDiv.innerHTML = `
+                    Error: CSRF token not found
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(alertDiv);
+                setTimeout(() => alertDiv.remove(), 5000);
+                return;
+            }
+            
+            fetch(`/album/${albumId}/toggle-public/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    public: newPublicStatus
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update button state
+                    toggleBtn.dataset.isPublic = newPublicStatus.toString();
+                    
+                    if (newPublicStatus) {
+                        toggleBtn.className = 'btn btn-sm btn-outline-primary';
+                        toggleBtn.innerHTML = '<i class="fas fa-globe me-1"></i>Public';
+                    } else {
+                        toggleBtn.className = 'btn btn-sm btn-secondary';
+                        toggleBtn.innerHTML = '<i class="fas fa-lock me-1"></i>Private';
+                    }
+                    
+                    // Show success message
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                    alertDiv.innerHTML = `
+                        Album is now ${newPublicStatus ? 'public' : 'private'}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    setTimeout(() => alertDiv.remove(), 5000);
+                } else {
+                    throw new Error(data.error || 'Failed to update album status');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+                alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                alertDiv.innerHTML = `
+                    Error updating album: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(alertDiv);
+                setTimeout(() => alertDiv.remove(), 5000);
+            })
+            .finally(() => {
+                toggleBtn.disabled = false;
+                if (!toggleBtn.innerHTML.includes('Public') && !toggleBtn.innerHTML.includes('Private')) {
+                    toggleBtn.innerHTML = originalText;
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

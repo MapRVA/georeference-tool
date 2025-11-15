@@ -1,9 +1,10 @@
 from django.http import JsonResponse, HttpResponseRedirect
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login as auth_login
+from django.contrib.auth.models import User
 from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
 from osm_login_python.core import Auth
@@ -205,3 +206,43 @@ def profile(request):
         "username": request.session.get("osm_username"),
     }
     return render(request, "auth/profile.html", context)
+
+
+def user_profile(request, username):
+    """Display public user profile page"""
+    user = get_object_or_404(User, username=username)
+
+    # Get user's display name (from OSM first_name or username)
+    display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
+    profile_url = user.get_profile_url() if hasattr(user, 'get_profile_url') else None
+
+    context = {
+        "profile_user": user,
+        "display_name": display_name,
+        "profile_url": profile_url,
+    }
+    return render(request, "auth/user_profile.html", context)
+
+
+def user_albums_list(request, username):
+    """Display list of user's albums"""
+    from images.models import Album
+
+    user = get_object_or_404(User, username=username)
+    display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
+
+    # Get albums - show all if viewing own, only public if viewing others
+    if request.user.is_authenticated and request.user == user:
+        albums = Album.objects.filter(owner=user).order_by('-created_at')
+        is_own_albums = True
+    else:
+        albums = Album.objects.filter(owner=user, public=True).order_by('-created_at')
+        is_own_albums = False
+
+    context = {
+        "profile_user": user,
+        "display_name": display_name,
+        "albums": albums,
+        "is_own_albums": is_own_albums,
+    }
+    return render(request, "auth/user_albums_list.html", context)

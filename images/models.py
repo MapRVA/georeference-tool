@@ -8,6 +8,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.gis.db import models as gis_models
 from django.db import models
+from django.db.models import F
+import uuid
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -931,3 +933,71 @@ def update_skip_count(sender, instance, **kwargs):
     """Update the skip_count on Image when ImageSkip is created/deleted"""
     instance.image.skip_count = instance.image.skips.count()
     instance.image.save(update_fields=["skip_count"])
+
+
+class Album(models.Model):
+    """User-created collection of images in a specific order"""
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="UUID for the album (difficult to guess)",
+    )
+
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="albums"
+    )
+    title = models.CharField(max_length=500, help_text="Title of the album")
+    description = models.TextField(
+        blank=True, help_text="Optional description of the album"
+    )
+    public = models.BooleanField(
+        default=False, help_text="Whether this album is visible to other users"
+    )
+    images = models.ManyToManyField(
+        Image,
+        through="AlbumImage",
+        related_name="albums",
+        help_text="Images in this album",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.title} by {self.owner.get_display_name()}"
+
+    def get_absolute_url(self):
+        return reverse("images:album_detail", kwargs={"album_id": self.id})
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["owner", "public"]),
+            models.Index(fields=["owner"]),
+        ]
+
+
+class AlbumImage(models.Model):
+    """Through model for albums to maintain image ordering"""
+
+    album = models.ForeignKey(
+        Album, on_delete=models.CASCADE, related_name="album_images"
+    )
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, related_name="album_references"
+    )
+    order = models.PositiveIntegerField(
+        default=0, help_text="Display order in the album (lower numbers first)"
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.album.title} - {self.image.title}"
+
+    class Meta:
+        unique_together = ["album", "image"]
+        ordering = ["album", "order"]
+        indexes = [
+            models.Index(fields=["album", "order"]),
+            models.Index(fields=["image"]),
+        ]

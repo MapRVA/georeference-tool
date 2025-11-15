@@ -558,6 +558,17 @@
                                 <i class="fas fa-comment me-2"></i>Add a Comment
                             </button>
                         {% endif %}
+                        <!-- Album dropdown (for authenticated users) -->
+                        {% if request.user.is_authenticated %}
+                            <div class="dropdown w-100 mb-3">
+                                <button class="btn btn-outline-primary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" id="imageAlbumDropdownBtn">
+                                    <i class="fas fa-photo-video me-2"></i>Add to Album
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end album-dropdown w-100" style="width: 100% !important;">
+                                    <li><span class="dropdown-item-text text-muted small">Loading albums...</span></li>
+                                </ul>
+                            </div>
+                        {% endif %}
 
                         <!-- Navigation buttons -->
                         <div class="btn-group w-100 mb-3" role="group">
@@ -1093,6 +1104,39 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Create Album Modal -->
+{% if request.user.is_authenticated %}
+<div class="modal fade" id="createAlbumModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Album</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="newAlbumTitle" class="form-label">Album Title</label>
+                    <input type="text" class="form-control" id="newAlbumTitle" placeholder="Enter album title">
+                </div>
+                <div class="mb-3">
+                    <label for="newAlbumDescription" class="form-label">Description (optional)</label>
+                    <textarea class="form-control" id="newAlbumDescription" rows="2" placeholder="Enter album description"></textarea>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="newAlbumPublic">
+                    <label class="form-check-label" for="newAlbumPublic">
+                        Make this album public
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createAlbumBtn">Create Album</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1795,7 +1839,161 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Sortable subjects (logged-in users only)
+    // Album dropdown functionality for image detail page
+    if (isAuthenticated) {
+        const createAlbumModal = document.getElementById('createAlbumModal');
+        const newAlbumTitle = document.getElementById('newAlbumTitle');
+        const newAlbumDescription = document.getElementById('newAlbumDescription');
+        const newAlbumPublic = document.getElementById('newAlbumPublic');
+        const createAlbumBtn = document.getElementById('createAlbumBtn');
+        const imageId = {{ image.id }};
+        // Handle dropdown toggle - fetch albums when dropdown is shown
+        const albumDropdownButton = document.getElementById('imageAlbumDropdownBtn');
+        if (albumDropdownButton) {
+            albumDropdownButton.addEventListener('click', function(e) {
+                // Fetch albums after a brief delay to allow dropdown to open
+                setTimeout(() => {
+                    const dropdown = this.closest('.dropdown');
+                    const dropdownMenu = dropdown.querySelector('.dropdown-menu');
+            // Fetch user's albums and check which ones contain this image
+            fetch('{% url "images:user_albums_api" %}?image_id=' + imageId)
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    if (data.albums.length > 0) {
+                        data.albums.forEach(album => {
+                            const isInAlbum = album.has_image;
+                            const icon = isInAlbum ? '<i class="fas fa-check-circle me-2 text-success"></i>' : '<i class="fas fa-plus me-2 text-muted"></i>';
+                            const title = isInAlbum ? `${album.title} <span class="text-muted small">(click to remove)</span>` : album.title;
+                            html += `<li><a class="dropdown-item album-option" href="#" data-album-id="${album.id}" data-image-id="${imageId}" data-in-album="${isInAlbum}">${icon}${title}</a></li>`;
+                        });
+                        html += '<li><hr class="dropdown-divider"></li>';
+                    }
+                    html += `<li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createAlbumModal"><i class="fas fa-plus me-1"></i>Create New Album</a></li>`;
+                    dropdownMenu.innerHTML = html;
+                    // Add event listeners to album options
+                    dropdownMenu.querySelectorAll('.album-option').forEach(link => {
+                        link.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const albumId = this.dataset.albumId;
+                            const isInAlbum = this.dataset.inAlbum === 'true';
+                            if (isInAlbum) {
+                                removeImageFromAlbum(imageId, albumId);
+                            } else {
+                                addImageToAlbum(imageId, albumId);
+                            }
+                        });
+                    });
+                    // Handle create album link
+                    dropdownMenu.querySelector('[data-bs-target="#createAlbumModal"]')?.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        // Reset form
+                        newAlbumTitle.value = '';
+                        newAlbumDescription.value = '';
+                        newAlbumPublic.checked = false;
+                        const modal = bootstrap.Modal.getOrCreateInstance(createAlbumModal);
+                        modal.show();
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching albums:', error);
+                    dropdownMenu.innerHTML = '<li><span class="dropdown-item-text text-danger small">Error loading albums</span></li>';
+                });
+                }, 10);
+            });
+        }
+        // Handle create album
+        createAlbumBtn?.addEventListener('click', function() {
+            if (!newAlbumTitle.value.trim()) {
+                showAlert('warning', 'Please enter an album title');
+                return;
+            }
+            const data = {
+                image_id: imageId,
+                album_title: newAlbumTitle.value,
+                album_description: newAlbumDescription.value,
+                album_public: newAlbumPublic.checked
+            };
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            fetch('{% url "images:create_and_add_to_album" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || ''
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    bootstrap.Modal.getInstance(createAlbumModal)?.hide();
+                    showAlert('success', 'Album created and image added successfully!');
+                } else {
+                    showAlert('danger', 'Error: ' + (result.error || 'Failed to create album'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', 'An error occurred while creating the album');
+            });
+        });
+        // Helper function to add image to existing album
+        function addImageToAlbum(imgId, albumId) {
+            const data = {
+                image_id: imgId,
+                album_id: albumId
+            };
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            fetch('{% url "images:add_image_to_album" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || ''
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showAlert('success', 'Image added to album successfully!');
+                } else {
+                    showAlert('danger', 'Error: ' + (result.error || 'Failed to add image to album'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', 'An error occurred while adding the image to the album');
+            });
+        }
+        // Helper function to remove image from album
+        function removeImageFromAlbum(imgId, albumId) {
+            const data = {
+                image_id: imgId,
+                album_id: albumId
+            };
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            fetch('{% url "images:remove_image_from_album" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || ''
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showAlert('success', 'Image removed from album successfully!');
+                } else {
+                    showAlert('danger', 'Error: ' + (result.error || 'Failed to remove image from album'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', 'An error occurred while removing the image from the album');
+            });
+        }
+    }    // Sortable subjects (logged-in users only)
     if (isAuthenticated) {
         const subjectRow = document.querySelector('#image-subjects-row');
         if (subjectRow) {

@@ -1,8 +1,10 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}{{ collection.name }} - {{ source.name }}{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="row">
     <div class="col-12">
         <!-- Breadcrumb -->
@@ -182,13 +184,23 @@
                             </div>
 
                             <div class="card-footer bg-white border-top-0 p-3">
-                                <div class="d-flex justify-content-end">
+                                <div class="d-flex justify-content-end gap-2">
+                                    {% if user.is_authenticated %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-image-id="{{ image.id }}" data-image-title="{% if image.title %}{{ image.title|escapejs }}{% else %}Image #{{ image.id }}{% endif %}">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end album-dropdown">
+                                                <li><span class="dropdown-item-text text-muted small">Loading albums...</span></li>
+                                            </ul>
+                                        </div>
+                                    {% endif %}
                                     {% if not image.is_georeferenced and not image.will_not_georef %}
                                         <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}&image={{ image.id }}" class="btn btn-success btn-sm">
                                             <i class="fas fa-map-marker-alt me-1"></i>Georeference
                                         </a>
                                     {% elif image.is_georeferenced %}
-                                        <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
+                                        <a href="{% url 'images:image_detail' image.id }}" class="btn btn-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i>View
                                         </a>
                                     {% endif %}
@@ -252,6 +264,40 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Create Album Modal -->
+<div class="modal fade" id="createAlbumModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Album</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modalImageId" value="">
+                <div class="mb-3">
+                    <label for="newAlbumTitle" class="form-label">Album Title</label>
+                    <input type="text" class="form-control" id="newAlbumTitle" placeholder="Enter album title">
+                </div>
+                <div class="mb-3">
+                    <label for="newAlbumDescription" class="form-label">Description (optional)</label>
+                    <textarea class="form-control" id="newAlbumDescription" rows="2" placeholder="Enter album description"></textarea>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="newAlbumPublic">
+                    <label class="form-check-label" for="newAlbumPublic">
+                        Make this album public
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createAlbumBtn">Create Album</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
@@ -284,4 +330,193 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+// Global utility function for alerts
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const createAlbumModal = document.getElementById('createAlbumModal');
+    const newAlbumTitle = document.getElementById('newAlbumTitle');
+    const newAlbumDescription = document.getElementById('newAlbumDescription');
+    const newAlbumPublic = document.getElementById('newAlbumPublic');
+    const createAlbumBtn = document.getElementById('createAlbumBtn');
+    const modalImageId = document.getElementById('modalImageId');
+
+    // Handle dropdown toggle - fetch albums when dropdown is shown
+    // Only target album dropdowns in the image cards (not header dropdowns)
+    document.querySelectorAll('.image-card .dropdown-toggle').forEach(button => {
+        button.addEventListener('click', function(e) {
+            const dropdown = this.closest('.dropdown');
+            const dropdownMenu = dropdown.querySelector('.dropdown-menu');
+            const imageId = this.dataset.imageId;
+            
+            // Fetch user's albums and check which ones contain this image
+            fetch('{% url "images:user_albums_api" %}?image_id=' + imageId)
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    
+                    if (data.albums.length > 0) {
+                        data.albums.forEach(album => {
+                            const isInAlbum = album.has_image;
+                            const icon = isInAlbum ? '<i class="fas fa-check-circle me-2 text-success"></i>' : '<i class="fas fa-plus me-2 text-muted"></i>';
+                            const title = isInAlbum ? `${album.title} <span class="text-muted small">(click to remove)</span>` : album.title;
+                            html += `<li><a class="dropdown-item album-option" href="#" data-album-id="${album.id}" data-image-id="${imageId}" data-in-album="${isInAlbum}">${icon}${title}</a></li>`;
+                        });
+                        html += '<li><hr class="dropdown-divider"></li>';
+                    }
+                    
+                    html += `<li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createAlbumModal" data-image-id="${imageId}"><i class="fas fa-plus me-1"></i>Create New Album</a></li>`;
+                    
+                    dropdownMenu.innerHTML = html;
+                    
+                    // Add event listeners to album options
+                    dropdownMenu.querySelectorAll('.album-option').forEach(link => {
+                        link.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const albumId = this.dataset.albumId;
+                            const imageId = this.dataset.imageId;
+                            const isInAlbum = this.dataset.inAlbum === 'true';
+                            
+                            if (isInAlbum) {
+                                removeImageFromAlbum(imageId, albumId);
+                            } else {
+                                addImageToAlbum(imageId, albumId);
+                            }
+                        });
+                    });
+                    
+                    // Handle create album link
+                    dropdownMenu.querySelector('[data-bs-target="#createAlbumModal"]').addEventListener('click', function(e) {
+                        e.preventDefault();
+                        modalImageId.value = this.dataset.imageId;
+                        // Reset form
+                        newAlbumTitle.value = '';
+                        newAlbumDescription.value = '';
+                        newAlbumPublic.checked = false;
+                        const modal = bootstrap.Modal.getOrCreateInstance(createAlbumModal);
+                        modal.show();
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching albums:', error);
+                    dropdownMenu.innerHTML = '<li><span class="dropdown-item-text text-danger small">Error loading albums</span></li>';
+                });
+        });
+    });
+
+    // Handle create album
+    createAlbumBtn.addEventListener('click', function() {
+        const imageId = modalImageId.value;
+        
+        if (!newAlbumTitle.value.trim()) {
+            showAlert('warning', 'Please enter an album title');
+            return;
+        }
+        
+        const data = {
+            image_id: imageId,
+            album_title: newAlbumTitle.value,
+            album_description: newAlbumDescription.value,
+            album_public: newAlbumPublic.checked
+        };
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        
+        fetch('{% url "images:create_and_add_to_album" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                bootstrap.Modal.getInstance(createAlbumModal).hide();
+                showAlert('success', 'Album created and image added successfully!');
+            } else {
+                showAlert('danger', 'Error: ' + (result.error || 'Failed to create album'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'An error occurred while creating the album');
+        });
+    });
+
+    // Helper function to add image to existing album
+    function addImageToAlbum(imageId, albumId) {
+        const data = {
+            image_id: imageId,
+            album_id: albumId
+        };
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        
+        fetch('{% url "images:add_image_to_album" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', 'Image added to album successfully!');
+            } else {
+                showAlert('danger', 'Error: ' + (result.error || 'Failed to add image to album'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'An error occurred while adding the image to the album');
+        });
+    }
+
+    // Helper function to remove image from album
+    function removeImageFromAlbum(imageId, albumId) {
+        const data = {
+            image_id: imageId,
+            album_id: albumId
+        };
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        
+        fetch('{% url "images:remove_image_from_album" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', 'Image removed from album successfully!');
+            } else {
+                showAlert('danger', 'Error: ' + (result.error || 'Failed to remove image from album'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'An error occurred while removing the image from the album');
+        });
+    }
+});
+</script>
 {% endblock %}

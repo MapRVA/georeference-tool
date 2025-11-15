@@ -87,4 +87,12 @@ urlpatterns = [
     ),
     # Embeddable map URL
     path("map/embed/", views.map_embed, name="map_embed"),
+    # Album management API endpoints
+    path("api/v1/user-albums/", views.user_albums_api, name="user_albums_api"),
+    path("api/v1/add-to-album/", views.add_image_to_album, name="add_image_to_album"),
+    path("api/v1/create-and-add-to-album/", views.create_and_add_to_album, name="create_and_add_to_album"),
+    path("api/v1/remove-from-album/", views.remove_image_from_album, name="remove_image_from_album"),
+    path("album/<uuid:album_id>/toggle-public/", views.toggle_album_public, name="toggle_album_public"),
+    # Album detail view
+    path("user/<str:username>/albums/<uuid:album_id>/", views.album_detail, name="album_detail"),
 ]
