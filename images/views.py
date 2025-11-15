@@ -487,6 +487,12 @@ def image_detail(request, image_id):
     # Sort by timestamp (oldest first, newest at bottom)
     timeline_items.sort(key=lambda x: x["timestamp"], reverse=False)
 
+    # Get total count of images in this collection
+    total_images_in_collection = image.collection.images.count()
+
+    # Get the position of this image in the collection (ordered by ID)
+    image_position = image.collection.images.filter(id__lte=image.id).count()
+
     context = {
         "image": image,
         "has_georeference": image.georeferences.exists(),
@@ -495,6 +501,10 @@ def image_detail(request, image_id):
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
         "timeline_items": timeline_items,
+        "next_image": image.get_next_image(),
+        "previous_image": image.get_previous_image(),
+        "total_images_in_collection": total_images_in_collection,
+        "image_position": image_position,
     }
 
     return render(request, "images/image_detail.html", context)
