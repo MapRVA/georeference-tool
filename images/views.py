@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
