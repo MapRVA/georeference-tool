@@ -1,5 +1,3 @@
-from django.http import JsonResponse, HttpResponseRedirect
-from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
@@ -7,8 +5,10 @@ from django.contrib.auth import authenticate, login as auth_login
 from django.contrib.auth.models import User
 from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
+from django.shortcuts import render, redirect
+from django.http import JsonResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404
 from osm_login_python.core import Auth
-
 
 def get_osm_auth():
     """Initialize and return robust OSM Auth instance with settings"""
@@ -21,7 +21,6 @@ def get_osm_auth():
         scope=settings.OSM_SCOPE,
     )
 
-
 def login(request):
     """Initiate OSM OAuth login"""
     if not all(
@@ -33,7 +32,6 @@ def login(request):
         if referrer:
             return redirect(referrer)
         return redirect("/")
-
     # Clear any existing authentication session data before starting new login
     session_keys_to_clear = [
         "osm_user_id",
@@ -44,7 +42,6 @@ def login(request):
     ]
     for key in session_keys_to_clear:
         request.session.pop(key, None)
-
     # Check if there's an image parameter (for georeference page)
     image_id = request.GET.get('image')
     if image_id:
@@ -56,7 +53,6 @@ def login(request):
         referrer = request.META.get('HTTP_REFERER')
         if referrer:
             request.session['login_redirect_url'] = referrer
-
     try:
         osm_auth = get_osm_auth()
         login_data = osm_auth.login()
@@ -64,7 +60,6 @@ def login(request):
     except Exception as e:
         messages.error(request, f"Error initiating OSM login: {str(e)}")
         return redirect("/")
-
 
 def callback(request):
     """Handle OSM OAuth callback"""
@@ -91,12 +86,10 @@ def callback(request):
         messages.success(
             request, f"Successfully logged in as {user_data.get('username')}!"
         )
-
         # Check if there's a login redirect URL stored
         login_redirect_url = request.session.pop('login_redirect_url', None)
         if login_redirect_url:
             return redirect(login_redirect_url)
-
         # Check if this was an admin login attempt
         admin_redirect = request.session.pop("admin_login_redirect", None)
         if admin_redirect:
@@ -106,7 +99,6 @@ def callback(request):
                 messages.error(
                     request, "You don't have permission to access the admin area."
                 )
-
         return redirect("/")
     except Exception as e:
         # Clear any partial session data on error
@@ -121,7 +113,6 @@ def callback(request):
             request.session.pop(key, None)
         messages.error(request, f"Authentication failed. Please try again.")
         return redirect("/")
-
 
 def admin_login(request):
     """Custom admin login view with dev mode fallback"""
@@ -162,7 +153,6 @@ def admin_login(request):
     )
     return redirect("osm_auth:login")
 
-
 def logout(request):
     """Log out user by clearing session and Django auth"""
     from django.contrib.auth import logout as auth_logout
@@ -182,7 +172,6 @@ def logout(request):
     messages.success(request, "Successfully logged out!")
     return redirect("/")
 
-
 def user_data(request):
     """API endpoint to get current user data"""
     if not request.session.get("is_authenticated"):
@@ -195,7 +184,6 @@ def user_data(request):
     }
     return JsonResponse(user_data)
 
-
 def profile(request):
     """Display user profile page"""
     if not request.session.get("is_authenticated"):
@@ -207,15 +195,16 @@ def profile(request):
     }
     return render(request, "auth/profile.html", context)
 
-
 def user_profile(request, username):
     """Display public user profile page"""
-    user = get_object_or_404(User, username=username)
-
+    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
+    if settings.DEBUG and username == "hardcoded_admin":
+        user = get_object_or_404(User, username="hardcoded_admin")
+    else:
+        user = get_object_or_404(User, first_name=username)
     # Get user's display name (from OSM first_name or username)
     display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
     profile_url = user.get_profile_url() if hasattr(user, 'get_profile_url') else None
-
     context = {
         "profile_user": user,
         "display_name": display_name,
@@ -223,14 +212,15 @@ def user_profile(request, username):
     }
     return render(request, "auth/user_profile.html", context)
 
-
 def user_albums_list(request, username):
     """Display list of user's albums"""
     from images.models import Album
-
-    user = get_object_or_404(User, username=username)
+    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
+    if settings.DEBUG and username == "hardcoded_admin":
+        user = get_object_or_404(User, username="hardcoded_admin")
+    else:
+        user = get_object_or_404(User, first_name=username)
     display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
-
     # Get albums - show all if viewing own, only public if viewing others
     if request.user.is_authenticated and request.user == user:
         albums = Album.objects.filter(owner=user).order_by('-created_at')
@@ -238,7 +228,6 @@ def user_albums_list(request, username):
     else:
         albums = Album.objects.filter(owner=user, public=True).order_by('-created_at')
         is_own_albums = False
-
     context = {
         "profile_user": user,
         "display_name": display_name,
