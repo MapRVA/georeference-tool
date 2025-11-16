@@ -91,7 +91,13 @@
                         {% for contributor, stats in contributors %}
                         <tr>
                             <th scope="row">{{ forloop.counter }}</th>
-                            <td>{{ contributor }}</td>
+                            <td>
+                                {% if contributor == 'Anonymous' %}
+                                    {{ contributor }}
+                                {% else %}
+                                    <a href="{% url 'user_profile' contributor %}" class="text-decoration-none">{{ contributor }}</a>
+                                {% endif %}
+                            </td>
                             <td>{{ stats.georeferences }}</td>
                             <td>{% if contributor == 'Anonymous' %}N/A{% else %}{{ stats.validations }}{% endif %}</td>
                         </tr>
