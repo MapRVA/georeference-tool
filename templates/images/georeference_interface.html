@@ -430,8 +430,8 @@
                         <ol class="breadcrumb">
                             {% if request.GET.album %}
                                 {% if album and album_owner_display_name %}
-                                    <li class="breadcrumb-item"><a href="{% url 'user_albums_list' album.owner.username %}">{{ album_owner_display_name }}'s Albums</a></li>
-                                    <li class="breadcrumb-item"><a href="{% url 'images:album_detail' album.owner.username album.id %}">{{ album.title }}</a></li>
+                                    <li class="breadcrumb-item"><a href="{% url 'user_albums_list' album_owner_display_name %}">{{ album_owner_display_name }}'s Albums</a></li>
+                                    <li class="breadcrumb-item"><a href="{% url 'images:album_detail' album_owner_display_name album.id %}">{{ album.title }}</a></li>
                                 {% endif %}
                             {% else %}
                                 <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
@@ -940,7 +940,7 @@
                 </p>
                 <div class="mt-4">
                     {% if album and album_owner_display_name %}
-                        <a href="{% url 'images:album_detail' album.owner.username album.id %}" class="btn btn-primary me-2">
+                        <a href="{% url 'images:album_detail' album_owner_display_name album.id %}" class="btn btn-primary me-2">
                             <i class="fas fa-arrow-left me-2"></i>Back to Album
                         </a>
                     {% else %}

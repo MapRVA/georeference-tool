@@ -8,7 +8,7 @@
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="breadcrumb">
                 <li class="breadcrumb-item">Users</li>
-                <li class="breadcrumb-item"><a href="{% url 'user_profile' profile_user.username %}">{{ display_name }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'user_profile' display_name %}">{{ display_name }}</a></li>
                 <li class="breadcrumb-item active">Albums</li>
             </ol>
         </nav>
@@ -19,7 +19,7 @@
                     <i class="fas fa-photo-video me-2"></i>{{ display_name }}'s Albums
                 </h3>
                 {% if is_own_albums %}
-                <a href="{% url 'user_profile' profile_user.username %}" class="btn btn-outline-primary btn-sm">
+                <a href="{% url 'user_profile' display_name %}" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-arrow-left me-1"></i>Back to Profile
                 </a>
                 {% endif %}
@@ -29,7 +29,7 @@
                     <div class="row g-3">
                         {% for album in albums %}
                             <div class="col-lg-4 col-md-6">
-                                <a href="{% url 'images:album_detail' profile_user.username album.id %}" class="text-decoration-none">
+                                <a href="{% url 'images:album_detail' display_name album.id %}" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm">
                                         {% if album.images.exists %}
                                             {% with first_image=album.album_images.first %}
