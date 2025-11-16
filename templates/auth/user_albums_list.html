@@ -56,16 +56,16 @@
                                                     {{ album.description|truncatechars:100 }}
                                                 </p>
                                             {% endif %}
-                                            <div class="text-muted small">
-                                                <i class="fas fa-images me-1"></i>{{ album.images.count }} image{{ album.images.count|pluralize }}
-                                            </div>
-                                            {% if not album.public %}
-                                                <div class="mt-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="text-muted small">
+                                                    <i class="fas fa-images me-1"></i>{{ album.images.count }} image{{ album.images.count|pluralize }}
+                                                </div>
+                                                {% if not album.public %}
                                                     <span class="badge bg-secondary">
                                                         <i class="fas fa-lock me-1"></i>Private
                                                     </span>
-                                                </div>
-                                            {% endif %}
+                                                {% endif %}
+                                            </div>
                                         </div>
                                     </div>
                                 </a>
