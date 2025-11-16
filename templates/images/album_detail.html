@@ -34,43 +34,50 @@
         </nav>
 
         <div class="card mb-4">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h2 class="mb-2">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
+                    <div class="flex-grow-1 mb-3 mb-md-0">
+                        <h1 class="card-title mb-3">
                             <i class="fas fa-photo-video me-2"></i>{{ album.title }}
-                        </h2>
-                        <p class="text-muted mb-0">
+                        </h1>
+                        <p class="text-muted mb-2">
                             by <a href="{% url 'user_profile' profile_user.username %}" class="text-decoration-none">{{ display_name }}</a>
                         </p>
-                    </div>
-                    <div class="d-flex gap-2 align-items-start">
-                        {% if is_owner %}
-                            <a href="{% url 'images:edit_album' album.id %}" class="btn btn-sm btn-outline-secondary">
-                                <i class="fas fa-edit me-1"></i>Edit
-                            </a>
-                            <button id="togglePublicBtn" class="btn btn-sm {% if album.public %}btn-outline-primary{% else %}btn-secondary{% endif %}" data-album-id="{{ album.id }}" data-is-public="{{ album.public|yesno:'true,false' }}">
-                                {% if album.public %}
-                                    <i class="fas fa-globe me-1"></i>Public
-                                {% else %}
-                                    <i class="fas fa-lock me-1"></i>Private
-                                {% endif %}
-                            </button>
-                        {% else %}
-                            {% if not album.public %}
-                                <span class="badge bg-secondary">
-                                    <i class="fas fa-lock me-1"></i>Private
-                                </span>
-                            {% endif %}
+                        {% if album.description %}
+                            <p class="card-text text-muted">{{ album.description }}</p>
                         {% endif %}
+                    </div>
+                    <div class="text-start text-md-end">
+                        <div class="d-flex flex-column gap-2 align-items-start align-items-md-end">
+                            {% if pending_images > 0 %}
+                                <a href="{% url 'images:georeference_interface' %}?album={{ album.id }}" class="btn btn-success">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Start Georeferencing
+                                </a>
+                            {% endif %}
+                            {% if is_owner %}
+                                <div class="d-flex gap-2">
+                                    <a href="{% url 'images:edit_album' album.id %}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit me-1"></i>Edit
+                                    </a>
+                                    <button id="togglePublicBtn" class="btn btn-sm {% if album.public %}btn-outline-primary{% else %}btn-secondary{% endif %}" data-album-id="{{ album.id }}" data-is-public="{{ album.public|yesno:'true,false' }}">
+                                        {% if album.public %}
+                                            <i class="fas fa-globe me-1"></i>Public
+                                        {% else %}
+                                            <i class="fas fa-lock me-1"></i>Private
+                                        {% endif %}
+                                    </button>
+                                </div>
+                            {% else %}
+                                {% if not album.public %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-lock me-1"></i>Private
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
-            {% if album.description %}
-                <div class="card-body border-bottom">
-                    <p class="mb-0">{{ album.description }}</p>
-                </div>
-            {% endif %}
         </div>
 
         {% if album_images %}

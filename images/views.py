@@ -272,12 +272,13 @@ def collection_detail(request, source_slug, collection_slug):
 
 
 def georeference_interface(request):
-    """Main georeferencing interface - can be filtered by source/collection/subject or show specific image"""
+    """Main georeferencing interface - can be filtered by source/collection/subject/album or show specific image"""
     source_slug = request.GET.get("source")
     collection_slug = request.GET.get("collection")
     subject_slug = request.GET.get("subject")
     difficulty = request.GET.get("difficulty")
     image_id = request.GET.get("image")
+    album_id = request.GET.get("album")
 
     # If specific image ID is requested, try to load it
     current_image = None
@@ -313,6 +314,27 @@ def georeference_interface(request):
     # 3. Skip tracking is still useful for statistics, but shouldn't hide images
 
     images = images.select_related("collection__source")
+
+    # Filter by album if specified
+    album = None
+    album_owner_display_name = None
+    if album_id:
+        try:
+            album = Album.objects.get(id=album_id)
+            # Check if album is public or if user is the owner
+            if not album.public and (not request.user.is_authenticated or album.owner != request.user):
+                # Private album and user is not the owner - return 404
+                raise Http404("Album not found")
+            # Filter images to only those in this album
+            images = images.filter(albums=album)
+            # Get the album owner's display name for the breadcrumb
+            album_owner_display_name = (
+                album.owner.get_display_name()
+                if hasattr(album.owner, "get_display_name")
+                else album.owner.username
+            )
+        except Album.DoesNotExist:
+            raise Http404("Album not found")
 
     # Filter by source if specified
     source = None
@@ -379,6 +401,8 @@ def georeference_interface(request):
         "source": source,
         "collection": collection,
         "subject": subject,
+        "album": album,
+        "album_owner_display_name": album_owner_display_name,
         "difficulty_filters": difficulty_filters,
         "difficulty_filters_json": json.dumps(difficulty_filters),
         "remaining_count": images.count(),
@@ -1122,6 +1146,9 @@ def album_detail(request, username, album_id):
     # Get images in album order
     album_images = album.album_images.select_related('image').order_by('order')
 
+    # Calculate pending images count for the georeference button
+    pending_images = sum(1 for ai in album_images if not ai.image.is_georeferenced)
+
     display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
     is_owner = request.user.is_authenticated and request.user == user
 
@@ -1131,6 +1158,7 @@ def album_detail(request, username, album_id):
         "profile_user": user,
         "display_name": display_name,
         "is_owner": is_owner,
+        "pending_images": pending_images,
     }
     return render(request, "images/album_detail.html", context)
 

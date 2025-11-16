@@ -425,16 +425,23 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h1><i class="fas fa-map-marker-alt me-2"></i>Georeference Image</h1>
-                {% if request.GET.source or request.GET.image %}
+                {% if request.GET.source or request.GET.image or request.GET.album %}
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
-                            <li class="breadcrumb-item"><a href="{{ source.get_absolute_url }}">{{ source.name }}</a></li>
-                            {% if request.GET.collection or request.GET.image %}
-                                <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ collection.name }}</a></li>
-                            {% endif %}
-                            {% if request.GET.image %}
-                                <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ current_image.title }}</a></li>
+                            {% if request.GET.album %}
+                                {% if album and album_owner_display_name %}
+                                    <li class="breadcrumb-item"><a href="{% url 'user_albums_list' album.owner.username %}">{{ album_owner_display_name }}'s Albums</a></li>
+                                    <li class="breadcrumb-item"><a href="{% url 'images:album_detail' album.owner.username album.id %}">{{ album.title }}</a></li>
+                                {% endif %}
+                            {% else %}
+                                <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                                <li class="breadcrumb-item"><a href="{{ source.get_absolute_url }}">{{ source.name }}</a></li>
+                                {% if request.GET.collection or request.GET.image %}
+                                    <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ collection.name }}</a></li>
+                                {% endif %}
+                                {% if request.GET.image %}
+                                    <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ current_image.title }}</a></li>
+                                {% endif %}
                             {% endif %}
                             <li class="breadcrumb-item active">Georeference</li>
                         </ol>
@@ -446,8 +453,8 @@
             </div>
         </div>
 
-        <!-- Difficulty Filter (only show when not viewing a specific image) -->
-        {% if not request.GET.image %}
+        <!-- Difficulty Filter (only show when not viewing a specific image or album) -->
+        {% if not request.GET.image and not request.GET.album %}
             <div class="card mb-4">
                 <div class="card-body py-3">
                     <div class="row align-items-center">
@@ -922,7 +929,9 @@
                 <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
                 <h3 class="text-success">Great Work!</h3>
                 <p class="text-muted">
-                    {% if source or collection %}
+                    {% if album %}
+                        No more images available for georeferencing in this album.
+                    {% elif source or collection %}
                         No more images available for georeferencing in this
                         {% if collection %}collection{% else %}source{% endif %}.
                     {% else %}
@@ -930,10 +939,16 @@
                     {% endif %}
                 </p>
                 <div class="mt-4">
-                    <a href="{% url 'images:browse_sources' %}" class="btn btn-primary me-2">
-                        <i class="fas fa-archive me-2"></i>Browse Sources
-                    </a>
-                    {% if source or collection %}
+                    {% if album and album_owner_display_name %}
+                        <a href="{% url 'images:album_detail' album.owner.username album.id %}" class="btn btn-primary me-2">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Album
+                        </a>
+                    {% else %}
+                        <a href="{% url 'images:browse_sources' %}" class="btn btn-primary me-2">
+                            <i class="fas fa-archive me-2"></i>Browse Sources
+                        </a>
+                    {% endif %}
+                    {% if source or collection or album %}
                         <a href="{% url 'images:georeference_interface' %}" class="btn btn-outline-primary">
                             <i class="fas fa-random me-2"></i>Random Image
                         </a>
