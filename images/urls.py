@@ -96,5 +96,5 @@ urlpatterns = [
     path("album/<uuid:album_id>/edit/", views.edit_album, name="edit_album"),
     path("album/<uuid:album_id>/delete/", views.delete_album, name="delete_album"),
     # Album detail view
-    path("user/<str:username>/albums/<uuid:album_id>/", views.album_detail, name="album_detail"),
+    path("user/<str:display_name>/albums/<uuid:album_id>/", views.album_detail, name="album_detail"),
 ]

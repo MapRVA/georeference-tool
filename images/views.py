@@ -1131,12 +1131,16 @@ def remove_image_from_album(request):
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-def album_detail(request, username, album_id):
+def album_detail(request, display_name, album_id):
     """Display a specific album with its images"""
     from django.contrib.auth.models import User
     from .models import Album
 
-    user = get_object_or_404(User, username=username)
+    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
+    if settings.DEBUG and display_name == "hardcoded_admin":
+        user = get_object_or_404(User, username="hardcoded_admin")
+    else:
+        user = get_object_or_404(User, first_name=display_name)
     album = get_object_or_404(Album, id=album_id, owner=user)
 
     # Check permissions - only show if public or user is viewing their own
