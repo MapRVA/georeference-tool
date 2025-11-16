@@ -913,7 +913,16 @@ def delete_album(request, album_id):
     if request.method == "POST":
         # Confirm deletion
         album_title = album.title
-        album_owner_username = album.owner.username
+        # Get the display name (OSM username) for the redirect
+        # Special case: hardcoded_admin needs to use the Django username
+        if album.owner.username == "hardcoded_admin":
+            album_owner_username = "hardcoded_admin"
+        else:
+            album_owner_username = (
+                album.owner.get_display_name()
+                if hasattr(album.owner, "get_display_name")
+                else album.owner.username
+            )
         album.delete()
         messages.success(request, f"Album '{album_title}' has been deleted.")
         return redirect("user_albums_list", username=album_owner_username)
