@@ -967,7 +967,8 @@ class Album(models.Model):
         return f"{self.title} by {self.owner.get_display_name()}"
 
     def get_absolute_url(self):
-        return reverse("images:album_detail", kwargs={"album_id": self.id})
+        display_name = self.owner.get_display_name() if hasattr(self.owner, 'get_display_name') else self.owner.username
+        return reverse("images:album_detail", kwargs={"display_name": display_name, "album_id": self.id})
 
     class Meta:
         ordering = ["-created_at"]

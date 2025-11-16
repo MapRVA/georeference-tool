@@ -904,7 +904,7 @@ def edit_album(request, album_id):
         messages.success(request, "Album updated successfully.")
         return redirect(
             "images:album_detail",
-            username=album.owner.username,
+            display_name=album.owner.get_display_name() if hasattr(album.owner, 'get_display_name') else album.owner.username,
             album_id=album.id,
         )
 
@@ -1137,11 +1137,11 @@ def album_detail(request, display_name, album_id):
     from django.contrib.auth.models import User
     from .models import Album
 
-    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
-    if settings.DEBUG and display_name == "hardcoded_admin":
-        user = get_object_or_404(User, username="hardcoded_admin")
-    else:
-        user = get_object_or_404(User, first_name=display_name)
+    # Look up user by display name (first_name for OSM users or username)
+    # Try first_name first (OSM username), then fall back to username
+    user = get_object_or_404(User, first_name=display_name)
+    if not user:
+        user = get_object_or_404(User, username=display_name)
     album = get_object_or_404(Album, id=album_id, owner=user)
 
     # Check permissions - only show if public or user is viewing their own
