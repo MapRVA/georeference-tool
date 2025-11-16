@@ -827,6 +827,113 @@ def mark_scale(request, image_id):
         )
 
 
+def edit_album(request, album_id):
+    """Edit album title and description (owner only)"""
+    if not request.user.is_authenticated:
+        return redirect("login")
+
+    album = get_object_or_404(Album, id=album_id)
+
+    # Check that the user is the owner
+    if album.owner != request.user:
+        raise Http404("Album not found")
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+
+        # Validate title
+        if not title:
+            messages.error(request, "Album title is required.")
+            return render(
+                request,
+                "images/album_edit.html",
+                {
+                    "album": album,
+                    "profile_user": album.owner,
+                    "display_name": album.owner.get_display_name()
+                    if hasattr(album.owner, "get_display_name")
+                    else album.owner.username,
+                },
+            )
+
+        if len(title) > 500:
+            messages.error(request, "Album title must be 500 characters or less.")
+            return render(
+                request,
+                "images/album_edit.html",
+                {
+                    "album": album,
+                    "profile_user": album.owner,
+                    "display_name": album.owner.get_display_name()
+                    if hasattr(album.owner, "get_display_name")
+                    else album.owner.username,
+                },
+            )
+
+        # Update album
+        album.title = title
+        album.description = description
+        album.save(update_fields=["title", "description"])
+
+        messages.success(request, "Album updated successfully.")
+        return redirect(
+            "images:album_detail",
+            username=album.owner.username,
+            album_id=album.id,
+        )
+
+    # GET request - display the edit form
+    display_name = (
+        album.owner.get_display_name()
+        if hasattr(album.owner, "get_display_name")
+        else album.owner.username
+    )
+
+    context = {
+        "album": album,
+        "profile_user": album.owner,
+        "display_name": display_name,
+    }
+
+    return render(request, "images/album_edit.html", context)
+
+
+def delete_album(request, album_id):
+    """Delete album (owner only) - confirmation page"""
+    if not request.user.is_authenticated:
+        return redirect("login")
+
+    album = get_object_or_404(Album, id=album_id)
+
+    # Check that the user is the owner
+    if album.owner != request.user:
+        raise Http404("Album not found")
+
+    if request.method == "POST":
+        # Confirm deletion
+        album_title = album.title
+        album_owner_username = album.owner.username
+        album.delete()
+        messages.success(request, f"Album '{album_title}' has been deleted.")
+        return redirect("user_albums_list", username=album_owner_username)
+
+    # GET request - display confirmation page
+    display_name = (
+        album.owner.get_display_name()
+        if hasattr(album.owner, "get_display_name")
+        else album.owner.username
+    )
+
+    context = {
+        "album": album,
+        "profile_user": album.owner,
+        "display_name": display_name,
+    }
+
+    return render(request, "images/album_delete_confirm.html", context)
+
+
 @require_http_methods(["GET"])
 def user_albums_api(request):
     """API endpoint to get user's albums as JSON"""

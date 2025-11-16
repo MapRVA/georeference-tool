@@ -93,6 +93,8 @@ urlpatterns = [
     path("api/v1/create-and-add-to-album/", views.create_and_add_to_album, name="create_and_add_to_album"),
     path("api/v1/remove-from-album/", views.remove_image_from_album, name="remove_image_from_album"),
     path("album/<uuid:album_id>/toggle-public/", views.toggle_album_public, name="toggle_album_public"),
+    path("album/<uuid:album_id>/edit/", views.edit_album, name="edit_album"),
+    path("album/<uuid:album_id>/delete/", views.delete_album, name="delete_album"),
     # Album detail view
     path("user/<str:username>/albums/<uuid:album_id>/", views.album_detail, name="album_detail"),
 ]
