@@ -318,6 +318,31 @@
                     </div>
                 </div>
 
+                <!-- Next/Previous Navigation -->
+                <nav aria-label="Image navigation" class="d-flex justify-content-between align-items-center mb-4">
+                    {% if previous_image %}
+                        <a href="{% url 'images:image_detail' previous_image.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-chevron-left me-2"></i>Previous Image
+                        </a>
+                    {% else %}
+                        <div></div>
+                    {% endif %}
+
+                    <div class="text-center">
+                        <small class="text-muted">
+                            Image {{ image_position }} of {{ total_images_in_collection }} in <a href="{{ image.collection.get_absolute_url }}" class="text-decoration-none">{{ image.collection.name }}</a>
+                        </small>
+                    </div>
+
+                    {% if next_image %}
+                        <a href="{% url 'images:image_detail' next_image.id %}" class="btn btn-outline-primary">
+                            Next Image<i class="fas fa-chevron-right ms-2"></i>
+                        </a>
+                    {% else %}
+                        <div></div>
+                    {% endif %}
+                </nav>
+
                 <!-- Map Display (if georeferenced) -->
                 {% if image.is_georeferenced %}
                 <div class="card mb-4">
@@ -992,35 +1017,6 @@
         {% endif %}
     </div>
 </div>
-
-        <!-- Next/Previous Navigation -->
-        <div class="row mt-5">
-            <div class="col-12">
-                <nav aria-label="Image navigation" class="d-flex justify-content-between align-items-center">
-                    {% if previous_image %}
-                        <a href="{% url 'images:image_detail' previous_image.id %}" class="btn btn-outline-primary">
-                            <i class="fas fa-chevron-left me-2"></i>Previous Image
-                        </a>
-                    {% else %}
-                        <div></div>
-                    {% endif %}
-
-                    <div class="text-center">
-                        <small class="text-muted">
-                            Image {{ image_position }} of {{ total_images_in_collection }} in <a href="{{ image.collection.get_absolute_url }}" class="text-decoration-none">{{ image.collection.name }}</a>
-                        </small>
-                    </div>
-
-                    {% if next_image %}
-                        <a href="{% url 'images:image_detail' next_image.id %}" class="btn btn-outline-primary">
-                            Next Image<i class="fas fa-chevron-right ms-2"></i>
-                        </a>
-                    {% else %}
-                        <div></div>
-                    {% endif %}
-                </nav>
-            </div>
-        </div>
 
 <!-- Validation Modal -->
 {% if image.is_georeferenced and request.user.is_authenticated and image.get_georeference and image.get_georeference.id %}
