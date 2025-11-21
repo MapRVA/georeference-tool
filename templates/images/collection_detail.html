@@ -200,7 +200,7 @@
                                             <i class="fas fa-map-marker-alt me-1"></i>Georeference
                                         </a>
                                     {% elif image.is_georeferenced %}
-                                        <a href="{% url 'images:image_detail' image.id }}" class="btn btn-primary btn-sm">
+                                        <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i>View
                                         </a>
                                     {% endif %}
