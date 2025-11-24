@@ -1271,6 +1271,35 @@ def mark_aerial(request, image_id):
     return JsonResponse({"success": True, "message": message})
 
 
+def browse_aerials(request):
+    """Browse all aerial images"""
+    aerials = Image.objects.filter(
+        aerial=True,
+        collection__public=True,
+        collection__source__public=True,
+    ).select_related("collection__source")
+
+    # Paginate images for browsing
+    paginator = Paginator(aerials, 24)  # 24 images per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Calculate statistics
+    total_images = aerials.count()
+    georeferenced_images = aerials.filter(georeferences__isnull=False).distinct().count()
+    will_not_georef_images = aerials.filter(will_not_georef=True).count()
+
+    context = {
+        "page_obj": page_obj,
+        "total_images": total_images,
+        "georeferenced_images": georeferenced_images,
+        "pending_images": total_images - georeferenced_images - will_not_georef_images,
+        "completion_percentage": (georeferenced_images / total_images * 100)
+        if total_images > 0
+        else 0,
+    }
+    return render(request, "images/aerials.html", context)
+
 def get_random_image(request):
     """Get a random image for georeferencing"""
     # Get images that haven't been georeferenced and aren't marked as will_not_georef

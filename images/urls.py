@@ -12,6 +12,7 @@ urlpatterns = [
         views.collection_detail,
         name="collection_detail",
     ),
+    path("aerials/", views.browse_aerials, name="browse_aerials"),
     # Subject browsing
     path("subjects/", views.browse_subjects, name="browse_subjects"),
     path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
