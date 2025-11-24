@@ -543,6 +543,11 @@
                                     {% if image.duplicate_of.title %}{{ image.duplicate_of.title|truncatechars:30 }}{% else %}Image #{{ image.duplicate_of.id }}{% endif %}
                                 </a>.
                             </div>
+                        {% elif image.aerial and not image.is_georeferenced %}
+                            <div class="alert alert-info mb-3">
+                                <i class="fas fa-plane me-2"></i>
+                                This image has been marked as an aerial. A georeferencing workflow for aerials is coming soon.
+                            </div>
                         {% elif not image.is_georeferenced and not image.will_not_georef %}
                             <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
                                class="btn btn-success w-100 mb-3 action-button">
