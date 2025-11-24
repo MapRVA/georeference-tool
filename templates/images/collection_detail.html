@@ -142,6 +142,13 @@
                                     </span>
                                 {% endif %}
 
+                                <!-- Aerial Indicator -->
+                                {% if image.aerial %}
+                                    <span class="badge bg-success position-absolute top-0 start-0 m-2" style="margin-left: 3rem;" title="Aerial image">
+                                        <i class="fas fa-plane"></i>
+                                    </span>
+                                {% endif %}
+
                                 <!-- Image Thumbnail -->
                                 <a href="{% url 'images:image_detail' image.id %}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
                                     <img src="{{ image.permalink }}"
@@ -359,13 +366,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const dropdown = this.closest('.dropdown');
             const dropdownMenu = dropdown.querySelector('.dropdown-menu');
             const imageId = this.dataset.imageId;
-            
+
             // Fetch user's albums and check which ones contain this image
             fetch('{% url "images:user_albums_api" %}?image_id=' + imageId)
                 .then(response => response.json())
                 .then(data => {
                     let html = '';
-                    
+
                     if (data.albums.length > 0) {
                         data.albums.forEach(album => {
                             const isInAlbum = album.has_image;
@@ -375,11 +382,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                         html += '<li><hr class="dropdown-divider"></li>';
                     }
-                    
+
                     html += `<li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createAlbumModal" data-image-id="${imageId}"><i class="fas fa-plus me-1"></i>Create New Album</a></li>`;
-                    
+
                     dropdownMenu.innerHTML = html;
-                    
+
                     // Add event listeners to album options
                     dropdownMenu.querySelectorAll('.album-option').forEach(link => {
                         link.addEventListener('click', function(e) {
@@ -387,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const albumId = this.dataset.albumId;
                             const imageId = this.dataset.imageId;
                             const isInAlbum = this.dataset.inAlbum === 'true';
-                            
+
                             if (isInAlbum) {
                                 removeImageFromAlbum(imageId, albumId);
                             } else {
@@ -395,7 +402,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         });
                     });
-                    
+
                     // Handle create album link
                     dropdownMenu.querySelector('[data-bs-target="#createAlbumModal"]').addEventListener('click', function(e) {
                         e.preventDefault();
@@ -418,21 +425,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle create album
     createAlbumBtn.addEventListener('click', function() {
         const imageId = modalImageId.value;
-        
+
         if (!newAlbumTitle.value.trim()) {
             showAlert('warning', 'Please enter an album title');
             return;
         }
-        
+
         const data = {
             image_id: imageId,
             album_title: newAlbumTitle.value,
             album_description: newAlbumDescription.value,
             album_public: newAlbumPublic.checked
         };
-        
+
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        
+
         fetch('{% url "images:create_and_add_to_album" %}', {
             method: 'POST',
             headers: {
@@ -462,9 +469,9 @@ document.addEventListener('DOMContentLoaded', function() {
             image_id: imageId,
             album_id: albumId
         };
-        
+
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        
+
         fetch('{% url "images:add_image_to_album" %}', {
             method: 'POST',
             headers: {
@@ -493,9 +500,9 @@ document.addEventListener('DOMContentLoaded', function() {
             image_id: imageId,
             album_id: albumId
         };
-        
+
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        
+
         fetch('{% url "images:remove_image_from_album" %}', {
             method: 'POST',
             headers: {
