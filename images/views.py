@@ -291,6 +291,7 @@ def georeference_interface(request):
             current_image = Image.objects.get(
                 id=int(image_id),
                 will_not_georef=False,
+                aerial=False,
                 duplicate_of__isnull=True,
                 collection__public=True,
                 collection__source__public=True,
@@ -304,6 +305,7 @@ def georeference_interface(request):
     images = Image.objects.filter(
         georeferences__isnull=True,
         will_not_georef=False,
+        aerial=False,
         duplicate_of__isnull=True,
         collection__public=True,
         collection__source__public=True,
