@@ -1242,6 +1242,34 @@ def mark_will_not_georef(request, image_id):
 
     return JsonResponse({"success": True, "message": message})
 
+@require_http_methods(["POST"])
+def mark_aerial(request, image_id):
+    """Toggle the aerial flag for an image (admin only)"""
+    # Check if user is authenticated and is staff
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "Authentication required"}, status=401
+        )
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Admin permissions required"}, status=403
+        )
+    image = get_object_or_404(Image, id=image_id)
+    # Get the desired state from POST data, defaulting to True for backwards compatibility
+    aerial = request.POST.get("aerial", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    image.aerial = aerial
+    image.save(update_fields=["aerial"])
+    message = (
+        'Image marked as aerial'
+        if aerial
+        else 'Removed aerial marking'
+    )
+    return JsonResponse({"success": True, "message": message})
+
 
 def get_random_image(request):
     """Get a random image for georeferencing"""

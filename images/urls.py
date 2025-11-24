@@ -52,6 +52,11 @@ urlpatterns = [
         views.mark_will_not_georef,
         name="mark_will_not_georef",
     ),
+    path(
+        "<int:image_id>/aerial/",
+        views.mark_aerial,
+        name="mark_aerial",
+    ),
     path("admin/label-scales/", views.label_scales, name="label_scales"),
     path("admin/update-scale/", views.update_image_scale, name="update_image_scale"),
     # Subject management endpoints

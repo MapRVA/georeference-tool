@@ -673,6 +673,17 @@
                                 </div>
                             </div>
 
+                            <!-- Mark as Aerial Button -->
+                            <button type="button" class="btn btn-sm w-100 mb-2 toggle-aerial
+                                {% if image.aerial %}btn-success{% else %}btn-outline-success{% endif %}"
+                                data-aerial="{{ image.aerial|yesno:'true,false' }}">
+                                {% if image.aerial %}
+                                    <i class="fas fa-check me-1"></i>Unmark as Aerial
+                                {% else %}
+                                    <i class="fas fa-plane me-1"></i>Mark as Aerial
+                                {% endif %}
+                            </button>
+
                             <!-- Will Not Georeference Toggle Button -->
                             <button type="button" class="btn btn-sm w-100 mb-2 toggle-will-not-georeference
                                 {% if image.will_not_georef %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
@@ -1483,6 +1494,59 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', handleScaleClick);
             button.hasEventListener = true;
         });
+
+        // Mark as Aerial toggle button handler
+        const aerialBtn = document.querySelector('.toggle-aerial');
+        if (aerialBtn) {
+            aerialBtn.addEventListener('click', function() {
+                const button = this;
+                const currentState = button.dataset.aerial === 'true';
+                const newState = !currentState;
+                const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+                button.disabled = true;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+
+                const formData = new FormData();
+                formData.append('aerial', newState.toString());
+                formData.append('csrfmiddlewaretoken', csrfToken);
+
+                fetch(`{% url 'images:mark_aerial' image.id %}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        const message = newState
+                            ? 'Image marked as aerial'
+                            : 'Removed aerial marking';
+                        showAlert('success', message);
+
+                        // Update button state immediately
+                        button.dataset.aerial = newState.toString();
+
+                        if (newState) {
+                            button.className = 'btn btn-success btn-sm w-100 mb-2 toggle-aerial';
+                            button.innerHTML = '<i class="fas fa-check me-1"></i>Unmark as Aerial';
+                        } else {
+                            button.className = 'btn btn-outline-success btn-sm w-100 mb-2 toggle-aerial';
+                            button.innerHTML = '<i class="fas fa-plane me-1"></i>Mark as Aerial';
+                        }
+
+                        button.disabled = false;
+                    } else {
+                        throw new Error('Network response was not ok');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('danger', 'Error updating aerial status. Please try again.');
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                });
+            });
+        }
 
         // Will Not Georeference toggle button handler
         const willNotGeoreferenceBtn = document.querySelector('.toggle-will-not-georeference');
