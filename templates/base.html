@@ -36,8 +36,15 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'images:search_page' %}">Search</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'stats' %}">Stats</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            More
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'images:browse_subjects' %}">Subjects</a></li>
+                            <li><a class="dropdown-item" href="{% url 'images:browse_aerials' %}">Aerials</a></li>
+                            <li><a class="dropdown-item" href="{% url 'stats' %}">Stats</a></li>
+                        </ul>
                     </li>
                 </ul>
 
