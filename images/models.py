@@ -252,6 +252,9 @@ class Image(models.Model):
             self.fuzzy_end_decdate = None
         super().save(*args, **kwargs)
 
+    # Is this image an aerial?
+    aerial = models.BooleanField(default=False)
+
     # Georeferencing metadata
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, null=True)
     scale = models.IntegerField(
