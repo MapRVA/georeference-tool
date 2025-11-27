@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
+<link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 
 <style>
     .badge-group .badge {
@@ -343,17 +344,22 @@
                     {% endif %}
                 </nav>
 
-                <!-- Map Display (if georeferenced) -->
-                {% if image.is_georeferenced %}
+                <!-- Map Display (if georeferenced or aerial with aerial georeference) -->
+                {% if image.is_georeferenced or aerial_georeference %}
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>Current Georeference</h5>
+                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if aerial_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
-                            {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 %}
+                            {% if image.is_georeferenced %}
+                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=aerial_georeference %}
+                            {% elif aerial_georeference %}
+                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' aerial_georeference=aerial_georeference %}
+                            {% endif %}
                         </div>
                     </div>
+                    {% if image.is_georeferenced %}
                     <div class="card-footer bg-light">
                         <div class="row g-2 text-center">
                             <div class="col-md-4">
@@ -385,6 +391,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -543,11 +550,14 @@
                                     {% if image.duplicate_of.title %}{{ image.duplicate_of.title|truncatechars:30 }}{% else %}Image #{{ image.duplicate_of.id }}{% endif %}
                                 </a>.
                             </div>
-                        {% elif image.aerial and not image.is_georeferenced %}
-                            <div class="alert alert-info mb-3">
-                                <i class="fas fa-plane me-2"></i>
-                                This image has been marked as an aerial. A georeferencing workflow for aerials is coming soon.
-                            </div>
+                        {% elif image.aerial %}
+                            <!-- Aerial Image - Show message for non-admins -->
+                            {% if not user.is_staff %}
+                                <div class="alert alert-info mb-3">
+                                    <i class="fas fa-plane me-2"></i>
+                                    This image has been marked as an aerial. Only admins can georeference aerials.
+                                </div>
+                            {% endif %}
                         {% elif not image.is_georeferenced and not image.will_not_georef %}
                             <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
                                class="btn btn-success w-100 mb-3 action-button">
@@ -565,15 +575,19 @@
                                         <i class="fas fa-info-circle me-2"></i>
                                         This image has been georeferenced.
                                     </div>
-                                    <button class="btn btn-primary w-100 mb-3 action-button" data-bs-toggle="modal" data-bs-target="#validateModal">
-                                        <i class="fas fa-check-circle me-2"></i>Validate This Georeference
-                                    </button>
+                                    {% if not image.aerial %}
+                                        <button class="btn btn-primary w-100 mb-3 action-button" data-bs-toggle="modal" data-bs-target="#validateModal">
+                                            <i class="fas fa-check-circle me-2"></i>Validate This Georeference
+                                        </button>
+                                    {% endif %}
                                 {% endif %}
 
-                                <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
-                                   class="btn btn-warning w-100 mb-3 action-button">
-                                    <i class="fas fa-edit me-2"></i>Submit a Correction
-                                </a>
+                                {% if not image.aerial %}
+                                    <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
+                                       class="btn btn-warning w-100 mb-3 action-button">
+                                        <i class="fas fa-edit me-2"></i>Submit a Correction
+                                    </a>
+                                {% endif %}
                             {% else %}
                                 <div class="alert alert-info mb-3">
                                     <i class="fas fa-info-circle me-2"></i>
@@ -688,6 +702,21 @@
                                     <i class="fas fa-plane me-1"></i>Mark as Aerial
                                 {% endif %}
                             </button>
+
+                            <!-- Aerial Georeference Button (only shown if image is aerial) -->
+                            {% if image.aerial %}
+                                {% if aerial_georeference %}
+                                    <!-- Aerial image already has georeference - show correction button -->
+                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-warning btn-sm w-100 mb-2">
+                                        <i class="fas fa-satellite me-1"></i>Submit Aerial Correction
+                                    </a>
+                                {% else %}
+                                    <!-- Aerial image has no georeference yet - show georeference button -->
+                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="fas fa-satellite me-1"></i>Georeference Aerial
+                                    </a>
+                                {% endif %}
+                            {% endif %}
 
                             <!-- Will Not Georeference Toggle Button -->
                             <button type="button" class="btn btn-sm w-100 mb-2 toggle-will-not-georeference
@@ -859,7 +888,7 @@
         {% endif %}
 
         <!-- Timeline Section -->
-        {% if timeline_items %}
+        {% if timeline_items or aerial_georeference %}
         <div class="row mt-5">
             <div class="col-12">
                 <div class="card">
@@ -945,6 +974,105 @@
                                                 </h6>
                                                 <div class="validation-list">
                                                     {% for validation in georeference.validations.all %}
+                                                        <div class="validation-item d-flex align-items-start mb-2">
+                                                            <div class="validation-icon me-2">
+                                                                {% if validation.validation == 'correct' %}
+                                                                    <i class="fas fa-check text-success"></i>
+                                                                {% elif validation.validation == 'incorrect' %}
+                                                                    <i class="fas fa-times text-danger"></i>
+                                                                {% else %}
+                                                                    <i class="fas fa-question text-warning"></i>
+                                                                {% endif %}
+                                                            </div>
+                                                            <div class="validation-content flex-grow-1">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <span class="validation-user">
+                                                                        {% if validation.validated_by.get_profile_url %}
+                                                                            <strong>
+                                                                                <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
+                                                                                    {{ validation.validated_by.get_display_name }}
+                                                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                                                                </a>
+                                                                            </strong>
+                                                                        {% else %}
+                                                                            <strong>{{ validation.validated_by.get_display_name }}</strong>
+                                                                        {% endif %}
+                                                                        <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
+                                                                            {{ validation.validation|capfirst }}
+                                                                        </span>
+                                                                    </span>
+                                                                    <small class="text-muted">{{ validation.validated_at|date:"M j, g:i A" }}</small>
+                                                                </div>
+                                                                {% if validation.notes %}
+                                                                    <p class="validation-notes small text-muted mb-0 mt-1">{{ validation.notes }}</p>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                    {% endwith %}
+                                {% elif item.type == 'aerial_georeference' %}
+                                    {% with aerial_georeference=item.aerial_georeference rendered_aerial_notes=item.rendered_notes %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker">
+                                        <i class="fas fa-plane"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-header">
+                                            <h6 class="timeline-title">
+                                                Aerial Georeference submitted by
+                                                {% if aerial_georeference.georeferenced_by %}
+                                                    {% if aerial_georeference.georeferenced_by.get_profile_url %}
+                                                        <strong>
+                                                            <a href="{{ aerial_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
+                                                                {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                                            </a>
+                                                        </strong>
+                                                    {% else %}
+                                                        <strong>{{ aerial_georeference.georeferenced_by.get_display_name }}</strong>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <strong>Anonymous</strong>
+                                                {% endif %}
+                                            </h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar me-1"></i>{{ aerial_georeference.georeferenced_at|date:"M j, Y g:i A" }}
+                                            </small>
+                                        </div>
+                                        <div class="timeline-details">
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-auto">
+                                                    <span class="badge {% if aerial_georeference.confidence == 'high' %}bg-success{% elif aerial_georeference.confidence == 'medium' %}bg-warning text-dark{% elif aerial_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                        {{ aerial_georeference.confidence|capfirst }} Confidence
+                                                    </span>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <span class="badge {% if aerial_georeference.validation_count > 0 %}bg-info{% else %}bg-secondary{% endif %}">
+                                                        <i class="fas fa-check-circle me-1"></i>
+                                                        {{ aerial_georeference.validation_count }} validation{{ aerial_georeference.validation_count|pluralize }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {% if rendered_aerial_notes %}
+                                                <div class="timeline-notes markdown-content">
+                                                    {{ rendered_aerial_notes|safe }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Validations for this aerial georeference -->
+                                        {% if aerial_georeference.validations.exists %}
+                                            <div class="timeline-validations mt-3">
+                                                <h6 class="small text-muted mb-2">
+                                                    <i class="fas fa-users me-1"></i>Community Validations:
+                                                </h6>
+                                                <div class="validation-list">
+                                                    {% for validation in aerial_georeference.validations.all %}
                                                         <div class="validation-item d-flex align-items-start mb-2">
                                                             <div class="validation-icon me-2">
                                                                 {% if validation.validation == 'correct' %}
@@ -1161,6 +1289,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 
 <script>
 // Global utility functions
@@ -1226,6 +1355,7 @@ document.addEventListener('DOMContentLoaded', function() {
             mapswapLink.href = 'https://mapswap.trailsta.sh/swap/#type=m&url=geo:37.5407,-77.4360;z=12';
         {% endif %}
     }
+
 
     // Set validation URL if georeference exists
     {% if image.is_georeferenced and image.get_georeference and image.get_georeference.id %}
@@ -1528,18 +1658,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             : 'Removed aerial marking';
                         showAlert('success', message);
 
-                        // Update button state immediately
-                        button.dataset.aerial = newState.toString();
-
-                        if (newState) {
-                            button.className = 'btn btn-success btn-sm w-100 mb-2 toggle-aerial';
-                            button.innerHTML = '<i class="fas fa-check me-1"></i>Unmark as Aerial';
-                        } else {
-                            button.className = 'btn btn-outline-success btn-sm w-100 mb-2 toggle-aerial';
-                            button.innerHTML = '<i class="fas fa-plane me-1"></i>Mark as Aerial';
-                        }
-
-                        button.disabled = false;
+                        // Reload page to refresh the UI
+                        setTimeout(() => location.reload(), 1000);
                     } else {
                         throw new Error('Network response was not ok');
                     }

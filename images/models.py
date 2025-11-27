@@ -355,6 +355,10 @@ class Image(models.Model):
         """Get the most recent georeference for this image"""
         return self.georeferences.order_by("-georeferenced_at").first()
 
+    def get_aerial_georeference(self):
+        """Get the most recent aerial georeference for this image"""
+        return self.aerial_georeferences.order_by("-georeferenced_at").first()
+
     def get_next_image(self):
         """Get the next image in the collection (ordered by collection, then ID)"""
         return (
@@ -555,6 +559,106 @@ class Georeference(models.Model):
         constraints = [
             # Removed unique constraint to allow multiple georeferences per user per image
             # This enables correction submissions and maintains full georeferencing history
+        ]
+
+
+class AerialGeoreference(models.Model):
+    """Aerial georeference data for an image - polygon-based submissions"""
+
+    CONFIDENCE_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
+
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, related_name="aerial_georeferences"
+    )
+
+    # Coordinate data - polygon instead of point
+    polygon = gis_models.PolygonField(spatial_index=True)
+
+    # Confidence level - mandatory field
+    confidence = models.CharField(
+        max_length=10,
+        choices=CONFIDENCE_CHOICES,
+        default="medium",
+        help_text="Confidence level in the accuracy of this georeference",
+    )
+
+    # Tracking information
+    georeferenced_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="aerial_georeferenced_images",
+        null=True,
+        help_text="User who submitted the georeference (null for anonymous submissions)",
+    )
+    georeferenced_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Quality/confidence notes from contributor
+    confidence_notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about the georeferencing confidence or methodology",
+    )
+
+    def __str__(self):
+        by_user = (
+            self.georeferenced_by.username if self.georeferenced_by else "Anonymous"
+        )
+        return f"Aerial Georeference for {self.image} by {by_user}"
+
+    @property
+    def validation_count(self):
+        """Number of validations this georeference has received"""
+        return self.validations.count()
+
+    def get_validation_counts(self):
+        """Get counts for each validation type"""
+        from django.db.models import Count, Q
+
+        return self.validations.aggregate(
+            correct=Count("pk", filter=Q(validation="correct")),
+            uncertain=Count("pk", filter=Q(validation="uncertain")),
+            incorrect=Count("pk", filter=Q(validation="incorrect")),
+        )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["image", "georeferenced_by"]),
+            models.Index(fields=["georeferenced_by"]),
+            models.Index(fields=["georeferenced_at"]),
+        ]
+
+
+class AerialGeoreferenceValidation(models.Model):
+    """Validation of an aerial georeference by other users"""
+
+    VALIDATION_CHOICES = [
+        ("correct", "Correct"),
+        ("incorrect", "Incorrect"),
+        ("uncertain", "Uncertain"),
+    ]
+
+    georeference = models.ForeignKey(
+        AerialGeoreference, on_delete=models.CASCADE, related_name="validations"
+    )
+    validated_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="aerial_georeference_validations"
+    )
+    validation = models.CharField(max_length=10, choices=VALIDATION_CHOICES)
+    notes = models.TextField(blank=True, help_text="Optional validation notes")
+    validated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.validation} validation by {self.validated_by.username}"
+
+    class Meta:
+        unique_together = ["georeference", "validated_by"]
+        indexes = [
+            models.Index(fields=["georeference", "validation"]),
+            models.Index(fields=["validated_by"]),
         ]
 
 

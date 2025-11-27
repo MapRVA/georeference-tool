@@ -120,13 +120,17 @@
                         <div class="card h-100 shadow-sm image-card">
                             <div class="position-relative">
                                 <!-- Image Status Badge -->
-                                {% if image.is_georeferenced %}
+                                {% if image.will_not_georef %}
+                                    <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
+                                        <i class="fas fa-ban"></i> Skip
+                                    </span>
+                                {% elif image.aerial and image.get_aerial_georeference %}
                                     <span class="badge bg-success position-absolute top-0 end-0 m-2">
                                         <i class="fas fa-map-marker-alt"></i> Georeferenced
                                     </span>
-                                {% elif image.will_not_georef %}
-                                    <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
-                                        <i class="fas fa-ban"></i> Skip
+                                {% elif not image.aerial and image.is_georeferenced %}
+                                    <span class="badge bg-success position-absolute top-0 end-0 m-2">
+                                        <i class="fas fa-map-marker-alt"></i> Georeferenced
                                     </span>
                                 {% else %}
                                     <span class="badge bg-warning position-absolute top-0 end-0 m-2">
@@ -202,13 +206,19 @@
                                             </ul>
                                         </div>
                                     {% endif %}
-                                    {% if not image.is_georeferenced and not image.will_not_georef %}
-                                        <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}&image={{ image.id }}" class="btn btn-success btn-sm">
-                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
-                                        </a>
-                                    {% elif image.is_georeferenced %}
+                                    {% if image.will_not_georef %}
+                                        <!-- Skip badge shown, no action button -->
+                                    {% elif image.aerial and image.get_aerial_georeference %}
                                         <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i>View
+                                        </a>
+                                    {% elif not image.aerial and image.is_georeferenced %}
+                                        <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </a>
+                                    {% elif not image.will_not_georef %}
+                                        <a href="{% url 'images:georeference_interface' %}?source={{ source.slug }}&collection={{ collection.slug }}&image={{ image.id }}" class="btn btn-success btn-sm">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
                                         </a>
                                     {% endif %}
                                 </div>

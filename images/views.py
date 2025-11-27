@@ -40,6 +40,8 @@ except ImportError:
 
 from .models import (
     Album,
+    AerialGeoreference,
+    AerialGeoreferenceValidation,
     Collection,
     Comment,
     Georeference,
@@ -498,6 +500,20 @@ def image_detail(request, image_id):
             }
         )
 
+    # Add aerial georeferences
+    for aerial_geo in image.aerial_georeferences.all():
+        rendered_aerial_notes = None
+        if aerial_geo.confidence_notes:
+            rendered_aerial_notes = render_markdown_safe(aerial_geo.confidence_notes)
+        timeline_items.append(
+            {
+                "type": "aerial_georeference",
+                "timestamp": aerial_geo.georeferenced_at,
+                "aerial_georeference": aerial_geo,
+                "rendered_notes": rendered_aerial_notes,
+            }
+        )
+
     # Add comments
     for comment in image.comments.all():
         rendered_comment_text = None
@@ -528,6 +544,7 @@ def image_detail(request, image_id):
         "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
+        "aerial_georeference": image.get_aerial_georeference() if image.aerial else None,
         "timeline_items": timeline_items,
         "next_image": image.get_next_image(),
         "previous_image": image.get_previous_image(),
@@ -655,6 +672,194 @@ def georeference_image(request, image_id):
             }
         )
 
+    except (ValueError, TypeError) as e:
+        return JsonResponse(
+            {"success": False, "error": f"Invalid data format: {str(e)}"}, status=400
+        )
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+def aerial_georeference_interface(request, image_id):
+    """Display the aerial georeference interface for a specific image"""
+    try:
+        image = get_object_or_404(
+            Image,
+            id=image_id,
+            aerial=True,
+            will_not_georef=False,
+            duplicate_of__isnull=True,
+            collection__public=True,
+            collection__source__public=True,
+        )
+    except Http404:
+        return render(
+            request,
+            "images/aerial_georeference_interface.html",
+            {"image": None},
+            status=404,
+        )
+
+    # Get OSM authentication info
+    osm_authenticated = hasattr(request.user, "osm_profile") and request.user.osm_profile is not None
+    osm_username = request.user.osm_profile.display_name if osm_authenticated else None
+
+    context = {
+        "image": image,
+        "osm_authenticated": osm_authenticated,
+        "osm_username": osm_username,
+        "user": request.user,
+    }
+
+    return render(request, "images/aerial_georeference_interface.html", context)
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def aerial_georeference_image(request, image_id):
+    """API endpoint to submit an aerial georeference with polygon"""
+    try:
+        data = json.loads(request.body)
+        image = get_object_or_404(Image, id=image_id, aerial=True)
+
+        # Check if image is a duplicate
+        if image.duplicate_of:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Cannot georeference duplicate images. This image is marked as a duplicate of another image.",
+                },
+                status=400,
+            )
+
+        # For anonymous users, check if they can still georeference
+        if not request.user.is_authenticated:
+            if image.aerial_georeferences.exists():
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "This image has already been georeferenced. Please login to submit a correction.",
+                    },
+                    status=400,
+                )
+
+        # Validate required fields
+        required_fields = ["polygon", "confidence"]
+        for field in required_fields:
+            if field not in data:
+                return JsonResponse(
+                    {"success": False, "error": f"Missing required field: {field}"},
+                    status=400,
+                )
+
+        # Validate confidence level
+        valid_confidence_levels = ["low", "medium", "high"]
+        if data["confidence"] not in valid_confidence_levels:
+            return JsonResponse(
+                {"success": False, "error": "Invalid confidence level"},
+                status=400,
+            )
+
+        # Validate rule: low confidence requires notes
+        if data["confidence"] == "low" and not data.get("notes", "").strip():
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Low confidence requires explanatory notes",
+                },
+                status=400,
+            )
+
+        # Validate polygon geometry
+        if not isinstance(data["polygon"], dict) or data["polygon"].get("type") not in [
+            "Polygon",
+            "MultiPolygon",
+        ]:
+            return JsonResponse(
+                {"success": False, "error": "Invalid polygon geometry"},
+                status=400,
+            )
+
+        # Import GIS modules for polygon handling
+        from django.contrib.gis.geos import GEOSGeometry
+
+        try:
+            # Convert GeoJSON to WKT format for storage
+            polygon_geojson = json.dumps(data["polygon"])
+            polygon = GEOSGeometry(polygon_geojson)
+
+            # If a MultiPolygon was submitted, validate it contains only one polygon
+            if polygon.geom_type == 'MultiPolygon':
+                if len(polygon) == 0:
+                    return JsonResponse(
+                        {"success": False, "error": "MultiPolygon is empty"},
+                        status=400,
+                    )
+                elif len(polygon) > 1:
+                    return JsonResponse(
+                        {"success": False, "error": f"MultiPolygon contains {len(polygon)} polygons. Please draw only one polygon."},
+                        status=400,
+                    )
+                else:
+                    # Single polygon in a MultiPolygon wrapper, extract it
+                    polygon = polygon[0]
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": f"Invalid polygon format: {str(e)}"},
+                status=400,
+            )
+
+        # Handle aerial georeference creation/update
+        aerial_georeference = None
+        try:
+            with transaction.atomic():
+                aerial_georeference = AerialGeoreference.objects.create(
+                    image=image,
+                    polygon=polygon,
+                    confidence=data["confidence"],
+                    georeferenced_by=request.user
+                    if request.user.is_authenticated
+                    else None,
+                    confidence_notes=data.get("notes", ""),
+                )
+        except IntegrityError:
+            # User has already georeferenced this image, update their existing georeference
+            if request.user.is_authenticated:
+                with transaction.atomic():
+                    aerial_georeference = AerialGeoreference.objects.filter(
+                        image=image, georeferenced_by=request.user
+                    ).first()
+                    if aerial_georeference:
+                        aerial_georeference.polygon = polygon
+                        aerial_georeference.confidence = data["confidence"]
+                        aerial_georeference.confidence_notes = data.get("notes", "")
+                        aerial_georeference.save()
+                    else:
+                        return JsonResponse(
+                            {
+                                "success": False,
+                                "error": "Unable to update existing georeference",
+                            },
+                            status=500,
+                        )
+            else:
+                return JsonResponse(
+                    {"success": False, "error": "Unable to create georeference"},
+                    status=500,
+                )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "georeference_id": aerial_georeference.id,
+                "message": "Aerial georeference successfully created",
+            }
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON format"}, status=400
+        )
     except (ValueError, TypeError) as e:
         return JsonResponse(
             {"success": False, "error": f"Invalid data format: {str(e)}"}, status=400
@@ -1463,6 +1668,190 @@ def geojson_endpoint(request):
     # Build final GeoJSON
     geojson = {"type": "FeatureCollection", "features": features}
 
+    return JsonResponse(geojson)
+
+
+def _build_aerial_georeference_feature(image, aerial_georeference, request):
+    """
+    Helper function to build a GeoJSON feature for an aerial georeference.
+
+    Args:
+        image: Image model instance
+        aerial_georeference: AerialGeoreference model instance
+        request: Django request object (for building absolute URLs)
+
+    Returns:
+        GeoJSON feature dict
+    """
+    # Build the image entry URL (absolute URL to image detail page)
+    img_entry = request.build_absolute_uri(
+        reverse("images:image_detail", kwargs={"image_id": image.id})
+    )
+
+    # Build properties
+    properties = {
+        "id": image.id,
+        "img_url": image.permalink,
+        "img_entry": img_entry,
+        "original_date": str(image.original_date) if image.original_date else None,
+        "edtf_date": str(image.edtf_date) if image.edtf_date else None,
+        "start_decdate": image.start_decdate,
+        "fuzzy_start_decdate": image.fuzzy_start_decdate,
+        "end_decdate": image.end_decdate,
+        "fuzzy_end_decdate": image.fuzzy_end_decdate,
+        "confidence": aerial_georeference.confidence,
+        "georeferenced_by": aerial_georeference.georeferenced_by.username if aerial_georeference.georeferenced_by else None,
+    }
+
+    # Only include scale if it's not None
+    if image.scale is not None:
+        properties["scale"] = image.scale
+
+    # Add subjects as Wikidata IDs if they exist
+    subject_wikidata_ids = [
+        mapping.subject.wikidata_item.wikidata_id
+        for mapping in image.subject_mappings.all()
+        if mapping.subject.wikidata_item
+    ]
+    if subject_wikidata_ids:
+        properties["subjects"] = subject_wikidata_ids
+
+    return {
+        "type": "Feature",
+        "geometry": json.loads(aerial_georeference.polygon.geojson),
+        "properties": properties,
+    }
+
+
+def aerial_geojson_endpoint(request):
+    """Return GeoJSON FeatureCollection of aerial georeferences (most recent per image)"""
+    # Start with all aerial images that have aerial georeferences from public collections/sources
+    images = (
+        Image.objects.select_related("collection__source")
+        .prefetch_related("aerial_georeferences")
+        .filter(
+            aerial=True,  # Must be marked as aerial
+            aerial_georeferences__isnull=False,  # Must have aerial georeferences
+            collection__public=True,  # Collection must be public
+            collection__source__public=True,  # Source must be public
+        )
+        .distinct()
+    )
+
+    # Apply filters based on GET parameters
+    image_id = request.GET.get("image")
+    collection_id = request.GET.get("collection")
+    source_id = request.GET.get("source")
+    subject_id = request.GET.get("subject")
+
+    if image_id:
+        images = images.filter(id=image_id)
+    if collection_id:
+        images = images.filter(collection_id=collection_id)
+    if source_id:
+        images = images.filter(collection__source_id=source_id)
+    if subject_id:
+        images = images.filter(subject_mappings__subject_id=subject_id)
+
+    # Build GeoJSON features
+    features = []
+    for image in images:
+        # Get the most recent aerial georeference (like get_georeference for regular ones)
+        aerial_georeference = image.get_aerial_georeference()
+        if not aerial_georeference:  # Skip if no aerial georeference found
+            continue
+
+        feature = _build_aerial_georeference_feature(image, aerial_georeference, request)
+        features.append(feature)
+
+    # Build final GeoJSON
+    geojson = {"type": "FeatureCollection", "features": features}
+    return JsonResponse(geojson)
+
+
+def aerial_georeferences_at_point(request):
+    """
+    API endpoint that returns all aerial georeferences that overlap a given point.
+
+    Query parameters:
+    - lat: Latitude (required)
+    - lon: Longitude (required)
+
+    Returns: GeoJSON FeatureCollection of aerial georeferences containing the point
+    """
+    from django.contrib.gis.geos import Point
+
+    # Get lat/lon from query parameters
+    try:
+        lat = float(request.GET.get("lat"))
+        lon = float(request.GET.get("lon"))
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Invalid or missing lat/lon parameters"},
+            status=400
+        )
+
+    # Validate coordinates are within reasonable bounds
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return JsonResponse(
+            {"error": "Coordinates out of valid range"},
+            status=400
+        )
+
+    # Create a Point from the coordinates (note: Point uses lon, lat order)
+    point = Point(lon, lat)
+
+    # Query for aerial georeferences that contain this point
+    # We need to use the polygon field's contains lookup
+    from images.models import AerialGeoreference
+
+    # Get all aerial images with public collections/sources
+    from images.models import Image
+
+    images = (
+        Image.objects
+        .filter(
+            aerial=True,  # Must be marked as aerial
+            aerial_georeferences__isnull=False,  # Must have aerial georeferences
+            collection__public=True,  # Collection must be public
+            collection__source__public=True,  # Source must be public
+        )
+        .select_related("collection__source")
+        .prefetch_related("aerial_georeferences")
+        .distinct()
+    )
+
+    # Build GeoJSON features - only include if most recent georeference contains the point
+    features = []
+    for image in images:
+        # Get the most recent aerial georeference for this image
+        aerial_georeference = image.get_aerial_georeference()
+        if not aerial_georeference:
+            continue
+
+        # Check if this georeference's polygon contains the point
+        try:
+            if not aerial_georeference.polygon.contains(point):
+                continue
+        except Exception:
+            continue
+
+        # Build feature using helper
+        feature = _build_aerial_georeference_feature(image, aerial_georeference, request)
+        # Add validation count (specific to this endpoint)
+        feature["properties"]["validation_count"] = aerial_georeference.validation_count
+        features.append(feature)
+
+    # Build final GeoJSON
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features,
+        "query": {
+            "lat": lat,
+            "lon": lon,
+        },
+        "count": len(features),
+    }
     return JsonResponse(geojson)
 
 

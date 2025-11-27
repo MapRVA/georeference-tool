@@ -1355,6 +1355,66 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        {% if aerial_georeference %}
+        // Add aerial georeference polygon overlay if available
+        const aerialPolygonGeometry = {{ aerial_georeference.polygon.geojson|safe }};
+        
+        map.addSource('aerial-polygon', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'geometry': aerialPolygonGeometry
+            }
+        });
+        
+        // Add fill layer for the polygon
+        map.addLayer({
+            'id': 'aerial-polygon-fill',
+            'type': 'fill',
+            'source': 'aerial-polygon',
+            'paint': {
+                'fill-color': '#0d6efd',
+                'fill-opacity': 0.2
+            }
+        });
+        
+        // Add outline layer for the polygon
+        map.addLayer({
+            'id': 'aerial-polygon-outline',
+            'type': 'line',
+            'source': 'aerial-polygon',
+            'paint': {
+                'line-color': '#0d6efd',
+                'line-width': 2.5
+            }
+        });
+
+        // Fit map bounds to aerial polygon
+        try {
+            let coordinates = [];
+            if (aerialPolygonGeometry.type === 'Polygon') {
+                coordinates = aerialPolygonGeometry.coordinates[0];
+            } else if (aerialPolygonGeometry.type === 'MultiPolygon') {
+                coordinates = aerialPolygonGeometry.coordinates[0][0];
+            }
+            
+            if (coordinates.length > 0) {
+                const bounds = new maplibregl.LngLatBounds();
+                coordinates.forEach(function(coord) {
+                    if (Array.isArray(coord) && coord.length === 2) {
+                        bounds.extend(coord);
+                    }
+                });
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    maxZoom: 16
+                });
+            }
+        } catch (error) {
+            console.error('Error fitting bounds to aerial polygon:', error);
+        }
+        {% endif %}
+
         // Wait for initial tile data to load to get metadata for time slider and bounds
         let initialFeaturesLoaded = false;
         map.on('sourcedata', function(e) {
@@ -1386,13 +1446,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             initialFeaturesLoaded = true;
                             processFeatures(retryFeatures);
                         } else {
-                            // No data available after retry
-                            document.getElementById(mapId).innerHTML =
-                                '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                                '<div class="text-center">' +
-                                '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-                                'No georeferenced images found' +
-                                '</div></div>';
+                            // No data available after retry - only show error if no aerial georeference
+                            if (!{{ aerial_georeference|yesno:"true,false" }}) {
+                                document.getElementById(mapId).innerHTML =
+                                    '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
+                                    '<div class="text-center">' +
+                                    '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
+                                    'No georeferenced images found' +
+                                    '</div></div>';
+                            }
                         }
                     }, 1000);
                 }

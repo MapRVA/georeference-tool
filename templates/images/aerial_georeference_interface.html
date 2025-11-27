@@ -1,0 +1,1949 @@
+{% extends 'base.html' %}
+
+{% block title %}Georeference Aerial Image - Yesterdays{% endblock %}
+
+{% block extra_css %}
+<link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
+<link href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.css" rel="stylesheet" />
+<link href='https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.css' rel='stylesheet' />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.5.3/dist/maplibre-geoman.min.css">
+<style>
+    .breadcrumb {
+        background: none;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* Map styles */
+    #mymap {
+        width: 100%;
+        height: 50vh;
+    }
+
+    .maplibregl-map {
+        overflow: visible;
+    }
+
+    .image-preview {
+        max-height: 50vh;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+        object-fit: contain;
+        background-color: #f8f9fa;
+        cursor: zoom-in;
+        display: block;
+        margin: 0 auto;
+    }
+
+    .image-error-fallback {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 2rem;
+        min-height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .layer-control {
+        position: relative;
+        z-index: 1000;
+    }
+    .layer-control .dropdown-menu {
+        min-width: 250px;
+        width: max-content;
+        margin-top: 0;
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-top: none;
+        box-shadow: none;
+    }
+    .maplibregl-ctrl-group .layer-control {
+        z-index: 1000 !important;
+    }
+    .layer-control .dropdown-toggle {
+        background-color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        border-radius: 0.375rem;
+        color: #495057;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.5rem 2rem 0.5rem 1rem;
+        text-align: left;
+        white-space: nowrap;
+        position: relative;
+        display: flex;
+        align-items: center;
+        line-height: 1;
+        transition: all 0.15s ease-in-out;
+        box-shadow: none;
+        width: auto;
+        min-width: 120px;
+    }
+    .layer-control .dropdown-toggle::after {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .layer-control .dropdown-toggle:hover {
+        background-color: #f8f9fa;
+        border-color: rgba(0, 0, 0, 0.15);
+    }
+
+    .layer-control .dropdown-toggle:focus {
+        box-shadow: none;
+        border-color: #86b7fe;
+    }
+
+    .layer-control .dropdown-toggle.show {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom-color: transparent;
+        box-shadow: none;
+    }
+    .layer-control .dropdown-item {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    .layer-control .dropdown-header {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.5rem 1rem 0.25rem;
+    }
+    .layer-control .overlay-layer {
+        padding-left: 1.5rem;
+        font-size: 0.9rem;
+        position: relative;
+    }
+    .layer-control .overlay-layer.active {
+        background-color: transparent !important;
+        color: inherit !important;
+    }
+    .layer-control .overlay-layer.active::before {
+        content: "✓";
+        position: absolute;
+        left: 0.5rem;
+        font-weight: bold;
+    }
+    .layer-control .dropdown-item.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .layer-control .dropdown-divider {
+        margin: 0.5rem 0;
+    }
+
+    /* Bootstrap-style MapLibre Controls */
+    .maplibregl-ctrl-group {
+        border-radius: 0.375rem;
+        box-shadow: none;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+
+    .maplibregl-ctrl-group:not(.layer-control) {
+        overflow: hidden;
+    }
+
+    .maplibregl-ctrl-group button {
+        background-color: #fff;
+        border: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+        color: #495057;
+        font-size: 0.875rem;
+        transition: all 0.15s ease-in-out;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .maplibregl-ctrl-group button:last-child {
+        border-bottom: none;
+    }
+
+    .maplibregl-ctrl-group button:hover {
+        background-color: #f8f9fa;
+        color: #212529;
+    }
+
+    .maplibregl-ctrl-group button:focus {
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        outline: none;
+    }
+
+    .maplibregl-ctrl-group button:active {
+        background-color: #e9ecef;
+    }
+
+    /* Geocoder styling overrides */
+    .maplibregl-ctrl-geocoder {
+        box-shadow: none;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        border-radius: 0.375rem;
+        font-size: 0.9rem;
+        max-width: 320px;
+    }
+    .maplibregl-ctrl-geocoder input[type="text"] {
+        padding: 6px 35px;
+        border: none;
+        border-radius: 0.375rem;
+    }
+    .maplibregl-ctrl-geocoder .maplibregl-ctrl-geocoder--pin-right > * {
+        top: 6px;
+    }
+    .maplibregl-ctrl-geocoder .suggestions {
+        background-color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        border-top: none;
+        border-bottom-left-radius: 0.375rem;
+        border-bottom-right-radius: 0.375rem;
+    }
+    .maplibregl-ctrl-geocoder .suggestions > .active > a,
+    .maplibregl-ctrl-geocoder .suggestions > li > a:hover {
+        background-color: #f0f0f0;
+    }
+
+    /* Responsive adjustments for small screens */
+    @media (max-width: 30em) {
+        .maplibregl-ctrl-top-left {
+            width: 100%;
+        }
+        .maplibregl-ctrl-geocoder {
+            width: calc(100% - 2em);
+            max-width: none;
+        }
+    }
+    .maplibregl-ctrl-geocoder--input {
+        height: 2.5em;
+    }
+    .maplibregl-ctrl-geocoder--icon-search {
+        top: 0.5em;
+        left: 0.5em;
+    }
+
+    /* Subject card styles */
+    .autoComplete_wrapper > ul {
+        border: 1px solid var(--bs-border-color);
+        border-radius: var(--bs-border-radius);
+        background-color: var(--bs-body-bg);
+        margin-top: 0.25rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .autoComplete_wrapper > ul > li {
+        padding: 0.5rem 1rem;
+    }
+    .autoComplete_wrapper > ul > li:hover {
+        background-color: #e9ecef;
+    }
+    .autoComplete_wrapper > ul > li[aria-selected="true"] {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    .subject-card .subject-card-control {
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+    }
+
+    .subject-card:hover .subject-card-control {
+        opacity: 1;
+    }
+
+    .image-container-wrapper {
+        position: relative;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Login Warning Banner -->
+        {% if not request.user.is_authenticated %}
+        <div class="alert mb-4" role="alert" style="background-color: #ffc107; border-color: #ffb300; color: black;">
+            <i class="fas fa-info-circle me-2"></i>
+            Please <a href="{% url 'osm_auth:login' %}?image={{ image.id }}" class="fw-bold" style="color: black; text-decoration: underline;">login with OpenStreetMap</a> to get credit for your work and track your contributions. Creating an account is free! Thank you.
+        </div>
+        {% endif %}
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-satellite me-2"></i>Georeference Aerial Image</h1>
+                {% if image %}
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+                            <li class="breadcrumb-item"><a href="{{ image.collection.source.get_absolute_url }}">{{ image.collection.source.name }}</a></li>
+                            <li class="breadcrumb-item"><a href="{{ image.collection.get_absolute_url }}">{{ image.collection.name }}</a></li>
+                            <li class="breadcrumb-item"><a href="{{ image.get_absolute_url }}">{{ image.title }}</a></li>
+                            <li class="breadcrumb-item active">Aerial Georeference</li>
+                        </ol>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if image %}
+            <!-- Already Georeferenced Alert -->
+            {% if image.is_georeferenced %}
+                <div class="alert alert-warning mb-4" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                        <div>
+                            <h6 class="alert-heading mb-1">This image has already been georeferenced</h6>
+                            <p class="mb-0">
+                                {% if image.get_georeference.georeferenced_by %}
+                                    Previously georeferenced by <strong>{{ image.get_georeference.georeferenced_by.get_display_name }}</strong>
+                                    on {{ image.get_georeference.georeferenced_at|date:"M j, Y" }}.
+                                {% else %}
+                                    Previously georeferenced anonymously on {{ image.get_georeference.georeferenced_at|date:"M j, Y" }}.
+                                {% endif %}
+                                {% if not request.user.is_authenticated %}
+                                    <strong>Login to submit a correction.</strong>
+                                {% else %}
+                                    You can submit a correction below.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Image Display -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                {% if image.title %}
+                                    {{ image.title }}
+                                {% else %}
+                                    Image #{{ image.id }}
+                                {% endif %}
+                            </h5>
+                            {% if image.difficulty %}
+                                <span class="badge
+                                    {% if image.difficulty == 'easy' %}bg-success
+                                    {% elif image.difficulty == 'medium' %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ image.difficulty|capfirst }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <!-- Image Display -->
+                            <div class="image-container-wrapper text-center mb-4">
+                                <div class="pswp-gallery" id="pswp-gallery">
+                                    <a href="{{ image.permalink }}"
+                                       target="_blank"
+                                       title="Click to view full-size image">
+                                        <img id="main-image" src="{{ image.permalink }}"
+                                             alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
+                                             class="image-preview"
+                                             style="object-fit: contain; background-color: #f8f9fa; cursor: zoom-in;"
+                                             title="Click to view full-size image">
+                                    </a>
+                                </div>
+
+                                <!-- Fallback for broken images -->
+                                <div id="image-fallback" class="bg-light align-items-center justify-content-center position-absolute w-100 h-100" style="top: 0; left: 0; min-height: 400px; display: none; z-index: 1;">
+                                    <div class="text-center">
+                                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                                        <p class="text-muted mb-3">Image could not be loaded</p>
+                                        <a href="{{ image.permalink }}" target="_blank" class="btn btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>View Original Image
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Image Metadata -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="row g-2">
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Title:</dt>
+                                                <dd class="small mb-0">{{ image.title }}</dd>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Source:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ image.collection.source.get_absolute_url }}" class="text-decoration-none">
+                                                        {{ image.collection.source.name }}
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Collection:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ image.collection.get_absolute_url }}" class="text-decoration-none">
+                                                        {{ image.collection.name }}
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+
+                                        {% if image.date_display != "Unknown date" %}
+                                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                                <div class="d-flex">
+                                                    <dt class="text-muted small me-2">Date:</dt>
+                                                    <dd class="small mb-0">{{ image.date_display }}</dd>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Original URL:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{{ image.original_url }}" target="_blank" class="text-decoration-none small">
+                                                        View Original <i class="fas fa-external-link-alt"></i>
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-lg-3 col-md-4 col-sm-6">
+                                            <div class="d-flex">
+                                                <dt class="text-muted small me-2">Details:</dt>
+                                                <dd class="small mb-0">
+                                                    <a href="{% url 'images:image_detail' image.id %}" target="_blank" class="text-decoration-none small">
+                                                        Image Detail Page <i class="fas fa-info-circle"></i>
+                                                    </a>
+                                                </dd>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if image.description %}
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <dt class="text-muted mb-2">Image Description:</dt>
+                                    <dd class="small">{{ image.description }}</dd>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Georeferencing Map -->
+                            <div class="border-top pt-3">
+                                <h6 class="mb-3"><i class="fas fa-draw-polygon me-2"></i>Draw Bounds on Map</h6>
+                                <p class="text-muted mb-3">Use the drawing tools to draw a polygon or rectangle around the area shown in the image. You can edit your drawing by clicking the edit button and dragging the points.</p>
+                                <div class="position-relative">
+                                    <div id="mymap"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes and Actions -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <!-- Confidence and Notes -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Confidence & Notes</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Confidence Level <span class="text-danger">*</span></label>
+                                <div class="mt-2">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="confidence" value="high" id="confidence-high">
+                                        <label class="form-check-label" for="confidence-high">
+                                            <span class="badge bg-success me-2">High</span>
+                                            Confident in polygon bounds
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="confidence" value="medium" id="confidence-medium">
+                                        <label class="form-check-label" for="confidence-medium">
+                                            <span class="badge bg-warning text-dark me-2">Medium</span>
+                                            Approximate bounds
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="confidence" value="low" id="confidence-low">
+                                        <label class="form-check-label" for="confidence-low">
+                                            <span class="badge bg-danger me-2">Low</span>
+                                            Uncertain about bounds
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="confidence-notes" class="form-label fw-bold">Additional Notes <span id="notes-required-indicator" class="text-danger" style="display: none;">*</span></label>
+                                <textarea class="form-control" id="confidence-notes" rows="3"
+                                          placeholder="Any additional information about the polygon bounds"></textarea>
+                                <div id="notes-help-text" class="form-text" style="display: none;">
+                                    Please explain why you have low confidence in this georeference.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <!-- Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Actions</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Submit Button -->
+                            {% if image.is_georeferenced %}
+                                {% if request.user.is_authenticated %}
+                                    <button type="button" class="btn btn-warning w-100 mb-3" id="submitButton" disabled>
+                                        <i class="fas fa-edit me-2"></i>Submit Aerial Georeference
+                                    </button>
+                                {% else %}
+                                    <button type="button" class="btn btn-secondary w-100 mb-3" disabled title="Login required to submit">
+                                        <i class="fas fa-lock me-2"></i>Login to Submit
+                                    </button>
+                                {% endif %}
+                            {% else %}
+                                <button type="button" class="btn btn-success w-100 mb-3" id="submitButton" disabled>
+                                    <i class="fas fa-check me-2"></i>Submit Aerial Georeference
+                                </button>
+                            {% endif %}
+
+                            <!-- Back Button -->
+                            <button type="button" class="btn btn-outline-secondary w-100 mb-2" id="backButton">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Image
+                            </button>
+
+                            {% if not osm_authenticated %}
+                                <!-- Anonymous user info -->
+                                <div class="alert alert-info mb-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    <small>You can georeference images anonymously. <a href="{% url 'osm_auth:login' %}?image={{ image.id }}">Login with OpenStreetMap</a> to track your contributions and access validation features.</small>
+                                </div>
+                            {% elif osm_authenticated and not user.is_staff %}
+                                <!-- Logged in user info -->
+                                <div class="alert alert-success mb-2">
+                                    <i class="fas fa-user-check me-1"></i>
+                                    <small>Logged in as <strong>{{ osm_username }}</strong>. Your contributions will be tracked!</small>
+                                </div>
+                            {% endif %}
+
+                            <!-- Admin Controls -->
+                            {% if osm_authenticated and user.is_staff %}
+                                <hr>
+                                <h6 class="text-muted">Admin Controls</h6>
+
+                                {% if not image.difficulty %}
+                                    <div class="btn-group w-100 mb-2" role="group">
+                                        <button type="button" class="btn btn-outline-success btn-sm mark-difficulty" data-difficulty="easy">Easy</button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm mark-difficulty" data-difficulty="medium">Medium</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm mark-difficulty" data-difficulty="hard">Hard</button>
+                                    </div>
+                                {% endif %}
+
+                                <button type="button" class="btn btn-outline-secondary w-100 btn-sm" id="willNotGeorefButton">
+                                    <i class="fas fa-ban me-1"></i>Mark as "Will Not Georeference"
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Subjects Gallery -->
+            {% if image.subjects.exists or request.user.is_authenticated %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-map-pin me-2"></i>Image Subjects</h5>
+                            {% if request.user.is_authenticated %}
+                            <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#add-subject-collapse" aria-expanded="false" aria-controls="add-subject-collapse">
+                                <i class="fas fa-plus me-1"></i> Add Subject
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if request.user.is_authenticated %}
+                            <div class="collapse" id="add-subject-collapse">
+                                <div class="border-bottom pt-2 pb-4 mb-4">
+                                    <small class="text-muted d-block mb-2">Add Subject:</small>
+                                    <form id="add-subject-form" class="row g-2 align-items-center">
+                                        {% csrf_token %}
+                                        <div class="col-md-6">
+                                            <label for="subject-autocomplete" class="visually-hidden">Subject Name</label>
+                                            <input type="text" class="form-control" id="subject-autocomplete"
+                                                   placeholder="Search by name or enter Wikidata ID (Q...)">
+                                        </div>
+                                        <div class="col-md-auto">
+                                            <button type="button" class="btn btn-primary" id="add-subject-btn">
+                                                <i class="fas fa-plus me-1"></i>Add
+                                            </button>
+                                        </div>
+                                    </form>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Search for an existing subject or enter a new Wikidata ID (e.g., Q123456).
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if image.subjects.exists %}
+                                <div class="row g-3" id="image-subjects-row">
+                                    {% for subject_relation in image.subject_mappings.all %}
+                                    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 subject-card-wrapper">
+                                        <div class="card h-100 shadow-sm subject-card" data-subject-relation-id="{{ subject_relation.id }}">
+                                            {% if request.user.is_authenticated %}
+                                            <div class="drag-handle subject-card-control position-absolute top-0 start-0 p-2" style="cursor: move; z-index: 10;">
+                                                <i class="fas fa-grip-vertical text-muted"></i>
+                                            </div>
+                                            {% endif %}
+                                            {% if subject_relation.subject.wikidata_item and subject_relation.subject.wikidata_item.image_url %}
+                                                <a href="{{ subject_relation.subject.get_absolute_url }}" class="d-block">
+                                                    <img src="{{ subject_relation.subject.wikidata_item.image_url }}"
+                                                         alt="{{ subject_relation.subject.title }}"
+                                                         class="card-img-top"
+                                                         style="height: 150px; object-fit: cover;">
+                                                </a>
+                                            {% else %}
+                                                 <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 150px;">
+                                                     <i class="fas fa-image fa-3x text-muted"></i>
+                                                 </div>
+                                            {% endif %}
+                                            <div class="card-body p-2">
+                                                <h6 class="card-title mb-1" style="font-size: 1rem;">
+                                                    <a href="{{ subject_relation.subject.get_absolute_url }}" class="text-decoration-none text-dark">
+                                                        {{ subject_relation.subject.title }}
+                                                    </a>
+                                                </h6>
+                                            </div>
+                                            {% if request.user.is_authenticated %}
+                                            <div class="position-absolute top-0 end-0 p-1 subject-card-control">
+                                                <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="{{ subject_relation.id }}" title="Remove subject">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <p class="text-muted">No subjects have been assigned to this image yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+            <!-- No Image Provided -->
+            <div class="text-center py-5">
+                <i class="fas fa-exclamation-circle fa-4x text-danger mb-3"></i>
+                <h3 class="text-danger">Image Not Found</h3>
+                <p class="text-muted">
+                    The requested image could not be found. Please check the link and try again.
+                </p>
+                <div class="mt-4">
+                    <a href="{% url 'images:browse_sources' %}" class="btn btn-primary">
+                        <i class="fas fa-archive me-2"></i>Browse Sources
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
+<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/umd/photoswipe-lightbox.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.5.3/dist/maplibre-geoman.umd.min.js"></script>
+
+<script>
+function setupPhotoSwipeData(img) {
+    const link = img.parentElement;
+    link.setAttribute('data-pswp-width', img.naturalWidth);
+    link.setAttribute('data-pswp-height', img.naturalHeight);
+}
+const lightbox = new PhotoSwipeLightbox({
+    gallery: '#pswp-gallery',
+    children: 'a',
+    showHideAnimationType: 'fade',
+    zoomAnimationDuration: 300,
+    maxZoomLevel: 8,
+    wheelToZoom: true,
+    pswpModule: PhotoSwipe
+});
+
+lightbox.init();
+</script>
+
+{% if image %}
+<script>
+function getBootstrapColor(difficulty) {
+    const colors = { easy: 'success', medium: 'warning', hard: 'danger' };
+    return colors[difficulty] || 'secondary';
+}
+
+// Global PMTiles setup
+window.pmtilesProtocolSetup = false;
+
+window.setupPMTilesProtocol = function() {
+    if (window.pmtilesProtocolSetup) return true;
+
+    if (typeof pmtiles !== 'undefined') {
+        try {
+            console.log('Setting up PMTiles protocol...');
+            let protocol = new pmtiles.Protocol();
+            maplibregl.addProtocol("pmtiles", protocol.tile);
+            console.log('PMTiles protocol setup complete');
+            window.pmtilesProtocolSetup = true;
+            return true;
+        } catch (error) {
+            console.error('Error setting up PMTiles protocol:', error);
+            return false;
+        }
+    } else {
+        console.log('PMTiles library not yet available');
+        return false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const submitButton = document.getElementById('submitButton');
+    const backButton = document.getElementById('backButton');
+    const willNotGeorefButton = document.getElementById('willNotGeorefButton');
+    const markDifficultyButtons = document.querySelectorAll('.mark-difficulty');
+    const confidenceNotes = document.getElementById('confidence-notes');
+    const isStaff = {{ user.is_staff|yesno:"true,false" }};
+    const imageId = {{ image.id }};
+
+    // Add PMTiles protocol
+    let protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
+    var map = new maplibregl.Map({
+        container: 'mymap',
+        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
+        center: [-77.44, 37.53],
+        zoom: 11.5
+    });
+
+    // Try to setup PMTiles protocol
+    window.setupPMTilesProtocol();
+
+    // Layer Control Class (mirrored from map_display.html)
+    class LayerControl {
+        constructor() {
+            this.baseLayers = {
+                'osm': {
+                    name: 'OpenStreetMap',
+                    isDefault: true,
+                    setupLayer: () => {
+                        // OSM is the default style, no additional setup needed
+                    },
+                    activate: () => this.showOSMLayers(),
+                    deactivate: () => this.hideOSMLayers()
+                },
+                'satellite': {
+                    name: 'Satellite',
+                    setupLayer: () => this.setupSatelliteLayer(),
+                    activate: () => this.showSatelliteLayer(),
+                    deactivate: () => this.hideSatelliteLayer()
+                },
+                'usgs': {
+                    name: 'USGS Topo',
+                    setupLayer: () => this.setupUSGSLayer(),
+                    activate: () => this.showUSGSLayer(),
+                    deactivate: () => this.hideUSGSLayer()
+                }
+            };
+            this.currentBaseLayer = 'osm';
+            this.currentOverlayLayer = null;
+            this.mapLayersLoaded = false;
+            this.collectionsData = null;
+        }
+
+        onAdd(map) {
+            this.map = map;
+            this.container = document.createElement('div');
+            this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group layer-control';
+
+            // Generate base layer options dynamically
+            const baseLayerOptions = Object.entries(this.baseLayers).map(([key, layer]) => {
+                const activeClass = layer.isDefault ? ' active' : '';
+                return `<li><a class="dropdown-item layer-option${activeClass}" href="#" data-layer="${key}">${layer.name}</a></li>`;
+            }).join('');
+
+            this.container.innerHTML = `
+                <div class="dropdown">
+                    <button class="dropdown-toggle" type="button" id="layerDropdown-georef" data-bs-toggle="dropdown" aria-expanded="false" data-bs-container="body">
+                        ${this.baseLayers[this.currentBaseLayer].name}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="layerDropdown-georef">
+                        ${baseLayerOptions}
+                    </ul>
+                </div>
+            `;
+
+            this.layerDropdown = this.container.querySelector('.dropdown-toggle');
+            this.setupEventListeners();
+
+            // Defer layer setup until map is loaded
+            if (this.map.loaded()) {
+                this.setupMapLayers();
+                this.loadMapLayers();
+            } else {
+                this.map.on('load', () => {
+                    this.setupMapLayers();
+                    this.loadMapLayers();
+                });
+            }
+
+            return this.container;
+        }
+
+        onRemove() {
+            this.container.parentNode.removeChild(this.container);
+            this.map = undefined;
+        }
+
+        setupMapLayers() {
+            // Setup all base layers
+            Object.entries(this.baseLayers).forEach(([key, layer]) => {
+                layer.setupLayer();
+            });
+        }
+
+        setupSatelliteLayer() {
+            if (!this.map.getSource('satellite')) {
+                this.map.addSource('satellite', {
+                    'type': 'raster',
+                    'tiles': ['https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'Virginia Geographic Information Network (VGIN)'
+                });
+            }
+
+            if (!this.map.getLayer('satellite-layer')) {
+                this.map.addLayer({
+                    'id': 'satellite-layer',
+                    'type': 'raster',
+                    'source': 'satellite',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupUSGSLayer() {
+            if (!this.map.getSource('usgs')) {
+                this.map.addSource('usgs', {
+                    'type': 'raster',
+                    'tiles': ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}'],
+                    'tileSize': 256,
+                    'attribution': 'USGS National Map'
+                });
+            }
+
+            if (!this.map.getLayer('usgs-layer')) {
+                this.map.addLayer({
+                    'id': 'usgs-layer',
+                    'type': 'raster',
+                    'source': 'usgs',
+                    'layout': {
+                        'visibility': 'none'
+                    }
+                });
+            }
+        }
+
+        setupEventListeners() {
+            // Add event listeners for base layer options
+            this.container.querySelectorAll('.layer-option').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const layerKey = item.dataset.layer;
+
+                    if (layerKey === this.currentBaseLayer) return;
+
+                    this.switchToBaseLayer(layerKey);
+                });
+            });
+        }
+
+        switchToBaseLayer(newLayerKey) {
+            if (!this.baseLayers[newLayerKey] || newLayerKey === this.currentBaseLayer) return;
+
+            // Deactivate current base layer
+            this.baseLayers[this.currentBaseLayer].deactivate();
+
+            // Activate new base layer
+            this.baseLayers[newLayerKey].activate();
+
+            // Update current layer
+            this.currentBaseLayer = newLayerKey;
+
+            // Update dropdown display
+            let currentLayerName;
+            if (this.currentOverlayLayer) {
+                const currentText = this.layerDropdown.textContent;
+                const overlayTitle = currentText.split(' + ')[1];
+                currentLayerName = `${this.baseLayers[newLayerKey].name} + ${overlayTitle}`;
+            } else {
+                currentLayerName = this.baseLayers[newLayerKey].name;
+            }
+            this.updateDropdownSelection(currentLayerName, newLayerKey);
+        }
+
+        showOSMLayers() {
+            this.hideOtherBaseLayers(['satellite-layer', 'usgs-layer']);
+
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                }
+            });
+        }
+
+        hideOSMLayers() {
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+        }
+
+        showSatelliteLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['usgs-layer']);
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+            }
+        }
+
+        hideSatelliteLayer() {
+            if (this.map.getLayer('satellite-layer')) {
+                this.map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+            }
+        }
+
+        showUSGSLayer() {
+            this.hideOSMLayers();
+            this.hideOtherBaseLayers(['satellite-layer']);
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
+            }
+        }
+
+        hideUSGSLayer() {
+            if (this.map.getLayer('usgs-layer')) {
+                this.map.setLayoutProperty('usgs-layer', 'visibility', 'none');
+            }
+        }
+
+        isOverlayLayer(layerId) {
+            return layerId === 'polygon-fill' ||
+                   layerId === 'polygon-outline' ||
+                   layerId.startsWith('overlay-');
+        }
+
+        isCustomBaseLayer(layerId) {
+            return layerId === 'satellite-layer' || layerId === 'usgs-layer';
+        }
+
+        hideOtherBaseLayers(layersToHide) {
+            layersToHide.forEach(layerId => {
+                if (this.map.getLayer(layerId)) {
+                    this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            });
+        }
+
+        switchToOverlayLayer(layerId, tileUrl, title, tileType, attribution) {
+            console.log('Switching to overlay layer:', layerId, tileUrl, title, tileType, attribution);
+
+            if (tileType === 'pmtiles') {
+                if (!window.pmtilesProtocolSetup) {
+                    console.error('PMTiles protocol not available!');
+                    if (!window.setupPMTilesProtocol()) {
+                        alert('PMTiles map overlay layers are not available - PMTiles protocol not loaded.');
+                        return;
+                    }
+                    console.log('PMTiles protocol setup successful, continuing...');
+                }
+            }
+
+            if (this.currentOverlayLayer === layerId) {
+                console.log('Deactivating current overlay layer:', layerId);
+                this.map.setLayoutProperty(layerId, 'visibility', 'none');
+                this.currentOverlayLayer = null;
+                const baseLayerName = this.baseLayers[this.currentBaseLayer].name;
+                this.updateDropdownSelection(baseLayerName, this.currentBaseLayer);
+                return;
+            }
+
+            const layers = this.map.getStyle().layers;
+            layers.forEach(layer => {
+                if (layer.id.startsWith('overlay-') && layer.id !== layerId) {
+                    this.map.setLayoutProperty(layer.id, 'visibility', 'none');
+                }
+            });
+
+            const sourceId = `${layerId}-source`;
+            if (!this.map.getSource(sourceId)) {
+                console.log(`Adding ${tileType} source:`, sourceId, tileUrl);
+                try {
+                    if (tileType === 'pmtiles') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            url: `pmtiles://${tileUrl}`,
+                            tileSize: 256,
+                            attribution: attribution
+                        });
+                    } else if (tileType === 'xyz') {
+                        this.map.addSource(sourceId, {
+                            type: 'raster',
+                            tiles: [tileUrl],
+                            tileSize: 256,
+                            attribution: attribution
+                        });
+                    }
+                    console.log('Tile source added successfully');
+                } catch (error) {
+                    console.error(`Error adding ${tileType} source:`, error);
+                    return;
+                }
+            } else {
+                console.log('Tile source already exists:', sourceId);
+            }
+
+            if (!this.map.getLayer(layerId)) {
+                console.log('Adding overlay layer:', layerId);
+                try {
+                    const beforeId = this.map.getLayer('polygon-fill') ? 'polygon-fill' : undefined;
+
+                    this.map.addLayer({
+                        id: layerId,
+                        source: sourceId,
+                        type: 'raster',
+                        paint: {
+                            'raster-opacity': 1.0,
+                            'raster-fade-duration': 300,
+                            'raster-resampling': 'linear'
+                        },
+                        layout: {
+                            'visibility': 'visible'
+                        }
+                    }, beforeId);
+                    console.log('Overlay layer added successfully');
+                } catch (error) {
+                    console.error('Error adding overlay layer:', error);
+                    return;
+                }
+            } else {
+                console.log('Overlay layer already exists, showing it');
+            }
+
+            this.map.setLayoutProperty(layerId, 'visibility', 'visible');
+
+            this.currentOverlayLayer = layerId;
+            const combinedTitle = `${this.baseLayers[this.currentBaseLayer].name} + ${title}`;
+            this.updateDropdownSelection(combinedTitle, layerId);
+            console.log('Overlay layer switch complete');
+        }
+
+        updateDropdownSelection(buttonText, selectedLayer) {
+            this.layerDropdown.textContent = buttonText;
+
+            this.container.querySelectorAll('.layer-option, .overlay-layer').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            if (this.currentOverlayLayer) {
+                const baseLayerItem = this.container.querySelector(`[data-layer="${this.currentBaseLayer}"]`);
+                if (baseLayerItem) baseLayerItem.classList.add('active');
+
+                const overlayLayerItem = this.container.querySelector(`[data-layer="${this.currentOverlayLayer}"]`);
+                if (overlayLayerItem) overlayLayerItem.classList.add('active');
+            } else {
+                const selectedItem = this.container.querySelector(`[data-layer="${selectedLayer}"]`);
+                if (selectedItem) selectedItem.classList.add('active');
+            }
+        }
+
+        async loadMapLayers() {
+            if (this.mapLayersLoaded) return;
+
+            try {
+                console.log('Loading map layers...');
+                const response = await fetch('{% url "images:map_layers" %}');
+                console.log('Map layers response:', response);
+
+                if (!response.ok) throw new Error(`Failed to fetch map layers: ${response.status}`);
+
+                const data = await response.json();
+                console.log('Map layers data:', data);
+
+                this.collectionsData = data.collections;
+
+                this.populateCollectionSubmenus();
+                this.mapLayersLoaded = true;
+                console.log('Map layers loaded successfully');
+            } catch (error) {
+                console.error('Error loading map layers:', error);
+                this.addErrorItem();
+            }
+        }
+
+        populateCollectionSubmenus() {
+            if (!this.collectionsData || this.collectionsData.length === 0) return;
+
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+            let layerIndex = 0;
+
+            this.collectionsData.forEach((collection, collectionIndex) => {
+                if (collection.layers.length === 0) return;
+
+                if (collectionIndex > 0 || dropdownMenu.children.length > 0) {
+                    const dividerItem = document.createElement('li');
+                    const divider = document.createElement('hr');
+                    divider.className = 'dropdown-divider';
+                    dividerItem.appendChild(divider);
+                    dropdownMenu.appendChild(dividerItem);
+                }
+
+                const headerItem = document.createElement('li');
+                const header = document.createElement('h6');
+                header.className = 'dropdown-header';
+                header.textContent = collection.name;
+                headerItem.appendChild(header);
+                dropdownMenu.appendChild(headerItem);
+
+                collection.layers.forEach(layer => {
+                    const layerId = `overlay-${layerIndex}`;
+                    const listItem = document.createElement('li');
+                    const layerItem = document.createElement('a');
+                    layerItem.className = 'dropdown-item overlay-layer';
+                    layerItem.href = '#';
+                    layerItem.dataset.layer = layerId;
+                    layerItem.dataset.tileUrl = layer.url;
+                    layerItem.dataset.tileType = layer.type || 'pmtiles';
+                    layerItem.textContent = layer.name;
+
+                    layerItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.switchToOverlayLayer(
+                            layerId,
+                            layer.url,
+                            layer.name,
+                            layer.type || 'pmtiles',
+                            layer.attribution || ''
+                        );
+
+                        const dropdown = bootstrap.Dropdown.getInstance(this.layerDropdown);
+                        if (dropdown) dropdown.hide();
+                    });
+
+                    listItem.appendChild(layerItem);
+                    dropdownMenu.appendChild(listItem);
+                    layerIndex++;
+                });
+            });
+        }
+
+        addErrorItem() {
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+
+            const dividerItem = document.createElement('li');
+            const divider = document.createElement('hr');
+            divider.className = 'dropdown-divider';
+            dividerItem.appendChild(divider);
+            dropdownMenu.appendChild(dividerItem);
+
+            const errorItem = document.createElement('li');
+            const errorLink = document.createElement('div');
+            errorLink.className = 'dropdown-item-text text-muted';
+            errorLink.textContent = 'Failed to load map layers';
+            errorItem.appendChild(errorLink);
+            dropdownMenu.appendChild(errorItem);
+        }
+    }
+
+    // Add LayerControl to map
+    map.addControl(new LayerControl(), 'top-right');
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.FullscreenControl());
+
+    // Track polygon data
+    var drawnPolygon = null;
+    var gm = null;
+    var currentPolygonId = null;
+    
+    // Initialize Geoman after map loads
+    map.on('load', function() {
+        // Configure Geoman options - only show polygon and erase tools
+        var geomanOptions = {
+            position: 'top-left',
+            controls: {
+                draw: {
+                    polygon: {
+                        uiEnabled: true,
+                        title: 'Draw Polygon (only one allowed)'
+                    },
+                    marker: {
+                        uiEnabled: false
+                    },
+                    circle_marker: {
+                        uiEnabled: false
+                    },
+                    text_marker: {
+                        uiEnabled: false
+                    },
+                    circle: {
+                        uiEnabled: false
+                    },
+                    ellipse: {
+                        uiEnabled: false
+                    },
+                    line: {
+                        uiEnabled: false
+                    },
+                    rectangle: {
+                        uiEnabled: false
+                    }
+                },
+                edit: {
+                    delete: {
+                        uiEnabled: true
+                    }
+                },
+                helper: {
+                    snapping: {
+                        uiEnabled: false
+                    }
+                }
+            }
+        };
+
+        // Initialize Geoman with the map
+        try {
+            console.log('Attempting to initialize Geoman...');
+            console.log('window keys containing Geoman:', Object.keys(window).filter(k => k.toLowerCase().includes('geoman')));
+            
+            // The UMD build exports to window.Geoman
+            if (typeof window.Geoman === 'undefined') {
+                throw new Error('Geoman library not loaded. Check that the script tag loaded successfully.');
+            }
+            
+            console.log('Geoman library found:', window.Geoman);
+            console.log('Geoman keys:', Object.keys(window.Geoman));
+            
+            // The library exports both the class and helper functions
+            // Try to access the Geoman class
+            var GeomanClass = window.Geoman.Geoman || window.Geoman;
+            
+            if (typeof GeomanClass !== 'function') {
+                throw new Error('Geoman class is not a function. Got: ' + typeof GeomanClass);
+            }
+            
+            // Create a new Geoman instance
+            gm = new GeomanClass(map, geomanOptions);
+            
+            console.log('Geoman initialized successfully:', gm);
+            
+            // Listen for Geoman loaded event
+            map.on('gm:loaded', function() {
+                console.log('Geoman fully loaded');
+                
+                // Enforce one polygon limit
+                map.on('gm:create', function(event) {
+                    if (event.shape === 'polygon') {
+                        console.log('Polygon created:', event.feature.id);
+                        console.log('Event feature object:', event.feature);
+                        
+                        // If there's already a polygon, remove it
+                        if (currentPolygonId !== null && currentPolygonId !== event.feature.id) {
+                            console.log('Removing previous polygon:', currentPolygonId);
+                            
+                            // Try different removal methods
+                            try {
+                                // Method 1: Try using the feature's remove method
+                                gm.features.forEach(function(feature) {
+                                    if (feature.id === currentPolygonId) {
+                                        console.log('Found feature to remove, calling delete method');
+                                        if (typeof feature.delete === 'function') {
+                                            feature.delete();
+                                        } else if (typeof feature.remove === 'function') {
+                                            feature.remove();
+                                        } else {
+                                            console.warn('Feature has no delete or remove method');
+                                            console.log('Feature methods:', Object.keys(feature));
+                                        }
+                                    }
+                                });
+                            } catch (e) {
+                                console.warn('Error removing polygon:', e);
+                            }
+                        }
+                        
+                        // Store the new polygon's ID
+                        currentPolygonId = event.feature.id;
+                        
+                        // Update polygon data
+                        updatePolygonData();
+                    }
+                });
+                
+                // Track polygon removal
+                map.on('gm:remove', function(event) {
+                    if (event.feature && event.feature.id === currentPolygonId) {
+                        console.log('Polygon removed by user');
+                        currentPolygonId = null;
+                        updatePolygonData();
+                    }
+                });
+                
+                // Track polygon editing
+                map.on('gm:editend', function(event) {
+                    if (event.feature && event.feature.id === currentPolygonId) {
+                        console.log('Polygon edited');
+                        updatePolygonData();
+                    }
+                });
+                
+                updatePolygonData();
+            });
+            
+        } catch (e) {
+            console.error('Error initializing Geoman:', e);
+            console.error('Error stack:', e.stack);
+            showAlert('danger', 'Failed to initialize polygon drawing tools: ' + e.message);
+        }
+    });
+    
+    function updatePolygonData() {
+        try {
+            if (!gm || !gm.features) {
+                console.log('Geoman features not yet available');
+                return;
+            }
+            
+            // Get the current polygon if it exists
+            drawnPolygon = null;
+            
+            gm.features.forEach(function(feature) {
+                if (feature.shape === 'polygon' && feature.id === currentPolygonId) {
+                    console.log('Found current polygon:', feature.id);
+                    drawnPolygon = feature.getGeoJson();
+                }
+            });
+            
+            // Update submit button state
+            if (drawnPolygon) {
+                submitButton.disabled = false;
+                console.log('Polygon ready for submission:', drawnPolygon);
+            } else {
+                drawnPolygon = null;
+                submitButton.disabled = true;
+                console.log('No polygon to submit');
+            }
+        } catch (e) {
+            console.warn('Error querying polygon data:', e);
+        }
+    }
+
+    const confidenceRadios = document.querySelectorAll('input[name="confidence"]');
+    const notesRequiredIndicator = document.getElementById('notes-required-indicator');
+    const notesHelpText = document.getElementById('notes-help-text');
+    const confidenceHighRadio = document.getElementById('confidence-high');
+
+    const mainImage = document.getElementById('main-image');
+    const imageFallback = document.getElementById('image-fallback');
+
+    if (mainImage && imageFallback) {
+        mainImage.onload = function() {
+            imageFallback.style.setProperty('display', 'none', 'important');
+            mainImage.style.display = 'block';
+            mainImage.style.visibility = 'visible';
+            setupPhotoSwipeData(this);
+        };
+
+        mainImage.onerror = function() {
+            mainImage.style.display = 'none';
+            imageFallback.style.setProperty('display', 'flex', 'important');
+        };
+
+        if (mainImage.complete) {
+            if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
+                imageFallback.style.setProperty('display', 'none', 'important');
+                mainImage.style.display = 'block';
+                mainImage.style.visibility = 'visible';
+                setupPhotoSwipeData(mainImage);
+            } else {
+                mainImage.style.display = 'none';
+                imageFallback.style.setProperty('display', 'flex', 'important');
+            }
+        }
+    }
+
+    // Handle confidence level changes
+    if (confidenceRadios && confidenceRadios.length > 0) {
+        confidenceRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'low') {
+                    if (notesRequiredIndicator) notesRequiredIndicator.style.display = 'inline';
+                    if (notesHelpText) notesHelpText.style.display = 'block';
+                    if (confidenceNotes) confidenceNotes.required = true;
+                } else {
+                    if (notesRequiredIndicator) notesRequiredIndicator.style.display = 'none';
+                    if (notesHelpText) notesHelpText.style.display = 'none';
+                    if (confidenceNotes) confidenceNotes.required = false;
+                }
+            });
+        });
+    }
+
+    // Handle back button
+    if (backButton) {
+        backButton.addEventListener('click', function() {
+            window.location.href = `{% url 'images:image_detail' image.id %}`;
+        });
+    }
+
+    // Handle submit button
+    submitButton.addEventListener('click', function() {
+        if (!drawnPolygon) {
+            showAlert('warning', 'Please draw a polygon on the map first');
+            return;
+        }
+
+        const selectedConfidence = document.querySelector('input[name="confidence"]:checked');
+        if (!selectedConfidence) {
+            showAlert('warning', 'Please select a confidence level');
+            return;
+        }
+
+        if (selectedConfidence.value === 'low' && confidenceNotes.value.trim() === '') {
+            showAlert('warning', 'Low confidence georeferences must include a descriptive note');
+            confidenceNotes.focus();
+            return;
+        }
+
+        performSubmission();
+    });
+
+    // Function to handle the actual submission
+    function performSubmission() {
+        if (!drawnPolygon || !drawnPolygon.geometry) {
+            showAlert('danger', 'Invalid polygon data');
+            return;
+        }
+
+        const notes = confidenceNotes.value.trim();
+        const selectedConfidence = document.querySelector('input[name="confidence"]:checked');
+        const confidence = selectedConfidence ? selectedConfidence.value : 'medium';
+
+        const data = {
+            polygon: drawnPolygon.geometry,
+            notes: notes,
+            confidence: confidence
+        };
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+
+        fetch(`{% url 'images:aerial_georeference_image' image.id %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', 'Aerial georeference submitted successfully!');
+                setTimeout(() => {
+                    window.location.href = `{% url 'images:image_detail' image.id %}`;
+                }, 1500);
+            } else {
+                showAlert('danger', 'Error: ' + data.error);
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Aerial Georeference';
+            }
+        })
+        .catch(error => {
+            showAlert('danger', 'Network error occurred');
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Submit Aerial Georeference';
+        });
+    }
+
+    // Difficulty marking functionality (admin only)
+    function handleDifficultyClick() {
+        const difficulty = this.dataset.difficulty;
+        const clickedButton = this;
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+
+        clickedButton.disabled = true;
+        const originalText = clickedButton.innerHTML;
+        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const formData = new FormData();
+        formData.append('difficulty', difficulty);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(`{% url 'images:mark_difficulty' image.id %}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                showAlert('success', `Image marked as ${difficulty}`);
+                clickedButton.innerHTML = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+                clickedButton.disabled = false;
+
+                clickedButton.offsetHeight;
+                setTimeout(() => {
+                    updateDifficultyButtons(difficulty);
+                    updateDifficultyBadge(difficulty);
+                }, 10);
+            } else {
+                throw new Error('Network response was not ok');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'Error marking difficulty. Please try again.');
+            clickedButton.disabled = false;
+            clickedButton.innerHTML = originalText;
+        });
+    }
+
+    function updateDifficultyButtons(newDifficulty) {
+        let buttonGroup = null;
+        document.querySelectorAll('.btn-group').forEach(group => {
+            const buttons = group.querySelectorAll('button');
+            buttons.forEach(btn => {
+                const text = btn.textContent.toLowerCase().trim();
+                if (btn.hasAttribute('data-difficulty') ||
+                    btn.classList.contains('mark-difficulty') ||
+                    ['easy', 'medium', 'hard'].some(d => text.includes(d))) {
+                    buttonGroup = group;
+                }
+            });
+        });
+
+        if (!buttonGroup) return;
+
+        const buttons = buttonGroup.querySelectorAll('button');
+
+        buttons.forEach(button => {
+            const buttonText = button.textContent.toLowerCase().trim();
+            let buttonDifficulty = ['easy', 'medium', 'hard'].find(d => buttonText.includes(d));
+
+            if (buttonDifficulty === newDifficulty) {
+                button.className = `btn btn-sm btn-${getBootstrapColor(newDifficulty)}`;
+                button.disabled = true;
+                button.removeAttribute('data-difficulty');
+            } else {
+                button.className = `btn btn-sm btn-outline-${getBootstrapColor(buttonDifficulty)} mark-difficulty`;
+                button.disabled = false;
+                button.setAttribute('data-difficulty', buttonDifficulty);
+
+                if (!button.hasEventListener) {
+                    button.addEventListener('click', handleDifficultyClick);
+                    button.hasEventListener = true;
+                }
+            }
+            button.innerHTML = buttonDifficulty.charAt(0).toUpperCase() + buttonDifficulty.slice(1);
+        });
+    }
+
+    function updateDifficultyBadge(newDifficulty) {
+        const cardHeader = document.querySelector('.card-header');
+        if (!cardHeader) return;
+
+        let difficultyBadge = cardHeader.querySelector('.badge');
+
+        if (difficultyBadge) {
+            difficultyBadge.className = `badge bg-${getBootstrapColor(newDifficulty)}`;
+            difficultyBadge.innerHTML = newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1);
+        } else {
+            const badgeContainer = cardHeader.querySelector('h5');
+            if (badgeContainer) {
+                const newBadge = document.createElement('span');
+                newBadge.className = `badge bg-${getBootstrapColor(newDifficulty)} ms-2`;
+                newBadge.innerHTML = newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1);
+                badgeContainer.appendChild(newBadge);
+            }
+        }
+    }
+
+    // Initialize difficulty buttons
+    if (isStaff) {
+        markDifficultyButtons.forEach(button => {
+            button.addEventListener('click', handleDifficultyClick);
+            button.hasEventListener = true;
+        });
+    }
+
+    // Handle will not georeference (only for staff users)
+    if (willNotGeorefButton && isStaff) {
+        willNotGeorefButton.addEventListener('click', function() {
+            const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+                             document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', csrfToken);
+
+            fetch(`{% url 'images:mark_will_not_georef' image.id %}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showAlert('info', 'Image marked as "will not georeference"');
+                    setTimeout(() => {
+                        window.location.href = `{% url 'images:image_detail' image.id %}`;
+                    }, 1000);
+                }
+            });
+        });
+    }
+
+    // Helper function to show alerts
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+
+    // Subject management functionality (logged-in users only)
+    const isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
+    if (isAuthenticated) {
+        const addBtn = document.getElementById('add-subject-btn');
+        const subjectInput = document.getElementById('subject-autocomplete');
+
+        function addSubjectToDisplay(subject) {
+            const noSubjectsMessage = document.querySelector('.text-center.py-4');
+            if (noSubjectsMessage) {
+                noSubjectsMessage.remove();
+            }
+
+            let subjectsRow = document.getElementById('image-subjects-row');
+            if (!subjectsRow) {
+                const cardBody = document.querySelector('#add-subject-collapse').closest('.card-body');
+                subjectsRow = document.createElement('div');
+                subjectsRow.className = 'row g-3';
+                subjectsRow.id = 'image-subjects-row';
+                cardBody.appendChild(subjectsRow);
+            }
+
+            const subjectCardHtml = `
+                <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 subject-card-wrapper">
+                    <div class="card h-100 shadow-sm subject-card" data-subject-relation-id="${subject.relation_id}">
+                        <div class="drag-handle subject-card-control position-absolute top-0 start-0 p-2" style="cursor: move; z-index: 10;">
+                            <i class="fas fa-grip-vertical text-muted"></i>
+                        </div>
+                        ${subject.image_url ?
+                            `<a href="${subject.url}" class="d-block">
+                                <img src="${subject.image_url}" alt="${subject.title}" class="card-img-top" style="height: 150px; object-fit: cover;">
+                             </a>` :
+                            `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 150px;">
+                                <i class="fas fa-image fa-3x text-muted"></i>
+                             </div>`
+                        }
+                        <div class="card-body p-2">
+                            <h6 class="card-title mb-1" style="font-size: 1rem;">
+                                <a href="${subject.url}" class="text-decoration-none text-dark">
+                                    ${subject.title}
+                                </a>
+                            </h6>
+                        </div>
+                        <div class="position-absolute top-0 end-0 p-1 subject-card-control">
+                            <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="${subject.relation_id}" title="Remove subject">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            subjectsRow.insertAdjacentHTML('beforeend', subjectCardHtml);
+        }
+
+        function addSubjectByWikidataId(wikidataId) {
+            if (!wikidataId || !wikidataId.match(/^Q\d+$/)) {
+                showAlert('danger', 'Invalid Wikidata ID format. Must be Q followed by numbers (e.g., Q123456)');
+                return;
+            }
+
+            addBtn.disabled = true;
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Adding...';
+
+            const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+            const url = `{% url 'images:add_subject_to_image' image.id %}`;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ wikidata_id: wikidataId })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Server error'); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    subjectInput.value = '';
+                    addSubjectToDisplay(data.subject);
+                } else {
+                    showAlert('danger', data.error);
+                }
+            })
+            .catch(error => {
+                showAlert('danger', `Error adding subject: ${error.message}`);
+            })
+            .finally(() => {
+                addBtn.disabled = false;
+                addBtn.innerHTML = originalText;
+            });
+        }
+
+        if (addBtn) {
+            addBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const inputValue = subjectInput.value.trim();
+                if (inputValue.match(/^Q\d+$/)) {
+                    addSubjectByWikidataId(inputValue);
+                } else {
+                    showAlert('info', 'Please select a subject from the suggestions or enter a valid Wikidata ID.');
+                }
+            });
+        }
+
+        // Init Autocomplete
+        if (subjectInput) {
+            const subjectAutocomplete = new autoComplete({
+                selector: "#subject-autocomplete",
+                placeHolder: "Search for a subject by name...",
+                data: {
+                    src: async (query) => {
+                        try {
+                            const source = await fetch(`{% url 'images:subject_autocomplete' %}?q=${query}`);
+                            const data = await source.json();
+                            return data;
+                        } catch (error) {
+                            return error;
+                        }
+                    },
+                    keys: ["title"],
+                    cache: false
+                },
+                resultItem: {
+                    highlight: true,
+                    element: (item, data) => {
+                        item.style = "display: flex; justify-content: space-between; align-items: center;";
+                        let description = data.value.description ? data.value.description.substring(0, 40) + '...' : '';
+                        item.innerHTML = `
+                        <span style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                            ${data.match} <small class="text-muted ms-2">${description}</small>
+                        </span>
+                        <span style="display: flex; align-items: center; font-size: 13px; font-weight: 100; text-transform: uppercase; color: rgba(0,0,0,.5);">
+                            ${data.value.wikidata_id || ''}
+                        </span>`;
+                    },
+                },
+                threshold: 2,
+                events: {
+                    input: {
+                        selection: (event) => {
+                            const selection = event.detail.selection.value;
+                            subjectAutocomplete.input.value = selection.title;
+                            if (selection.wikidata_id) {
+                                addSubjectByWikidataId(selection.wikidata_id);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Remove subject handler
+        document.addEventListener('click', function(e) {
+            const removeButton = e.target.closest('.remove-subject');
+            if (removeButton) {
+                const subjectRelationId = removeButton.dataset.subjectRelationId;
+                const cardWrapper = removeButton.closest('.subject-card-wrapper');
+
+                if (!subjectRelationId) return;
+
+                if (!confirm('Are you sure you want to remove this subject from the image?')) {
+                    return;
+                }
+
+                removeButton.disabled = true;
+                const originalIcon = removeButton.innerHTML;
+                removeButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '{{ csrf_token }}';
+                const url = `{% url 'images:remove_subject_from_image' 0 %}`.replace('/0/', `/${subjectRelationId}/`);
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().catch(() => null).then(errorData => {
+                            throw new Error(errorData?.error || response.statusText);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showAlert('success', data.message);
+                        if (cardWrapper) {
+                            cardWrapper.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+                            cardWrapper.style.opacity = '0';
+                            cardWrapper.style.transform = 'scale(0.9)';
+                            setTimeout(() => {
+                                cardWrapper.remove();
+                                const subjectRow = document.getElementById('image-subjects-row');
+                                if (subjectRow && subjectRow.children.length === 0) {
+                                    subjectRow.remove();
+                                    const cardBody = document.querySelector('#add-subject-collapse').closest('.card-body');
+                                    const noSubjectsHtml = `
+                                        <div class="text-center py-4">
+                                            <p class="text-muted">No subjects have been assigned to this image yet.</p>
+                                        </div>
+                                    `;
+                                    cardBody.insertAdjacentHTML('beforeend', noSubjectsHtml);
+                                }
+                            }, 300);
+                        }
+                    } else {
+                        showAlert('danger', data.error || 'An unknown error occurred.');
+                        removeButton.disabled = false;
+                        removeButton.innerHTML = originalIcon;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('danger', `Error removing subject: ${error.message}`);
+                    removeButton.disabled = false;
+                    removeButton.innerHTML = originalIcon;
+                });
+            }
+        });
+
+        // Sortable subjects
+        const subjectRow = document.querySelector('#image-subjects-row');
+        if (subjectRow) {
+            const sortable = new Sortable(subjectRow, {
+                animation: 150,
+                handle: '.drag-handle',
+                filter: '.remove-subject',
+                preventOnFilter: true,
+                onEnd: function (evt) {
+                    const subjectCards = subjectRow.querySelectorAll('.subject-card');
+                    const newOrder = Array.from(subjectCards).map(card => card.dataset.subjectRelationId);
+
+                    const url = `{% url 'images:reorder_subjects' image.id %}`;
+                    const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+                    fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ order: newOrder })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showAlert('success', 'Subject order updated.');
+                        } else {
+                            showAlert('danger', 'Error updating order: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        showAlert('danger', 'An unexpected error occurred while reordering.');
+                        console.error('Error:', error);
+                    });
+                }
+            });
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
