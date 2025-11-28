@@ -290,14 +290,24 @@ def georeference_interface(request):
             # For specific image requests, allow both georeferenced and ungeoreferenced images
             # This enables corrections for already georeferenced images
             # But exclude duplicate images
-            current_image = Image.objects.get(
-                id=int(image_id),
-                will_not_georef=False,
-                aerial=False,
-                duplicate_of__isnull=True,
-                collection__public=True,
-                collection__source__public=True,
-            )
+            # Also allow aerials if user is an admin
+            query_params = {
+                "id": int(image_id),
+                "will_not_georef": False,
+                "duplicate_of__isnull": True,
+                "collection__public": True,
+                "collection__source__public": True,
+            }
+
+            # Only allow aerials for admin users
+            if not request.user.is_staff:
+                query_params["aerial"] = False
+
+            current_image = Image.objects.get(**query_params)
+
+            # If image is aerial but user is not admin, raise 403 Forbidden
+            if current_image.aerial and not request.user.is_staff:
+                raise PermissionDenied("Only admins can georeference aerial images")
         except (Image.DoesNotExist, ValueError):
             # If specific image not found or invalid, fall back to random selection
             pass

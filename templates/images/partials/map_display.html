@@ -1405,6 +1405,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         bounds.extend(coord);
                     }
                 });
+                
+                // Add point coordinates to bounds if available
+                {% if center_lat and center_lng %}
+                bounds.extend([{{ center_lng }}, {{ center_lat }}]);
+                {% endif %}
+                
                 map.fitBounds(bounds, {
                     padding: 50,
                     maxZoom: 16
