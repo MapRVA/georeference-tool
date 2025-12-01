@@ -631,8 +631,76 @@
                     </div>
                 </div>
 
+                <!-- Aerial Georeference Information -->
+                {% if aerial_georeference %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-satellite me-2"></i>Aerial Georeference Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row">
+                                <dt class="col-sm-5">By:</dt>
+                                <dd class="col-sm-7">
+                                    <i class="fas fa-user me-1"></i>
+                                    {% if aerial_georeference.georeferenced_by %}
+                                        {% if aerial_georeference.georeferenced_by.get_profile_url %}
+                                            <a href="{{ aerial_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
+                                                {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
+                                            </a>
+                                        {% else %}
+                                            {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                        {% endif %}
+                                    {% else %}
+                                        Anonymous
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-5">Date:</dt>
+                                <dd class="col-sm-7">
+                                    <i class="fas fa-calendar me-1"></i>{{ aerial_georeference.georeferenced_at|date:"M j, Y" }}
+                                </dd>
+
+                                <dt class="col-sm-5">Confidence:</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge {% if aerial_georeference.confidence == 'high' %}bg-success{% elif aerial_georeference.confidence == 'medium' %}bg-warning text-dark{% elif aerial_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ aerial_georeference.confidence|capfirst }}
+                                    </span>
+                                </dd>
+
+                                <dt class="col-sm-5">Validations:</dt>
+                                <dd class="col-sm-7">
+                                    {% with validation_counts=aerial_georeference.get_validation_counts %}
+                                        {% if aerial_georeference.validation_count > 0 %}
+                                            <div class="badge-group d-flex flex-wrap">
+                                                {% if validation_counts.correct > 0 %}
+                                                    <span class="badge bg-success" title="{{ validation_counts.correct }} correct validation{{ validation_counts.correct|pluralize }}">
+                                                        {{ validation_counts.correct }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if validation_counts.uncertain > 0 %}
+                                                    <span class="badge bg-warning text-dark" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
+                                                        {{ validation_counts.uncertain }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if validation_counts.incorrect > 0 %}
+                                                    <span class="badge bg-danger" title="{{ validation_counts.incorrect }} incorrect validation{{ validation_counts.incorrect|pluralize }}">
+                                                        {{ validation_counts.incorrect }}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span class="badge bg-secondary">0</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                {% endif %}
+
                 <!-- Georeference Information -->
-                {% if image.is_georeferenced %}
+                {% if image.georeferences.exists %}
                     <div class="card mb-4">
                         <div class="card-header">
                             <h6 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Georeference Details</h6>
