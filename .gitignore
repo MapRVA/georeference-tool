@@ -1,5 +1,8 @@
 my.env
 
+# Django staticfiles
+/staticfiles
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
