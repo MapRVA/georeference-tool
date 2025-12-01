@@ -864,6 +864,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (!this.map.getLayer('satellite-layer')) {
+                // Add before the first layer to keep it at the bottom
+                const firstLayer = this.map.getStyle().layers[0];
+                const beforeId = firstLayer ? firstLayer.id : undefined;
+                
                 this.map.addLayer({
                     'id': 'satellite-layer',
                     'type': 'raster',
@@ -871,7 +875,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'layout': {
                         'visibility': 'none'
                     }
-                });
+                }, beforeId);
             }
         }
 
@@ -886,6 +890,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (!this.map.getLayer('usgs-layer')) {
+                // Add before the first layer to keep it at the bottom
+                const firstLayer = this.map.getStyle().layers[0];
+                const beforeId = firstLayer ? firstLayer.id : undefined;
+                
                 this.map.addLayer({
                     'id': 'usgs-layer',
                     'type': 'raster',
@@ -893,7 +901,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'layout': {
                         'visibility': 'none'
                     }
-                });
+                }, beforeId);
             }
         }
 
@@ -959,6 +967,28 @@ document.addEventListener('DOMContentLoaded', function() {
             this.hideOSMLayers();
             this.hideOtherBaseLayers(['usgs-layer']);
             if (this.map.getLayer('satellite-layer')) {
+                // Get all layers and find all geoman layer IDs
+                const styles = this.map.getStyle().layers;
+                const geomanLayerIds = [];
+                const allLayerIds = [];
+                
+                for (let layer of styles) {
+                    allLayerIds.push(layer.id);
+                    if (this.isOverlayLayer(layer.id)) {
+                        geomanLayerIds.push(layer.id);
+                    }
+                }
+                
+                console.log('All map layers:', allLayerIds);
+                console.log('Geoman layers found:', geomanLayerIds);
+                
+                // If there are geoman layers, move satellite before the first one
+                // This ensures satellite appears below all geoman layers
+                if (geomanLayerIds.length > 0) {
+                    console.log('Moving satellite-layer before:', geomanLayerIds[0]);
+                    this.map.moveLayer('satellite-layer', geomanLayerIds[0]);
+                }
+                
                 this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
             }
         }
@@ -973,6 +1003,22 @@ document.addEventListener('DOMContentLoaded', function() {
             this.hideOSMLayers();
             this.hideOtherBaseLayers(['satellite-layer']);
             if (this.map.getLayer('usgs-layer')) {
+                // Get all layers and find all geoman layer IDs
+                const styles = this.map.getStyle().layers;
+                const geomanLayerIds = [];
+                
+                for (let layer of styles) {
+                    if (this.isOverlayLayer(layer.id)) {
+                        geomanLayerIds.push(layer.id);
+                    }
+                }
+                
+                // If there are geoman layers, move USGS before the LAST one
+                // This ensures USGS appears below all geoman layers
+                if (geomanLayerIds.length > 0) {
+                    this.map.moveLayer('usgs-layer', geomanLayerIds[0]);
+                }
+                
                 this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
             }
         }
@@ -986,7 +1032,8 @@ document.addEventListener('DOMContentLoaded', function() {
         isOverlayLayer(layerId) {
             return layerId === 'polygon-fill' ||
                    layerId === 'polygon-outline' ||
-                   layerId.startsWith('overlay-');
+                   layerId.startsWith('overlay-') ||
+                   layerId.startsWith('gm_');  // Geoman layers
         }
 
         isCustomBaseLayer(layerId) {
@@ -1062,7 +1109,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!this.map.getLayer(layerId)) {
                 console.log('Adding overlay layer:', layerId);
                 try {
-                    const beforeId = this.map.getLayer('polygon-fill') ? 'polygon-fill' : undefined;
+                    // Find the first geoman layer to position overlay before it
+                    const styles = this.map.getStyle().layers;
+                    let geomanLayerId = null;
+                    for (let layer of styles) {
+                        if (this.isOverlayLayer(layer.id)) {
+                            geomanLayerId = layer.id;
+                            break;
+                        }
+                    }
+                    // Add before the first geoman layer so overlay appears below geoman
+                    const beforeId = geomanLayerId || (this.map.getLayer('polygon-fill') ? 'polygon-fill' : undefined);
 
                     this.map.addLayer({
                         id: layerId,
