@@ -7,7 +7,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Case, Func, IntegerField, Value, When
+from django.db.models import Avg, Case, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -47,6 +47,7 @@ from .models import (
     Georeference,
     GeoreferenceValidation,
     Image,
+    ImageRating,
     ImageSkip,
     LayerCollection,
     Source,
@@ -242,7 +243,7 @@ def collection_detail(request, source_slug, collection_slug):
         collection.images.filter(duplicate_of__isnull=True)
         .annotate(
             has_georeference=Case(
-                When(georeferences__isnull=False, then=Value(1)),
+                When(Q(georeferences__isnull=False) | Q(aerial=True, aerial_georeferences__isnull=False), then=Value(1)),
                 default=Value(0),
                 output_field=IntegerField(),
             )
@@ -250,7 +251,10 @@ def collection_detail(request, source_slug, collection_slug):
         .order_by("will_not_georef", "has_georeference", "id")
     )
     total_images = images.distinct().count()
-    georeferenced_images = images.filter(georeferences__isnull=False).distinct().count()
+    # Count images as georeferenced if they have point georeferences OR aerials with polygon georeferences
+    georeferenced_images = images.filter(
+        Q(georeferences__isnull=False) | Q(aerial=True, aerial_georeferences__isnull=False)
+    ).distinct().count()
     will_not_georef_images = collection.images.filter(
         duplicate_of__isnull=True, will_not_georef=True
     ).count()
@@ -547,6 +551,17 @@ def image_detail(request, image_id):
     # Get the position of this image in the collection (ordered by ID)
     image_position = image.collection.images.filter(id__lte=image.id).count()
 
+    # Get rating statistics
+    image_ratings = image.ratings.all()
+    avg_rating = image_ratings.aggregate(Avg('rating'))['rating__avg']
+    rating_count = image_ratings.count()
+    user_rating = None
+    if request.user.is_authenticated:
+        try:
+            user_rating = ImageRating.objects.get(image=image, user=request.user).rating
+        except ImageRating.DoesNotExist:
+            pass
+
     context = {
         "image": image,
         "has_georeference": image.georeferences.exists(),
@@ -560,6 +575,9 @@ def image_detail(request, image_id):
         "previous_image": image.get_previous_image(),
         "total_images_in_collection": total_images_in_collection,
         "image_position": image_position,
+        "avg_rating": avg_rating,
+        "rating_count": rating_count,
+        "user_rating": user_rating,
     }
 
     return render(request, "images/image_detail.html", context)
@@ -977,6 +995,107 @@ def add_comment(request, image_id):
         import traceback
 
         traceback.print_exc()
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@require_http_methods(["POST", "DELETE"])
+@csrf_exempt
+def submit_rating(request, image_id):
+    """API endpoint to submit, update, or delete a rating for an image"""
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "Authentication required"}, status=401
+        )
+
+    try:
+        image = get_object_or_404(Image, id=image_id)
+
+        # Handle DELETE request (clear rating)
+        if request.method == 'DELETE':
+            with transaction.atomic():
+                deleted_count, _ = ImageRating.objects.filter(
+                    image=image, user=request.user
+                ).delete()
+
+                if deleted_count == 0:
+                    return JsonResponse(
+                        {"success": False, "error": "No rating found to delete"},
+                        status=404
+                    )
+
+            # Get updated average rating and count after deletion
+            image_ratings = image.ratings.all()
+            avg_rating = image_ratings.aggregate(Avg("rating"))["rating__avg"]
+            rating_count = image_ratings.count()
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": "Rating cleared successfully",
+                    "user_rating": None,
+                    "avg_rating": float(avg_rating) if avg_rating else None,
+                    "rating_count": rating_count,
+                }
+            )
+
+        # Handle POST request (submit/update rating)
+        data = json.loads(request.body)
+
+        rating = data.get("rating")
+        if rating is None:
+            return JsonResponse(
+                {"success": False, "error": "Missing 'rating' field"}, status=400
+            )
+
+        # Validate rating is an integer between 1 and 10
+        try:
+            rating = int(rating)
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"success": False, "error": "Rating must be an integer"}, status=400
+            )
+
+        if not (1 <= rating <= 10):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Rating must be between 1 and 10",
+                },
+                status=400,
+            )
+
+        # Use update_or_create to handle both new ratings and updates
+        with transaction.atomic():
+            image_rating, created = ImageRating.objects.update_or_create(
+                image=image,
+                user=request.user,
+                defaults={"rating": rating},
+            )
+
+        # Get updated average rating and count
+        image_ratings = image.ratings.all()
+        avg_rating = image_ratings.aggregate(Avg("rating"))["rating__avg"]
+        rating_count = image_ratings.count()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Rating submitted successfully",
+                "rating_id": image_rating.id,
+                "user_rating": rating,
+                "avg_rating": float(avg_rating) if avg_rating else None,
+                "rating_count": rating_count,
+            }
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"}, status=400
+        )
+    except Image.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Image not found"}, status=404)
+    except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

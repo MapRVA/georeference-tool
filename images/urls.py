@@ -43,6 +43,11 @@ urlpatterns = [
         views.add_comment,
         name="add_comment",
     ),
+    path(
+        "<int:image_id>/rate/",
+        views.submit_rating,
+        name="submit_rating",
+    ),
     path("<int:image_id>/skip/", views.skip_image, name="skip_image"),
     path(
         "georeference/<int:georeference_id>/validate/",

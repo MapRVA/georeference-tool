@@ -324,8 +324,16 @@ class Image(models.Model):
 
     @property
     def is_georeferenced(self):
-        """Check if this image has been georeferenced"""
-        return self.georeferences.exists()
+        """Check if this image has been georeferenced
+        For regular images: has a point georeference
+        For aerial images: has EITHER a point georeference OR an aerial georeference (polygon)
+        """
+        if self.aerial:
+            # Aerial images are georeferenced if they have a point OR polygon georeference
+            return self.georeferences.exists() or self.aerial_georeferences.exists()
+        else:
+            # Regular images only use point georeferences
+            return self.georeferences.exists()
 
     @property
     def georeference_count(self):
@@ -1032,6 +1040,33 @@ class Comment(models.Model):
             models.Index(fields=["image"]),
             models.Index(fields=["commented_by"]),
             models.Index(fields=["created_at"]),
+        ]
+
+
+class ImageRating(models.Model):
+    """Rating of an image by a user (1-10 scale)"""
+
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, related_name="ratings"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="image_ratings"
+    )
+    rating = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        help_text="Rating from 1-10",
+    )
+    rated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} rated {self.image} as {self.rating}/10"
+
+    class Meta:
+        unique_together = ["image", "user"]
+        indexes = [
+            models.Index(fields=["image"]),
+            models.Index(fields=["user"]),
         ]
 
 

@@ -239,6 +239,152 @@
     .markdown-content a:hover {
         text-decoration: underline;
     }
+
+    /* Rating Stars Styling */
+    .rating-stars-display {
+        display: inline-flex;
+        gap: 0.25rem;
+        align-items: center;
+    }
+
+    .rating-stars-input {
+        display: inline-flex;
+        align-items: baseline;
+        vertical-align: baseline;
+        line-height: 1;
+    }
+
+    .rating-star {
+        font-size: 1.5rem;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s ease;
+        position: relative;
+        display: inline-block;
+        padding: 0.125rem;
+        margin: -0.125rem;
+    }
+
+    .rating-star.filled {
+        color: #ffc107;
+    }
+
+    .rating-star.empty {
+        color: #ddd;
+    }
+
+    .rating-star.hover-active {
+        color: #ffc107 !important;
+    }
+
+    .rating-star.hover-inactive {
+        color: #ddd !important;
+    }
+
+    /* User rating stars - use exact same approach as average rating stars */
+    .user-rating-star {
+        font-size: 1.2rem;
+        display: inline-block;
+        margin-right: 0.25rem;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s ease;
+    }
+
+    .user-rating-star.filled {
+        color: #ffc107;
+    }
+
+    .user-rating-star.empty {
+        color: #ddd;
+    }
+
+    .user-rating-star.hover-active {
+        color: #ffc107 !important;
+    }
+
+    .user-rating-star.hover-inactive {
+        color: #ddd !important;
+    }
+
+    /* User fractional stars - identical to average rating fractional stars */
+    .rating-stars-input .star-fractional {
+        position: relative;
+        display: inline-block;
+        font-size: 1.2rem;
+        margin-right: 0.25rem;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+        height: 1.2rem;
+    }
+
+    /* Average rating display stars (non-interactive) */
+    .avg-rating-star {
+        font-size: 1.2rem;
+        display: inline-block;
+        margin-right: 0.25rem;
+    }
+
+    .avg-rating-star.filled {
+        color: #ffc107;
+    }
+
+    .avg-rating-star.empty {
+        color: #ddd;
+    }
+
+    /* Fractional star display for average ratings */
+    .star-fractional {
+        position: relative;
+        display: inline-block;
+        font-size: 1.2rem;
+        margin-right: 0.25rem;
+    }
+
+    .star-fractional .star-bg {
+        color: #ddd;
+        position: relative;
+    }
+
+    .star-fractional .star-fill-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    .star-fractional .star-fill {
+        color: #ffc107;
+    }
+
+
+
+
+
+    /* Clear rating button */
+    .clear-rating-btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        margin-left: 0.5rem;
+        border: 1px solid #dc3545;
+        background: transparent;
+        color: #dc3545;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .clear-rating-btn:hover {
+        background: #dc3545;
+        color: white;
+    }
+
+    /* Half star hover effect will be handled by JavaScript */
 </style>
 {% endblock %}
 
@@ -448,6 +594,39 @@
                                     {% endif %}
                                 </dd>
                             {% endif %}
+
+                            <!-- Image Rating Section -->
+                            <dt class="col-sm-12 mt-3 mb-2">Rating:</dt>
+                            <dd class="col-sm-12">
+                                <!-- Average Rating Display -->
+                                <div class="mb-3">
+                                    <div class="image-rating-display mb-2" id="rating-display">
+                                        <div class="rating-stars-display mb-2" id="avg-rating-stars" {% if not avg_rating %}style="display: none;"{% endif %}></div>
+                                        <small class="text-muted" id="rating-count" {% if not avg_rating %}style="display: none;"{% endif %}></small>
+                                        <small class="text-muted" id="no-ratings-text" {% if avg_rating %}style="display: none;"{% endif %}>No ratings yet</small>
+                                    </div>
+
+                                    <!-- User Rating Input (authenticated users only) -->
+                                    {% if request.user.is_authenticated %}
+                                        <div class="user-rating-input mt-3 pt-3" style="border-top: 1px solid #e9ecef;">
+                                            <small class="text-muted d-block mb-2">Your Rating:</small>
+                                            <div class="d-flex align-items-center">
+                                                <div class="rating-stars-input" id="user-rating-stars">
+                                                    {% for i in "12345" %}
+                                                        <i class="fas fa-star rating-star empty" data-star="{{ i }}"></i>
+                                                    {% endfor %}
+                                                </div>
+                                                <button class="clear-rating-btn" id="clear-rating-btn" style="display: none;" title="Clear your rating">
+                                                    <i class="fas fa-times"></i> Clear
+                                                </button>
+                                            </div>
+                                            <div class="mt-2">
+                                                <small class="text-muted" id="rating-preview"></small>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </dd>
                         </dl>
                     </div>
                 </div>
@@ -1861,6 +2040,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Force FontAwesome to use CSS mode instead of SVG
+    if (window.FontAwesome) {
+        window.FontAwesome.config = { autoReplaceSvg: false, searchPseudoElements: true };
+    }
+
     // Subject management functionality (logged-in users only)
     const isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
     console.log('User is authenticated:', isAuthenticated);
@@ -2260,6 +2444,471 @@ document.addEventListener('DOMContentLoaded', function() {
         currentSubjects.insertAdjacentHTML('beforeend', subjectHtml);
     }
 
+    // Rating functionality - Cleaner implementation
+    const imageId = {{ image.id }};
+    let avgRating = {{ avg_rating|default:"null" }};
+    let userRating = {{ user_rating|default:"null" }};
+    window.ratingCount = {{ rating_count|default:"0" }};
+    let ratingEventsSetup = false;
+    
+
+
+    // Convert rating (1-10) to stars (0.5-5.0)
+    function ratingToStars(rating) {
+        return rating / 2;
+    }
+
+    // Render average rating stars with fractional support
+    function renderAverageRatingStars() {
+        const starsDiv = document.getElementById('avg-rating-stars');
+        if (!starsDiv || !avgRating) return;
+
+        const starCount = ratingToStars(avgRating);
+        starsDiv.innerHTML = '';
+
+        for (let i = 1; i <= 5; i++) {
+            if (i <= Math.floor(starCount)) {
+                // Full star
+                const star = document.createElement('i');
+                star.className = 'fas fa-star avg-rating-star filled';
+                starsDiv.appendChild(star);
+            } else if (i === Math.ceil(starCount) && starCount % 1 !== 0) {
+                // Fractional star
+                const percentage = ((starCount - Math.floor(starCount)) * 100);
+                const starWrapper = document.createElement('div');
+                starWrapper.className = 'star-fractional';
+
+                const bgStar = document.createElement('i');
+                bgStar.className = 'fas fa-star star-bg';
+
+                const fillContainer = document.createElement('div');
+                fillContainer.className = 'star-fill-container';
+                fillContainer.style.width = `${percentage}%`;
+
+                const fillStar = document.createElement('i');
+                fillStar.className = 'fas fa-star star-fill';
+                fillContainer.appendChild(fillStar);
+
+                starWrapper.appendChild(bgStar);
+                starWrapper.appendChild(fillContainer);
+                starsDiv.appendChild(starWrapper);
+            } else {
+                // Empty star
+                const star = document.createElement('i');
+                star.className = 'fas fa-star avg-rating-star empty';
+                starsDiv.appendChild(star);
+            }
+        }
+    }
+
+    // Initialize user rating stars - keep static structure
+    function initializeUserRatingStars() {
+        if (!isAuthenticated) return;
+
+        const starsDiv = document.getElementById('user-rating-stars');
+        if (!starsDiv) return;
+
+        // Clear and create fresh star structure
+        starsDiv.innerHTML = '';
+        
+        for (let i = 1; i <= 5; i++) {
+            const star = document.createElement('i');
+            star.className = 'fas fa-star rating-star';
+            star.setAttribute('data-star', i);
+            starsDiv.appendChild(star);
+        }
+
+        updateUserRatingDisplay();
+        updateClearButtonVisibility();
+    }
+
+    // Update user rating display without rebuilding DOM
+    function updateUserRatingDisplay() {
+        if (!isAuthenticated) return;
+
+        const starsDiv = document.getElementById('user-rating-stars');
+        if (!starsDiv) return;
+
+        const stars = starsDiv.querySelectorAll('.rating-star');
+        
+        if (userRating) {
+            const starValue = ratingToStars(userRating);
+            
+            // Use exact same approach as average ratings
+            starsDiv.innerHTML = '';
+            
+            for (let i = 1; i <= 5; i++) {
+                if (i <= Math.floor(starValue)) {
+                    // Full star - same as average ratings
+                    const star = document.createElement('i');
+                    star.className = 'fas fa-star user-rating-star filled';
+                    star.setAttribute('data-star', i);
+                    starsDiv.appendChild(star);
+                } else if (i === Math.ceil(starValue) && starValue % 1 !== 0) {
+                    // Fractional star - identical to average ratings
+                    const percentage = ((starValue - Math.floor(starValue)) * 100);
+                    const starWrapper = document.createElement('div');
+                    starWrapper.className = 'star-fractional';
+                    starWrapper.setAttribute('data-star', i);
+
+                    const bgStar = document.createElement('i');
+                    bgStar.className = 'fas fa-star star-bg';
+
+                    const fillContainer = document.createElement('div');
+                    fillContainer.className = 'star-fill-container';
+                    fillContainer.style.width = `${percentage}%`;
+
+                    const fillStar = document.createElement('i');
+                    fillStar.className = 'fas fa-star star-fill';
+                    fillContainer.appendChild(fillStar);
+
+                    starWrapper.appendChild(bgStar);
+                    starWrapper.appendChild(fillContainer);
+                    starsDiv.appendChild(starWrapper);
+                } else {
+                    // Empty star - same as average ratings
+                    const star = document.createElement('i');
+                    star.className = 'fas fa-star user-rating-star empty';
+                    star.setAttribute('data-star', i);
+                    starsDiv.appendChild(star);
+                }
+            }
+        } else {
+            // No rating - same approach as average ratings
+            starsDiv.innerHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement('i');
+                star.className = 'fas fa-star user-rating-star empty';
+                star.setAttribute('data-star', i);
+                starsDiv.appendChild(star);
+            }
+        }
+    }
+
+    // Clean hover preview using same structure as average ratings
+    function showHoverPreview(hoveredStarNum, isLeftHalf) {
+        const starsDiv = document.getElementById('user-rating-stars');
+        if (!starsDiv) return;
+
+
+        
+        // Use identical approach as average ratings
+        starsDiv.innerHTML = '';
+        
+        for (let i = 1; i <= 5; i++) {
+            if (i < hoveredStarNum) {
+                // Full active star - identical to average ratings
+                const star = document.createElement('i');
+                star.className = 'fas fa-star user-rating-star hover-active';
+                star.setAttribute('data-star', i);
+                starsDiv.appendChild(star);
+            } else if (i === hoveredStarNum) {
+                if (isLeftHalf) {
+                    // Half star - exact same structure as average ratings
+                    const starWrapper = document.createElement('div');
+                    starWrapper.className = 'star-fractional';
+                    starWrapper.setAttribute('data-star', i);
+
+                    const bgStar = document.createElement('i');
+                    bgStar.className = 'fas fa-star star-bg';
+
+                    const fillContainer = document.createElement('div');
+                    fillContainer.className = 'star-fill-container';
+                    fillContainer.style.width = '50%';
+
+                    const fillStar = document.createElement('i');
+                    fillStar.className = 'fas fa-star star-fill';
+                    fillContainer.appendChild(fillStar);
+
+                    starWrapper.appendChild(bgStar);
+                    starWrapper.appendChild(fillContainer);
+                    starsDiv.appendChild(starWrapper);
+                } else {
+                    // Full active star - identical to average ratings
+                    const star = document.createElement('i');
+                    star.className = 'fas fa-star user-rating-star hover-active';
+                    star.setAttribute('data-star', i);
+                    starsDiv.appendChild(star);
+                }
+            } else {
+                // Inactive star - identical to average ratings
+                const star = document.createElement('i');
+                star.className = 'fas fa-star user-rating-star hover-inactive';
+                star.setAttribute('data-star', i);
+                starsDiv.appendChild(star);
+            }
+        }
+
+        // Update preview text
+        const previewRating = (hoveredStarNum - 1) * 2 + (isLeftHalf ? 1 : 2);
+        const previewStars = previewRating / 2;
+        
+        const previewEl = document.getElementById('rating-preview');
+        if (previewEl) {
+            previewEl.textContent = '';
+            previewEl.style.opacity = '0';
+        }
+    }
+
+    // Clear hover preview and restore original state
+    function clearHoverPreview() {
+
+        
+        // Simply restore the original user rating display
+        updateUserRatingDisplay();
+
+        const previewEl = document.getElementById('rating-preview');
+        if (previewEl) {
+            previewEl.textContent = '';
+            previewEl.style.opacity = '0';
+        }
+    }
+
+    // Setup rating interactions
+    function setupRatingInput() {
+        if (!isAuthenticated || ratingEventsSetup) return;
+
+        const starsDiv = document.getElementById('user-rating-stars');
+        if (!starsDiv) return;
+
+        // Click handler (works for both regular stars and fractional stars)
+        starsDiv.addEventListener('click', function(e) {
+            const star = e.target.closest('.user-rating-star, .star-fractional');
+            if (!star) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const starNum = parseInt(star.dataset.star);
+            const rect = star.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const isLeftHalf = clickX < rect.width / 2;
+            
+            const ratingToSubmit = (starNum - 1) * 2 + (isLeftHalf ? 1 : 2);
+            submitRating(ratingToSubmit);
+        });
+
+        // Hover handlers (works for both regular stars and fractional stars)
+        starsDiv.addEventListener('mousemove', function(e) {
+            const star = e.target.closest('.user-rating-star, .star-fractional');
+            if (!star) return;
+            
+            const starNum = parseInt(star.dataset.star);
+            const rect = star.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const isLeftHalf = mouseX < rect.width / 2;
+            
+            showHoverPreview(starNum, isLeftHalf);
+        });
+
+        starsDiv.addEventListener('mouseleave', function() {
+            clearHoverPreview();
+        });
+
+        // Clear rating button handler
+        const clearBtn = document.getElementById('clear-rating-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                clearUserRating();
+            });
+        }
+
+        ratingEventsSetup = true;
+    }
+
+    // Submit rating function
+    function submitRating(rating) {
+        const starsDiv = document.getElementById('user-rating-stars');
+        if (starsDiv) {
+            starsDiv.style.pointerEvents = 'none';
+            starsDiv.style.opacity = '0.6';
+        }
+
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value;
+        if (!csrfToken) {
+            showAlert('danger', 'Security token not found. Please refresh the page.');
+            if (starsDiv) {
+                starsDiv.style.pointerEvents = 'auto';
+                starsDiv.style.opacity = '1';
+            }
+            return;
+        }
+
+        const url = `/{{ image.id }}/rate/`;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ rating: rating })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || `Server error: ${response.status}`);
+                    } catch (parseError) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Update user rating and average rating in memory
+                userRating = data.user_rating;
+                avgRating = data.avg_rating;
+                window.ratingCount = data.rating_count;
+
+                // Update the display
+                updateRatingCountDisplay();
+                renderAverageRatingStars();
+                updateUserRatingDisplay();
+                updateClearButtonVisibility();
+
+                // Update the preview to show current rating
+                const previewEl = document.getElementById('rating-preview');
+                if (previewEl) {
+                    previewEl.textContent = '';
+                    previewEl.style.opacity = '0';
+                }
+
+                showAlert('success', 'Rating submitted successfully!');
+            } else {
+                showAlert('danger', data.error || 'Failed to submit rating');
+            }
+        })
+        .catch(error => {
+            showAlert('danger', `Error: ${error.message}`);
+        })
+        .finally(() => {
+            // Re-enable stars
+            if (starsDiv) {
+                starsDiv.style.pointerEvents = 'auto';
+                starsDiv.style.opacity = '1';
+            }
+        });
+    }
+
+    // Function to update the rating count display text
+    function updateRatingCountDisplay() {
+        const ratingCountEl = document.getElementById('rating-count');
+        const noRatingsEl = document.getElementById('no-ratings-text');
+        const avgStarsEl = document.getElementById('avg-rating-stars');
+        
+        if (window.ratingCount !== undefined && window.ratingCount > 0) {
+            if (ratingCountEl) {
+                ratingCountEl.textContent = `(${window.ratingCount} rating${window.ratingCount !== 1 ? 's' : ''})`;
+                ratingCountEl.style.display = 'inline';
+            }
+            if (avgStarsEl) {
+                avgStarsEl.style.display = 'block';
+            }
+            if (noRatingsEl) {
+                noRatingsEl.style.display = 'none';
+            }
+        } else {
+            if (ratingCountEl) {
+                ratingCountEl.textContent = '';
+                ratingCountEl.style.display = 'none';
+            }
+            if (avgStarsEl) {
+                avgStarsEl.style.display = 'none';
+            }
+            if (noRatingsEl) {
+                noRatingsEl.style.display = 'block';
+            }
+        }
+    }
+
+    // Update clear button visibility
+    function updateClearButtonVisibility() {
+        const clearBtn = document.getElementById('clear-rating-btn');
+        if (clearBtn) {
+            if (userRating) {
+                clearBtn.style.display = 'inline-block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+        }
+    }
+
+    // Clear user rating
+    function clearUserRating() {
+        const clearBtn = document.getElementById('clear-rating-btn');
+        if (clearBtn) {
+            clearBtn.disabled = true;
+            clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+        }
+
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value;
+        if (!csrfToken) {
+            showAlert('danger', 'Security token not found. Please refresh the page.');
+            return;
+        }
+
+        const url = `/{{ image.id }}/rate/`;
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || `Server error: ${response.status}`);
+                    } catch (parseError) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Update user rating and average rating in memory
+                userRating = null;
+                avgRating = data.avg_rating;
+                window.ratingCount = data.rating_count;
+
+                // Update the display
+                updateRatingCountDisplay();
+                renderAverageRatingStars();
+                updateUserRatingDisplay();
+                updateClearButtonVisibility();
+
+                showAlert('success', 'Rating cleared successfully!');
+            } else {
+                showAlert('danger', data.error || 'Failed to clear rating');
+            }
+        })
+        .catch(error => {
+            showAlert('danger', `Error: ${error.message}`);
+        })
+        .finally(() => {
+            // Re-enable button
+            if (clearBtn) {
+                clearBtn.disabled = false;
+                clearBtn.innerHTML = '<i class="fas fa-times"></i> Clear';
+            }
+        });
+    }
+
+    // Initialize rating system
+    setTimeout(function() {
+        renderAverageRatingStars();
+        initializeUserRatingStars();
+        setupRatingInput();
+        updateRatingCountDisplay();
+        updateClearButtonVisibility();
+    }, 100);
 });
 </script>
 {% endblock %}
