@@ -1,4 +1,5 @@
 from django.urls import path
+
 from . import views
 
 app_name = "images"
@@ -18,7 +19,11 @@ urlpatterns = [
     path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
     # Georeferencing interface
     path("georeference/", views.georeference_interface, name="georeference_interface"),
-    path("georeference-aerial/<int:image_id>/", views.aerial_georeference_interface, name="aerial_georeference_interface"),
+    path(
+        "georeference-aerial/<int:image_id>/",
+        views.aerial_georeference_interface,
+        name="aerial_georeference_interface",
+    ),
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("stats/", views.image_stats, name="image_stats"),
@@ -89,8 +94,14 @@ urlpatterns = [
     ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
-    path("api/v1/geojson/aerial/", views.aerial_geojson_endpoint, name="aerial_geojson"),
-    path("api/v1/aerials/at-point/", views.aerial_georeferences_at_point, name="aerial_at_point"),
+    path(
+        "api/v1/geojson/aerial/", views.aerial_geojson_endpoint, name="aerial_geojson"
+    ),
+    path(
+        "api/v1/aerials/at-point/",
+        views.aerial_georeferences_at_point,
+        name="aerial_at_point",
+    ),
     path(
         "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
         views.vector_tiles_endpoint,
@@ -109,11 +120,27 @@ urlpatterns = [
     # Album management API endpoints
     path("api/v1/user-albums/", views.user_albums_api, name="user_albums_api"),
     path("api/v1/add-to-album/", views.add_image_to_album, name="add_image_to_album"),
-    path("api/v1/create-and-add-to-album/", views.create_and_add_to_album, name="create_and_add_to_album"),
-    path("api/v1/remove-from-album/", views.remove_image_from_album, name="remove_image_from_album"),
-    path("album/<uuid:album_id>/toggle-public/", views.toggle_album_public, name="toggle_album_public"),
+    path(
+        "api/v1/create-and-add-to-album/",
+        views.create_and_add_to_album,
+        name="create_and_add_to_album",
+    ),
+    path(
+        "api/v1/remove-from-album/",
+        views.remove_image_from_album,
+        name="remove_image_from_album",
+    ),
+    path(
+        "album/<uuid:album_id>/toggle-public/",
+        views.toggle_album_public,
+        name="toggle_album_public",
+    ),
     path("album/<uuid:album_id>/edit/", views.edit_album, name="edit_album"),
     path("album/<uuid:album_id>/delete/", views.delete_album, name="delete_album"),
     # Album detail view
-    path("user/<str:display_name>/albums/<uuid:album_id>/", views.album_detail, name="album_detail"),
+    path(
+        "user/<str:display_name>/albums/<uuid:album_id>/",
+        views.album_detail,
+        name="album_detail",
+    ),
 ]

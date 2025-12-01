@@ -3,7 +3,7 @@
 {% block title %}Aerial Images - Yesterdays{% endblock %}
 
 {% block content %}
-<div class="row">
+<div class="row" x-data="aerialsPage()" x-init="initMap()">
     <div class="col-12">
         <!-- Breadcrumb -->
         <nav aria-label="breadcrumb" class="mb-4">
@@ -29,27 +29,47 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-map me-2"></i>Aerial Coverage Map</h5>
-                <div id="filter-status" class="d-flex align-items-center gap-2 hidden">
-                    <small class="text-muted mb-0">
-                        <i class="fas fa-filter me-1"></i>
-                        Filtered by location
-                    </small>
-                    <button class="btn btn-sm btn-outline-secondary" id="clear-filter-btn">
-                        <i class="fas fa-times me-1"></i>Clear Filter
+                <div x-show="isFiltered" x-transition>
+                    <button @click="clearFilter()" class="btn btn-sm btn-outline-secondary" :disabled="isFiltering">
+                        <span x-show="!isFiltering"><i class="fas fa-times me-1"></i>Clear Filter</span>
+                        <span x-show="isFiltering"><i class="fas fa-spinner fa-spin me-1"></i>Clearing...</span>
                     </button>
                 </div>
             </div>
             <div class="card-body p-0">
-                <div id="aerial-map" style="width: 100%; height: 500px; border-radius: 0.375rem;"></div>
+                <!-- Error State -->
+                <div x-show="error" x-transition class="alert alert-danger m-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span x-text="error"></span>
+                </div>
+
+                <!-- Map Container -->
+                <div id="aerial-map" 
+                     x-show="!error"
+                     style="width: 100%; height: 500px; border-radius: 0.375rem;"
+                     data-config='{"aerialGeojsonUrl": "{% url "images:aerial_geojson" %}"{% if is_filtered %}, "filterLat": {{ filter_lat }}, "filterLon": {{ filter_lon }}{% endif %}}'></div>
             </div>
         </div>
 
 
+        <!-- Loading overlay for filtering -->
+        <div x-show="isFiltering" x-transition class="card mb-4">
+            <div class="card-body text-center py-4">
+                <div class="spinner-border text-primary mb-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="text-muted small mb-0">Updating results...</p>
+            </div>
+        </div>
+
+        <!-- Main content wrapper with cursor change during filtering -->
+        <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }">
+
         <!-- Images Grid -->
         {% if page_obj %}
-            <div class="row">
+            <div class="row" x-ref="imageGrid">
                 {% for image in page_obj %}
-                    <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                    <div class="col-lg-3 col-md-4 col-sm-6 mb-4" data-image-id="{{ image.id }}">
                         <div class="card h-100 shadow-sm image-card">
                             <div class="position-relative">
                                 <!-- Image Status Badge -->
@@ -137,7 +157,7 @@
                     <ul class="pagination justify-content-center">
                         {% if page_obj.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                <a class="page-link" href="?{% if is_filtered %}lat={{ filter_lat }}&lon={{ filter_lon }}&{% endif %}page={{ page_obj.previous_page_number }}">
                                     <i class="fas fa-chevron-left"></i> Previous
                                 </a>
                             </li>
@@ -150,14 +170,14 @@
                                 </li>
                             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    <a class="page-link" href="?{% if is_filtered %}lat={{ filter_lat }}&lon={{ filter_lon }}&{% endif %}page={{ num }}">{{ num }}</a>
                                 </li>
                             {% endif %}
                         {% endfor %}
 
                         {% if page_obj.has_next %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                <a class="page-link" href="?{% if is_filtered %}lat={{ filter_lat }}&lon={{ filter_lon }}&{% endif %}page={{ page_obj.next_page_number }}">
                                     Next <i class="fas fa-chevron-right"></i>
                                 </a>
                             </li>
@@ -166,17 +186,29 @@
                 </nav>
 
                 <div class="text-center text-muted mt-2">
-                    Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
+                    {% if is_filtered %}
+                        <i class="fas fa-filter me-1"></i>
+                        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} aerials at this location (sorted by georeference area)
+                    {% else %}
+                        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
+                    {% endif %}
                 </div>
             {% endif %}
 
         {% else %}
-            <div class="text-center py-5">
+            <div class="text-center py-5" id="no-results">
                 <i class="fas fa-images fa-3x text-muted mb-3"></i>
                 <h3 class="text-muted">No Aerial Images</h3>
-                <p class="text-muted">No images have been marked as aerials yet.</p>
+                <p class="text-muted">
+                    {% if is_filtered %}
+                        No aerials found at this location.
+                    {% else %}
+                        No images have been marked as aerials yet.
+                    {% endif %}
+                </p>
             </div>
         {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -206,7 +238,7 @@
         border-radius: 0.375rem;
     }
 
-    #filter-status.hidden {
+    .alpine-cloak {
         display: none !important;
     }
 </style>
@@ -214,360 +246,6 @@
 
 {% block extra_js %}
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the map
-    const map = new maplibregl.Map({
-        container: 'aerial-map',
-        style: 'https://styles.trailsta.sh/openmaptiles-osm.json',
-        center: [-77.43916, 37.54376],
-        zoom: 11
-    });
-
-    // Store map reference globally for use in filter functions
-    window.mapInstance = map;
-
-    const navControl = new maplibregl.NavigationControl();
-    const fullscreenControl = new maplibregl.FullscreenControl();
-
-    map.addControl(navControl);
-    map.addControl(fullscreenControl);
-
-    map.on('load', async function() {
-        try {
-            // Fetch aerial georeferences GeoJSON
-            const response = await fetch('{% url "images:aerial_geojson" %}');
-            const geojson = await response.json();
-
-            // Store all aerial data for later filtering
-            allAerialData = geojson;
-
-            console.log('Aerial GeoJSON:', geojson);
-
-            if (!geojson.features || geojson.features.length === 0) {
-                // No aerial georeferences available
-                document.getElementById('aerial-map').innerHTML =
-                    '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                    '<div class="text-center">' +
-                    '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-                    'No aerial georeferences found' +
-                    '</div></div>';
-                return;
-            }
-
-            // Store original pagination text
-            const paginationInfo = document.querySelector('.text-center.text-muted.mt-2');
-            if (paginationInfo) {
-                window.originalPaginationText = paginationInfo.innerHTML;
-            }
-
-            // Add GeoJSON source
-            map.addSource('aerial-georeferences', {
-                'type': 'geojson',
-                'data': geojson
-            });
-
-            // Add fill layer for polygons
-            map.addLayer({
-                'id': 'aerial-fill',
-                'type': 'fill',
-                'source': 'aerial-georeferences',
-                'paint': {
-                    'fill-color': '#0d6efd',
-                    'fill-opacity': 0.2
-                }
-            });
-
-            // Add outline layer for polygons
-            map.addLayer({
-                'id': 'aerial-outline',
-                'type': 'line',
-                'source': 'aerial-georeferences',
-                'paint': {
-                    'line-color': '#0d6efd',
-                    'line-width': 2
-                }
-            });
-
-            // Fit bounds to all features
-            if (geojson.features.length > 0) {
-                try {
-                    const bounds = new maplibregl.LngLatBounds();
-                    let hasBounds = false;
-
-                    geojson.features.forEach(feature => {
-                        if (feature.geometry && feature.geometry.coordinates) {
-                            if (feature.geometry.type === 'Polygon') {
-                                feature.geometry.coordinates[0].forEach(coord => {
-                                    if (Array.isArray(coord) && coord.length === 2) {
-                                        bounds.extend(coord);
-                                        hasBounds = true;
-                                    }
-                                });
-                            } else if (feature.geometry.type === 'MultiPolygon') {
-                                feature.geometry.coordinates.forEach(polygon => {
-                                    if (Array.isArray(polygon) && polygon.length > 0) {
-                                        polygon[0].forEach(coord => {
-                                            if (Array.isArray(coord) && coord.length === 2) {
-                                                bounds.extend(coord);
-                                                hasBounds = true;
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        }
-                    });
-
-                    if (hasBounds) {
-                        map.fitBounds(bounds, {
-                            padding: 50,
-                            maxZoom: 15
-                        });
-                    }
-                } catch (boundsError) {
-                    console.error('Error fitting bounds:', boundsError);
-                }
-            }
-
-            // Handle map clicks - filter by location
-            map.on('click', function(e) {
-                // Always allow filtering, regardless of whether there are visible polygons
-                const lat = e.lngLat.lat;
-                const lon = e.lngLat.lng;
-                applyPointFilter(lat, lon);
-            });
-
-            // Add hover effects for clickability
-            map.on('mouseenter', 'aerial-fill', function() {
-                map.getCanvas().style.cursor = 'pointer';
-            });
-
-            map.on('mouseleave', 'aerial-fill', function() {
-                map.getCanvas().style.cursor = '';
-            });
-
-            // Handle clear filter button
-            const clearFilterBtn = document.getElementById('clear-filter-btn');
-            if (clearFilterBtn) {
-                clearFilterBtn.addEventListener('click', function() {
-                    clearPointFilter();
-                });
-            }
-        } catch (error) {
-            console.error('Error loading aerial georeferences:', error);
-            document.getElementById('aerial-map').innerHTML =
-                '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                '<div class="text-center">' +
-                '<i class="fas fa-exclamation-triangle fa-2x mb-2"></i><br>' +
-                'Error loading map data' +
-                '</div></div>';
-        }
-    });
-
-    // Store all aerial georeferences for filtering
-    let allAerialData = null;
-    let filterMarker = null;
-
-    // Function to apply point filter
-    function applyPointFilter(lat, lon) {
-        // Store the filter in URL params
-        const params = new URLSearchParams();
-        params.set('lat', lat.toFixed(6));
-        params.set('lon', lon.toFixed(6));
-
-        // Update browser URL
-        window.history.replaceState({}, '', `?${params.toString()}`);
-
-        // Show filter status
-        const filterStatus = document.getElementById('filter-status');
-        if (filterStatus) {
-            filterStatus.classList.remove('hidden');
-        }
-
-        // Add or update marker on the map showing filter point
-        const map = window.mapInstance;
-        if (map) {
-            // Remove existing marker if present
-            if (filterMarker) {
-                filterMarker.remove();
-            }
-
-            // Create new marker at the filter point
-            const el = document.createElement('div');
-            el.style.width = '20px';
-            el.style.height = '20px';
-            el.style.backgroundImage = 'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiMwZDZlZmQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+")';
-            el.style.backgroundSize = 'contain';
-            el.style.cursor = 'pointer';
-
-            filterMarker = new maplibregl.Marker({ element: el })
-                .setLngLat([lon, lat])
-                .addTo(map);
-        }
-
-        // Fetch filtered aerials from API
-        fetch(`/api/v1/aerials/at-point/?lat=${lat}&lon=${lon}`)
-            .then(response => response.json())
-            .then(data => {
-                // Update map with filtered features
-                if (map && map.getSource('aerial-georeferences')) {
-                    map.getSource('aerial-georeferences').setData(data);
-                }
-
-                // Update paginated grid with filtered images
-                updateImageGrid(data.features);
-            })
-            .catch(error => {
-                console.error('Error fetching filtered aerials:', error);
-                alert('Error filtering aerials. Please try again.');
-            });
-    }
-
-    // Function to clear point filter
-    function clearPointFilter() {
-        // Clear URL params
-        window.history.replaceState({}, '', window.location.pathname);
-
-        // Hide filter status
-        const filterStatus = document.getElementById('filter-status');
-        if (filterStatus) {
-            filterStatus.classList.add('hidden');
-        }
-
-        // Remove filter marker from map
-        if (filterMarker) {
-            filterMarker.remove();
-            filterMarker = null;
-        }
-
-        // Restore all aerials to the map
-        if (allAerialData) {
-            const map = window.mapInstance;
-            if (map && map.getSource('aerial-georeferences')) {
-                map.getSource('aerial-georeferences').setData(allAerialData);
-            }
-        }
-
-        // Show all image cards
-        const imageCards = document.querySelectorAll('.image-card');
-        imageCards.forEach(card => {
-            card.parentElement.style.display = '';
-        });
-
-        // Reset pagination info
-        const paginationInfo = document.querySelector('.text-center.text-muted.mt-2');
-        if (paginationInfo && window.originalPaginationText) {
-            paginationInfo.innerHTML = window.originalPaginationText;
-        }
-
-        // Show pagination controls
-        const pagination = document.querySelector('nav[aria-label="Images pagination"]');
-        if (pagination) {
-            pagination.style.display = '';
-        }
-    }
-
-    // Function to calculate polygon area using the shoelace formula
-    function calculatePolygonArea(coordinates) {
-        let area = 0;
-        const ring = coordinates[0]; // Exterior ring
-
-        for (let i = 0; i < ring.length - 1; i++) {
-            const [lon1, lat1] = ring[i];
-            const [lon2, lat2] = ring[i + 1];
-            area += (lon2 - lon1) * (lat2 + lat1);
-        }
-
-        return Math.abs(area) / 2;
-    }
-
-    // Function to update the image grid based on filtered features
-    function updateImageGrid(features) {
-        // Sort features by polygon area (smallest to largest)
-        const sortedFeatures = [...features].sort((a, b) => {
-            let areaA = 0;
-            let areaB = 0;
-
-            if (a.geometry && a.geometry.type === 'Polygon') {
-                areaA = calculatePolygonArea(a.geometry.coordinates);
-            } else if (a.geometry && a.geometry.type === 'MultiPolygon') {
-                // For MultiPolygon, sum all polygon areas
-                areaA = a.geometry.coordinates.reduce((sum, polygon) => {
-                    return sum + calculatePolygonArea([polygon[0]]);
-                }, 0);
-            }
-
-            if (b.geometry && b.geometry.type === 'Polygon') {
-                areaB = calculatePolygonArea(b.geometry.coordinates);
-            } else if (b.geometry && b.geometry.type === 'MultiPolygon') {
-                // For MultiPolygon, sum all polygon areas
-                areaB = b.geometry.coordinates.reduce((sum, polygon) => {
-                    return sum + calculatePolygonArea([polygon[0]]);
-                }, 0);
-            }
-
-            return areaA - areaB;
-        });
-
-        const imageIds = sortedFeatures.map(feature => feature.properties.id);
-
-        // Get all image cards and their containers
-        const imageCards = document.querySelectorAll('.image-card');
-        const cardsByImageId = new Map();
-
-        imageCards.forEach(card => {
-            // Try to extract image ID from the card or its links
-            const link = card.querySelector('a[href*="/"]');
-            if (link) {
-                const match = link.href.match(/\/(\d+)\//);
-                if (match) {
-                    const cardImageId = parseInt(match[1]);
-                    cardsByImageId.set(cardImageId, card.parentElement);
-                }
-            }
-        });
-
-        // Get the images grid container
-        const gridContainer = document.querySelector('.row:has(.image-card)');
-
-        // Reorder and show/hide cards based on sorted order
-        let visibleCount = 0;
-        imageIds.forEach(imageId => {
-            const cardContainer = cardsByImageId.get(imageId);
-            if (cardContainer) {
-                cardContainer.style.display = '';
-                // Move the card to the end to reorder it
-                if (gridContainer) {
-                    gridContainer.appendChild(cardContainer);
-                }
-                visibleCount++;
-            }
-        });
-
-        // Hide cards that are not in the filtered results
-        cardsByImageId.forEach((cardContainer, imageId) => {
-            if (!imageIds.includes(imageId)) {
-                cardContainer.style.display = 'none';
-            }
-        });
-
-        // Update pagination info
-        const paginationInfo = document.querySelector('.text-center.text-muted.mt-2');
-        if (paginationInfo) {
-            paginationInfo.innerHTML = `
-                <i class="fas fa-filter me-1"></i>
-                Showing ${visibleCount} of ${imageIds.length} aerials at this location (sorted by georeference area)
-            `;
-        }
-
-        // Hide pagination controls when filtered
-        const pagination = document.querySelector('nav[aria-label="Images pagination"]');
-        if (pagination) {
-            pagination.style.display = visibleCount <= 12 ? 'none' : '';
-        }
-    }
-});
-
-</script>
+{% load static %}
+<script src="{% static 'js/pages/aerials.js' %}"></script>
 {% endblock %}

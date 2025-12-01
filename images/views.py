@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
@@ -39,9 +38,8 @@ except ImportError:
     CLIP_AVAILABLE = False
 
 from .models import (
-    Album,
     AerialGeoreference,
-    AerialGeoreferenceValidation,
+    Album,
     Collection,
     Comment,
     Georeference,
@@ -243,7 +241,11 @@ def collection_detail(request, source_slug, collection_slug):
         collection.images.filter(duplicate_of__isnull=True)
         .annotate(
             has_georeference=Case(
-                When(Q(georeferences__isnull=False) | Q(aerial=True, aerial_georeferences__isnull=False), then=Value(1)),
+                When(
+                    Q(georeferences__isnull=False)
+                    | Q(aerial=True, aerial_georeferences__isnull=False),
+                    then=Value(1),
+                ),
                 default=Value(0),
                 output_field=IntegerField(),
             )
@@ -252,9 +254,14 @@ def collection_detail(request, source_slug, collection_slug):
     )
     total_images = images.distinct().count()
     # Count images as georeferenced if they have point georeferences OR aerials with polygon georeferences
-    georeferenced_images = images.filter(
-        Q(georeferences__isnull=False) | Q(aerial=True, aerial_georeferences__isnull=False)
-    ).distinct().count()
+    georeferenced_images = (
+        images.filter(
+            Q(georeferences__isnull=False)
+            | Q(aerial=True, aerial_georeferences__isnull=False)
+        )
+        .distinct()
+        .count()
+    )
     will_not_georef_images = collection.images.filter(
         duplicate_of__isnull=True, will_not_georef=True
     ).count()
@@ -341,7 +348,9 @@ def georeference_interface(request):
         try:
             album = Album.objects.get(id=album_id)
             # Check if album is public or if user is the owner
-            if not album.public and (not request.user.is_authenticated or album.owner != request.user):
+            if not album.public and (
+                not request.user.is_authenticated or album.owner != request.user
+            ):
                 # Private album and user is not the owner - return 404
                 raise Http404("Album not found")
             # Filter images to only those in this album
@@ -553,7 +562,7 @@ def image_detail(request, image_id):
 
     # Get rating statistics
     image_ratings = image.ratings.all()
-    avg_rating = image_ratings.aggregate(Avg('rating'))['rating__avg']
+    avg_rating = image_ratings.aggregate(Avg("rating"))["rating__avg"]
     rating_count = image_ratings.count()
     user_rating = None
     if request.user.is_authenticated:
@@ -569,7 +578,9 @@ def image_detail(request, image_id):
         "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
-        "aerial_georeference": image.get_aerial_georeference() if image.aerial else None,
+        "aerial_georeference": image.get_aerial_georeference()
+        if image.aerial
+        else None,
         "timeline_items": timeline_items,
         "next_image": image.get_next_image(),
         "previous_image": image.get_previous_image(),
@@ -729,7 +740,9 @@ def aerial_georeference_interface(request, image_id):
         )
 
     # Get OSM authentication info
-    osm_authenticated = hasattr(request.user, "osm_profile") and request.user.osm_profile is not None
+    osm_authenticated = (
+        hasattr(request.user, "osm_profile") and request.user.osm_profile is not None
+    )
     osm_username = request.user.osm_profile.display_name if osm_authenticated else None
 
     # Get the existing aerial georeference if it exists
@@ -821,7 +834,7 @@ def aerial_georeference_image(request, image_id):
             polygon = GEOSGeometry(polygon_geojson)
 
             # If a MultiPolygon was submitted, validate it contains only one polygon
-            if polygon.geom_type == 'MultiPolygon':
+            if polygon.geom_type == "MultiPolygon":
                 if len(polygon) == 0:
                     return JsonResponse(
                         {"success": False, "error": "MultiPolygon is empty"},
@@ -829,7 +842,10 @@ def aerial_georeference_image(request, image_id):
                     )
                 elif len(polygon) > 1:
                     return JsonResponse(
-                        {"success": False, "error": f"MultiPolygon contains {len(polygon)} polygons. Please draw only one polygon."},
+                        {
+                            "success": False,
+                            "error": f"MultiPolygon contains {len(polygon)} polygons. Please draw only one polygon.",
+                        },
                         status=400,
                     )
                 else:
@@ -1016,7 +1032,7 @@ def submit_rating(request, image_id):
         image = get_object_or_404(Image, id=image_id)
 
         # Handle DELETE request (clear rating)
-        if request.method == 'DELETE':
+        if request.method == "DELETE":
             with transaction.atomic():
                 deleted_count, _ = ImageRating.objects.filter(
                     image=image, user=request.user
@@ -1025,7 +1041,7 @@ def submit_rating(request, image_id):
                 if deleted_count == 0:
                     return JsonResponse(
                         {"success": False, "error": "No rating found to delete"},
-                        status=404
+                        status=404,
                     )
 
             # Get updated average rating and count after deletion
@@ -1244,7 +1260,9 @@ def edit_album(request, album_id):
         messages.success(request, "Album updated successfully.")
         return redirect(
             "images:album_detail",
-            display_name=album.owner.get_display_name() if hasattr(album.owner, 'get_display_name') else album.owner.username,
+            display_name=album.owner.get_display_name()
+            if hasattr(album.owner, "get_display_name")
+            else album.owner.username,
             album_id=album.id,
         )
 
@@ -1317,20 +1335,16 @@ def user_albums_api(request):
     # Import Album here to avoid circular imports
     from .models import Album
 
-    image_id = request.GET.get('image_id')
+    image_id = request.GET.get("image_id")
 
-    albums = Album.objects.filter(owner=request.user).order_by('-created_at')
+    albums = Album.objects.filter(owner=request.user).order_by("-created_at")
 
     albums_data = []
     for album in albums:
-        album_dict = {
-            'id': album.id,
-            'title': album.title,
-            'has_image': False
-        }
+        album_dict = {"id": album.id, "title": album.title, "has_image": False}
         # Check if the image is in this album
         if image_id:
-            album_dict['has_image'] = album.images.filter(id=image_id).exists()
+            album_dict["has_image"] = album.images.filter(id=image_id).exists()
         albums_data.append(album_dict)
 
     return JsonResponse({"albums": albums_data})
@@ -1340,43 +1354,44 @@ def user_albums_api(request):
 def add_image_to_album(request):
     """API endpoint to add an image to an existing album"""
     if not request.user.is_authenticated:
-        return JsonResponse({"success": False, "error": "Not authenticated"}, status=401)
+        return JsonResponse(
+            {"success": False, "error": "Not authenticated"}, status=401
+        )
 
     try:
         import json
+
         from .models import Album, AlbumImage
 
         data = json.loads(request.body)
-        image_id = data.get('image_id')
-        album_id = data.get('album_id')
+        image_id = data.get("image_id")
+        album_id = data.get("album_id")
 
         if not image_id or not album_id:
-            return JsonResponse({"success": False, "error": "Missing image_id or album_id"}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Missing image_id or album_id"}, status=400
+            )
 
         image = get_object_or_404(Image, id=image_id)
         album = get_object_or_404(Album, id=album_id, owner=request.user)
 
         # Get the next order value
-        max_order = album.album_images.aggregate(models.Max('order'))['order__max'] or 0
+        max_order = album.album_images.aggregate(models.Max("order"))["order__max"] or 0
         next_order = max_order + 1
 
         # Add image to album
         album_image, created = AlbumImage.objects.get_or_create(
-            album=album,
-            image=image,
-            defaults={'order': next_order}
+            album=album, image=image, defaults={"order": next_order}
         )
 
         if created:
-            return JsonResponse({
-                "success": True,
-                "message": f"Image added to album '{album.title}'"
-            })
+            return JsonResponse(
+                {"success": True, "message": f"Image added to album '{album.title}'"}
+            )
         else:
-            return JsonResponse({
-                "success": True,
-                "message": f"Image already in album '{album.title}'"
-            })
+            return JsonResponse(
+                {"success": True, "message": f"Image already in album '{album.title}'"}
+            )
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
@@ -1386,23 +1401,30 @@ def add_image_to_album(request):
 def create_and_add_to_album(request):
     """API endpoint to create a new album and add an image to it"""
     if not request.user.is_authenticated:
-        return JsonResponse({"success": False, "error": "Not authenticated"}, status=401)
+        return JsonResponse(
+            {"success": False, "error": "Not authenticated"}, status=401
+        )
 
     try:
         import json
+
         from .models import Album, AlbumImage
 
         data = json.loads(request.body)
-        image_id = data.get('image_id')
-        album_title = data.get('album_title', '').strip()
-        album_description = data.get('album_description', '').strip()
-        album_public = data.get('album_public', False)
+        image_id = data.get("image_id")
+        album_title = data.get("album_title", "").strip()
+        album_description = data.get("album_description", "").strip()
+        album_public = data.get("album_public", False)
 
         if not image_id:
-            return JsonResponse({"success": False, "error": "Missing image_id"}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Missing image_id"}, status=400
+            )
 
         if not album_title:
-            return JsonResponse({"success": False, "error": "Album title is required"}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Album title is required"}, status=400
+            )
 
         image = get_object_or_404(Image, id=image_id)
 
@@ -1411,21 +1433,19 @@ def create_and_add_to_album(request):
             owner=request.user,
             title=album_title,
             description=album_description,
-            public=album_public
+            public=album_public,
         )
 
         # Add image to album
-        AlbumImage.objects.create(
-            album=album,
-            image=image,
-            order=1
-        )
+        AlbumImage.objects.create(album=album, image=image, order=1)
 
-        return JsonResponse({
-            "success": True,
-            "message": f"Album '{album.title}' created and image added",
-            "album_id": album.id
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Album '{album.title}' created and image added",
+                "album_id": album.id,
+            }
+        )
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
@@ -1435,38 +1455,41 @@ def create_and_add_to_album(request):
 def remove_image_from_album(request):
     """API endpoint to remove an image from an album"""
     if not request.user.is_authenticated:
-        return JsonResponse({"success": False, "error": "Not authenticated"}, status=401)
+        return JsonResponse(
+            {"success": False, "error": "Not authenticated"}, status=401
+        )
 
     try:
         import json
+
         from .models import Album, AlbumImage
 
         data = json.loads(request.body)
-        image_id = data.get('image_id')
-        album_id = data.get('album_id')
+        image_id = data.get("image_id")
+        album_id = data.get("album_id")
 
         if not image_id or not album_id:
-            return JsonResponse({"success": False, "error": "Missing image_id or album_id"}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Missing image_id or album_id"}, status=400
+            )
 
         image = get_object_or_404(Image, id=image_id)
         album = get_object_or_404(Album, id=album_id, owner=request.user)
 
         # Remove image from album
-        deleted_count, _ = AlbumImage.objects.filter(
-            album=album,
-            image=image
-        ).delete()
+        deleted_count, _ = AlbumImage.objects.filter(album=album, image=image).delete()
 
         if deleted_count > 0:
-            return JsonResponse({
-                "success": True,
-                "message": f"Image removed from album '{album.title}'"
-            })
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Image removed from album '{album.title}'",
+                }
+            )
         else:
-            return JsonResponse({
-                "success": False,
-                "error": "Image was not in this album"
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Image was not in this album"}, status=400
+            )
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
@@ -1475,6 +1498,7 @@ def remove_image_from_album(request):
 def album_detail(request, display_name, album_id):
     """Display a specific album with its images"""
     from django.contrib.auth.models import User
+
     from .models import Album
 
     # Look up user by display name (first_name for OSM users or username)
@@ -1489,12 +1513,14 @@ def album_detail(request, display_name, album_id):
         raise Http404("Album not found")
 
     # Get images in album order
-    album_images = album.album_images.select_related('image').order_by('order')
+    album_images = album.album_images.select_related("image").order_by("order")
 
     # Calculate pending images count for the georeference button
     pending_images = sum(1 for ai in album_images if not ai.image.is_georeferenced)
 
-    display_name = user.get_display_name() if hasattr(user, 'get_display_name') else user.username
+    display_name = (
+        user.get_display_name() if hasattr(user, "get_display_name") else user.username
+    )
     is_owner = request.user.is_authenticated and request.user == user
 
     context = {
@@ -1522,31 +1548,28 @@ def toggle_album_public(request, album_id):
         data = json.loads(request.body)
         new_public_status = data.get("public", True)
     except json.JSONDecodeError:
-        return JsonResponse(
-            {"success": False, "error": "Invalid JSON"}, status=400
-        )
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
     try:
         album = get_object_or_404(Album, id=album_id)
     except:
-        return JsonResponse(
-            {"success": False, "error": "Album not found"}, status=404
-        )
+        return JsonResponse({"success": False, "error": "Album not found"}, status=404)
 
     # Check that the user is the owner
     if album.owner != request.user:
         return JsonResponse(
-            {"success": False, "error": "You don't have permission to modify this album"}, status=403
+            {
+                "success": False,
+                "error": "You don't have permission to modify this album",
+            },
+            status=403,
         )
 
     # Update the public status
     album.public = new_public_status
     album.save()
 
-    return JsonResponse({
-        "success": True,
-        "public": album.public
-    })
+    return JsonResponse({"success": True, "public": album.public})
 
 
 @require_http_methods(["POST"])
@@ -1582,6 +1605,7 @@ def mark_will_not_georef(request, image_id):
 
     return JsonResponse({"success": True, "message": message})
 
+
 @require_http_methods(["POST"])
 def mark_aerial(request, image_id):
     """Toggle the aerial flag for an image (admin only)"""
@@ -1603,21 +1627,87 @@ def mark_aerial(request, image_id):
     )
     image.aerial = aerial
     image.save(update_fields=["aerial"])
-    message = (
-        'Image marked as aerial'
-        if aerial
-        else 'Removed aerial marking'
-    )
+    message = "Image marked as aerial" if aerial else "Removed aerial marking"
     return JsonResponse({"success": True, "message": message})
 
 
 def browse_aerials(request):
-    """Browse all aerial images"""
+    """Browse all aerial images with optional location-based filtering"""
+    from django.contrib.gis.geos import Point
+
+    # Start with base queryset
     aerials = Image.objects.filter(
         aerial=True,
         collection__public=True,
         collection__source__public=True,
     ).select_related("collection__source")
+
+    # Check for location filtering
+    lat = request.GET.get("lat")
+    lon = request.GET.get("lon")
+    is_filtered = False
+    filter_point = None
+
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+
+            # Validate coordinates are within reasonable bounds
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                # Create a Point from the coordinates
+                filter_point = Point(lon, lat)
+
+                # Filter images that have aerial georeferences containing this point
+                filtered_image_ids = []
+                for aerial in aerials:
+                    aerial_georeference = aerial.get_aerial_georeference()
+                    if aerial_georeference and aerial_georeference.polygon.contains(
+                        filter_point
+                    ):
+                        filtered_image_ids.append(aerial.id)
+
+                # Debug output
+                print(f"Filter point: {filter_point}")
+                print(f"Total aerials before filter: {aerials.count()}")
+                print(f"Filtered image IDs: {filtered_image_ids}")
+
+                # Apply the filter - even if empty list (this will show no results)
+                aerials = aerials.filter(id__in=filtered_image_ids)
+                is_filtered = True
+
+                print(f"Total aerials after filter: {aerials.count()}")
+
+        except (ValueError, TypeError):
+            # Invalid coordinates, ignore filtering
+            pass
+
+    # Sort filtered results by georeference area (smallest to largest) if filtered
+    if is_filtered and filter_point:
+        # Get aerial georeferences and sort by area
+        aerial_with_areas = []
+        for aerial in aerials:
+            aerial_georeference = aerial.get_aerial_georeference()
+            if aerial_georeference:
+                # Calculate area using PostGIS
+                area = aerial_georeference.polygon.area
+                aerial_with_areas.append((area, aerial.id))
+
+        # Sort by area and get ordered IDs
+        aerial_with_areas.sort(key=lambda x: x[0])
+        ordered_ids = [item[1] for item in aerial_with_areas]
+
+        # Preserve the order in the queryset
+        if ordered_ids:
+            from django.db.models import Case, When
+
+            preserved_order = Case(
+                *[When(pk=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
+            )
+            aerials = aerials.order_by(preserved_order)
+    else:
+        # Default ordering for non-filtered results
+        aerials = aerials.order_by("id")
 
     # Paginate images for browsing
     paginator = Paginator(aerials, 24)  # 24 images per page for grid layout
@@ -1626,7 +1716,9 @@ def browse_aerials(request):
 
     # Calculate statistics
     total_images = aerials.count()
-    georeferenced_images = aerials.filter(georeferences__isnull=False).distinct().count()
+    georeferenced_images = (
+        aerials.filter(aerial_georeferences__isnull=False).distinct().count()
+    )
     will_not_georef_images = aerials.filter(will_not_georef=True).count()
 
     context = {
@@ -1637,8 +1729,12 @@ def browse_aerials(request):
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
+        "is_filtered": is_filtered,
+        "filter_lat": lat if is_filtered else None,
+        "filter_lon": lon if is_filtered else None,
     }
     return render(request, "images/aerials.html", context)
+
 
 def get_random_image(request):
     """Get a random image for georeferencing"""
@@ -1833,7 +1929,9 @@ def _build_aerial_georeference_feature(image, aerial_georeference, request):
         "end_decdate": image.end_decdate,
         "fuzzy_end_decdate": image.fuzzy_end_decdate,
         "confidence": aerial_georeference.confidence,
-        "georeferenced_by": aerial_georeference.georeferenced_by.username if aerial_georeference.georeferenced_by else None,
+        "georeferenced_by": aerial_georeference.georeferenced_by.username
+        if aerial_georeference.georeferenced_by
+        else None,
     }
 
     # Only include scale if it's not None
@@ -1894,7 +1992,9 @@ def aerial_geojson_endpoint(request):
         if not aerial_georeference:  # Skip if no aerial georeference found
             continue
 
-        feature = _build_aerial_georeference_feature(image, aerial_georeference, request)
+        feature = _build_aerial_georeference_feature(
+            image, aerial_georeference, request
+        )
         features.append(feature)
 
     # Build final GeoJSON
@@ -1920,30 +2020,24 @@ def aerial_georeferences_at_point(request):
         lon = float(request.GET.get("lon"))
     except (TypeError, ValueError):
         return JsonResponse(
-            {"error": "Invalid or missing lat/lon parameters"},
-            status=400
+            {"error": "Invalid or missing lat/lon parameters"}, status=400
         )
 
     # Validate coordinates are within reasonable bounds
     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-        return JsonResponse(
-            {"error": "Coordinates out of valid range"},
-            status=400
-        )
+        return JsonResponse({"error": "Coordinates out of valid range"}, status=400)
 
     # Create a Point from the coordinates (note: Point uses lon, lat order)
     point = Point(lon, lat)
 
     # Query for aerial georeferences that contain this point
     # We need to use the polygon field's contains lookup
-    from images.models import AerialGeoreference
 
     # Get all aerial images with public collections/sources
     from images.models import Image
 
     images = (
-        Image.objects
-        .filter(
+        Image.objects.filter(
             aerial=True,  # Must be marked as aerial
             aerial_georeferences__isnull=False,  # Must have aerial georeferences
             collection__public=True,  # Collection must be public
@@ -1970,7 +2064,9 @@ def aerial_georeferences_at_point(request):
             continue
 
         # Build feature using helper
-        feature = _build_aerial_georeference_feature(image, aerial_georeference, request)
+        feature = _build_aerial_georeference_feature(
+            image, aerial_georeference, request
+        )
         # Add validation count (specific to this endpoint)
         feature["properties"]["validation_count"] = aerial_georeference.validation_count
         features.append(feature)
@@ -2135,6 +2231,7 @@ def _load_clip_model():
 
     # Download model if it doesn't exist
     from django.core.management import call_command
+
     try:
         call_command(
             "download_clip_model",
@@ -2522,7 +2619,9 @@ def find_similar_images(request, image_id):
         return redirect("images:image_detail", image_id=image_id)
 
     # Get georeferenced filter from query parameter
-    georeferenced_status = request.GET.get("georeferenced", "all")  # 'all', 'yes', or 'none'
+    georeferenced_status = request.GET.get(
+        "georeferenced", "all"
+    )  # 'all', 'yes', or 'none'
 
     from django.db import connection
 

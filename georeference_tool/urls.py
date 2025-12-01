@@ -15,6 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
@@ -27,8 +29,16 @@ urlpatterns = [
     path("stats/", views.stats, name="stats"),
     path("admin/login/", auth_views.admin_login, name="admin_login"),
     path("user/<str:username>/", auth_views.user_profile, name="user_profile"),
-    path("user/<str:username>/albums/", auth_views.user_albums_list, name="user_albums_list"),
+    path(
+        "user/<str:username>/albums/",
+        auth_views.user_albums_list,
+        name="user_albums_list",
+    ),
     path("", include("images.urls")),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
 ]
+
+# Serve static files during development
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
