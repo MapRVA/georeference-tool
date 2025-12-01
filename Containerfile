@@ -16,4 +16,6 @@ ADD . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
 
+RUN uv run manage.py collectstatic --noinput
+
 CMD ["uv", "run", "uvicorn", "georeference_tool.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
