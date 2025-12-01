@@ -964,7 +964,7 @@
                                     </a>
                                 {% endif %}
                                 <!-- Georeference as Point button for aerial images -->
-                                {% if image.is_georeferenced %}
+                                {% if image.georeferences.exists %}
                                 <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}" class="btn btn-warning btn-sm w-100 mb-2">
                                     <i class="fas fa-map-marker-alt me-1"></i>Submit Point Correction
                                 </a>
