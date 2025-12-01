@@ -440,7 +440,7 @@
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div class="image-container position-relative" style="min-height: 400px;">
+                        <div class="image-container position-relative">
                             <div class="pswp-gallery" id="pswp-gallery">
                                 <a href="{{ image.permalink }}" title="Click to view full-size image">
                                     <img id="main-image" src="{{ image.permalink }}"
@@ -2518,7 +2518,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let userRating = {{ user_rating|default:"null" }};
     window.ratingCount = {{ rating_count|default:"0" }};
     let ratingEventsSetup = false;
-    
+
 
 
     // Convert rating (1-10) to stars (0.5-5.0)
@@ -2578,7 +2578,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Clear and create fresh star structure
         starsDiv.innerHTML = '';
-        
+
         for (let i = 1; i <= 5; i++) {
             const star = document.createElement('i');
             star.className = 'fas fa-star rating-star';
@@ -2598,13 +2598,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!starsDiv) return;
 
         const stars = starsDiv.querySelectorAll('.rating-star');
-        
+
         if (userRating) {
             const starValue = ratingToStars(userRating);
-            
+
             // Use exact same approach as average ratings
             starsDiv.innerHTML = '';
-            
+
             for (let i = 1; i <= 5; i++) {
                 if (i <= Math.floor(starValue)) {
                     // Full star - same as average ratings
@@ -2659,10 +2659,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!starsDiv) return;
 
 
-        
+
         // Use identical approach as average ratings
         starsDiv.innerHTML = '';
-        
+
         for (let i = 1; i <= 5; i++) {
             if (i < hoveredStarNum) {
                 // Full active star - identical to average ratings
@@ -2710,7 +2710,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update preview text
         const previewRating = (hoveredStarNum - 1) * 2 + (isLeftHalf ? 1 : 2);
         const previewStars = previewRating / 2;
-        
+
         const previewEl = document.getElementById('rating-preview');
         if (previewEl) {
             previewEl.textContent = '';
@@ -2721,7 +2721,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear hover preview and restore original state
     function clearHoverPreview() {
 
-        
+
         // Simply restore the original user rating display
         updateUserRatingDisplay();
 
@@ -2746,12 +2746,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             e.preventDefault();
             e.stopPropagation();
-            
+
             const starNum = parseInt(star.dataset.star);
             const rect = star.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const isLeftHalf = clickX < rect.width / 2;
-            
+
             const ratingToSubmit = (starNum - 1) * 2 + (isLeftHalf ? 1 : 2);
             submitRating(ratingToSubmit);
         });
@@ -2760,12 +2760,12 @@ document.addEventListener('DOMContentLoaded', function() {
         starsDiv.addEventListener('mousemove', function(e) {
             const star = e.target.closest('.user-rating-star, .star-fractional');
             if (!star) return;
-            
+
             const starNum = parseInt(star.dataset.star);
             const rect = star.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const isLeftHalf = mouseX < rect.width / 2;
-            
+
             showHoverPreview(starNum, isLeftHalf);
         });
 
@@ -2866,7 +2866,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const ratingCountEl = document.getElementById('rating-count');
         const noRatingsEl = document.getElementById('no-ratings-text');
         const avgStarsEl = document.getElementById('avg-rating-stars');
-        
+
         if (window.ratingCount !== undefined && window.ratingCount > 0) {
             if (ratingCountEl) {
                 ratingCountEl.textContent = `(${window.ratingCount} rating${window.ratingCount !== 1 ? 's' : ''})`;
