@@ -1,17 +1,4 @@
-// Global utility functions
-function showAlert(type, message) {
-  const alertDiv = document.createElement("div");
-  alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-  alertDiv.style.cssText =
-    "top: 20px; right: 20px; z-index: 9999; min-width: 300px;";
-  alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-  document.body.appendChild(alertDiv);
-  setTimeout(() => alertDiv.remove(), 5000);
-}
-
+// Utility function for difficulty badge colors
 function getBootstrapColor(difficulty) {
   const colors = { easy: "success", medium: "warning", hard: "danger" };
   return colors[difficulty] || "secondary";
