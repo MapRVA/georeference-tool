@@ -6,8 +6,10 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Avg, Case, Func, IntegerField, Q, Value, When
+from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
+from images.models import TopRatedImageView
+from django.db.models import Case, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -287,44 +289,72 @@ def collection_detail(request, source_slug, collection_slug):
 
 def top_rated_images(request):
     """Display paginated list of highest-rated images"""
-    # Use the database view for efficient querying
-    from images.models import TopRatedImageView
+    page_number = request.GET.get("page", 1)
+    page_size = 24  # 24 images per page
 
-    # Get all images from the view, already ordered optimally
+    # Convert page number to offset/limit
+    try:
+        page_number = int(page_number)
+        if page_number < 1:
+            page_number = 1
+    except (ValueError, TypeError):
+        page_number = 1
+
+    # Get total count for pagination info
+    total_count = TopRatedImageView.objects.count()
+    
+    # Calculate total pages
+    total_pages = (total_count + page_size - 1) // page_size
+    
+    # Validate page number
+    if page_number > total_pages and total_count > 0:
+        page_number = total_pages
+
+    offset = (page_number - 1) * page_size
+
+    # Fetch only the current page using database-level offset/limit
     view_entries = TopRatedImageView.objects.all().order_by(
         "-sort_value", "-avg_rating", "-vote_count", "image_id"
+    )[offset : offset + page_size]
+
+    # Get image IDs from this page
+    page_image_ids = [entry.image_id for entry in view_entries]
+
+    # Fetch Image objects with relationships, maintaining view order
+    if page_image_ids:
+        page_images = Image.objects.filter(
+            id__in=page_image_ids
+        ).select_related("collection__source")
+
+        # Preserve the sorted order from the database view using Case/When
+        preserved_order = Case(
+            *[When(pk=image_id, then=pos) for pos, image_id in enumerate(page_image_ids)]
+        )
+        page_images = list(page_images.order_by(preserved_order))
+    else:
+        page_images = []
+
+    # Create a Django Paginator with the page data
+    paginator = Paginator(page_images, page_size)
+    
+    try:
+        page_obj = paginator.page(page_number)
+    except Exception:
+        page_obj = paginator.page(1)
+
+    # Calculate statistics from the view
+    stats = TopRatedImageView.objects.aggregate(
+        total_rated=Count("image_id", filter=Q(vote_count__gt=0)),
+        total_unrated=Count("image_id", filter=Q(vote_count=0)),
     )
-
-    # Join with Image model to get full image data
-    # This is much more efficient than the previous implementation
-    all_images = Image.objects.filter(
-        id__in=view_entries.values_list("image_id", flat=True)
-    ).select_related("collection__source")
-
-    # Create a dictionary to preserve the order from the view
-    image_position = {entry.image_id: i for i, entry in enumerate(view_entries)}
-
-    # Sort the images based on the order from the view
-    all_images = sorted(all_images, key=lambda img: image_position.get(img.id, 0))
-
-    # Paginate the combined results
-    paginator = Paginator(all_images, 24)  # 24 images per page for grid layout
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    # Calculate statistics - directly from the view
-    rated_entries = view_entries.filter(vote_count__gt=0)
-    total_rated = rated_entries.count()
-    total_unrated = view_entries.filter(vote_count=0).count()
 
     context = {
         "page_obj": page_obj,
-        "total_rated": total_rated,
-        "total_unrated": total_unrated,
-        "total_images": total_rated + total_unrated,
+        "total_rated": stats['total_rated'],
+        "total_unrated": stats['total_unrated'],
+        "total_images": stats['total_rated'] + stats['total_unrated'],
     }
     return render(request, "images/favorites.html", context)
-
 
 def georeference_interface(request):
     """Main georeferencing interface - can be filtered by source/collection/subject/album or show specific image"""
