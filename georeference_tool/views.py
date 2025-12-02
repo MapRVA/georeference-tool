@@ -1,18 +1,8 @@
-from django.shortcuts import render
-
-
-def home(request):
-    """Home page view"""
-    context = {
-        "page_title": "Home",
-    }
-    return render(request, "home.html", context)
-
-
 import json
 
 from django.db.models import Count, F
 from django.db.models.functions import TruncDate
+from django.shortcuts import render
 
 from images.models import (
     Collection,
@@ -21,6 +11,14 @@ from images.models import (
     Image,
     Source,
 )
+
+
+def home(request):
+    """Home page view"""
+    context = {
+        "page_title": "Home",
+    }
+    return render(request, "home.html", context)
 
 
 def stats(request):
