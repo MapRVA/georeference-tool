@@ -4,12 +4,11 @@ from pathlib import Path
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
-from django.core.paginator import Paginator
+from django.core.paginator import Page, Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from images.models import TopRatedImageView
-from django.db.models import Case, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -317,27 +316,36 @@ def top_rated_images(request):
         "-sort_value", "-avg_rating", "-vote_count", "image_id"
     )
 
-    # Get all image IDs for creating a properly ordered queryset
-    all_image_ids = list(view_entries.values_list("image_id", flat=True))
+    # Get image IDs for current page only
+    page_image_ids = list(
+        view_entries[offset : offset + page_size].values_list("image_id", flat=True)
+    )
 
-    # Create a queryset with all images in the correct order
-    if all_image_ids:
+    # Create a queryset for the current page only, maintaining the correct order
+    if page_image_ids:
         preserved_order = Case(
-            *[When(pk=image_id, then=pos) for pos, image_id in enumerate(all_image_ids)]
+            *[
+                When(pk=image_id, then=pos)
+                for pos, image_id in enumerate(page_image_ids)
+            ]
         )
-        all_images_queryset = Image.objects.filter(
-            id__in=all_image_ids
-        ).select_related("collection__source").order_by(preserved_order)
+        page_images = list(
+            Image.objects.filter(id__in=page_image_ids)
+            .select_related("collection__source")
+            .order_by(preserved_order)
+        )
     else:
-        all_images_queryset = Image.objects.none()
+        page_images = []
 
-    # Create a Django Paginator with the full queryset
-    paginator = Paginator(all_images_queryset, page_size)
+    # Create a Django Paginator that uses our manually-paginated queryset
+    # but has the correct count for all pages
+    paginator = Paginator(page_images, page_size)
 
-    try:
-        page_obj = paginator.page(page_number)
-    except Exception:
-        page_obj = paginator.page(1)
+    # Override the count to match the total from the database view
+    paginator.count = total_count
+
+    # We already have our page data, so just need to set up the Page object
+    page_obj = Page(page_images, page_number, paginator)
 
     # Calculate statistics from the view
     stats = TopRatedImageView.objects.aggregate(
@@ -347,11 +355,12 @@ def top_rated_images(request):
 
     context = {
         "page_obj": page_obj,
-        "total_rated": stats['total_rated'],
-        "total_unrated": stats['total_unrated'],
-        "total_images": stats['total_rated'] + stats['total_unrated'],
+        "total_rated": stats["total_rated"],
+        "total_unrated": stats["total_unrated"],
+        "total_images": stats["total_rated"] + stats["total_unrated"],
     }
     return render(request, "images/favorites.html", context)
+
 
 def georeference_interface(request):
     """Main georeferencing interface - can be filtered by source/collection/subject/album or show specific image"""
