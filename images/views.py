@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.gis.geos import Point
+from django.contrib.gis.geos import Point, GEOSGeometry
 from django.core.paginator import Page, Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
@@ -901,9 +901,6 @@ def aerial_georeference_image(request, image_id):
                 {"success": False, "error": "Invalid polygon geometry"},
                 status=400,
             )
-
-        # Import GIS modules for polygon handling
-        from django.contrib.gis.geos import GEOSGeometry
 
         try:
             # Convert GeoJSON to WKT format for storage
