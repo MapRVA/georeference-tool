@@ -491,17 +491,17 @@
                 </nav>
 
                 <!-- Map Display (if georeferenced or aerial with aerial georeference) -->
-                {% if image.is_georeferenced or aerial_georeference %}
+                {% if image.is_georeferenced or polygonal_georeference %}
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if aerial_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
+                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if polygonal_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
                             {% if image.is_georeferenced %}
-                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=aerial_georeference %}
-                            {% elif aerial_georeference %}
-                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=aerial_georeference %}
+                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=polygonal_georeference %}
+                            {% elif polygonal_georeference %}
+                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference %}
                             {% endif %}
                         </div>
                     </div>
@@ -631,25 +631,25 @@
                     </div>
                 </div>
 
-                <!-- Aerial Georeference Information -->
-                {% if aerial_georeference %}
+                <!-- Polygonal Georeference Information -->
+                {% if polygonal_georeference %}
                     <div class="card mb-4">
                         <div class="card-header">
-                            <h6 class="mb-0"><i class="fas fa-satellite me-2"></i>Aerial Georeference Details</h6>
+                            <h6 class="mb-0"><i class="fas fa-plane me-2"></i>Polygonal Georeference Details</h6>
                         </div>
                         <div class="card-body">
                             <dl class="row">
                                 <dt class="col-sm-5">By:</dt>
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
-                                    {% if aerial_georeference.georeferenced_by %}
-                                        {% if aerial_georeference.georeferenced_by.get_profile_url %}
-                                            <a href="{{ aerial_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
-                                                {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                    {% if polygonal_georeference.georeferenced_by %}
+                                        {% if polygonal_georeference.georeferenced_by.get_profile_url %}
+                                            <a href="{{ polygonal_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
+                                                {{ polygonal_georeference.georeferenced_by.get_display_name }}
                                                 <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
                                             </a>
                                         {% else %}
-                                            {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                            {{ polygonal_georeference.georeferenced_by.get_display_name }}
                                         {% endif %}
                                     {% else %}
                                         Anonymous
@@ -658,20 +658,20 @@
 
                                 <dt class="col-sm-5">Date:</dt>
                                 <dd class="col-sm-7">
-                                    <i class="fas fa-calendar me-1"></i>{{ aerial_georeference.georeferenced_at|date:"M j, Y" }}
+                                    <i class="fas fa-calendar me-1"></i>{{ polygonal_georeference.georeferenced_at|date:"M j, Y" }}
                                 </dd>
 
                                 <dt class="col-sm-5">Confidence:</dt>
                                 <dd class="col-sm-7">
-                                    <span class="badge {% if aerial_georeference.confidence == 'high' %}bg-success{% elif aerial_georeference.confidence == 'medium' %}bg-warning text-dark{% elif aerial_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
-                                        {{ aerial_georeference.confidence|capfirst }}
+                                    <span class="badge {% if polygonal_georeference.confidence == 'high' %}bg-success{% elif polygonal_georeference.confidence == 'medium' %}bg-warning text-dark{% elif polygonal_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ polygonal_georeference.confidence|capfirst }}
                                     </span>
                                 </dd>
 
                                 <dt class="col-sm-5">Validations:</dt>
                                 <dd class="col-sm-7">
-                                    {% with validation_counts=aerial_georeference.get_validation_counts %}
-                                        {% if aerial_georeference.validation_count > 0 %}
+                                    {% with validation_counts=polygonal_georeference.get_validation_counts %}
+                                        {% if polygonal_georeference.validation_count > 0 %}
                                             <div class="badge-group d-flex flex-wrap">
                                                 {% if validation_counts.correct > 0 %}
                                                     <span class="badge bg-success" title="{{ validation_counts.correct }} correct validation{{ validation_counts.correct|pluralize }}">
@@ -952,15 +952,15 @@
 
                             <!-- Aerial Georeference Button (only shown if image is aerial) -->
                             {% if image.aerial %}
-                                {% if aerial_georeference %}
+                                {% if polygonal_georeference %}
                                     <!-- Aerial image already has georeference - show correction button -->
                                     <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-warning btn-sm w-100 mb-2">
-                                        <i class="fas fa-satellite me-1"></i>Submit Aerial Correction
+                                        <i class="fas fa-plane me-1"></i>Submit Polygon Correction
                                     </a>
                                 {% else %}
                                     <!-- Aerial image has no georeference yet - show georeference button -->
                                     <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-primary btn-sm w-100 mb-2">
-                                        <i class="fas fa-satellite me-1"></i>Georeference Aerial
+                                        <i class="fas fa-plane me-1"></i>Georeference as Polygon
                                     </a>
                                 {% endif %}
                                 <!-- Georeference as Point button for aerial images -->
