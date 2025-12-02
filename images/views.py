@@ -1,5 +1,4 @@
 import json
-from itertools import chain
 from pathlib import Path
 
 from django.contrib import messages
@@ -7,7 +6,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
+from django.db.models import Avg, Case, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -288,50 +287,35 @@ def collection_detail(request, source_slug, collection_slug):
 
 def top_rated_images(request):
     """Display paginated list of highest-rated images"""
-    # Get images with ratings, annotate with average rating and vote count
-    # Exclude duplicates and only show images from public collections
-    images = (
-        Image.objects.filter(
-            collection__public=True,
-            collection__source__public=True,
-            duplicate_of__isnull=True,
-            ratings__isnull=False,  # Only images that have at least one rating
-        )
-        .annotate(
-            avg_rating=Avg("ratings__rating"),
-            vote_count=Count("ratings"),
-        )
-        .select_related("collection__source")
-        .distinct()
+    # Use the database view for efficient querying
+    from images.models import TopRatedImageView
+
+    # Get all images from the view, already ordered optimally
+    view_entries = TopRatedImageView.objects.all().order_by(
+        "-sort_value", "-avg_rating", "-vote_count", "image_id"
     )
 
-    # Order by average rating (descending), then by vote count (descending) for ties
-    # Images with no votes will be excluded due to ratings__isnull=False filter
-    images = images.order_by("-avg_rating", "-vote_count", "id")
+    # Join with Image model to get full image data
+    # This is much more efficient than the previous implementation
+    all_images = Image.objects.filter(
+        id__in=view_entries.values_list("image_id", flat=True)
+    ).select_related("collection__source")
 
-    # Get images with no ratings separately
-    unrated_images = (
-        Image.objects.filter(
-            collection__public=True,
-            collection__source__public=True,
-            duplicate_of__isnull=True,
-            ratings__isnull=True,  # Images with no ratings
-        )
-        .select_related("collection__source")
-        .order_by("id")
-    )
+    # Create a dictionary to preserve the order from the view
+    image_position = {entry.image_id: i for i, entry in enumerate(view_entries)}
 
-    # Combine: rated images first (sorted by rating), then unrated images last
-    all_images = list(chain(images, unrated_images))
+    # Sort the images based on the order from the view
+    all_images = sorted(all_images, key=lambda img: image_position.get(img.id, 0))
 
     # Paginate the combined results
     paginator = Paginator(all_images, 24)  # 24 images per page for grid layout
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # Calculate statistics
-    total_rated = images.count()
-    total_unrated = unrated_images.count()
+    # Calculate statistics - directly from the view
+    rated_entries = view_entries.filter(vote_count__gt=0)
+    total_rated = rated_entries.count()
+    total_unrated = view_entries.filter(vote_count=0).count()
 
     context = {
         "page_obj": page_obj,

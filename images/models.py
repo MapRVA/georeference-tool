@@ -1,15 +1,15 @@
 import urllib.parse
+import uuid
 
 import requests
 from django.contrib.admin.utils import quote
 from django.contrib.auth.models import User
+from django.contrib.gis.db import models as gis_models
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.contrib.gis.db import models as gis_models
 from django.db import models
-from django.db.models import F
-import uuid
+from django.db.models import Count
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -550,7 +550,7 @@ class Georeference(models.Model):
 
     def get_validation_counts(self):
         """Get counts for each validation type"""
-        from django.db.models import Count, Q
+        from django.db.models import Q
 
         return self.validations.aggregate(
             correct=Count("pk", filter=Q(validation="correct")),
@@ -624,7 +624,7 @@ class AerialGeoreference(models.Model):
 
     def get_validation_counts(self):
         """Get counts for each validation type"""
-        from django.db.models import Count, Q
+        from django.db.models import Q
 
         return self.validations.aggregate(
             correct=Count("pk", filter=Q(validation="correct")),
@@ -1146,3 +1146,20 @@ class AlbumImage(models.Model):
             models.Index(fields=["album", "order"]),
             models.Index(fields=["image"]),
         ]
+
+
+class TopRatedImageView(models.Model):
+    """
+    Database view model for optimized top_rated_images view.
+    This is not a regular table but a database view that provides an optimized
+    query for top rated images without the overhead of Python processing.
+    """
+
+    image = models.OneToOneField(Image, primary_key=True, on_delete=models.DO_NOTHING)
+    avg_rating = models.FloatField(null=True)
+    vote_count = models.IntegerField(default=0)
+    sort_value = models.FloatField()  # Combined value for sorting
+
+    class Meta:
+        managed = False
+        db_table = "images_top_rated_view"
