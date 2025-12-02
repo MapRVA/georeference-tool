@@ -302,41 +302,38 @@ def top_rated_images(request):
 
     # Get total count for pagination info
     total_count = TopRatedImageView.objects.count()
-    
+
     # Calculate total pages
     total_pages = (total_count + page_size - 1) // page_size
-    
+
     # Validate page number
     if page_number > total_pages and total_count > 0:
         page_number = total_pages
 
     offset = (page_number - 1) * page_size
 
-    # Fetch only the current page using database-level offset/limit
+    # Fetch image IDs from the view in the correct order
     view_entries = TopRatedImageView.objects.all().order_by(
         "-sort_value", "-avg_rating", "-vote_count", "image_id"
-    )[offset : offset + page_size]
+    )
 
-    # Get image IDs from this page
-    page_image_ids = [entry.image_id for entry in view_entries]
+    # Get all image IDs for creating a properly ordered queryset
+    all_image_ids = list(view_entries.values_list("image_id", flat=True))
 
-    # Fetch Image objects with relationships, maintaining view order
-    if page_image_ids:
-        page_images = Image.objects.filter(
-            id__in=page_image_ids
-        ).select_related("collection__source")
-
-        # Preserve the sorted order from the database view using Case/When
+    # Create a queryset with all images in the correct order
+    if all_image_ids:
         preserved_order = Case(
-            *[When(pk=image_id, then=pos) for pos, image_id in enumerate(page_image_ids)]
+            *[When(pk=image_id, then=pos) for pos, image_id in enumerate(all_image_ids)]
         )
-        page_images = list(page_images.order_by(preserved_order))
+        all_images_queryset = Image.objects.filter(
+            id__in=all_image_ids
+        ).select_related("collection__source").order_by(preserved_order)
     else:
-        page_images = []
+        all_images_queryset = Image.objects.none()
 
-    # Create a Django Paginator with the page data
-    paginator = Paginator(page_images, page_size)
-    
+    # Create a Django Paginator with the full queryset
+    paginator = Paginator(all_images_queryset, page_size)
+
     try:
         page_obj = paginator.page(page_number)
     except Exception:
