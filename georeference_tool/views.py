@@ -42,42 +42,62 @@ def stats(request):
     daily_labels = [entry["date"] for entry in cumulative_data]
     daily_counts = [entry["count"] for entry in cumulative_data]
 
-    # Image status pie chart
-    # Get all images excluding duplicates and those marked "do not georeference"
-    eligible_images = Image.objects.filter(
-        duplicate_of__isnull=True, will_not_georef=False
-    )
-    total_images = eligible_images.count()
+    # Image status pie chart - optimized with single database query
+    from django.db import connection
 
-    # Initialize status counts
+    query = """
+    WITH point_georefs AS (
+        SELECT
+            g.image_id,
+            g.confidence,
+            ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
+        FROM images_georeference g
+    ),
+    aerial_georefs AS (
+        SELECT
+            ag.image_id,
+            ag.confidence,
+            ROW_NUMBER() OVER (PARTITION BY ag.image_id ORDER BY ag.georeferenced_at DESC) as rn
+        FROM images_aerialgeoreference ag
+    )
+    SELECT
+        COALESCE(
+            CASE
+                WHEN img.aerial = TRUE AND ag.confidence IS NOT NULL THEN ag.confidence
+                WHEN img.aerial = FALSE AND pg.confidence IS NOT NULL THEN pg.confidence
+                ELSE 'not_georeferenced'
+            END
+        ) as confidence_level,
+        COUNT(DISTINCT img.id) as count
+    FROM images_image img
+    LEFT JOIN aerial_georefs ag ON img.id = ag.image_id AND ag.rn = 1
+    LEFT JOIN point_georefs pg ON img.id = pg.image_id AND pg.rn = 1
+    WHERE img.duplicate_of_id IS NULL
+      AND img.will_not_georef = FALSE
+    GROUP BY confidence_level
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        confidence_results = cursor.fetchall()
+
+    # Parse query results into counts
+    total_images = 0
     not_georeferenced_count = 0
     low_confidence_count = 0
     medium_confidence_count = 0
     high_confidence_count = 0
 
-    # Iterate through all eligible images to determine their status
-    for image in eligible_images:
-        # Determine which type of georeference to check based on whether it's an aerial
-        if image.aerial:
-            # For aerial images, use the most recent aerial georeference
-            most_recent_georef = image.aerial_georeferences.order_by(
-                "-georeferenced_at"
-            ).first()
-        else:
-            # For regular images, use the most recent point georeference
-            most_recent_georef = image.georeferences.order_by(
-                "-georeferenced_at"
-            ).first()
-
-        # Categorize based on the most recent georeference
-        if most_recent_georef is None:
-            not_georeferenced_count += 1
-        elif most_recent_georef.confidence == "low":
-            low_confidence_count += 1
-        elif most_recent_georef.confidence == "medium":
-            medium_confidence_count += 1
-        elif most_recent_georef.confidence == "high":
-            high_confidence_count += 1
+    for confidence_level, count in confidence_results:
+        total_images += count
+        if confidence_level == "not_georeferenced":
+            not_georeferenced_count = count
+        elif confidence_level == "low":
+            low_confidence_count = count
+        elif confidence_level == "medium":
+            medium_confidence_count = count
+        elif confidence_level == "high":
+            high_confidence_count = count
 
     status_labels = [
         "Not Georeferenced",
@@ -92,7 +112,7 @@ def stats(request):
         high_confidence_count,
     ]
 
-    # Top contributors
+    # Top contributors - aggregate georeferences and validations by username
     georeference_contributors = (
         Georeference.objects.values(username=F("georeferenced_by__first_name"))
         .annotate(georeference_count=Count("id"))
@@ -105,6 +125,7 @@ def stats(request):
         .order_by("-validation_count")
     )
 
+    # Merge results with proper handling of anonymous users
     contributors = {}
     for entry in georeference_contributors:
         username = entry["username"] if entry["username"] else "Anonymous"
@@ -114,7 +135,7 @@ def stats(request):
         }
 
     for entry in validation_contributors:
-        username = entry["username"]
+        username = entry["username"] if entry["username"] else "Anonymous"
         if username in contributors:
             contributors[username]["validations"] = entry["validation_count"]
         else:
