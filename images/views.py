@@ -1,4 +1,5 @@
 import json
+from itertools import chain
 from pathlib import Path
 
 from django.contrib import messages
@@ -6,7 +7,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Avg, Case, Func, IntegerField, Q, Value, When
+from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -283,6 +284,62 @@ def collection_detail(request, source_slug, collection_slug):
         else 0,
     }
     return render(request, "images/collection_detail.html", context)
+
+
+def top_rated_images(request):
+    """Display paginated list of highest-rated images"""
+    # Get images with ratings, annotate with average rating and vote count
+    # Exclude duplicates and only show images from public collections
+    images = (
+        Image.objects.filter(
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
+            ratings__isnull=False,  # Only images that have at least one rating
+        )
+        .annotate(
+            avg_rating=Avg("ratings__rating"),
+            vote_count=Count("ratings"),
+        )
+        .select_related("collection__source")
+        .distinct()
+    )
+
+    # Order by average rating (descending), then by vote count (descending) for ties
+    # Images with no votes will be excluded due to ratings__isnull=False filter
+    images = images.order_by("-avg_rating", "-vote_count", "id")
+
+    # Get images with no ratings separately
+    unrated_images = (
+        Image.objects.filter(
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
+            ratings__isnull=True,  # Images with no ratings
+        )
+        .select_related("collection__source")
+        .order_by("id")
+    )
+
+    # Combine: rated images first (sorted by rating), then unrated images last
+    all_images = list(chain(images, unrated_images))
+
+    # Paginate the combined results
+    paginator = Paginator(all_images, 24)  # 24 images per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Calculate statistics
+    total_rated = images.count()
+    total_unrated = unrated_images.count()
+
+    context = {
+        "page_obj": page_obj,
+        "total_rated": total_rated,
+        "total_unrated": total_unrated,
+        "total_images": total_rated + total_unrated,
+    }
+    return render(request, "images/favorites.html", context)
 
 
 def georeference_interface(request):
