@@ -223,7 +223,7 @@ function aerialsPage() {
 
         // Update map with filtered GeoJSON
         const filteredResponse = await fetch(
-          `/api/v1/aerials/at-point/?lat=${lat}&lon=${lon}`,
+          `/api/v1/above/at-point/?lat=${lat}&lon=${lon}`,
         );
         const filteredData = await filteredResponse.json();
 
@@ -443,7 +443,7 @@ function aerialsPage() {
       try {
         // Fetch filtered aerials from API
         const response = await fetch(
-          `/api/v1/aerials/at-point/?lat=${lat}&lon=${lon}`,
+          `/api/v1/above/at-point/?lat=${lat}&lon=${lon}`,
         );
         const filteredData = await response.json();
 

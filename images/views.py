@@ -578,7 +578,7 @@ def image_detail(request, image_id):
         "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
-        "aerial_georeference": image.get_aerial_georeference()
+        "polygonal_georeference": image.get_aerial_georeference()
         if image.aerial
         else None,
         "timeline_items": timeline_items,
@@ -756,7 +756,7 @@ def aerial_georeference_interface(request, image_id):
         "user": request.user,
     }
 
-    return render(request, "images/aerial_georeference_interface.html", context)
+    return render(request, "images/from_above_georeference_interface.html", context)
 
 
 @require_http_methods(["POST"])
@@ -900,7 +900,7 @@ def aerial_georeference_image(request, image_id):
             {
                 "success": True,
                 "georeference_id": aerial_georeference.id,
-                "message": "Aerial georeference successfully created",
+                "message": "Polygonal georeference successfully created",
             }
         )
 
@@ -1733,7 +1733,7 @@ def browse_aerials(request):
         "filter_lat": lat if is_filtered else None,
         "filter_lon": lon if is_filtered else None,
     }
-    return render(request, "images/aerials.html", context)
+    return render(request, "images/from_above.html", context)
 
 
 def get_random_image(request):
@@ -2000,7 +2000,7 @@ def aerial_geojson_endpoint(request):
     return JsonResponse(geojson)
 
 
-def aerial_georeferences_at_point(request):
+def polygonal_georeferences_at_point(request):
     """
     API endpoint that returns all aerial georeferences that overlap a given point.
 

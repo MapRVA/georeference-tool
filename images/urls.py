@@ -13,7 +13,7 @@ urlpatterns = [
         views.collection_detail,
         name="collection_detail",
     ),
-    path("aerials/", views.browse_aerials, name="browse_aerials"),
+    path("from-above/", views.browse_aerials, name="browse_aerials"),
     # Subject browsing
     path("subjects/", views.browse_subjects, name="browse_subjects"),
     path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
@@ -36,7 +36,7 @@ urlpatterns = [
         name="georeference_image",
     ),
     path(
-        "<int:image_id>/georeference-aerial/",
+        "<int:image_id>/georeference-polygonal/",
         views.aerial_georeference_image,
         name="aerial_georeference_image",
     ),
@@ -70,7 +70,7 @@ urlpatterns = [
         name="mark_will_not_georef",
     ),
     path(
-        "<int:image_id>/aerial/",
+        "<int:image_id>/from-above/",
         views.mark_aerial,
         name="mark_aerial",
     ),
@@ -94,12 +94,10 @@ urlpatterns = [
     ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
+    path("api/v1/geojson/above/", views.aerial_geojson_endpoint, name="aerial_geojson"),
     path(
-        "api/v1/geojson/aerial/", views.aerial_geojson_endpoint, name="aerial_geojson"
-    ),
-    path(
-        "api/v1/aerials/at-point/",
-        views.aerial_georeferences_at_point,
+        "api/v1/above/at-point/",
+        views.polygonal_georeferences_at_point,
         name="aerial_at_point",
     ),
     path(

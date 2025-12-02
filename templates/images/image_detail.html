@@ -939,14 +939,14 @@
                                 </div>
                             </div>
 
-                            <!-- Mark as Aerial Button -->
+                            <!-- Mark as From Above Button -->
                             <button type="button" class="btn btn-sm w-100 mb-2 toggle-aerial
                                 {% if image.aerial %}btn-success{% else %}btn-outline-success{% endif %}"
                                 data-aerial="{{ image.aerial|yesno:'true,false' }}">
                                 {% if image.aerial %}
-                                    <i class="fas fa-check me-1"></i>Unmark as Aerial
+                                    <i class="fas fa-check me-1"></i>Unmark as From Above
                                 {% else %}
-                                    <i class="fas fa-plane me-1"></i>Mark as Aerial
+                                    <i class="fas fa-plane me-1"></i>Mark as From Above
                                 {% endif %}
                             </button>
 

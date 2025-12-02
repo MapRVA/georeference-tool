@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Georeference Aerial Image - Yesterdays{% endblock %}
+{% block title %}Georeference From Above - Yesterdays{% endblock %}
 
 {% block extra_css %}
 <link href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' rel='stylesheet' />
@@ -286,7 +286,7 @@
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1><i class="fas fa-satellite me-2"></i>Georeference Aerial Image</h1>
+                <h1><i class="fas fa-satellite me-2"></i>Georeference From Above</h1>
                 {% if image %}
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb">
@@ -294,7 +294,7 @@
                             <li class="breadcrumb-item"><a href="{{ image.collection.source.get_absolute_url }}">{{ image.collection.source.name }}</a></li>
                             <li class="breadcrumb-item"><a href="{{ image.collection.get_absolute_url }}">{{ image.collection.name }}</a></li>
                             <li class="breadcrumb-item"><a href="{{ image.get_absolute_url }}">{{ image.title }}</a></li>
-                            <li class="breadcrumb-item active">Aerial Georeference</li>
+                            <li class="breadcrumb-item active">Polygonal Georeference</li>
                         </ol>
                     </nav>
                 {% endif %}
@@ -308,7 +308,7 @@
                     <div class="d-flex align-items-center">
                         <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
                         <div>
-                            <h6 class="alert-heading mb-1">This image has already been georeferenced (aerial)</h6>
+                            <h6 class="alert-heading mb-1">This image has already been georeferenced (polygonal)</h6>
                             <p class="mb-0">
                                 {% if aerial_georeference.georeferenced_by %}
                                     Previously georeferenced by <strong>{{ aerial_georeference.georeferenced_by.get_display_name }}</strong>
@@ -522,7 +522,7 @@
                             {% if image.is_georeferenced %}
                                 {% if request.user.is_authenticated %}
                                     <button type="button" class="btn btn-warning w-100 mb-3" id="submitButton" disabled>
-                                        <i class="fas fa-edit me-2"></i>Submit Aerial Georeference
+                                        <i class="fas fa-edit me-2"></i>Submit Georeference
                                     </button>
                                 {% else %}
                                     <button type="button" class="btn btn-secondary w-100 mb-3" disabled title="Login required to submit">
@@ -531,7 +531,7 @@
                                 {% endif %}
                             {% else %}
                                 <button type="button" class="btn btn-success w-100 mb-3" id="submitButton" disabled>
-                                    <i class="fas fa-check me-2"></i>Submit Aerial Georeference
+                                    <i class="fas fa-check me-2"></i>Submit Georeference
                                 </button>
                             {% endif %}
 
@@ -867,7 +867,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add before the first layer to keep it at the bottom
                 const firstLayer = this.map.getStyle().layers[0];
                 const beforeId = firstLayer ? firstLayer.id : undefined;
-                
+
                 this.map.addLayer({
                     'id': 'satellite-layer',
                     'type': 'raster',
@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add before the first layer to keep it at the bottom
                 const firstLayer = this.map.getStyle().layers[0];
                 const beforeId = firstLayer ? firstLayer.id : undefined;
-                
+
                 this.map.addLayer({
                     'id': 'usgs-layer',
                     'type': 'raster',
@@ -971,24 +971,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 const styles = this.map.getStyle().layers;
                 const geomanLayerIds = [];
                 const allLayerIds = [];
-                
+
                 for (let layer of styles) {
                     allLayerIds.push(layer.id);
                     if (this.isOverlayLayer(layer.id)) {
                         geomanLayerIds.push(layer.id);
                     }
                 }
-                
+
                 console.log('All map layers:', allLayerIds);
                 console.log('Geoman layers found:', geomanLayerIds);
-                
+
                 // If there are geoman layers, move satellite before the first one
                 // This ensures satellite appears below all geoman layers
                 if (geomanLayerIds.length > 0) {
                     console.log('Moving satellite-layer before:', geomanLayerIds[0]);
                     this.map.moveLayer('satellite-layer', geomanLayerIds[0]);
                 }
-                
+
                 this.map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
             }
         }
@@ -1006,19 +1006,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Get all layers and find all geoman layer IDs
                 const styles = this.map.getStyle().layers;
                 const geomanLayerIds = [];
-                
+
                 for (let layer of styles) {
                     if (this.isOverlayLayer(layer.id)) {
                         geomanLayerIds.push(layer.id);
                     }
                 }
-                
+
                 // If there are geoman layers, move USGS before the LAST one
                 // This ensures USGS appears below all geoman layers
                 if (geomanLayerIds.length > 0) {
                     this.map.moveLayer('usgs-layer', geomanLayerIds[0]);
                 }
-                
+
                 this.map.setLayoutProperty('usgs-layer', 'visibility', 'visible');
             }
         }
@@ -1277,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var drawnPolygon = null;
     var gm = null;
     var currentPolygonId = null;
-    
+
     // Initialize Geoman after map loads
     map.on('load', function() {
         // Configure Geoman options - only show polygon and erase tools
@@ -1328,42 +1328,42 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             console.log('Attempting to initialize Geoman...');
             console.log('window keys containing Geoman:', Object.keys(window).filter(k => k.toLowerCase().includes('geoman')));
-            
+
             // The UMD build exports to window.Geoman
             if (typeof window.Geoman === 'undefined') {
                 throw new Error('Geoman library not loaded. Check that the script tag loaded successfully.');
             }
-            
+
             console.log('Geoman library found:', window.Geoman);
             console.log('Geoman keys:', Object.keys(window.Geoman));
-            
+
             // The library exports both the class and helper functions
             // Try to access the Geoman class
             var GeomanClass = window.Geoman.Geoman || window.Geoman;
-            
+
             if (typeof GeomanClass !== 'function') {
                 throw new Error('Geoman class is not a function. Got: ' + typeof GeomanClass);
             }
-            
+
             // Create a new Geoman instance
             gm = new GeomanClass(map, geomanOptions);
-            
+
             console.log('Geoman initialized successfully:', gm);
-            
+
             // Listen for Geoman loaded event
             map.on('gm:loaded', function() {
                 console.log('Geoman fully loaded');
-                
+
                 // Enforce one polygon limit
                 map.on('gm:create', function(event) {
                     if (event.shape === 'polygon') {
                         console.log('Polygon created:', event.feature.id);
                         console.log('Event feature object:', event.feature);
-                        
+
                         // If there's already a polygon, remove it
                         if (currentPolygonId !== null && currentPolygonId !== event.feature.id) {
                             console.log('Removing previous polygon:', currentPolygonId);
-                            
+
                             // Try different removal methods
                             try {
                                 // Method 1: Try using the feature's remove method
@@ -1384,15 +1384,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                 console.warn('Error removing polygon:', e);
                             }
                         }
-                        
+
                         // Store the new polygon's ID
                         currentPolygonId = event.feature.id;
-                        
+
                         // Update polygon data
                         updatePolygonData();
                     }
                 });
-                
+
                 // Track polygon removal
                 map.on('gm:remove', function(event) {
                     if (event.feature && event.feature.id === currentPolygonId) {
@@ -1401,7 +1401,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         updatePolygonData();
                     }
                 });
-                
+
                 // Track polygon editing
                 map.on('gm:editend', function(event) {
                     if (event.feature && event.feature.id === currentPolygonId) {
@@ -1409,34 +1409,34 @@ document.addEventListener('DOMContentLoaded', function() {
                         updatePolygonData();
                     }
                 });
-                
+
                 updatePolygonData();
             });
-            
+
         } catch (e) {
             console.error('Error initializing Geoman:', e);
             console.error('Error stack:', e.stack);
             showAlert('danger', 'Failed to initialize polygon drawing tools: ' + e.message);
         }
     });
-    
+
     function updatePolygonData() {
         try {
             if (!gm || !gm.features) {
                 console.log('Geoman features not yet available');
                 return;
             }
-            
+
             // Get the current polygon if it exists
             drawnPolygon = null;
-            
+
             gm.features.forEach(function(feature) {
                 if (feature.shape === 'polygon' && feature.id === currentPolygonId) {
                     console.log('Found current polygon:', feature.id);
                     drawnPolygon = feature.getGeoJson();
                 }
             });
-            
+
             // Update submit button state
             if (drawnPolygon) {
                 submitButton.disabled = false;
@@ -1566,7 +1566,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('success', 'Aerial georeference submitted successfully!');
+                showAlert('success', 'Polygonal georeference submitted successfully!');
                 setTimeout(() => {
                     window.location.href = `{% url 'images:image_detail' image.id %}`;
                 }, 1500);
