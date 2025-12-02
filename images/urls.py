@@ -115,6 +115,7 @@ urlpatterns = [
         views.subject_autocomplete,
         name="subject_autocomplete",
     ),
+    path("api/v1/subjects/all/", views.all_subjects_api, name="all_subjects_api"),
     # Embeddable map URL
     path("map/embed/", views.map_embed, name="map_embed"),
     # Album management API endpoints

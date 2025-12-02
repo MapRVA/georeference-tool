@@ -1806,10 +1806,8 @@ def image_stats(request):
 
 def search_page(request):
     """Display the semantic search interface"""
-    all_subjects = Subject.objects.all().values("id", "title")
     context = {
         "clip_available": CLIP_AVAILABLE,
-        "all_subjects_json": json.dumps(list(all_subjects)),
     }
     return render(request, "images/search.html", context)
 
@@ -3083,6 +3081,12 @@ def subject_autocomplete(request):
         results.append(result)
 
     return JsonResponse(results, safe=False)
+
+
+def all_subjects_api(request):
+    """API endpoint to get all subjects as JSON"""
+    subjects = Subject.objects.all().values("id", "title")
+    return JsonResponse(list(subjects), safe=False)
 
 
 @require_http_methods(["POST"])
