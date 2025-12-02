@@ -12,7 +12,7 @@ def home(request):
 import json
 
 from django.db.models import Count, F
-from django.db.models.functions import TruncDate, TruncHour
+from django.db.models.functions import TruncDate
 
 from images.models import (
     Collection,
@@ -45,19 +45,41 @@ def stats(request):
     daily_counts = [entry["count"] for entry in cumulative_data]
 
     # Image status pie chart
-    total_images = Image.objects.count()
-    georeferenced_images = Image.objects.filter(georeferences__isnull=False).distinct()
-    not_georeferenced_count = total_images - georeferenced_images.count()
+    # Get all images excluding duplicates and those marked "do not georeference"
+    eligible_images = Image.objects.filter(
+        duplicate_of__isnull=True, will_not_georef=False
+    )
+    total_images = eligible_images.count()
 
-    low_confidence_count = georeferenced_images.filter(
-        georeferences__confidence="low"
-    ).count()
-    medium_confidence_count = georeferenced_images.filter(
-        georeferences__confidence="medium"
-    ).count()
-    high_confidence_count = georeferenced_images.filter(
-        georeferences__confidence="high"
-    ).count()
+    # Initialize status counts
+    not_georeferenced_count = 0
+    low_confidence_count = 0
+    medium_confidence_count = 0
+    high_confidence_count = 0
+
+    # Iterate through all eligible images to determine their status
+    for image in eligible_images:
+        # Determine which type of georeference to check based on whether it's an aerial
+        if image.aerial:
+            # For aerial images, use the most recent aerial georeference
+            most_recent_georef = image.aerial_georeferences.order_by(
+                "-georeferenced_at"
+            ).first()
+        else:
+            # For regular images, use the most recent point georeference
+            most_recent_georef = image.georeferences.order_by(
+                "-georeferenced_at"
+            ).first()
+
+        # Categorize based on the most recent georeference
+        if most_recent_georef is None:
+            not_georeferenced_count += 1
+        elif most_recent_georef.confidence == "low":
+            low_confidence_count += 1
+        elif most_recent_georef.confidence == "medium":
+            medium_confidence_count += 1
+        elif most_recent_georef.confidence == "high":
+            high_confidence_count += 1
 
     status_labels = [
         "Not Georeferenced",
@@ -112,7 +134,10 @@ def stats(request):
     total_collections = Collection.objects.filter(
         public=True, source__public=True
     ).count()
-    georeferenced_count = georeferenced_images.count()
+    # Georeferenced count is the sum of all confidence levels (excluding not georeferenced)
+    georeferenced_count = (
+        low_confidence_count + medium_confidence_count + high_confidence_count
+    )
     georeferenced_percentage = (
         round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
     )

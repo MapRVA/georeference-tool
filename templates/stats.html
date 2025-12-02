@@ -72,9 +72,13 @@
         </div>
     </div>
 
+    <p class="text-muted small mb-4"><em>
+        The above statistics do not include duplicates, or images we have decided not to georeference.
+        Users may submit improved georeferences for images, so there are more cumulative georeferences than georeferenced images.
+    </em></p>
     <div class="card">
         <div class="card-header">
-            <i class="fas fa-users me-2"></i>Top Contributors
+            <i class="fas fa-users me-2"></i>Contributors
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -117,7 +121,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         // Daily Georeferences Chart
         const dailyCtx = document.getElementById('dailyGeoreferencesChart').getContext('2d');
-        
+
         // Convert labels and counts to data points with x (date) and y (count) values
         const labels = {{ daily_labels|safe }};
         const counts = {{ daily_counts|safe }};
@@ -125,7 +129,7 @@
             x: label,
             y: counts[index]
         }));
-        
+
         new Chart(dailyCtx, {
             type: 'line',
             data: {
@@ -196,6 +200,18 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const imageWord = value === 1 ? 'Image' : 'Images';
+                                return ` ${value} ${imageWord}`;
+                            }
+                        }
+                    }
+                }
             }
         });
     });
