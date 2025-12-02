@@ -540,13 +540,13 @@
                                 <i class="fas fa-arrow-left me-2"></i>Back to Image
                             </button>
 
-                            {% if not osm_authenticated %}
+                            {% if not request.user.is_authenticated %}
                                 <!-- Anonymous user info -->
                                 <div class="alert alert-info mb-2">
                                     <i class="fas fa-info-circle me-1"></i>
                                     <small>You can georeference images anonymously. <a href="{% url 'osm_auth:login' %}?image={{ image.id }}">Login with OpenStreetMap</a> to track your contributions and access validation features.</small>
                                 </div>
-                            {% elif osm_authenticated and not user.is_staff %}
+                            {% elif request.user.is_authenticated and not user.is_staff %}
                                 <!-- Logged in user info -->
                                 <div class="alert alert-success mb-2">
                                     <i class="fas fa-user-check me-1"></i>
