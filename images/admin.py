@@ -124,7 +124,12 @@ class CollectionAdmin(admin.ModelAdmin):
         will_not_georef = request.POST.get("will_not_georef") == "true"
 
         try:
-            image = get_object_or_404(Image, id=image_id, collection_id=collection_id, duplicate_of__isnull=True)
+            image = get_object_or_404(
+                Image,
+                id=image_id,
+                collection_id=collection_id,
+                duplicate_of__isnull=True,
+            )
 
             if difficulty and difficulty != "none":
                 image.difficulty = difficulty

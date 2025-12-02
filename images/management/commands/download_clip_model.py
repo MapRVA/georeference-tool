@@ -76,7 +76,9 @@ class Command(BaseCommand):
                     )
 
                     # Check if there was a checksum warning
-                    checksum_warning = any("checksum" in str(warning.message).lower() for warning in w)
+                    checksum_warning = any(
+                        "checksum" in str(warning.message).lower() for warning in w
+                    )
 
                     if checksum_warning:
                         self.stdout.write(
@@ -87,7 +89,9 @@ class Command(BaseCommand):
                         # Delete corrupted files
                         for pt_file in local_model_dir.glob("**/*.pt"):
                             pt_file.unlink()
-                        self.stdout.write("Corrupted files deleted. Will re-download...")
+                        self.stdout.write(
+                            "Corrupted files deleted. Will re-download..."
+                        )
                     else:
                         self.stdout.write(
                             self.style.SUCCESS(

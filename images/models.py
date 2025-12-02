@@ -1014,9 +1014,7 @@ class SubjectMapping(models.Model):
 class Comment(models.Model):
     """Comments on images"""
 
-    image = models.ForeignKey(
-        Image, on_delete=models.CASCADE, related_name="comments"
-    )
+    image = models.ForeignKey(Image, on_delete=models.CASCADE, related_name="comments")
 
     # Content
     text = models.TextField(help_text="Comment text content")
@@ -1046,9 +1044,7 @@ class Comment(models.Model):
 class ImageRating(models.Model):
     """Rating of an image by a user (1-10 scale)"""
 
-    image = models.ForeignKey(
-        Image, on_delete=models.CASCADE, related_name="ratings"
-    )
+    image = models.ForeignKey(Image, on_delete=models.CASCADE, related_name="ratings")
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="image_ratings"
     )
@@ -1079,6 +1075,7 @@ def update_skip_count(sender, instance, **kwargs):
 
 class Album(models.Model):
     """User-created collection of images in a specific order"""
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -1086,9 +1083,7 @@ class Album(models.Model):
         help_text="UUID for the album (difficult to guess)",
     )
 
-    owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="albums"
-    )
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="albums")
     title = models.CharField(max_length=500, help_text="Title of the album")
     description = models.TextField(
         blank=True, help_text="Optional description of the album"
@@ -1109,8 +1104,15 @@ class Album(models.Model):
         return f"{self.title} by {self.owner.get_display_name()}"
 
     def get_absolute_url(self):
-        display_name = self.owner.get_display_name() if hasattr(self.owner, 'get_display_name') else self.owner.username
-        return reverse("images:album_detail", kwargs={"display_name": display_name, "album_id": self.id})
+        display_name = (
+            self.owner.get_display_name()
+            if hasattr(self.owner, "get_display_name")
+            else self.owner.username
+        )
+        return reverse(
+            "images:album_detail",
+            kwargs={"display_name": display_name, "album_id": self.id},
+        )
 
     class Meta:
         ordering = ["-created_at"]
