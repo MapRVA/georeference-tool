@@ -775,7 +775,7 @@
                         </div>
                         <div class="card-body">
                             <!-- Submit Button -->
-                            {% if current_image.is_georeferenced %}
+                            {% if current_image.georeferences.exists %}
                                 {% if request.user.is_authenticated %}
                                     <button type="button" class="btn btn-warning w-100 mb-3" id="submitButton" disabled>
                                         <i class="fas fa-edit me-2"></i>Submit Correction
@@ -1140,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const markDifficultyButtons = document.querySelectorAll('.mark-difficulty');
     const confidenceNotes = document.getElementById('confidence-notes');
     const isStaff = {{ user.is_staff|yesno:"true,false" }};
-    const isImageGeoreferenced = {{ current_image.is_georeferenced|yesno:"true,false" }};
+    const isImageGeoreferenced = {{ current_image.georeferences.exists|yesno:"true,false" }};
 
     // Add PMTiles protocol
     let protocol = new pmtiles.Protocol();
