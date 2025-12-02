@@ -501,7 +501,7 @@
                             {% if image.is_georeferenced %}
                                 {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=aerial_georeference %}
                             {% elif aerial_georeference %}
-                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' aerial_georeference=aerial_georeference %}
+                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=aerial_georeference %}
                             {% endif %}
                         </div>
                     </div>
