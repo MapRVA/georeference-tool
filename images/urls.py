@@ -102,6 +102,7 @@ urlpatterns = [
         views.polygonal_georeferences_at_point,
         name="aerial_at_point",
     ),
+    path('api/v1/osm_element_tiles/<int:z>/<int:x>/<int:y>.pbf', views.osm_elements_vector_tiles_endpoint, name='osm_elements_tiles'),
     path(
         "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
         views.vector_tiles_endpoint,

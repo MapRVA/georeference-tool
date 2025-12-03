@@ -957,6 +957,26 @@ class WikidataItem(models.Model):
         ordering = ["title"]
 
 
+class OsmElement(models.Model):
+    """OpenStreetMap element with cached geometry"""
+
+    osm_id = models.BigIntegerField(unique=True, help_text="OpenStreetMap element ID")
+    geometry = gis_models.GeometryField(
+        spatial_index=True,
+        help_text="Geometry of the OSM element (point, polygon, multipolygon, etc.)",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True, help_text="When this row was last updated"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"OSM Element {self.osm_id}"
+
+    class Meta:
+        ordering = ["osm_id"]
+
+
 class Subject(models.Model):
     """Subject that can appear in images (buildings, people, monuments, etc.)"""
 
@@ -970,6 +990,14 @@ class Subject(models.Model):
         blank=True,
         related_name="subjects",
         help_text="Optional linked Wikidata item",
+    )
+    osm_element = models.ForeignKey(
+        OsmElement,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="subjects",
+        help_text="Optional linked OpenStreetMap element",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1146,20 +1174,3 @@ class AlbumImage(models.Model):
             models.Index(fields=["album", "order"]),
             models.Index(fields=["image"]),
         ]
-
-
-class TopRatedImageView(models.Model):
-    """
-    Database view model for optimized top_rated_images view.
-    This is not a regular table but a database view that provides an optimized
-    query for top rated images without the overhead of Python processing.
-    """
-
-    image = models.OneToOneField(Image, primary_key=True, on_delete=models.DO_NOTHING)
-    avg_rating = models.FloatField(null=True)
-    vote_count = models.IntegerField(default=0)
-    sort_value = models.FloatField()  # Combined value for sorting
-
-    class Meta:
-        managed = False
-        db_table = "images_top_rated_view"

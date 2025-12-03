@@ -8,7 +8,6 @@ from django.core.paginator import Page, Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
-from images.models import TopRatedImageView
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -2229,6 +2228,43 @@ def vector_tiles_endpoint(request, z, x, y):
 
     # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters
     query_params = [z, x, y] + where_params + [z, x, y]
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, query_params)
+        result = cursor.fetchone()
+
+        if result and result[0]:
+            mvt_data = bytes(result[0])
+            response = HttpResponse(mvt_data, content_type="application/x-protobuf")
+            return response
+        else:
+            return HttpResponse(b"", content_type="application/x-protobuf")
+
+def osm_elements_vector_tiles_endpoint(request, z, x, y):
+    """Return MVT vector tiles of OSM elements (mixed geometries: points, lines, polygons)"""
+    from django.db import connection
+
+    sql = f"""
+        SELECT ST_AsMVT(mvtgeoms.*, 'osm_elements') as mvt FROM (
+            SELECT
+                ST_AsMVTGeom(ST_Transform(oe.geometry, 3857), ST_TileEnvelope(%s, %s, %s)) AS geometry,
+                oe.osm_id as id,
+                ST_GeometryType(oe.geometry) as geom_type,
+                s.title as subject_name,
+                s.slug as subject_slug,
+                COALESCE(
+                    string_agg(CAST(sm.image_id AS text), ','),
+                    ''
+                ) as image_ids
+            FROM images_osmelement oe
+            LEFT JOIN images_subject s ON oe.id = s.osm_element_id
+            LEFT JOIN images_subjectmapping sm ON s.id = sm.subject_id
+            WHERE ST_Intersects(oe.geometry, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
+            GROUP BY oe.id, s.id, oe.osm_id, oe.geometry, s.title, s.slug
+        ) mvtgeoms
+    """
+
+    query_params = [z, x, y, z, x, y]
 
     with connection.cursor() as cursor:
         cursor.execute(sql, query_params)
