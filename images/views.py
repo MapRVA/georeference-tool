@@ -48,6 +48,7 @@ from .models import (
     ImageRating,
     ImageSkip,
     LayerCollection,
+    TopRatedImageView,
     Source,
     Subject,
     SubjectMapping,

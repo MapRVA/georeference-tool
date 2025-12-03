@@ -1174,3 +1174,18 @@ class AlbumImage(models.Model):
             models.Index(fields=["album", "order"]),
             models.Index(fields=["image"]),
         ]
+
+
+class TopRatedImageView(models.Model):
+    """
+    A model representing the images_top_rated_view database view.
+    This view stores image ratings and statistics for displaying top rated images.
+    """
+    image_id = models.IntegerField(primary_key=True)
+    avg_rating = models.FloatField()
+    vote_count = models.IntegerField()
+    sort_value = models.FloatField()
+
+    class Meta:
+        managed = False
+        db_table = 'images_top_rated_view'
