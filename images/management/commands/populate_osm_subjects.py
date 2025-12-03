@@ -18,7 +18,7 @@ class Command(BaseCommand):
             "--wait",
             type=int,
             default=10,
-            help="Seconds to wait between API requests (default: 30)",
+            help="Seconds to wait between API requests (default: 10)",
         )
         parser.add_argument(
             "--postpass-url",
@@ -32,16 +32,27 @@ class Command(BaseCommand):
             default=60,
             help="Timeout for API requests in seconds (default: 60)",
         )
+        parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help="Re-query all OSM elements for subjects with Wikidata items. Deletes OsmElements that are no longer found in OSM.",
+        )
 
     def handle(self, *args, **options):
         wait_time = options["wait"]
         postpass_url = options["postpass_url"]
         timeout = options["timeout"]
+        refresh = options["refresh"]
 
-        # Get all subjects with Wikidata items but no OSM element
-        subjects = Subject.objects.filter(
-            wikidata_item__isnull=False, osm_element__isnull=True
-        )
+        if refresh:
+            # Get all subjects with Wikidata items (regardless of OSM element status)
+            subjects = Subject.objects.filter(wikidata_item__isnull=False)
+            self.stdout.write(self.style.SUCCESS("Running in refresh mode"))
+        else:
+            # Get all subjects with Wikidata items but no OSM element
+            subjects = Subject.objects.filter(
+                wikidata_item__isnull=False, osm_element__isnull=True
+            )
 
         if not subjects.exists():
             self.stdout.write(
@@ -52,9 +63,9 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {subjects.count()} subjects to process")
 
         session = self._create_session()
-
         processed = 0
         skipped = 0
+        deleted = 0
 
         for subject in subjects:
             wikidata_id = subject.wikidata_item.wikidata_id
@@ -66,13 +77,37 @@ class Command(BaseCommand):
                 sql_query = f"""SELECT osm_id, tags, geom FROM postpass_pointlinepolygon WHERE tags->>'wikidata' = '{wikidata_id}' AND geom && {bbox_clause}"""
                 self.stdout.write(f"  Query:\n{sql_query}\n")
 
-                features = self._fetch_osm_features(session, postpass_url, wikidata_id, timeout, bbox_clause)
+                features = self._fetch_osm_features(
+                    session, postpass_url, wikidata_id, timeout, bbox_clause
+                )
 
                 if not features:
                     self.stdout.write(
                         self.style.WARNING(f"  No OSM elements found for {wikidata_id}")
                     )
-                    skipped += 1
+                    if refresh and subject.osm_element:
+                        # In refresh mode, delete the OSM element if no longer found
+                        old_osm_id = subject.osm_element.osm_id
+                        osm_element = subject.osm_element
+                        subject.osm_element = None
+                        subject.save()
+                        # Delete the OsmElement if this was the only subject using it
+                        if not osm_element.subjects.exists():
+                            osm_element.delete()
+                            self.stdout.write(
+                                self.style.SUCCESS(
+                                    f"  Deleted OSM element {old_osm_id} (no longer found in OSM)"
+                                )
+                            )
+                            deleted += 1
+                        else:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"  Unlinked OSM element {old_osm_id} (still used by other subjects)"
+                                )
+                            )
+                    else:
+                        skipped += 1
                 else:
                     # Process the first (best match) feature
                     feature = features[0]
@@ -84,16 +119,21 @@ class Command(BaseCommand):
                         osm_id=osm_id,
                         defaults={"geometry": GEOSGeometry(json.dumps(geometry))},
                     )
-
                     if not created:
                         # Update geometry if it changed
                         osm_element.geometry = GEOSGeometry(json.dumps(geometry))
                         osm_element.save()
+                        self.stdout.write(
+                            self.style.SUCCESS(f"  Updated OSM element {osm_element.osm_id}")
+                        )
+                    else:
+                        self.stdout.write(
+                            self.style.SUCCESS(f"  Created OSM element {osm_element.osm_id}")
+                        )
 
                     # Link to subject
                     subject.osm_element = osm_element
                     subject.save()
-
                     self.stdout.write(
                         self.style.SUCCESS(
                             f"  Linked OSM element {osm_element.osm_id} to {subject.title}"
@@ -106,6 +146,20 @@ class Command(BaseCommand):
                     self.stdout.write(f"  Waiting {wait_time}s before next request...")
                     time.sleep(wait_time)
 
+            except requests.Timeout:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  Request timed out for {subject.title}, skipping (no changes made)"
+                    )
+                )
+                skipped += 1
+            except requests.RequestException as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  HTTP error for {subject.title}: {str(e)}, skipping (no changes made)"
+                    )
+                )
+                skipped += 1
             except Exception as e:
                 self.stdout.write(
                     self.style.ERROR(f"  Error processing {subject.title}: {str(e)}")
@@ -113,10 +167,18 @@ class Command(BaseCommand):
                 skipped += 1
 
         session.close()
-
-        self.stdout.write(
-            self.style.SUCCESS(f"\nComplete! Processed: {processed}, Skipped: {skipped}")
-        )
+        if refresh:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\nComplete! Processed: {processed}, Deleted: {deleted}, Skipped: {skipped}"
+                )
+            )
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\nComplete! Processed: {processed}, Skipped: {skipped}"
+                )
+            )
 
     def _create_session(self):
         """Create a requests session with retry strategy"""
@@ -132,13 +194,14 @@ class Command(BaseCommand):
         session.mount("https://", adapter)
         return session
 
-    def _fetch_osm_features(self, session, postpass_url, wikidata_id, timeout, bbox_clause):
+    def _fetch_osm_features(
+        self, session, postpass_url, wikidata_id, timeout, bbox_clause
+    ):
         """Fetch OSM features from Postpass API for a Wikidata item"""
         # Query the combined geometry view for all element types within Virginia bounds
         sql_query = f"""
         SELECT osm_id, tags, geom FROM postpass_pointlinepolygon WHERE tags->>'wikidata' = '{wikidata_id}' AND geom && {bbox_clause}
         """
-
         try:
             response = session.post(
                 postpass_url,
@@ -146,12 +209,9 @@ class Command(BaseCommand):
                 timeout=timeout,
             )
             response.raise_for_status()
-
             data = response.json()
-
             if not data.get("features"):
                 return []
-
             # Add osm_id to properties if not already present
             for feature in data["features"]:
                 if "osm_id" not in feature.get("properties", {}):
@@ -159,15 +219,13 @@ class Command(BaseCommand):
                     feature["properties"]["osm_id"] = feature["properties"].get(
                         "osm_id", 0
                     )
-
             return data["features"]
-
         except requests.Timeout as e:
-            raise Exception(
+            raise requests.Timeout(
                 f"Request to Postpass API timed out after {timeout}s. "
                 f"Try increasing timeout with --timeout flag: {str(e)}"
             )
         except requests.RequestException as e:
-            raise Exception(f"Failed to fetch from Postpass API: {str(e)}")
+            raise requests.RequestException(f"Failed to fetch from Postpass API: {str(e)}")
         except (json.JSONDecodeError, KeyError) as e:
             raise Exception(f"Failed to parse Postpass response: {str(e)}")
