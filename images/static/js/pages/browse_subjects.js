@@ -25,6 +25,9 @@ document.addEventListener("DOMContentLoaded", function () {
     zoom: 13,
   });
 
+  // Add fullscreen control
+  map.addControl(new maplibregl.FullscreenControl());
+
   // Add OSM elements tiles layer
   map.on("load", function () {
     console.log("Map loaded, adding OSM elements source");
