@@ -21,8 +21,8 @@ document.addEventListener("DOMContentLoaded", function () {
         },
       ],
     },
-    center: [-77.4128, 37.5247],
-    zoom: 12,
+    center: [-77.43916, 37.54376],
+    zoom: 13,
   });
 
   // Add OSM elements tiles layer
