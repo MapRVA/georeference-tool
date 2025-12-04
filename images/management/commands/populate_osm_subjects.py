@@ -72,10 +72,8 @@ class Command(BaseCommand):
             self.stdout.write(f"\nProcessing {subject.title} ({wikidata_id})...")
 
             try:
-                # Print the query that will be sent to Postpass
                 bbox_clause = "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)"
                 sql_query = f"""SELECT osm_id, tags, geom FROM postpass_pointlinepolygon WHERE tags->>'wikidata' = '{wikidata_id}' AND geom && {bbox_clause}"""
-                self.stdout.write(f"  Query:\n{sql_query}\n")
 
                 features = self._fetch_osm_features(
                     session, postpass_url, wikidata_id, timeout, bbox_clause
@@ -114,13 +112,13 @@ class Command(BaseCommand):
                     osm_id = feature["properties"]["osm_id"]
                     geometry = feature["geometry"]
 
-                    # Create or update OsmElement
+                    # Create or update OsmElement and link to subject
                     osm_element, created = OsmElement.objects.get_or_create(
                         osm_id=osm_id,
                         defaults={"geometry": GEOSGeometry(json.dumps(geometry))},
                     )
                     if not created:
-                        # Update geometry if it changed
+                        # Update geometry if element already exists
                         osm_element.geometry = GEOSGeometry(json.dumps(geometry))
                         osm_element.save()
                         self.stdout.write(
@@ -131,7 +129,7 @@ class Command(BaseCommand):
                             self.style.SUCCESS(f"  Created OSM element {osm_element.osm_id}")
                         )
 
-                    # Link to subject
+                    # Link to subject (replacing any existing link)
                     subject.osm_element = osm_element
                     subject.save()
                     self.stdout.write(
@@ -139,6 +137,7 @@ class Command(BaseCommand):
                             f"  Linked OSM element {osm_element.osm_id} to {subject.title}"
                         )
                     )
+
                     processed += 1
 
                 # Wait before next request to be respectful to the API
