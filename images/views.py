@@ -1329,7 +1329,8 @@ def edit_album(request, album_id):
         # Update album
         album.title = title
         album.description = description
-        album.save(update_fields=["title", "description"])
+        album.map_mode = 'map_mode' in request.POST
+        album.save(update_fields=["title", "description", "map_mode"])
 
         messages.success(request, "Album updated successfully.")
         return redirect(
@@ -1592,6 +1593,12 @@ def album_detail(request, display_name, album_id):
     # Calculate pending images count for the georeference button
     pending_images = sum(1 for ai in album_images if not ai.image.is_georeferenced)
 
+    # Calculate georeferenced images count for map display
+    georeferenced_images = sum(1 for ai in album_images if ai.image.is_georeferenced)
+
+    # Check if map_mode is available (handle migration period)
+    album_map_mode = getattr(album, 'map_mode', False)
+
     display_name = (
         user.get_display_name() if hasattr(user, "get_display_name") else user.username
     )
@@ -1604,6 +1611,8 @@ def album_detail(request, display_name, album_id):
         "display_name": display_name,
         "is_owner": is_owner,
         "pending_images": pending_images,
+        "georeferenced_images": georeferenced_images,
+        "album_map_mode": album_map_mode,
     }
     return render(request, "images/album_detail.html", context)
 
@@ -2172,6 +2181,7 @@ def vector_tiles_endpoint(request, z, x, y):
     collection_id = request.GET.get("collection")
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
+    album_id = request.GET.get("album")
 
     # Build WHERE conditions for filtering on pre-filtered materialized view
     where_conditions = []
@@ -2201,6 +2211,11 @@ def vector_tiles_endpoint(request, z, x, y):
             "image_id IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = %s)"
         )
         where_params.append(subject_id)
+    if album_id:
+        where_conditions.append(
+            "image_id IN (SELECT image_id FROM images_albumimage WHERE album_id = %s)"
+        )
+        where_params.append(album_id)
 
     where_clause = " AND ".join(where_conditions)
 

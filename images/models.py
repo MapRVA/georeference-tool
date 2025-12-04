@@ -1129,6 +1129,9 @@ class Album(models.Model):
     public = models.BooleanField(
         default=False, help_text="Whether this album is visible to other users"
     )
+    map_mode = models.BooleanField(
+        default=False, help_text="Whether to display map, georeferencing buttons"
+    )
     images = models.ManyToManyField(
         Image,
         through="AlbumImage",
