@@ -2,28 +2,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
   if (!mapContainer) return; // Exit if no map on this page
 
-  // Initialize MapLibre GL map with OpenStreetMap style
+  // Initialize MapLibre GL map with Protomaps white style
   const map = new maplibregl.Map({
     container: "subjects-map",
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: "raster",
-          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-          tileSize: 256,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        },
-      },
-      layers: [
-        {
-          id: "osm-layer",
-          type: "raster",
-          source: "osm",
-        },
-      ],
-    },
+    style:
+      "https://api.protomaps.com/styles/v5/white/en.json?key=6f7a752e00e84ef9",
     center: [-77.43916, 37.54376],
     zoom: 13,
   });
