@@ -133,16 +133,16 @@
                                     {% endif %}
                                 {% endif %}
 
-                                <!-- Difficulty Badge -->
-                                {% if album_image.image.difficulty %}
-                                    <span class="badge position-absolute top-0 start-0 m-2
-                                        {% if album_image.image.difficulty == 'easy' %}bg-success{% elif album_image.image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
-                                        {{ album_image.image.difficulty|capfirst }}
-                                    </span>
-                                {% endif %}
-
-                                <!-- Aerial Indicator -->
                                 {% if album_map_mode %}
+                                    <!-- Difficulty Badge -->
+                                    {% if album_image.image.difficulty %}
+                                        <span class="badge position-absolute top-0 start-0 m-2
+                                            {% if album_image.image.difficulty == 'easy' %}bg-success{% elif album_image.image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ album_image.image.difficulty|capfirst }}
+                                        </span>
+                                    {% endif %}
+
+                                    <!-- Aerial Indicator -->
                                     {% if album_image.image.aerial %}
                                         <span class="badge bg-success position-absolute top-0 start-0 m-2" style="margin-left: 3rem;" title="Aerial image">
                                             <i class="fas fa-plane"></i>
@@ -187,9 +187,6 @@
 
                             <div class="card-footer bg-white border-top-0 p-3">
                                 <div class="d-flex justify-content-end">
-
-
-
                                     {% if album_map_mode %}
                                         {% if album_image.image.will_not_georef %}
                                             <!-- Skip badge shown, no action button -->
