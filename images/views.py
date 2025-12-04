@@ -1714,6 +1714,7 @@ def browse_aerials(request):
         aerial=True,
         collection__public=True,
         collection__source__public=True,
+        duplicate_of__isnull=True,
     ).select_related("collection__source")
 
     # Check for location filtering
@@ -2037,6 +2038,7 @@ def aerial_geojson_endpoint(request):
             aerial_georeferences__isnull=False,  # Must have aerial georeferences
             collection__public=True,  # Collection must be public
             collection__source__public=True,  # Source must be public
+            duplicate_of__isnull=True,  # Exclude duplicate images
         )
         .distinct()
     )
@@ -2114,6 +2116,7 @@ def polygonal_georeferences_at_point(request):
             aerial_georeferences__isnull=False,  # Must have aerial georeferences
             collection__public=True,  # Collection must be public
             collection__source__public=True,  # Source must be public
+            duplicate_of__isnull=True,  # Exclude duplicate images
         )
         .select_related("collection__source")
         .prefetch_related("aerial_georeferences")
