@@ -1,4 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
+  const mapContainer = document.getElementById("subjects-map");
+  if (!mapContainer) return; // Exit if no map on this page
+
   // Initialize MapLibre GL map with OpenStreetMap style
   const map = new maplibregl.Map({
     container: "subjects-map",
@@ -135,28 +138,87 @@ document.addEventListener("DOMContentLoaded", function () {
       },
     });
 
+    // Large polygons (background)
     map.addLayer({
-      id: "osm-elements-polygons",
+      id: "osm-elements-polygons-large-fill",
       type: "fill",
       source: "osm-elements",
       "source-layer": "osm_elements",
-      filter: ["==", ["get", "geom_type"], "ST_MultiPolygon"],
+      filter: [
+        "all",
+        [
+          "in",
+          ["get", "geom_type"],
+          ["literal", ["ST_Polygon", "ST_MultiPolygon"]],
+        ],
+        [">=", ["get", "geometry_area"], 3e-6],
+      ],
       paint: {
         "fill-color": "#ff6b35",
-        "fill-opacity": 0.5,
+        "fill-opacity": 0.3,
       },
     });
 
     map.addLayer({
-      id: "osm-elements-polygons-stroke",
+      id: "osm-elements-polygons-large-stroke",
       type: "line",
       source: "osm-elements",
       "source-layer": "osm_elements",
-      filter: ["==", ["get", "geom_type"], "ST_MultiPolygon"],
+      filter: [
+        "all",
+        [
+          "in",
+          ["get", "geom_type"],
+          ["literal", ["ST_Polygon", "ST_MultiPolygon"]],
+        ],
+        [">=", ["get", "geometry_area"], 3e-6],
+      ],
       paint: {
         "line-color": "#ff6b35",
         "line-width": 2,
-        "line-opacity": 0.7,
+        "line-opacity": 0.5,
+      },
+    });
+
+    // Small polygons (on top)
+    map.addLayer({
+      id: "osm-elements-polygons-small-fill",
+      type: "fill",
+      source: "osm-elements",
+      "source-layer": "osm_elements",
+      filter: [
+        "all",
+        [
+          "in",
+          ["get", "geom_type"],
+          ["literal", ["ST_Polygon", "ST_MultiPolygon"]],
+        ],
+        ["<", ["get", "geometry_area"], 3e-6],
+      ],
+      paint: {
+        "fill-color": "#ff6b35",
+        "fill-opacity": 0.6,
+      },
+    });
+
+    map.addLayer({
+      id: "osm-elements-polygons-small-stroke",
+      type: "line",
+      source: "osm-elements",
+      "source-layer": "osm_elements",
+      filter: [
+        "all",
+        [
+          "in",
+          ["get", "geom_type"],
+          ["literal", ["ST_Polygon", "ST_MultiPolygon"]],
+        ],
+        ["<", ["get", "geometry_area"], 3e-6],
+      ],
+      paint: {
+        "line-color": "#ff6b35",
+        "line-width": 2,
+        "line-opacity": 0.8,
       },
     });
 
@@ -171,7 +233,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const layerIds = [
       "osm-elements-points",
       "osm-elements-lines",
-      "osm-elements-polygons",
+      "osm-elements-polygons-large-fill",
+      "osm-elements-polygons-large-stroke",
+      "osm-elements-polygons-small-fill",
+      "osm-elements-polygons-small-stroke",
     ];
 
     layerIds.forEach((layerId) => {

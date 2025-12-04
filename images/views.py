@@ -2248,20 +2248,27 @@ def osm_elements_vector_tiles_endpoint(request, z, x, y):
     sql = f"""
         SELECT ST_AsMVT(mvtgeoms.*, 'osm_elements') as mvt FROM (
             SELECT
-                ST_AsMVTGeom(ST_Transform(oe.geometry, 3857), ST_TileEnvelope(%s, %s, %s)) AS geometry,
-                oe.osm_id as id,
+                ST_AsMVTGeom(ST_Transform(oe.geometry, 3857), ST_TileEnvelope(%s, %s, %s)) AS geom,
+                oe.osm_id as osm_id,
                 ST_GeometryType(oe.geometry) as geom_type,
                 s.title as subject_name,
                 s.slug as subject_slug,
                 COALESCE(
                     string_agg(CAST(sm.image_id AS text), ','),
                     ''
-                ) as image_ids
+                ) as image_ids,
+                oe.geometry_area as geometry_area
             FROM images_osmelement oe
             LEFT JOIN images_subject s ON oe.id = s.osm_element_id
             LEFT JOIN images_subjectmapping sm ON s.id = sm.subject_id
             WHERE ST_Intersects(oe.geometry, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
-            GROUP BY oe.id, s.id, oe.osm_id, oe.geometry, s.title, s.slug
+            GROUP BY oe.id, s.id, oe.osm_id, oe.geometry, s.title, s.slug, oe.geometry_area
+            ORDER BY
+                CASE
+                    WHEN ST_GeometryType(oe.geometry) IN ('ST_Polygon', 'ST_MultiPolygon') THEN oe.geometry_area
+                    ELSE 0
+                END ASC,
+                oe.osm_id ASC
         ) mvtgeoms
     """
 

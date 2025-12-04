@@ -965,6 +965,10 @@ class OsmElement(models.Model):
         spatial_index=True,
         help_text="Geometry of the OSM element (point, polygon, multipolygon, etc.)",
     )
+    geometry_area = models.FloatField(
+        default=0,
+        help_text="Cached area of the geometry in square degrees (used for render ordering)",
+    )
     updated_at = models.DateTimeField(
         auto_now=True, help_text="When this row was last updated"
     )
@@ -972,6 +976,12 @@ class OsmElement(models.Model):
 
     def __str__(self):
         return f"OSM Element {self.osm_id}"
+
+    def save(self, *args, **kwargs):
+        """Calculate geometry area before saving"""
+        if self.geometry:
+            self.geometry_area = self.geometry.area
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["osm_id"]
