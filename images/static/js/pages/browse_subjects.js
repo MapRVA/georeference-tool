@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", function () {
       minzoom: 0,
       maxzoom: 14,
       scheme: "xyz",
+      attribution: "Subject geometries © OpenStreetMap Contributors",
     });
 
     console.log("Source added, adding layers");
