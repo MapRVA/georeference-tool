@@ -239,29 +239,23 @@ document.addEventListener("DOMContentLoaded", function () {
       "osm-elements-polygons-small-stroke",
     ];
 
+    // Debounce timer for hover interactions
+    let hoverTimeout;
+
     layerIds.forEach((layerId) => {
       map.on("mousemove", layerId, (e) => {
+        // Immediate operations - no debouncing
         map.getCanvas().style.cursor = "pointer";
 
         if (e.features.length > 0) {
           const feature = e.features[0];
           const subjectName =
             feature.properties.subject_name || "Unknown Subject";
-          console.log("Feature properties:", feature.properties);
           const imageIds = feature.properties.image_ids
             ? feature.properties.image_ids.split(",").filter((id) => id)
             : [];
 
-          console.log(
-            "Hovering subject:",
-            subjectName,
-            "Raw image_ids:",
-            feature.properties.image_ids,
-            "Parsed:",
-            imageIds,
-          );
-
-          // Show the popup
+          // Show the popup immediately
           popup
             .setLngLat(e.lngLat)
             .setHTML(
@@ -269,50 +263,53 @@ document.addEventListener("DOMContentLoaded", function () {
             )
             .addTo(map);
 
-          // Filter and highlight image georeferences for this subject
-          if (imageIds.length > 0) {
-            const numIds = imageIds.map((id) => parseInt(id));
-            console.log("Filtering to IDs:", numIds);
+          // Debounce only the expensive georeference operations
+          clearTimeout(hoverTimeout);
+          hoverTimeout = setTimeout(() => {
+            // Filter and highlight image georeferences for this subject
+            if (imageIds.length > 0) {
+              const numIds = imageIds.map((id) => parseInt(id));
+              const filter = ["in", ["get", "id"], ["literal", numIds]];
 
-            // Use a match expression to highlight only these IDs
-            const filter = ["in", ["get", "id"], ["literal", numIds]];
-            console.log("Filter expression:", filter);
-
-            // Set paint property to show only matching circles at full opacity
-            map.setPaintProperty("image-circles", "circle-opacity", [
-              "case",
-              filter,
-              1, // Matching images: full opacity
-              0, // Non-matching images: hidden
-            ]);
-            // Keep circles green, hide stroke on non-matching
-            map.setPaintProperty("image-circles", "circle-stroke-opacity", [
-              "case",
-              filter,
-              1, // Matching images: visible stroke
-              0, // Non-matching images: hidden stroke
-            ]);
-
-            if (map.getLayer("image-directions")) {
-              map.setPaintProperty("image-directions", "icon-opacity", [
+              // Set paint property to show only matching circles at full opacity
+              map.setPaintProperty("image-circles", "circle-opacity", [
                 "case",
                 filter,
-                1, // Matching: visible
-                0, // Non-matching: hidden
+                1, // Matching images: full opacity
+                0, // Non-matching images: hidden
               ]);
+              // Keep circles green, hide stroke on non-matching
+              map.setPaintProperty("image-circles", "circle-stroke-opacity", [
+                "case",
+                filter,
+                1, // Matching images: visible stroke
+                0, // Non-matching images: hidden stroke
+              ]);
+
+              if (map.getLayer("image-directions")) {
+                map.setPaintProperty("image-directions", "icon-opacity", [
+                  "case",
+                  filter,
+                  1, // Matching: visible
+                  0, // Non-matching: hidden
+                ]);
+              }
+            } else {
+              // No images for this subject, hide all circles
+              map.setPaintProperty("image-circles", "circle-opacity", 0);
+              map.setPaintProperty("image-circles", "circle-stroke-opacity", 0);
+              if (map.getLayer("image-directions")) {
+                map.setPaintProperty("image-directions", "icon-opacity", 0);
+              }
             }
-          } else {
-            // No images for this subject, hide all circles
-            map.setPaintProperty("image-circles", "circle-opacity", 0);
-            map.setPaintProperty("image-circles", "circle-stroke-opacity", 0);
-            if (map.getLayer("image-directions")) {
-              map.setPaintProperty("image-directions", "icon-opacity", 0);
-            }
-          }
+          }, 10); // 10ms debounce delay for expensive operations only
         }
       });
 
       map.on("mouseleave", layerId, () => {
+        // Clear debounce timeout
+        clearTimeout(hoverTimeout);
+
         map.getCanvas().style.cursor = "";
         popup.remove();
 
