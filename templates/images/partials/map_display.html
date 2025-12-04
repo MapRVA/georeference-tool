@@ -623,6 +623,8 @@ document.addEventListener('DOMContentLoaded', function() {
     urlParams.append('source', '{{ source_id }}');
     {% elif subject_id %}
     urlParams.append('subject', '{{ subject_id }}');
+    {% elif album_id %}
+    urlParams.append('album', '{{ album_id }}');
     {% endif %}
 
     let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
