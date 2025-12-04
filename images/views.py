@@ -1590,11 +1590,19 @@ def album_detail(request, display_name, album_id):
     # Get images in album order
     album_images = album.album_images.select_related("image").order_by("order")
 
+    # Extract the actual Image objects from AlbumImage objects
+    images = [ai.image for ai in album_images]
+
     # Calculate pending images count for the georeference button
-    pending_images = sum(1 for ai in album_images if not ai.image.is_georeferenced)
+    pending_images = sum(1 for image in images if not image.is_georeferenced)
 
     # Calculate georeferenced images count for map display
-    georeferenced_images = sum(1 for ai in album_images if ai.image.is_georeferenced)
+    georeferenced_images = sum(1 for image in images if image.is_georeferenced)
+
+    # Paginate images for browsing
+    paginator = Paginator(images, 24)  # 24 images per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
 
     # Check if map_mode is available (handle migration period)
     album_map_mode = getattr(album, 'map_mode', False)
@@ -1606,7 +1614,7 @@ def album_detail(request, display_name, album_id):
 
     context = {
         "album": album,
-        "album_images": album_images,
+        "page_obj": page_obj,
         "profile_user": user,
         "display_name": display_name,
         "is_owner": is_owner,
