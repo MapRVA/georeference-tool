@@ -459,7 +459,7 @@
                                     <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ collection.name }}</a></li>
                                 {% endif %}
                                 {% if request.GET.image %}
-                                    <li class="breadcrumb-item"><a href="{{ collection.get_absolute_url }}">{{ current_image.title }}</a></li>
+                                    <li class="breadcrumb-item"><a href="{% url 'images:image_detail' current_image.id %}">{{ current_image.title }}</a></li>
                                 {% endif %}
                             {% endif %}
                             <li class="breadcrumb-item active">Georeference</li>
