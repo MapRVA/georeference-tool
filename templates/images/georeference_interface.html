@@ -33,6 +33,25 @@
 
     .btn-group .btn {
         flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Ensure difficulty filter buttons stay contained */
+    #difficulty-filter-group {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #difficulty-filter-group .btn {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .status-badge {
@@ -458,10 +477,10 @@
             <div class="card mb-4">
                 <div class="card-body py-3">
                     <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h6 class="mb-2 mb-md-0"><i class="fas fa-filter me-2"></i>Filter by Difficulty</h6>
+                        <div class="col-lg-6 col-12">
+                            <h6 class="mb-2 mb-lg-0"><i class="fas fa-filter me-2"></i>Filter by Difficulty</h6>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-lg-6 col-12">
                             <div class="btn-group w-100" role="group" id="difficulty-filter-group">
                                 <button type="button" class="btn btn-sm difficulty-toggle" data-difficulty="easy">
                                     Easy
