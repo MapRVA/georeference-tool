@@ -2286,7 +2286,7 @@ def osm_elements_vector_tiles_endpoint(request, z, x, y):
                 oe.geometry_area as geometry_area
             FROM images_osmelement oe
             LEFT JOIN images_subject s ON oe.id = s.osm_element_id
-            LEFT JOIN images_subjectmapping sm ON s.id = sm.subject_id
+            INNER JOIN images_subjectmapping sm ON s.id = sm.subject_id
             WHERE ST_Intersects(oe.geometry, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
             GROUP BY oe.id, s.id, oe.osm_id, oe.geometry, s.title, s.slug, oe.geometry_area
             ORDER BY
