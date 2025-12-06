@@ -661,6 +661,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             this.currentBaseLayer = 'osm';
             this.currentOverlayLayer = null;
+            this.imageLayersVisible = true;
             this.mapLayersLoaded = false;
             this.collectionsData = null;
         }
@@ -1080,6 +1081,73 @@ document.addEventListener('DOMContentLoaded', function() {
                     layerIndex++;
                 });
             });
+
+            // Add georeferenced image layer toggle at the bottom
+            this.addImageLayerToggle();
+        }
+
+        addImageLayerToggle() {
+            const dropdownMenu = this.container.querySelector('.dropdown-menu');
+
+            // Add divider before image layer toggle
+            const dividerItem = document.createElement('li');
+            const divider = document.createElement('hr');
+            divider.className = 'dropdown-divider';
+            dividerItem.appendChild(divider);
+            dropdownMenu.appendChild(dividerItem);
+
+            // Add header for image layer section
+            const headerItem = document.createElement('li');
+            const header = document.createElement('h6');
+            header.className = 'dropdown-header';
+            header.textContent = 'Data Overlays';
+            headerItem.appendChild(header);
+            dropdownMenu.appendChild(headerItem);
+
+            // Add georeferenced image layer toggle
+            const listItem = document.createElement('li');
+            const imageLayerItem = document.createElement('a');
+            imageLayerItem.className = 'dropdown-item overlay-layer active';
+            imageLayerItem.href = '#';
+            imageLayerItem.dataset.layer = 'georeferenced-images';
+            imageLayerItem.textContent = 'Georeferenced Images';
+
+            imageLayerItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleImageLayers();
+
+                // Close dropdown
+                const dropdown = bootstrap.Dropdown.getInstance(this.layerDropdown);
+                if (dropdown) dropdown.hide();
+            });
+
+            listItem.appendChild(imageLayerItem);
+            dropdownMenu.appendChild(listItem);
+        }
+
+        toggleImageLayers() {
+            this.imageLayersVisible = !this.imageLayersVisible;
+
+            // Toggle visibility of image layers
+            if (this.map.getLayer('image-circles')) {
+                this.map.setLayoutProperty('image-circles', 'visibility',
+                    this.imageLayersVisible ? 'visible' : 'none');
+            }
+
+            if (this.map.getLayer('image-directions')) {
+                this.map.setLayoutProperty('image-directions', 'visibility',
+                    this.imageLayersVisible ? 'visible' : 'none');
+            }
+
+            // Update the toggle item's active state
+            const imageLayerItem = this.container.querySelector('[data-layer="georeferenced-images"]');
+            if (imageLayerItem) {
+                if (this.imageLayersVisible) {
+                    imageLayerItem.classList.add('active');
+                } else {
+                    imageLayerItem.classList.remove('active');
+                }
+            }
         }
 
         addErrorItem() {
@@ -1360,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {% if aerial_georeference %}
         // Add aerial georeference polygon overlay if available
         const aerialPolygonGeometry = {{ aerial_georeference.polygon.geojson|safe }};
-        
+
         map.addSource('aerial-polygon', {
             'type': 'geojson',
             'data': {
@@ -1368,7 +1436,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'geometry': aerialPolygonGeometry
             }
         });
-        
+
         // Add fill layer for the polygon
         map.addLayer({
             'id': 'aerial-polygon-fill',
@@ -1379,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'fill-opacity': 0.2
             }
         });
-        
+
         // Add outline layer for the polygon
         map.addLayer({
             'id': 'aerial-polygon-outline',
@@ -1399,7 +1467,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (aerialPolygonGeometry.type === 'MultiPolygon') {
                 coordinates = aerialPolygonGeometry.coordinates[0][0];
             }
-            
+
             if (coordinates.length > 0) {
                 const bounds = new maplibregl.LngLatBounds();
                 coordinates.forEach(function(coord) {
@@ -1407,12 +1475,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         bounds.extend(coord);
                     }
                 });
-                
+
                 // Add point coordinates to bounds if available
                 {% if center_lat and center_lng %}
                 bounds.extend([{{ center_lng }}, {{ center_lat }}]);
                 {% endif %}
-                
+
                 map.fitBounds(bounds, {
                     padding: 50,
                     maxZoom: 16
