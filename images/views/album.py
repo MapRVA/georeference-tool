@@ -1,12 +1,17 @@
+import json
+
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import models
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.models import User
+
 
 from ..models import (
     Album,
+    AlbumImage,
     Image,
 )
 
@@ -136,9 +141,6 @@ def user_albums_api(request):
     if not request.user.is_authenticated:
         return JsonResponse({"albums": []})
 
-    # Import Album here to avoid circular imports
-    from .models import Album
-
     image_id = request.GET.get("image_id")
 
     albums = Album.objects.filter(owner=request.user).order_by("-created_at")
@@ -163,10 +165,6 @@ def add_image_to_album(request):
         )
 
     try:
-        import json
-
-        from .models import Album, AlbumImage
-
         data = json.loads(request.body)
         image_id = data.get("image_id")
         album_id = data.get("album_id")
@@ -210,10 +208,6 @@ def create_and_add_to_album(request):
         )
 
     try:
-        import json
-
-        from .models import Album, AlbumImage
-
         data = json.loads(request.body)
         image_id = data.get("image_id")
         album_title = data.get("album_title", "").strip()
@@ -264,10 +258,6 @@ def remove_image_from_album(request):
         )
 
     try:
-        import json
-
-        from .models import Album, AlbumImage
-
         data = json.loads(request.body)
         image_id = data.get("image_id")
         album_id = data.get("album_id")
@@ -301,9 +291,6 @@ def remove_image_from_album(request):
 
 def album_detail(request, display_name, album_id):
     """Display a specific album with its images"""
-    from django.contrib.auth.models import User
-
-    from .models import Album
 
     # Look up user by display name (first_name for OSM users or username)
     # Try first_name first (OSM username), then fall back to username
@@ -357,7 +344,6 @@ def album_detail(request, display_name, album_id):
 @require_http_methods(["POST"])
 def toggle_album_public(request, album_id):
     """Toggle album public/private status (owner only)"""
-    import json
 
     if not request.user.is_authenticated:
         return JsonResponse(
