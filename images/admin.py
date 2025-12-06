@@ -17,6 +17,7 @@ from .models import (
     MapLayer,
     PreCollection,
     PreImage,
+    SiteSettings,
     Source,
     Subject,
     SubjectMapping,
@@ -957,6 +958,30 @@ class SubjectMappingAdmin(admin.ModelAdmin):
         return "None"
 
     subject_wikidata.short_description = "Wikidata"
+
+
+@admin.register(SiteSettings)
+class SiteSettingsAdmin(admin.ModelAdmin):
+    """Admin configuration for SiteSettings singleton model"""
+
+    def has_add_permission(self, request):
+        # Prevent adding multiple instances
+        return not SiteSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deletion of the settings instance
+        return False
+
+    fieldsets = (
+        ("Homepage Content", {
+            'fields': ('site_title', 'site_subtitle'),
+            'description': 'Text displayed on the homepage'
+        }),
+        ("Footer", {
+            'fields': ('footer_content',),
+            'description': 'HTML content displayed in the site footer'
+        }),
+    )
 
 
 # Update the existing ImageAdmin to include subject inline

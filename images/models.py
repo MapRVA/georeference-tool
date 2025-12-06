@@ -28,6 +28,44 @@ from edtf import parse_edtf
 from edtf.parser.edtf_exceptions import EDTFParseException
 
 
+class SiteSettings(models.Model):
+    """
+    Singleton model for site-wide configuration settings.
+    Used to store deployment-specific text and preferences.
+    """
+    site_title = models.CharField(
+        max_length=200,
+        default="Yesterdays",
+        help_text="Main title displayed on the homepage"
+    )
+    site_subtitle = models.TextField(
+        default="Place historical images on the map!",
+        help_text="Subtitle/description displayed on the homepage"
+    )
+    footer_content = models.TextField(
+        default='Yesterdays is proudly built by <a href="https://maprva.org" target="_blank" class="text-decoration-none">MapRVA</a>',
+        help_text="HTML content for the site footer"
+    )
+
+    class Meta:
+        verbose_name = "Site Settings"
+        verbose_name_plural = "Site Settings"
+
+    def __str__(self):
+        return "Site Settings"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one instance can exist
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        """Get the singleton instance, creating it if it doesn't exist"""
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Source(models.Model):
     """Archive source containing collections of images"""
 
