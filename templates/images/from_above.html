@@ -92,9 +92,13 @@
 
         {% else %}
             {% if is_filtered %}
-                {% include 'images/partials/empty_images.html' with empty_message="No images found at this location." empty_icon="fa-search-location" %}
+                <div id="no-results">
+                    {% include 'images/partials/empty_images.html' with empty_message="No images found at this location." empty_icon="fa-search-location" %}
+                </div>
             {% else %}
-                {% include 'images/partials/empty_images.html' with empty_message="No images have been marked as \"from above\" yet." empty_icon="fa-plane" %}
+                <div id="no-results">
+                    {% include 'images/partials/empty_images.html' with empty_message="No images have been marked as \"from above\" yet." empty_icon="fa-plane" %}
+                </div>
             {% endif %}
         {% endif %}
         </div>
