@@ -109,146 +109,20 @@
         {% if page_obj %}
             <div class="row">
                 {% for album_image in page_obj %}
-                    <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
-                        <div class="card h-100 shadow-sm image-card">
-                            <div class="position-relative">
-                                <!-- Image Status Badge -->
-                                {% if album_map_mode %}
-                                    {% if album_image.will_not_georef %}
-                                        <span class="badge bg-secondary position-absolute top-0 end-0 m-2" style="margin-top: 2rem;">
-                                            <i class="fas fa-ban"></i> Skip
-                                        </span>
-                                    {% elif album_image.aerial and album_image.get_aerial_georeference %}
-                                        <span class="badge bg-success position-absolute top-0 end-0 m-2" style="margin-top: 2rem;">
-                                            <i class="fas fa-map-marker-alt"></i> Georeferenced
-                                        </span>
-                                    {% elif not album_image.aerial and album_image.is_georeferenced %}
-                                        <span class="badge bg-success position-absolute top-0 end-0 m-2" style="margin-top: 2rem;">
-                                            <i class="fas fa-map-marker-alt"></i> Georeferenced
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-warning position-absolute top-0 end-0 m-2" style="margin-top: 2rem;">
-                                            <i class="fas fa-clock"></i> Pending
-                                        </span>
-                                    {% endif %}
-                                {% endif %}
-
-                                {% if album_map_mode %}
-                                    <!-- Difficulty Badge -->
-                                    {% if album_image.difficulty %}
-                                        <span class="badge position-absolute top-0 start-0 m-2
-                                            {% if album_image.difficulty == 'easy' %}bg-success{% elif album_image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
-                                            {{ album_image.difficulty|capfirst }}
-                                        </span>
-                                    {% endif %}
-
-                                    <!-- Aerial Indicator -->
-                                    {% if album_image.aerial %}
-                                        <span class="badge bg-success position-absolute top-0 start-0 m-2" style="margin-left: 3rem;" title="Aerial image">
-                                            <i class="fas fa-plane"></i>
-                                        </span>
-                                    {% endif %}
-                                {% endif %}
-
-                                <!-- Image Thumbnail -->
-                                <a href="{% url 'images:image_detail' album_image.id %}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
-                                    <img src="{{ album_image.permalink }}"
-                                         alt="{% if album_image.title %}{{ album_image.title }}{% else %}Image #{{ album_image.id }}{% endif %}"
-                                         class="img-fluid w-100 h-100"
-                                         style="object-fit: cover;"
-                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                                         loading="lazy">
-                                    <div class="image-placeholder bg-light d-flex align-items-center justify-content-center h-100" style="display: none;">
-                                        <div class="text-center">
-                                            <i class="fas fa-image fa-2x text-muted mb-2"></i>
-                                            <p class="text-muted small mb-0">Image unavailable</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-
-                            <div class="card-body p-3">
-                                <h6 class="card-title">
-                                    <a href="{% url 'images:image_detail' album_image.id %}" class="text-dark text-decoration-none">
-                                        {% if album_image.title %}
-                                            {{ album_image.title|truncatechars:50 }}
-                                        {% else %}
-                                            Image #{{ album_image.id }}
-                                        {% endif %}
-                                    </a>
-                                </h6>
-
-                                {% if album_image.date_display != "Unknown date" %}
-                                    <p class="text-muted small mb-2">
-                                        <i class="fas fa-calendar me-1"></i>{{ album_image.date_display }}
-                                    </p>
-                                {% endif %}
-                            </div>
-
-                            <div class="card-footer bg-white border-top-0 p-3">
-                                <div class="d-flex justify-content-end">
-                                    {% if album_map_mode %}
-                                        {% if album_image.will_not_georef %}
-                                            <!-- Skip badge shown, no action button -->
-                                        {% elif album_image.aerial and album_image.get_aerial_georeference %}
-                                            <a href="{% url 'images:image_detail' album_image.id %}" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-eye me-1"></i>View
-                                            </a>
-                                        {% elif not album_image.aerial and album_image.is_georeferenced %}
-                                            <a href="{% url 'images:image_detail' album_image.id %}" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-eye me-1"></i>View
-                                            </a>
-                                        {% elif not album_image.will_not_georef %}
-                                            <a href="{% url 'images:georeference_interface' %}?album={{ album.id }}&image={{ album_image.id }}" class="btn btn-success btn-sm">
-                                                <i class="fas fa-map-marker-alt me-1"></i>Georeference
-                                            </a>
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {% if album_map_mode %}
+                        {% with georeference_url="/georeference/?album="|add:album.id image=album_image %}
+                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True %}
+                        {% endwith %}
+                    {% else %}
+                        {% with georeference_url="/georeference/?album="|add:album.id image=album_image %}
+                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=False buttons=False %}
+                        {% endwith %}
+                    {% endif %}
                 {% endfor %}
             </div>
 
             <!-- Pagination -->
-            {% if page_obj.has_other_pages %}
-                <nav aria-label="Images pagination" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
-                                    <i class="fas fa-chevron-left"></i> Previous
-                                </a>
-                            </li>
-                        {% endif %}
-
-                        {% for num in page_obj.paginator.page_range %}
-                            {% if page_obj.number == num %}
-                                <li class="page-item active">
-                                    <span class="page-link">{{ num }}</span>
-                                </li>
-                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                                </li>
-                            {% endif %}
-                        {% endfor %}
-
-                        {% if page_obj.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
-                                    Next <i class="fas fa-chevron-right"></i>
-                                </a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-
-                <div class="text-center text-muted mt-2">
-                    Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
-                </div>
-            {% endif %}
+            {% include 'images/partials/pagination.html' with url_params="" %}
         {% else %}
             <div class="card">
                 <div class="card-body text-center py-5">
