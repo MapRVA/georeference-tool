@@ -152,5 +152,8 @@
 </div>
 
 {% load static %}
+<script>
+    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
+</script>
 <script src="{% static 'js/pages/browse_subjects.js' %}"></script>
 {% endblock %}

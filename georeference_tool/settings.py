@@ -200,3 +200,7 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 # Login URL for @login_required decorator
 LOGIN_URL = "/auth/login/"
+
+# Map Settings
+# Protomaps API key for map tiles
+PROTOMAPS_API_KEY = os.getenv("PROTOMAPS_API_KEY")

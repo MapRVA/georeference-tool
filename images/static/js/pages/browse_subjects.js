@@ -5,8 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initialize MapLibre GL map with Protomaps white style
   const map = new maplibregl.Map({
     container: "subjects-map",
-    style:
-      "https://api.protomaps.com/styles/v5/white/en.json?key=6f7a752e00e84ef9",
+    style: `https://api.protomaps.com/styles/v5/white/en.json?key=${window.PROTOMAPS_API_KEY}`,
     center: [-77.43916, 37.54376],
     zoom: 13,
   });
