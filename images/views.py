@@ -3092,13 +3092,33 @@ def text_search(request):
         with connection.cursor() as cursor:
             # First, get total count of results that meet the threshold
             count_sql = """
-                SELECT COUNT(id)
-                FROM images_image
+                SELECT COUNT(i.id)
+                FROM images_image i
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
+                    FROM images_comment c
+                    WHERE c.image_id = i.id
+                ) comment_match ON true
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> g.confidence_notes) as best_geo_distance
+                    FROM images_georeference g
+                    WHERE g.image_id = i.id
+                    AND g.confidence_notes != ''
+                ) geo_match ON true
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> ag.confidence_notes) as best_aerial_distance
+                    FROM images_aerialgeoreference ag
+                    WHERE ag.image_id = i.id
+                    AND ag.confidence_notes != ''
+                ) aerial_match ON true
                 WHERE
-                    id = ANY(%(ids)s)
+                    i.id = ANY(%(ids)s)
                     AND LEAST(
-                        COALESCE(%(query)s <<-> title, 1.0),
-                        COALESCE(%(query)s <<-> description, 1.0)
+                        COALESCE(%(query)s <<-> i.title, 1.0),
+                        COALESCE(%(query)s <<-> i.description, 1.0),
+                        COALESCE(comment_match.best_comment_distance, 1.0),
+                        COALESCE(geo_match.best_geo_distance, 1.0),
+                        COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) < %(threshold)s
             """
             count_params = {
@@ -3112,23 +3132,43 @@ def text_search(request):
             # Now, get the paginated results
             sql = """
                 SELECT
-                    id, title, permalink, original_date, edtf_date,
+                    i.id, i.title, i.permalink, i.original_date, i.edtf_date,
                     LEAST(
-                        COALESCE(%(query)s <<-> title, 1.0),
-                        COALESCE(%(query)s <<-> description, 1.0)
+                        COALESCE(%(query)s <<-> i.title, 1.0),
+                        COALESCE(%(query)s <<-> i.description, 1.0),
+                        COALESCE(comment_match.best_comment_distance, 1.0),
+                        COALESCE(geo_match.best_geo_distance, 1.0),
+                        COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) as distance
-                FROM
-                    images_image
+                FROM images_image i
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
+                    FROM images_comment c
+                    WHERE c.image_id = i.id
+                ) comment_match ON true
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> g.confidence_notes) as best_geo_distance
+                    FROM images_georeference g
+                    WHERE g.image_id = i.id
+                    AND g.confidence_notes != ''
+                ) geo_match ON true
+                LEFT JOIN LATERAL (
+                    SELECT MIN(%(query)s <<-> ag.confidence_notes) as best_aerial_distance
+                    FROM images_aerialgeoreference ag
+                    WHERE ag.image_id = i.id
+                    AND ag.confidence_notes != ''
+                ) aerial_match ON true
                 WHERE
-                    id = ANY(%(ids)s)
+                    i.id = ANY(%(ids)s)
                     AND LEAST(
-                        COALESCE(%(query)s <<-> title, 1.0),
-                        COALESCE(%(query)s <<-> description, 1.0)
+                        COALESCE(%(query)s <<-> i.title, 1.0),
+                        COALESCE(%(query)s <<-> i.description, 1.0),
+                        COALESCE(comment_match.best_comment_distance, 1.0),
+                        COALESCE(geo_match.best_geo_distance, 1.0),
+                        COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) < %(threshold)s
-                ORDER BY
-                    distance ASC
-                LIMIT %(limit)s
-                OFFSET %(offset)s
+                ORDER BY distance ASC
+                LIMIT %(limit)s OFFSET %(offset)s
             """
             params = {
                 "query": query,
