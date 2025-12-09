@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", function () {
         popup
           .setLngLat(e.lngLat)
           .setHTML(
-            `<div style="cursor: pointer; white-space: nowrap; line-height: 1; border-radius: 1em;"><strong>${subjectName}</strong></div>`,
+            `<div class="bg-body text-body" style="cursor: pointer; white-space: nowrap; line-height: 1; border-radius: 1em;"><strong>${subjectName}</strong></div>`,
           )
           .addTo(map);
 
