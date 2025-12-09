@@ -798,11 +798,23 @@
                                 </a>.
                             </div>
                         {% elif image.aerial %}
-                            <!-- Aerial Image - Show message for non-admins -->
-                            {% if not user.is_staff %}
+                            <!-- Aerial Image - Show georeference button for logged-in users -->
+                            {% if user.is_authenticated %}
+                                {% if polygonal_georeference %}
+                                    <!-- Aerial image already has georeference - show correction button -->
+                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-warning w-100 mb-3 action-button">
+                                        <i class="fas fa-plane me-1"></i>Submit Polygon Correction
+                                    </a>
+                                {% else %}
+                                    <!-- Aerial image has no georeference yet - show georeference button -->
+                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-success w-100 mb-3 action-button">
+                                        <i class="fas fa-map-marker-alt me-1"></i>Georeference This Image
+                                    </a>
+                                {% endif %}
+                            {% else %}
                                 <div class="alert alert-info mb-3">
                                     <i class="fas fa-plane me-2"></i>
-                                    This image has been marked as an aerial. Only admins can georeference aerials.
+                                    This image has been marked as taken from above. Please <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="alert-link">log in</a> to georeference this image.
                                 </div>
                             {% endif %}
                         {% elif not image.is_georeferenced and not image.will_not_georef %}

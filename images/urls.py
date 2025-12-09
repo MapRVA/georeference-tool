@@ -22,7 +22,7 @@ urlpatterns = [
     # Georeferencing interface
     path("georeference/", views.georeference_interface, name="georeference_interface"),
     path(
-        "georeference-aerial/<int:image_id>/",
+        "polygonal-georeference/<int:image_id>/",
         views.aerial_georeference_interface,
         name="aerial_georeference_interface",
     ),

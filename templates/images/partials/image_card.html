@@ -123,9 +123,21 @@
                             <i class="fas fa-eye me-1"></i>View
                         </a>
                     {% else %}
-                        <a href="{{ georeference_url }}&image={{ image.id }}" class="btn btn-success btn-sm">
-                            <i class="fas fa-map-marker-alt me-1"></i>Georeference
-                        </a>
+                        {% if image.aerial %}
+                            {% if user.is_authenticated %}
+                                <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-success btn-sm">
+                                    <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                                </a>
+                            {% else %}
+                                <a href="{% url 'images:image_detail' image.id %}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ georeference_url }}&image={{ image.id }}" class="btn btn-success btn-sm">
+                                <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                            </a>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>

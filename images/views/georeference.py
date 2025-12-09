@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import Point, GEOSGeometry
 from django.db import IntegrityError, models, transaction
 from django.db.models import Case, When
@@ -302,6 +303,7 @@ def georeference_image(request, image_id):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+@login_required
 def aerial_georeference_interface(request, image_id):
     """Display the aerial georeference interface for a specific image"""
     try:
@@ -342,6 +344,7 @@ def aerial_georeference_interface(request, image_id):
     return render(request, "images/from_above_georeference_interface.html", context)
 
 
+@login_required
 @require_http_methods(["POST"])
 @csrf_exempt
 def aerial_georeference_image(request, image_id):
@@ -359,17 +362,6 @@ def aerial_georeference_image(request, image_id):
                 },
                 status=400,
             )
-
-        # For anonymous users, check if they can still georeference
-        if not request.user.is_authenticated:
-            if image.aerial_georeferences.exists():
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "This image has already been georeferenced. Please login to submit a correction.",
-                    },
-                    status=400,
-                )
 
         # Validate required fields
         required_fields = ["polygon", "confidence"]
