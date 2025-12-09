@@ -60,7 +60,7 @@
 
         <div class="card-body p-3">
             <h6 class="card-title">
-                <a href="{% url 'images:image_detail' image.id %}" class="text-dark text-decoration-none">
+                <a href="{% url 'images:image_detail' image.id %}" class="text-decoration-none">
                     {% if image.title %}
                         {{ image.title|truncatechars:50 }}
                     {% else %}
