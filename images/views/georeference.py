@@ -171,6 +171,8 @@ def georeference_interface(request):
         "difficulty_filters": difficulty_filters,
         "difficulty_filters_json": json.dumps(difficulty_filters),
         "remaining_count": images.count(),
+        "next_image": current_image.get_next_image() if current_image else None,
+        "previous_image": current_image.get_previous_image() if current_image else None,
     }
 
     # Remove duplicate message - template already shows appropriate message when no image available

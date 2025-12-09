@@ -615,6 +615,19 @@
                                                     <a href="{{ current_image.collection.get_absolute_url }}" class="text-decoration-none">
                                                         {{ current_image.collection.name }}
                                                     </a>
+                                                    <span class="ms-2 text-muted">
+                                                        {% if previous_image %}
+                                                            <a href="{% url 'images:image_detail' previous_image.id %}" class="text-decoration-none text-muted" title="Previous image in collection">
+                                                                ← prev
+                                                            </a>
+                                                        {% endif %}
+                                                        {% if previous_image and next_image %} | {% endif %}
+                                                        {% if next_image %}
+                                                            <a href="{% url 'images:image_detail' next_image.id %}" class="text-decoration-none text-muted" title="Next image in collection">
+                                                                next →
+                                                            </a>
+                                                        {% endif %}
+                                                    </span>
                                                 </dd>
                                             </div>
                                         </div>

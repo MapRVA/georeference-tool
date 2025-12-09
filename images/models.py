@@ -406,40 +406,24 @@ class Image(models.Model):
         return self.aerial_georeferences.order_by("-georeferenced_at").first()
 
     def get_next_image(self):
-        """Get the next image in the collection (ordered by collection, then ID)"""
+        """Get the next image in the same collection (ordered by ID)"""
         return (
             Image.objects.filter(
-                models.Q(
-                    collection__source__name=self.collection.source.name,
-                    collection__name=self.collection.name,
-                    id__gt=self.id,
-                )
-                | models.Q(
-                    collection__source__name=self.collection.source.name,
-                    collection__name__gt=self.collection.name,
-                )
-                | models.Q(collection__source__name__gt=self.collection.source.name)
+                collection=self.collection,
+                id__gt=self.id,
             )
-            .order_by("collection__source__name", "collection__name", "id")
+            .order_by("id")
             .first()
         )
 
     def get_previous_image(self):
-        """Get the previous image in the collection (ordered by collection, then ID)"""
+        """Get the previous image in the same collection (ordered by ID)"""
         return (
             Image.objects.filter(
-                models.Q(
-                    collection__source__name=self.collection.source.name,
-                    collection__name=self.collection.name,
-                    id__lt=self.id,
-                )
-                | models.Q(
-                    collection__source__name=self.collection.source.name,
-                    collection__name__lt=self.collection.name,
-                )
-                | models.Q(collection__source__name__lt=self.collection.source.name)
+                collection=self.collection,
+                id__lt=self.id,
             )
-            .order_by("-collection__source__name", "-collection__name", "-id")
+            .order_by("-id")
             .first()
         )
 

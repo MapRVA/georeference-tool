@@ -467,13 +467,11 @@
 
                 <!-- Next/Previous Navigation -->
                 <nav aria-label="Image navigation" class="d-flex justify-content-between align-items-center mb-4">
-                    {% if previous_image %}
-                        <a href="{% url 'images:image_detail' previous_image.id %}" class="btn btn-outline-primary">
-                            <i class="fas fa-chevron-left me-2"></i>Previous Image
-                        </a>
-                    {% else %}
-                        <div></div>
-                    {% endif %}
+                    <a href="{% if previous_image %}{% url 'images:image_detail' previous_image.id %}{% else %}#{% endif %}" 
+                       class="btn btn-outline-primary"
+                       {% if not previous_image %}style="visibility: hidden;"{% endif %}>
+                        <i class="fas fa-chevron-left me-2"></i>Previous Image
+                    </a>
 
                     <div class="text-center">
                         <small class="text-muted">
@@ -481,13 +479,11 @@
                         </small>
                     </div>
 
-                    {% if next_image %}
-                        <a href="{% url 'images:image_detail' next_image.id %}" class="btn btn-outline-primary">
-                            Next Image<i class="fas fa-chevron-right ms-2"></i>
-                        </a>
-                    {% else %}
-                        <div></div>
-                    {% endif %}
+                    <a href="{% if next_image %}{% url 'images:image_detail' next_image.id %}{% else %}#{% endif %}" 
+                       class="btn btn-outline-primary"
+                       {% if not next_image %}style="visibility: hidden;"{% endif %}>
+                        Next Image<i class="fas fa-chevron-right ms-2"></i>
+                    </a>
                 </nav>
 
                 <!-- Map Display (if georeferenced or aerial with aerial georeference) -->
