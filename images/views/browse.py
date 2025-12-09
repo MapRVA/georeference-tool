@@ -845,7 +845,7 @@ def subject_detail(request, subject_slug):
     pending_images = total_images - georeferenced_images - all_images.filter(will_not_georef=True).count()
 
     # Paginate the filtered images for browsing
-    paginator = Paginator(images, 24)  # 24 images per page for grid layout
+    paginator = Paginator(images.distinct(), 24)  # 24 images per page for grid layout
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
