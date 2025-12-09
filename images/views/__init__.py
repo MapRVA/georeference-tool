@@ -54,12 +54,15 @@ from .album import (
     remove_image_from_album,
     album_detail,
     toggle_album_public,
+    bulk_add_to_album,
+    bulk_create_and_add_to_album,
 )
 
 from .subject import (
     subject_autocomplete,
     all_subjects_api,
     add_subject_to_image,
+    bulk_add_subject_to_images,
     remove_subject_from_image,
     reorder_subjects,
 )

@@ -64,6 +64,9 @@
         <!-- Main content wrapper with cursor change during filtering -->
         <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }">
 
+        <!-- Georeference Status Filter -->
+        {% include 'images/partials/georeference_filter.html' %}
+
         <!-- Images Grid -->
         {% if page_obj %}
             <div class="row" x-ref="imageGrid">
@@ -124,5 +127,18 @@
 {% block extra_js %}
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 {% load static %}
+<script>
+    // Configuration object for georeference_filter.html bulk operations
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "images:subject_autocomplete" %}',
+            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        }
+    };
+</script>
 <script src="{% static 'js/pages/from_above.js' %}"></script>
 {% endblock %}

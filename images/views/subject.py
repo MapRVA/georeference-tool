@@ -15,6 +15,8 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from django.core.exceptions import ValidationError
+
 from ..models import (
     AerialGeoreference,
     Album,
@@ -71,6 +73,119 @@ def all_subjects_api(request):
 
 
 @require_http_methods(["POST"])
+def bulk_add_subject_to_images(request):
+    """Add a subject to multiple images at once (logged-in users only)"""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "You must be logged in to edit subjects"},
+            status=403,
+        )
+
+    try:
+        data = json.loads(request.body)
+        image_ids = data.get("image_ids", [])
+        wikidata_id = data.get("wikidata_id", "").strip()
+
+        if not image_ids:
+            return JsonResponse(
+                {"success": False, "error": "No images selected"},
+                status=400,
+            )
+
+        if not wikidata_id or not wikidata_id.startswith("Q"):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid Wikidata ID format. Must start with 'Q'.",
+                },
+                status=400,
+            )
+
+        # Get or create WikidataItem
+        try:
+            from ..models import WikidataItem, SubjectMapping
+            wikidata_item, created = WikidataItem.objects.get_or_create(
+                wikidata_id=wikidata_id
+            )
+        except ValidationError as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+        # Try to get or create Subject
+        subject, subject_created = Subject.objects.get_or_create(
+            wikidata_item=wikidata_item,
+            defaults={
+                "title": wikidata_item.title,
+                "description": wikidata_item.description
+                or f"Subject from Wikidata: {wikidata_id}",
+            },
+        )
+
+        # Update Subject if it exists but has outdated info
+        if not subject_created and (
+            subject.title == wikidata_id or not subject.description
+        ):
+            subject.title = wikidata_item.title
+            subject.description = (
+                wikidata_item.description or f"Subject from Wikidata: {wikidata_id}"
+            )
+            subject.save()
+
+        # Add subject to each image
+        added_count = 0
+        already_exists_count = 0
+
+        with transaction.atomic():
+            for image_id in image_ids:
+                try:
+                    image = Image.objects.get(id=image_id)
+
+                    if SubjectMapping.objects.filter(image=image, subject=subject).exists():
+                        already_exists_count += 1
+                        continue
+
+                    max_order = (
+                        SubjectMapping.objects.filter(image=image).aggregate(
+                            max_order=models.Max("order")
+                        )["max_order"]
+                        or 0
+                    )
+
+                    SubjectMapping.objects.create(
+                        image=image,
+                        subject=subject,
+                        order=max_order + 1,
+                    )
+                    added_count += 1
+
+                except Image.DoesNotExist:
+                    continue
+
+        return JsonResponse(
+            {
+                "success": True,
+                "added_count": added_count,
+                "already_exists_count": already_exists_count,
+                "subject": {
+                    "id": subject.id,
+                    "title": subject.title,
+                    "description": subject.description,
+                },
+            },
+            status=200,
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"},
+            status=400,
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)},
+            status=500,
+        )
+
+
 def add_subject_to_image(request, image_id):
     """Add a subject to an image via Wikidata ID (logged-in users only)"""
     if not request.user.is_authenticated:
@@ -97,6 +212,7 @@ def add_subject_to_image(request, image_id):
         # The new model logic handles fetching on creation.
         # We wrap this in a try-except block to catch validation errors if fetching fails.
         try:
+            from ..models import WikidataItem
             wikidata_item, created = WikidataItem.objects.get_or_create(
                 wikidata_id=wikidata_id
             )

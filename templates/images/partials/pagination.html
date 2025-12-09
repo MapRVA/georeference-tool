@@ -3,7 +3,7 @@
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?{{ url_params }}page={{ page_obj.previous_page_number }}">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">
                         <i class="fas fa-chevron-left"></i> Previous
                     </a>
                 </li>
@@ -16,14 +16,14 @@
                     </li>
                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                     <li class="page-item">
-                        <a class="page-link" href="?{{ url_params }}page={{ num }}">{{ num }}</a>
+                        <a class="page-link" href="?page={{ num }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">{{ num }}</a>
                     </li>
                 {% endif %}
             {% endfor %}
 
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?{{ url_params }}page={{ page_obj.next_page_number }}">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">
                         Next <i class="fas fa-chevron-right"></i>
                     </a>
                 </li>

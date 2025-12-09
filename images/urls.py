@@ -117,6 +117,11 @@ urlpatterns = [
         name="subject_autocomplete",
     ),
     path("api/v1/subjects/all/", views.all_subjects_api, name="all_subjects_api"),
+    path(
+        "api/v1/subjects/bulk-add/",
+        views.bulk_add_subject_to_images,
+        name="bulk_add_subject_to_images",
+    ),
     # Embeddable map URL
     path("map/embed/", views.map_embed, name="map_embed"),
     # Album management API endpoints
@@ -131,6 +136,17 @@ urlpatterns = [
         "api/v1/remove-from-album/",
         views.remove_image_from_album,
         name="remove_image_from_album",
+    ),
+    # Bulk album operations
+    path(
+        "api/v1/albums/bulk-add/",
+        views.bulk_add_to_album,
+        name="bulk_add_to_album",
+    ),
+    path(
+        "api/v1/albums/bulk-create-and-add/",
+        views.bulk_create_and_add_to_album,
+        name="bulk_create_and_add_to_album",
     ),
     path(
         "album/<uuid:album_id>/toggle-public/",
