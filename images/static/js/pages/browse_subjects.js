@@ -2,10 +2,21 @@ document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
   if (!mapContainer) return; // Exit if no map on this page
 
-  // Initialize MapLibre GL map with Protomaps white style
+  // Function to detect if dark mode is enabled
+  function isDarkMode() {
+    return document.documentElement.getAttribute("data-bs-theme") === "dark";
+  }
+
+  // Function to get the appropriate map style URL
+  function getMapStyle() {
+    const theme = isDarkMode() ? "dark" : "white";
+    return `https://api.protomaps.com/styles/v5/${theme}/en.json?key=${window.PROTOMAPS_API_KEY}`;
+  }
+
+  // Initialize MapLibre GL map with appropriate style
   const map = new maplibregl.Map({
     container: "subjects-map",
-    style: `https://api.protomaps.com/styles/v5/white/en.json?key=${window.PROTOMAPS_API_KEY}`,
+    style: getMapStyle(),
     center: [-77.43916, 37.54376],
     zoom: 13,
   });
@@ -13,9 +24,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // Add fullscreen control
   map.addControl(new maplibregl.FullscreenControl());
 
-  // Add OSM elements tiles layer
-  map.on("load", function () {
-    console.log("Map loaded, adding OSM elements source");
+  // Function to add all custom sources and layers
+  function addCustomLayers() {
+    console.log("Adding OSM elements source");
     map.addSource("osm-elements", {
       type: "vector",
       tiles: [
@@ -211,6 +222,11 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     console.log("Layers added successfully");
+  }
+
+  // Add OSM elements tiles layer
+  map.on("load", function () {
+    addCustomLayers();
 
     // Add hover tooltip for subject names
     const popup = new maplibregl.Popup({
@@ -329,5 +345,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
   map.on("error", function (e) {
     console.error("Map error:", e);
+  });
+
+  // Watch for theme changes and update map style
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.attributeName === "data-bs-theme") {
+        // When style changes, we need to re-add custom layers after the new style loads
+        map.once("styledata", () => {
+          addCustomLayers();
+        });
+        map.setStyle(getMapStyle());
+      }
+    });
+  });
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-bs-theme"],
   });
 });
