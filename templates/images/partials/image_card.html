@@ -49,7 +49,7 @@
                      style="object-fit: cover;"
                      onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';"
                      loading="lazy">
-                <div class="image-placeholder bg-light d-flex align-items-center justify-content-center h-100" style="display: none;">
+                <div class="image-placeholder d-flex align-items-center justify-content-center h-100" style="display: none;">
                     <div class="text-center">
                         <i class="fas fa-image fa-2x text-muted mb-2"></i>
                         <p class="text-muted small mb-0">Image unavailable</p>
@@ -93,7 +93,7 @@
         </div>
 
         {% if buttons %}
-            <div class="card-footer bg-white border-top-0 p-3">
+            <div class="card-footer bg-body border-top-0 p-3">
                 <div class="d-flex justify-content-end gap-2">
                     <!-- Album Dropdown (always shown if user is authenticated) -->
                     {% if user.is_authenticated %}

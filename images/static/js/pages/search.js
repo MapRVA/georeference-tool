@@ -467,7 +467,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                             }
                         </div>
 
-                        <div class="card-footer bg-white border-top-0 p-3">
+                        <div class="card-footer bg-body border-top-0 p-3">
                             <div class="d-flex justify-content-between">
                                 <a href="${escapeHtml(result.permalink)}" target="_blank" class="btn btn-outline-secondary btn-sm">
                                     <i class="fas fa-external-link-alt me-1"></i>Original

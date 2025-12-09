@@ -100,7 +100,7 @@
             {% for collection in collections %}
                 <div class="col-lg-6 col-xl-4 mb-4">
                     <div class="card h-100 shadow-sm">
-                        <div class="card-header bg-light">
+                        <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <a href="{{ collection.get_absolute_url }}" class="text-decoration-none">
                                     {{ collection.name }}
@@ -140,7 +140,7 @@
                                 </small>
                             {% endif %}
                         </div>
-                        <div class="card-footer bg-white border-top-0">
+                        <div class="card-footer bg-body border-top-0">
                             <div class="d-flex justify-content-between">
                                 <a href="{{ collection.url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
                                     <i class="fas fa-external-link-alt me-1"></i>Original

@@ -13,7 +13,7 @@
             {% for source in sources %}
                 <div class="col-lg-6 col-xl-4 mb-4">
                     <div class="card h-100 shadow-sm">
-                        <div class="card-header bg-light">
+                        <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <a href="{{ source.get_absolute_url }}" class="text-decoration-none">
                                     {{ source.name }}
@@ -50,7 +50,7 @@
                                 </div>
                             {% endif %}
                         </div>
-                        <div class="card-footer bg-white border-top-0">
+                        <div class="card-footer bg-body border-top-0">
                             <div class="d-flex justify-content-end">
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ source.get_absolute_url }}" class="btn btn-primary">
@@ -85,7 +85,7 @@
         {% if sources %}
             <div class="row mt-4">
                 <div class="col-12">
-                    <div class="card bg-light">
+                    <div class="card">
                         <div class="card-body">
                             <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>Overall Statistics</h5>
                             <div class="row text-center">
