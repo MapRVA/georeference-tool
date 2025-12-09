@@ -16,7 +16,6 @@ document.addEventListener("DOMContentLoaded", function () {
   // Add OSM elements tiles layer
   map.on("load", function () {
     console.log("Map loaded, adding OSM elements source");
-
     map.addSource("osm-elements", {
       type: "vector",
       tiles: [
@@ -92,38 +91,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     console.log("Image circles layer added");
-
-    map.addLayer({
-      id: "osm-elements-points",
-      type: "circle",
-      source: "osm-elements",
-      "source-layer": "osm_elements",
-      filter: ["==", ["get", "geom_type"], "ST_Point"],
-      paint: {
-        "circle-radius": 6,
-        "circle-color": "#ff6b35",
-        "circle-opacity": 0.7,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#fff",
-      },
-    });
-
-    map.addLayer({
-      id: "osm-elements-lines",
-      type: "line",
-      source: "osm-elements",
-      "source-layer": "osm_elements",
-      filter: [
-        "in",
-        ["get", "geom_type"],
-        ["literal", ["ST_LineString", "ST_MultiLineString"]],
-      ],
-      paint: {
-        "line-color": "#ff6b35",
-        "line-width": 3,
-        "line-opacity": 0.7,
-      },
-    });
 
     // Large polygons (background)
     map.addLayer({
@@ -209,6 +176,40 @@ document.addEventListener("DOMContentLoaded", function () {
       },
     });
 
+    // Lines (above polygons)
+    map.addLayer({
+      id: "osm-elements-lines",
+      type: "line",
+      source: "osm-elements",
+      "source-layer": "osm_elements",
+      filter: [
+        "in",
+        ["get", "geom_type"],
+        ["literal", ["ST_LineString", "ST_MultiLineString"]],
+      ],
+      paint: {
+        "line-color": "#ff6b35",
+        "line-width": 4,
+        "line-opacity": 0.7,
+      },
+    });
+
+    // Points (on top of everything)
+    map.addLayer({
+      id: "osm-elements-points",
+      type: "circle",
+      source: "osm-elements",
+      "source-layer": "osm_elements",
+      filter: ["==", ["get", "geom_type"], "ST_Point"],
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#ff6b35",
+        "circle-opacity": 0.7,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#fff",
+      },
+    });
+
     console.log("Layers added successfully");
 
     // Add hover tooltip for subject names
@@ -229,95 +230,100 @@ document.addEventListener("DOMContentLoaded", function () {
     // Debounce timer for hover interactions
     let hoverTimeout;
 
-    layerIds.forEach((layerId) => {
-      map.on("mousemove", layerId, (e) => {
-        // Immediate operations - no debouncing
-        map.getCanvas().style.cursor = "pointer";
-
-        if (e.features.length > 0) {
-          const feature = e.features[0];
-          const subjectName =
-            feature.properties.subject_name || "Unknown Subject";
-          const imageIds = feature.properties.image_ids
-            ? feature.properties.image_ids.split(",").filter((id) => id)
-            : [];
-
-          // Show the popup immediately
-          popup
-            .setLngLat(e.lngLat)
-            .setHTML(
-              `<div style="cursor: pointer; white-space: nowrap; line-height: 1; border-radius: 1em;"><strong>${subjectName}</strong></div>`,
-            )
-            .addTo(map);
-
-          // Debounce only the expensive georeference operations
-          clearTimeout(hoverTimeout);
-          hoverTimeout = setTimeout(() => {
-            // Filter and highlight image georeferences for this subject
-            if (imageIds.length > 0) {
-              const numIds = imageIds.map((id) => parseInt(id));
-              const filter = ["in", ["get", "id"], ["literal", numIds]];
-
-              // Set paint property to show only matching circles at full opacity
-              map.setPaintProperty("image-circles", "circle-opacity", [
-                "case",
-                filter,
-                1, // Matching images: full opacity
-                0, // Non-matching images: hidden
-              ]);
-              // Keep circles green, hide stroke on non-matching
-              map.setPaintProperty("image-circles", "circle-stroke-opacity", [
-                "case",
-                filter,
-                1, // Matching images: visible stroke
-                0, // Non-matching images: hidden stroke
-              ]);
-
-              if (map.getLayer("image-directions")) {
-                map.setPaintProperty("image-directions", "icon-opacity", [
-                  "case",
-                  filter,
-                  1, // Matching: visible
-                  0, // Non-matching: hidden
-                ]);
-              }
-            } else {
-              // No images for this subject, hide all circles
-              map.setPaintProperty("image-circles", "circle-opacity", 0);
-              map.setPaintProperty("image-circles", "circle-stroke-opacity", 0);
-              if (map.getLayer("image-directions")) {
-                map.setPaintProperty("image-directions", "icon-opacity", 0);
-              }
-            }
-          }, 10); // 10ms debounce delay for expensive operations only
-        }
+    // Use a single mousemove handler that queries features and picks the topmost one
+    map.on("mousemove", (e) => {
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: layerIds,
       });
 
-      map.on("mouseleave", layerId, () => {
-        // Clear debounce timeout
-        clearTimeout(hoverTimeout);
+      if (features.length > 0) {
+        // The first feature in the array is the topmost rendered feature
+        const feature = features[0];
+        map.getCanvas().style.cursor = "pointer";
 
+        const subjectName =
+          feature.properties.subject_name || "Unknown Subject";
+        const imageIds = feature.properties.image_ids
+          ? feature.properties.image_ids.split(",").filter((id) => id)
+          : [];
+
+        // Show the popup immediately
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div style="cursor: pointer; white-space: nowrap; line-height: 1; border-radius: 1em;"><strong>${subjectName}</strong></div>`,
+          )
+          .addTo(map);
+
+        // Debounce only the expensive georeference operations
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+          // Filter and highlight image georeferences for this subject
+          if (imageIds.length > 0) {
+            const numIds = imageIds.map((id) => parseInt(id));
+            const filter = ["in", ["get", "id"], ["literal", numIds]];
+
+            // Set paint property to show only matching circles at full opacity
+            map.setPaintProperty("image-circles", "circle-opacity", [
+              "case",
+              filter,
+              1, // Matching images: full opacity
+              0, // Non-matching images: hidden
+            ]);
+
+            // Keep circles green, hide stroke on non-matching
+            map.setPaintProperty("image-circles", "circle-stroke-opacity", [
+              "case",
+              filter,
+              1, // Matching images: visible stroke
+              0, // Non-matching images: hidden stroke
+            ]);
+
+            if (map.getLayer("image-directions")) {
+              map.setPaintProperty("image-directions", "icon-opacity", [
+                "case",
+                filter,
+                1, // Matching: visible
+                0, // Non-matching: hidden
+              ]);
+            }
+          } else {
+            // No images for this subject, hide all circles
+            map.setPaintProperty("image-circles", "circle-opacity", 0);
+            map.setPaintProperty("image-circles", "circle-stroke-opacity", 0);
+            if (map.getLayer("image-directions")) {
+              map.setPaintProperty("image-directions", "icon-opacity", 0);
+            }
+          }
+        }, 10); // 10ms debounce delay for expensive operations only
+      } else {
+        // No features under cursor
         map.getCanvas().style.cursor = "";
         popup.remove();
-
+        // Clear debounce timeout
+        clearTimeout(hoverTimeout);
         // Reset to hidden state (no images visible)
         map.setPaintProperty("image-circles", "circle-opacity", 0);
         map.setPaintProperty("image-circles", "circle-stroke-opacity", 0);
         if (map.getLayer("image-directions")) {
           map.setPaintProperty("image-directions", "icon-opacity", 0);
         }
+      }
+    });
+
+    // Click handler
+    map.on("click", (e) => {
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: layerIds,
       });
 
-      map.on("click", layerId, (e) => {
-        if (e.features.length > 0) {
-          const feature = e.features[0];
-          const subjectSlug = feature.properties.subject_slug;
-
-          if (subjectSlug) {
-            window.location.href = `/subjects/${subjectSlug}/`;
-          }
+      if (features.length > 0) {
+        const feature = features[0];
+        const subjectSlug = feature.properties.subject_slug;
+        if (subjectSlug) {
+          window.location.href = `/subjects/${subjectSlug}/`;
         }
-      });
+      }
     });
   });
 
