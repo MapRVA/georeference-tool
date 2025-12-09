@@ -37,28 +37,8 @@
             </div>
         </div>
 
-        <!-- Filter Section (Collapsible) -->
-        <div class="col-12 mb-3">
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel" aria-expanded="false" aria-controls="filterPanel">
-                <i class="fas fa-filter me-1"></i>Filter
-            </button>
-            <div class="collapse" id="filterPanel">
-                <div class="card card-body mt-2 border-light">
-                    <label class="form-label mb-2">Georeferenced Status:</label>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Georeferenced filter">
-                        <a href="?page={{ page_obj.number }}" class="btn btn-outline-primary {% if georeferenced_status == 'all' %}active{% endif %}">
-                            <i class="fas fa-images me-1"></i>All
-                        </a>
-                        <a href="?page={{ page_obj.number }}&georeferenced=yes" class="btn btn-outline-primary {% if georeferenced_status == 'yes' %}active{% endif %}">
-                            <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
-                        </a>
-                        <a href="?page={{ page_obj.number }}&georeferenced=none" class="btn btn-outline-primary {% if georeferenced_status == 'none' %}active{% endif %}">
-                            <i class="fas fa-ban me-1"></i>Not Georeferenced
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Georeference Status Filter -->
+        {% include 'images/partials/georeference_filter.html' %}
 
         <!-- Similar Images Grid -->
         <div class="col-12">
@@ -66,7 +46,7 @@
                 <div class="row">
                     {% for image in page_obj %}
                         {% with georeference_url="/georeference/" %}
-                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True %}
+                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True image_id=image.id %}
                         {% endwith %}
                     {% endfor %}
                 </div>
