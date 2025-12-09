@@ -1,5 +1,6 @@
 import urllib.parse
 import uuid
+from datetime import datetime
 
 import requests
 from django.contrib.admin.utils import quote
@@ -9,7 +10,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Q
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -572,7 +573,6 @@ class Georeference(models.Model):
 
     def get_validation_counts(self):
         """Get counts for each validation type"""
-        from django.db.models import Q
 
         return self.validations.aggregate(
             correct=Count("pk", filter=Q(validation="correct")),
@@ -646,7 +646,6 @@ class AerialGeoreference(models.Model):
 
     def get_validation_counts(self):
         """Get counts for each validation type"""
-        from django.db.models import Q
 
         return self.validations.aggregate(
             correct=Count("pk", filter=Q(validation="correct")),
@@ -955,8 +954,6 @@ class WikidataItem(models.Model):
 
             if wikidata_info["inception"]:
                 try:
-                    from datetime import datetime
-
                     self.inception = datetime.strptime(
                         wikidata_info["inception"], "%Y-%m-%d"
                     ).date()

@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.gis.geos import Point, GEOSGeometry
 from django.core.paginator import Page, Paginator
-from django.db import IntegrityError, models, transaction
+from django.db import connection, IntegrityError, models, transaction
 from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
@@ -113,7 +113,6 @@ def bulk_add_subject_to_images(request):
 
         # Get or create WikidataItem
         try:
-            from ..models import WikidataItem, SubjectMapping
             wikidata_item, created = WikidataItem.objects.get_or_create(
                 wikidata_id=wikidata_id
             )
@@ -149,7 +148,9 @@ def bulk_add_subject_to_images(request):
                 try:
                     image = Image.objects.get(id=image_id)
 
-                    if SubjectMapping.objects.filter(image=image, subject=subject).exists():
+                    if SubjectMapping.objects.filter(
+                        image=image, subject=subject
+                    ).exists():
                         already_exists_count += 1
                         continue
 
@@ -222,7 +223,6 @@ def add_subject_to_image(request, image_id):
         # The new model logic handles fetching on creation.
         # We wrap this in a try-except block to catch validation errors if fetching fails.
         try:
-            from ..models import WikidataItem
             wikidata_item, created = WikidataItem.objects.get_or_create(
                 wikidata_id=wikidata_id
             )
@@ -437,8 +437,6 @@ def find_similar_images_to_subject(request, subject_slug):
         "georeferenced", "all"
     )  # 'all', 'yes', or 'none'
 
-    from django.db import connection
-
     try:
         # Calculate the centroid of all subject image embeddings
         subject_embeddings = []
@@ -523,12 +521,16 @@ def find_similar_images_to_subject(request, subject_slug):
         page_obj.object_list = ordered_images_on_page
 
         # Get total number of images for this subject
-        total_subject_images = Image.objects.filter(
-            subject_mappings__subject=subject,
-            collection__public=True,
-            collection__source__public=True,
-            duplicate_of__isnull=True,
-        ).distinct().count()
+        total_subject_images = (
+            Image.objects.filter(
+                subject_mappings__subject=subject,
+                collection__public=True,
+                collection__source__public=True,
+                duplicate_of__isnull=True,
+            )
+            .distinct()
+            .count()
+        )
 
         context = {
             "subject": subject,

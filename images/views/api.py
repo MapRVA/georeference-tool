@@ -2,6 +2,8 @@ import json
 
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
+from django.contrib.gis.geos import Point
+from django.db import connection
 
 from ..models import (
     Image,
@@ -208,7 +210,6 @@ def polygonal_georeferences_at_point(request):
 
     Returns: GeoJSON FeatureCollection of aerial georeferences containing the point
     """
-    from django.contrib.gis.geos import Point
 
     # Get lat/lon from query parameters
     try:
@@ -230,7 +231,6 @@ def polygonal_georeferences_at_point(request):
     # We need to use the polygon field's contains lookup
 
     # Get all aerial images with public collections/sources
-    from images.models import Image
 
     images = (
         Image.objects.filter(
@@ -283,7 +283,6 @@ def polygonal_georeferences_at_point(request):
 
 def vector_tiles_endpoint(request, z, x, y):
     """Return MVT vector tiles of georeferenced images (using materialized view for performance)"""
-    from django.db import connection
 
     enable_scale_filter = (
         request.GET.get("enable_scale_filter", "false").lower() == "true"
@@ -375,7 +374,6 @@ def vector_tiles_endpoint(request, z, x, y):
 
 def osm_elements_vector_tiles_endpoint(request, z, x, y):
     """Return MVT vector tiles of OSM elements (mixed geometries: points, lines, polygons)"""
-    from django.db import connection
 
     sql = f"""
         SELECT ST_AsMVT(mvtgeoms.*, 'osm_elements') as mvt FROM (

@@ -1,6 +1,7 @@
 from django.core.paginator import Page, Paginator
 from django.db.models import Avg, Case, Count, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404, render
+from django.contrib.gis.geos import Point
 
 from ..models import (
     Collection,
@@ -28,19 +29,32 @@ def apply_image_filters(request, queryset):
     - no_subjects: images with no subjects at all
     """
     # Get filter parameters from URL
-    georeference_status = request.GET.get('georeference_status', '').split(',') if request.GET.get('georeference_status') else []
-    start_year = request.GET.get('start_year')
-    end_year = request.GET.get('end_year')
-    with_subjects = request.GET.get('with_subjects', '').split(',') if request.GET.get('with_subjects') else []
-    without_subjects = request.GET.get('without_subjects', '').split(',') if request.GET.get('without_subjects') else []
-    no_subjects = request.GET.get('no_subjects') == 'true'
+    georeference_status = (
+        request.GET.get("georeference_status", "").split(",")
+        if request.GET.get("georeference_status")
+        else []
+    )
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+    with_subjects = (
+        request.GET.get("with_subjects", "").split(",")
+        if request.GET.get("with_subjects")
+        else []
+    )
+    without_subjects = (
+        request.GET.get("without_subjects", "").split(",")
+        if request.GET.get("without_subjects")
+        else []
+    )
+    no_subjects = request.GET.get("no_subjects") == "true"
 
     # Apply year filtering
     if start_year:
         try:
             start_year_int = int(start_year)
             queryset = queryset.filter(
-                Q(fuzzy_start_decdate__gte=start_year_int) | Q(start_decdate__gte=start_year_int)
+                Q(fuzzy_start_decdate__gte=start_year_int)
+                | Q(start_decdate__gte=start_year_int)
             )
         except ValueError:
             pass
@@ -49,7 +63,8 @@ def apply_image_filters(request, queryset):
         try:
             end_year_int = int(end_year)
             queryset = queryset.filter(
-                Q(fuzzy_end_decdate__lte=end_year_int) | Q(end_decdate__lte=end_year_int)
+                Q(fuzzy_end_decdate__lte=end_year_int)
+                | Q(end_decdate__lte=end_year_int)
             )
         except ValueError:
             pass
@@ -71,27 +86,23 @@ def apply_image_filters(request, queryset):
         # Build the filter conditions based on selected statuses
         filter_conditions = Q()
 
-        if 'georeferenced' in georeference_status:
-            filter_conditions |= (
-                Q(georeferences__isnull=False) |
-                Q(aerial=True, aerial_georeferences__isnull=False)
+        if "georeferenced" in georeference_status:
+            filter_conditions |= Q(georeferences__isnull=False) | Q(
+                aerial=True, aerial_georeferences__isnull=False
             )
 
-        if 'pending' in georeference_status:
+        if "pending" in georeference_status:
             filter_conditions |= (
-                (
-                    Q(georeferences__isnull=True) &
-                    Q(aerial=False) &
-                    Q(will_not_georef=False)
-                ) |
-                (
-                    Q(aerial_georeferences__isnull=True) &
-                    Q(aerial=True) &
-                    Q(will_not_georef=False)
-                )
+                Q(georeferences__isnull=True)
+                & Q(aerial=False)
+                & Q(will_not_georef=False)
+            ) | (
+                Q(aerial_georeferences__isnull=True)
+                & Q(aerial=True)
+                & Q(will_not_georef=False)
             )
 
-        if 'will_not_georef' in georeference_status:
+        if "will_not_georef" in georeference_status:
             filter_conditions |= Q(will_not_georef=True)
 
         # Apply the filter if any conditions were added
@@ -227,18 +238,30 @@ def collection_detail(request, source_slug, collection_slug):
     )
 
     # Get filter parameters from URL
-    georeference_status = request.GET.get('georeference_status', '').split(',') if request.GET.get('georeference_status') else []
-    start_year = request.GET.get('start_year')
-    end_year = request.GET.get('end_year')
-    with_subjects = request.GET.get('with_subjects', '').split(',') if request.GET.get('with_subjects') else []
-    without_subjects = request.GET.get('without_subjects', '').split(',') if request.GET.get('without_subjects') else []
-    no_subjects = request.GET.get('no_subjects') == 'true'
+    georeference_status = (
+        request.GET.get("georeference_status", "").split(",")
+        if request.GET.get("georeference_status")
+        else []
+    )
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+    with_subjects = (
+        request.GET.get("with_subjects", "").split(",")
+        if request.GET.get("with_subjects")
+        else []
+    )
+    without_subjects = (
+        request.GET.get("without_subjects", "").split(",")
+        if request.GET.get("without_subjects")
+        else []
+    )
+    no_subjects = request.GET.get("no_subjects") == "true"
 
     # Sort images: georeferenced images second-to-last, "will not reference" images at the end
     # Exclude duplicate images from the collection view
     images = (
         collection.images.filter(duplicate_of__isnull=True)
-        .prefetch_related('subjects')
+        .prefetch_related("subjects")
         .annotate(
             has_georeference=Case(
                 When(
@@ -258,7 +281,8 @@ def collection_detail(request, source_slug, collection_slug):
         try:
             start_year_int = int(start_year)
             images = images.filter(
-                Q(fuzzy_start_decdate__gte=start_year_int) | Q(start_decdate__gte=start_year_int)
+                Q(fuzzy_start_decdate__gte=start_year_int)
+                | Q(start_decdate__gte=start_year_int)
             )
         except ValueError:
             pass
@@ -267,7 +291,8 @@ def collection_detail(request, source_slug, collection_slug):
         try:
             end_year_int = int(end_year)
             images = images.filter(
-                Q(fuzzy_end_decdate__lte=end_year_int) | Q(end_decdate__lte=end_year_int)
+                Q(fuzzy_end_decdate__lte=end_year_int)
+                | Q(end_decdate__lte=end_year_int)
             )
         except ValueError:
             pass
@@ -289,20 +314,19 @@ def collection_detail(request, source_slug, collection_slug):
         # Build the filter conditions based on selected statuses
         filter_conditions = Q()
 
-        if 'georeferenced' in georeference_status:
-            filter_conditions |= (
-                Q(georeferences__isnull=False) |
-                Q(aerial=True, aerial_georeferences__isnull=False)
+        if "georeferenced" in georeference_status:
+            filter_conditions |= Q(georeferences__isnull=False) | Q(
+                aerial=True, aerial_georeferences__isnull=False
             )
 
-        if 'pending' in georeference_status:
+        if "pending" in georeference_status:
             filter_conditions |= (
-                Q(georeferences__isnull=True) &
-                Q(aerial=False) &
-                Q(will_not_georef=False)
+                Q(georeferences__isnull=True)
+                & Q(aerial=False)
+                & Q(will_not_georef=False)
             )
 
-        if 'will_not_georef' in georeference_status:
+        if "will_not_georef" in georeference_status:
             filter_conditions |= Q(will_not_georef=True)
 
         # Apply the filter if any conditions were added
@@ -573,15 +597,18 @@ def top_rated_images(request):
 
 def browse_aerials(request):
     """Browse all aerial images with optional location-based filtering"""
-    from django.contrib.gis.geos import Point
 
     # Start with base queryset
-    aerials = Image.objects.filter(
-        aerial=True,
-        collection__public=True,
-        collection__source__public=True,
-        duplicate_of__isnull=True,
-    ).select_related("collection__source").prefetch_related('subjects')
+    aerials = (
+        Image.objects.filter(
+            aerial=True,
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
+        )
+        .select_related("collection__source")
+        .prefetch_related("subjects")
+    )
 
     # Apply standard filters from georeference_filter.html
     aerials = apply_image_filters(request, aerials)
@@ -643,8 +670,6 @@ def browse_aerials(request):
 
         # Preserve the order in the queryset
         if ordered_ids:
-            from django.db.models import Case, When
-
             preserved_order = Case(
                 *[When(pk=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
             )
@@ -743,12 +768,24 @@ def subject_detail(request, subject_slug):
     subject = get_object_or_404(Subject, slug=subject_slug)
 
     # Get filter parameters from URL
-    georeference_status = request.GET.get('georeference_status', '').split(',') if request.GET.get('georeference_status') else []
-    start_year = request.GET.get('start_year')
-    end_year = request.GET.get('end_year')
-    with_subjects = request.GET.get('with_subjects', '').split(',') if request.GET.get('with_subjects') else []
-    without_subjects = request.GET.get('without_subjects', '').split(',') if request.GET.get('without_subjects') else []
-    no_subjects = request.GET.get('no_subjects') == 'true'
+    georeference_status = (
+        request.GET.get("georeference_status", "").split(",")
+        if request.GET.get("georeference_status")
+        else []
+    )
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+    with_subjects = (
+        request.GET.get("with_subjects", "").split(",")
+        if request.GET.get("with_subjects")
+        else []
+    )
+    without_subjects = (
+        request.GET.get("without_subjects", "").split(",")
+        if request.GET.get("without_subjects")
+        else []
+    )
+    no_subjects = request.GET.get("no_subjects") == "true"
 
     # Get images associated with this subject (only from public collections, excluding duplicates)
     images = (
@@ -756,10 +793,10 @@ def subject_detail(request, subject_slug):
             subject_mappings__subject=subject,
             collection__public=True,
             collection__source__public=True,
-            duplicate_of__isnull=True
+            duplicate_of__isnull=True,
         )
         .select_related("collection__source")
-        .prefetch_related('subjects')
+        .prefetch_related("subjects")
         .annotate(
             has_georeference=Case(
                 When(
@@ -779,7 +816,8 @@ def subject_detail(request, subject_slug):
         try:
             start_year_int = int(start_year)
             images = images.filter(
-                Q(fuzzy_start_decdate__gte=start_year_int) | Q(start_decdate__gte=start_year_int)
+                Q(fuzzy_start_decdate__gte=start_year_int)
+                | Q(start_decdate__gte=start_year_int)
             )
         except ValueError:
             pass
@@ -788,7 +826,8 @@ def subject_detail(request, subject_slug):
         try:
             end_year_int = int(end_year)
             images = images.filter(
-                Q(fuzzy_end_decdate__lte=end_year_int) | Q(end_decdate__lte=end_year_int)
+                Q(fuzzy_end_decdate__lte=end_year_int)
+                | Q(end_decdate__lte=end_year_int)
             )
         except ValueError:
             pass
@@ -813,20 +852,19 @@ def subject_detail(request, subject_slug):
         # Build the filter conditions based on selected statuses
         filter_conditions = Q()
 
-        if 'georeferenced' in georeference_status:
-            filter_conditions |= (
-                Q(georeferences__isnull=False) |
-                Q(aerial=True, aerial_georeferences__isnull=False)
+        if "georeferenced" in georeference_status:
+            filter_conditions |= Q(georeferences__isnull=False) | Q(
+                aerial=True, aerial_georeferences__isnull=False
             )
 
-        if 'pending' in georeference_status:
+        if "pending" in georeference_status:
             filter_conditions |= (
-                Q(georeferences__isnull=True) &
-                Q(aerial=False) &
-                Q(will_not_georef=False)
+                Q(georeferences__isnull=True)
+                & Q(aerial=False)
+                & Q(will_not_georef=False)
             )
 
-        if 'will_not_georef' in georeference_status:
+        if "will_not_georef" in georeference_status:
             filter_conditions |= Q(will_not_georef=True)
 
         # Apply the filter if any conditions were added
@@ -841,8 +879,14 @@ def subject_detail(request, subject_slug):
         collection__source__public=True,
     )
     total_images = all_images.count()
-    georeferenced_images = all_images.filter(georeferences__isnull=False).distinct().count()
-    pending_images = total_images - georeferenced_images - all_images.filter(will_not_georef=True).count()
+    georeferenced_images = (
+        all_images.filter(georeferences__isnull=False).distinct().count()
+    )
+    pending_images = (
+        total_images
+        - georeferenced_images
+        - all_images.filter(will_not_georef=True).count()
+    )
 
     # Paginate the filtered images for browsing
     paginator = Paginator(images.distinct(), 24)  # 24 images per page for grid layout

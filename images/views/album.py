@@ -395,14 +395,13 @@ def bulk_add_to_album(request):
     try:
         # Parse JSON data
         data = json.loads(request.body)
-        album_id = data.get('album_id')
-        image_ids = data.get('image_ids', [])
+        album_id = data.get("album_id")
+        image_ids = data.get("image_ids", [])
 
         if not album_id or not image_ids:
-            return JsonResponse({
-                'success': False,
-                'error': 'Missing album_id or image_ids'
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Missing album_id or image_ids"}, status=400
+            )
 
         # Get the album (ensure user owns it)
         album = get_object_or_404(Album, id=album_id, owner=request.user)
@@ -411,10 +410,9 @@ def bulk_add_to_album(request):
         images = Image.objects.filter(id__in=image_ids)
 
         if not images.exists():
-            return JsonResponse({
-                'success': False,
-                'error': 'No valid images found'
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "No valid images found"}, status=400
+            )
 
         # Add images to album (avoiding duplicates)
         added_count = 0
@@ -423,7 +421,7 @@ def bulk_add_to_album(request):
             album_image, created = AlbumImage.objects.get_or_create(
                 album=album,
                 image=image,
-                defaults={'order': AlbumImage.objects.filter(album=album).count() + 1}
+                defaults={"order": AlbumImage.objects.filter(album=album).count() + 1},
             )
             if created:
                 added_count += 1
@@ -431,30 +429,33 @@ def bulk_add_to_album(request):
         # Update album's updated timestamp
         album.save()
 
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully added {added_count} images to album "{album.title}"',
-            'added_count': added_count,
-            'total_requested': len(image_ids),
-            'album_title': album.title,
-            'album_id': album.id
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f'Successfully added {added_count} images to album "{album.title}"',
+                "added_count": added_count,
+                "total_requested": len(image_ids),
+                "album_title": album.title,
+                "album_id": album.id,
+            }
+        )
 
     except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'error': 'Invalid JSON data'
-        }, status=400)
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON data"}, status=400
+        )
     except Album.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Album not found or you do not have permission'
-        }, status=404)
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Album not found or you do not have permission",
+            },
+            status=404,
+        )
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'Server error: {str(e)}'
-        }, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"Server error: {str(e)}"}, status=500
+        )
 
 
 @login_required
@@ -467,22 +468,20 @@ def bulk_create_and_add_to_album(request):
     try:
         # Parse JSON data
         data = json.loads(request.body)
-        title = data.get('title', '').strip()
-        description = data.get('description', '').strip()
-        is_public = data.get('is_public', False)
-        image_ids = data.get('image_ids', [])
+        title = data.get("title", "").strip()
+        description = data.get("description", "").strip()
+        is_public = data.get("is_public", False)
+        image_ids = data.get("image_ids", [])
 
         if not title:
-            return JsonResponse({
-                'success': False,
-                'error': 'Album title is required'
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Album title is required"}, status=400
+            )
 
         if not image_ids:
-            return JsonResponse({
-                'success': False,
-                'error': 'No images specified'
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "No images specified"}, status=400
+            )
 
         # Create the album
         album = Album.objects.create(
@@ -498,43 +497,38 @@ def bulk_create_and_add_to_album(request):
         if not images.exists():
             # Clean up the created album if no valid images
             album.delete()
-            return JsonResponse({
-                'success': False,
-                'error': 'No valid images found'
-            }, status=400)
+            return JsonResponse(
+                {"success": False, "error": "No valid images found"}, status=400
+            )
 
         # Add images to album
         album_images = []
         for i, image in enumerate(images, 1):
-            album_image = AlbumImage.objects.create(
-                album=album,
-                image=image,
-                order=i
-            )
+            album_image = AlbumImage.objects.create(album=album, image=image, order=i)
             album_images.append(album_image)
 
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully created album "{album.title}" and added {len(album_images)} images',
-            'album': {
-                'id': album.id,
-                'title': album.title,
-                'description': album.description,
-                'public': album.public,
-                'created_at': album.created_at.isoformat(),
-                'image_count': len(album_images)
-            },
-            'added_count': len(album_images),
-            'total_requested': len(image_ids)
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f'Successfully created album "{album.title}" and added {len(album_images)} images',
+                "album": {
+                    "id": album.id,
+                    "title": album.title,
+                    "description": album.description,
+                    "public": album.public,
+                    "created_at": album.created_at.isoformat(),
+                    "image_count": len(album_images),
+                },
+                "added_count": len(album_images),
+                "total_requested": len(image_ids),
+            }
+        )
 
     except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'error': 'Invalid JSON data'
-        }, status=400)
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON data"}, status=400
+        )
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'Server error: {str(e)}'
-        }, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"Server error: {str(e)}"}, status=500
+        )
