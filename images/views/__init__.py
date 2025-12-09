@@ -65,4 +65,5 @@ from .subject import (
     bulk_add_subject_to_images,
     remove_subject_from_image,
     reorder_subjects,
+    find_similar_images_to_subject,
 )

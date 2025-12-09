@@ -36,6 +36,16 @@ from ..models import (
 )
 from ..utils import render_markdown_safe
 
+# Try to import CLIP dependencies (for subject similarity search)
+try:
+    import clip
+    import torch
+    import numpy as np
+
+    CLIP_AVAILABLE = True
+except ImportError:
+    CLIP_AVAILABLE = False
+
 
 def subject_autocomplete(request):
     if "q" not in request.GET:
@@ -388,3 +398,151 @@ def reorder_subjects(request, image_id):
             {"success": False, "error": f"An unexpected error occurred: {str(e)}"},
             status=500,
         )
+
+
+def find_similar_images_to_subject(request, subject_slug):
+    """
+    Find and display images with embeddings most similar to the centroid
+    of all images associated with a subject.
+    Supports filtering by georeferenced status via query parameter.
+    """
+    if not CLIP_AVAILABLE:
+        messages.error(
+            request,
+            "Similarity search is not available. CLIP dependencies not installed.",
+        )
+        return redirect("images:subject_detail", subject_slug=subject_slug)
+
+    # Get the target subject
+    subject = get_object_or_404(Subject, slug=subject_slug)
+
+    # Get all images for this subject that have embeddings
+    subject_images = Image.objects.filter(
+        subject_mappings__subject=subject,
+        embedding__isnull=False,
+        collection__public=True,
+        collection__source__public=True,
+        duplicate_of__isnull=True,
+    ).distinct()
+
+    if not subject_images.exists():
+        messages.error(
+            request,
+            "This subject has no images with embeddings, so similar images cannot be found.",
+        )
+        return redirect("images:subject_detail", subject_slug=subject_slug)
+
+    # Get georeferenced filter from query parameter
+    georeferenced_status = request.GET.get(
+        "georeferenced", "all"
+    )  # 'all', 'yes', or 'none'
+
+    from django.db import connection
+
+    try:
+        # Calculate the centroid of all subject image embeddings
+        subject_embeddings = []
+        for img in subject_images:
+            if img.embedding:
+                subject_embeddings.append(np.array(img.embedding))
+
+        if not subject_embeddings:
+            messages.error(
+                request,
+                "Unable to calculate centroid - no valid embeddings found.",
+            )
+            return redirect("images:subject_detail", subject_slug=subject_slug)
+
+        # Calculate centroid as the mean of all embeddings
+        centroid_embedding = np.mean(subject_embeddings, axis=0)
+
+        # Normalize the centroid (important for cosine similarity)
+        centroid_embedding = centroid_embedding / np.linalg.norm(centroid_embedding)
+
+        # Get IDs of subject images to exclude from results
+        subject_image_ids = list(subject_images.values_list("id", flat=True))
+
+        with connection.cursor() as cursor:
+            # Convert centroid embedding to PostgreSQL array format
+            embedding_str = "[" + ",".join(map(str, centroid_embedding.tolist())) + "]"
+
+            # Build WHERE conditions based on georeferenced filter
+            georeference_condition = ""
+            if georeferenced_status == "yes":
+                georeference_condition = "AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+            elif georeferenced_status == "none":
+                georeference_condition = "AND NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+
+            # Raw SQL query for cosine similarity to get all similar images
+            # Exclude images that are already part of this subject
+            sql = f"""
+                SELECT
+                    id,
+                    (embedding::vector <=> %s::vector) as distance
+                FROM images_image
+                WHERE embedding IS NOT NULL
+                AND id != ALL(%s)
+                {georeference_condition}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+                ORDER BY distance
+            """
+            cursor.execute(sql, [embedding_str, subject_image_ids])
+            all_results = cursor.fetchall()
+
+        # Get a list of all similar image IDs, ordered by similarity
+        all_similar_ids = [row[0] for row in all_results]
+
+        # Paginate the full list of IDs
+        paginator = Paginator(all_similar_ids, 24)  # 24 images per page
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+
+        # Get the full Image objects for the current page
+        current_page_ids = page_obj.object_list
+        images_on_page = Image.objects.filter(id__in=current_page_ids).select_related(
+            "collection__source"
+        )
+
+        # Create a dictionary to map IDs to image objects for correct ordering
+        images_by_id = {img.id: img for img in images_on_page}
+
+        # Re-order the fetched image objects based on the paginated ID list
+        ordered_images_on_page = [
+            images_by_id[img_id]
+            for img_id in current_page_ids
+            if img_id in images_by_id
+        ]
+
+        # Replace the list of IDs in the page object with the actual image objects
+        page_obj.object_list = ordered_images_on_page
+
+        # Get total number of images for this subject
+        total_subject_images = Image.objects.filter(
+            subject_mappings__subject=subject,
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
+        ).distinct().count()
+
+        context = {
+            "subject": subject,
+            "subject_image_count": subject_images.count(),
+            "total_subject_images": total_subject_images,
+            "page_obj": page_obj,
+            "total_similar_count": paginator.count,
+            "georeferenced_status": georeferenced_status,
+        }
+
+        return render(request, "images/subject_similar_images.html", context)
+
+    except Exception as e:
+        messages.error(
+            request, f"An error occurred while finding similar images: {str(e)}"
+        )
+        return redirect("images:subject_detail", subject_slug=subject_slug)

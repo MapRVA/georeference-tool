@@ -17,6 +17,11 @@ urlpatterns = [
     # Subject browsing
     path("subjects/", views.browse_subjects, name="browse_subjects"),
     path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
+    path(
+        "subjects/<slug:subject_slug>/similar/",
+        views.find_similar_images_to_subject,
+        name="subject_similar_images",
+    ),
     # Community favorites
     path("favorites/", views.top_rated_images, name="favorites"),
     # Georeferencing interface

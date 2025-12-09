@@ -849,6 +849,9 @@ def subject_detail(request, subject_slug):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    # Check if subject has images with embeddings for similarity search
+    has_images_with_embeddings = all_images.filter(embedding__isnull=False).exists()
+
     context = {
         "subject": subject,
         "page_obj": page_obj,
@@ -858,5 +861,6 @@ def subject_detail(request, subject_slug):
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
+        "has_images_with_embeddings": has_images_with_embeddings,
     }
     return render(request, "images/subject_detail.html", context)
