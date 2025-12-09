@@ -32,6 +32,8 @@ export PG_PORT=5432
 export PG_SSL_MODE=disable
 ```
 
+Save those to `my.env` in the root of this repository, and then apply them by running `source my.env`
+
 ### Install dependencies
 ```
 uv sync
