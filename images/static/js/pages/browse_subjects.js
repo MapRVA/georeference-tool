@@ -113,10 +113,14 @@ document.addEventListener("DOMContentLoaded", function () {
       type: "line",
       source: "osm-elements",
       "source-layer": "osm_elements",
-      filter: ["==", ["get", "geom_type"], "ST_LineString"],
+      filter: [
+        "in",
+        ["get", "geom_type"],
+        ["literal", ["ST_LineString", "ST_MultiLineString"]],
+      ],
       paint: {
         "line-color": "#ff6b35",
-        "line-width": 2,
+        "line-width": 3,
         "line-opacity": 0.7,
       },
     });
