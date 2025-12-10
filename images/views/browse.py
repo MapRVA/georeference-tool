@@ -1,15 +1,15 @@
+from django.contrib.gis.geos import Point
 from django.core.paginator import Page, Paginator
 from django.db.models import Avg, Case, Count, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404, render
-from django.contrib.gis.geos import Point
 
 from ..models import (
     Collection,
     Image,
     ImageRating,
-    TopRatedImageView,
     Source,
     Subject,
+    TopRatedImageView,
 )
 from ..utils import render_markdown_safe
 
@@ -210,6 +210,22 @@ def source_detail(request, slug):
         .count()
     )
 
+    # Get top-rated image for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.filter(
+            image_id__in=Image.objects.filter(
+                collection__source=source, collection__public=True
+            ).values_list("id", flat=True)
+        )
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "source": source,
         "collections": collections,
@@ -226,6 +242,7 @@ def source_detail(request, slug):
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/source_detail.html", context)
 
@@ -352,6 +369,22 @@ def collection_detail(request, source_slug, collection_slug):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    # Get top-rated image for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.filter(
+            image_id__in=Image.objects.filter(collection=collection).values_list(
+                "id", flat=True
+            )
+        )
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "source": source,
         "collection": collection,
@@ -362,6 +395,7 @@ def collection_detail(request, source_slug, collection_slug):
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/collection_detail.html", context)
 
@@ -520,9 +554,13 @@ def image_detail(request, image_id):
 
 
 def top_rated_images(request):
-    """Display paginated list of highest-rated images"""
+    """Display paginated list of highest-rated images, optionally filtered by source or collection"""
     page_number = request.GET.get("page", 1)
     page_size = 24  # 24 images per page
+
+    # Get optional filters
+    source_id = request.GET.get("source")
+    collection_id = request.GET.get("collection")
 
     # Convert page number to offset/limit
     try:
@@ -532,8 +570,32 @@ def top_rated_images(request):
     except (ValueError, TypeError):
         page_number = 1
 
+    # Start with all view entries
+    view_entries = TopRatedImageView.objects.all()
+
+    # Filter by source if specified
+    if source_id:
+        view_entries = view_entries.filter(
+            image_id__in=Image.objects.filter(
+                collection__source_id=source_id
+            ).values_list("id", flat=True)
+        )
+
+    # Filter by collection if specified
+    if collection_id:
+        view_entries = view_entries.filter(
+            image_id__in=Image.objects.filter(collection_id=collection_id).values_list(
+                "id", flat=True
+            )
+        )
+
+    # Order by rating
+    view_entries = view_entries.order_by(
+        "-sort_value", "-avg_rating", "-vote_count", "image_id"
+    )
+
     # Get total count for pagination info
-    total_count = TopRatedImageView.objects.count()
+    total_count = view_entries.count()
 
     # Calculate total pages
     total_pages = (total_count + page_size - 1) // page_size
@@ -543,11 +605,6 @@ def top_rated_images(request):
         page_number = total_pages
 
     offset = (page_number - 1) * page_size
-
-    # Fetch image IDs from the view in the correct order
-    view_entries = TopRatedImageView.objects.all().order_by(
-        "-sort_value", "-avg_rating", "-vote_count", "image_id"
-    )
 
     # Get image IDs for current page only
     page_image_ids = list(
