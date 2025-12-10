@@ -2,7 +2,9 @@ import json
 
 from django.db.models import Count, F
 from django.db.models.functions import TruncDate
+from django.http import HttpResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 from images.models import (
     Collection,
@@ -179,3 +181,15 @@ def stats(request):
         "overall_stats": overall_stats,
     }
     return render(request, "stats.html", context)
+
+
+@require_GET
+def robots_txt(request):
+    """Serve robots.txt"""
+    lines = [
+        "User-agent: *",
+        "Disallow: /search/",
+        "Disallow: */similar/",
+        "Disallow: /api/",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
