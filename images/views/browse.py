@@ -656,11 +656,15 @@ def top_rated_images(request):
         total_unrated=Count("image_id", filter=Q(vote_count=0)),
     )
 
+    # Get top-rated image for Open Graph metadata (first from the ordered list)
+    top_rated_image = page_images[0] if page_images else None
+
     context = {
         "page_obj": page_obj,
         "total_rated": stats["total_rated"],
         "total_unrated": stats["total_unrated"],
         "total_images": stats["total_rated"] + stats["total_unrated"],
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/favorites.html", context)
 
@@ -760,6 +764,20 @@ def browse_aerials(request):
     )
     will_not_georef_images = aerials.filter(will_not_georef=True).count()
 
+    # Get top-rated aerial image for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.filter(
+            image_id__in=Image.objects.filter(aerial=True).values_list("id", flat=True)
+        )
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "page_obj": page_obj,
         "total_images": total_images,
@@ -771,6 +789,7 @@ def browse_aerials(request):
         "is_filtered": is_filtered,
         "filter_lat": lat if is_filtered else None,
         "filter_lon": lon if is_filtered else None,
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/from_above.html", context)
 
