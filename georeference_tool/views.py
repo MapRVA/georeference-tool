@@ -12,13 +12,27 @@ from images.models import (
     GeoreferenceValidation,
     Image,
     Source,
+    TopRatedImageView,
 )
 
 
 def home(request):
     """Home page view"""
+    # Get top-rated image from entire site for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.all()
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "page_title": "Home",
+        "top_rated_image": top_rated_image,
     }
     return render(request, "home.html", context)
 
