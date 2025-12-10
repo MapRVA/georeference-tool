@@ -826,9 +826,23 @@ def browse_subjects(request):
     paginator = Paginator(subjects, 12)  # 12 subjects per page for grid layout
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
+
+    # Get top-rated image from entire site for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.all()
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "page_obj": page_obj,
         "overall_stats": overall_stats,
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/browse_subjects.html", context)
 
@@ -966,6 +980,20 @@ def subject_detail(request, subject_slug):
     # Check if subject has images with embeddings for similarity search
     has_images_with_embeddings = all_images.filter(embedding__isnull=False).exists()
 
+    # Get top-rated image from this subject for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.filter(
+            image_id__in=all_images.values_list("id", flat=True)
+        )
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
     context = {
         "subject": subject,
         "page_obj": page_obj,
@@ -976,5 +1004,6 @@ def subject_detail(request, subject_slug):
         if total_images > 0
         else 0,
         "has_images_with_embeddings": has_images_with_embeddings,
+        "top_rated_image": top_rated_image,
     }
     return render(request, "images/subject_detail.html", context)

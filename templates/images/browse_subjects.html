@@ -3,6 +3,17 @@
 
 {% block title %}Browse Subjects – Yesterdays{% endblock %}
 
+{% block opengraph %}
+	<meta property="og:title" content="Browse Subjects – Yesterdays">
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="{{ request.build_absolute_uri }}">
+	<meta property="og:description" content="Explore {{ overall_stats.total_subjects }} subject{{ overall_stats.total_subjects|pluralize }} totalling {{ overall_stats.total_images }} image{{ overall_stats.total_images|pluralize }}.">
+	{% if top_rated_image %}
+	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
+	{% endif %}
+{% endblock %}
+
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
