@@ -205,5 +205,7 @@ def robots_txt(request):
         "Disallow: /search/",
         "Disallow: */similar/",
         "Disallow: /api/",
+        "Disallow: */georeference/*",
+        "Disallow: */polygonal-georeference/*",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
