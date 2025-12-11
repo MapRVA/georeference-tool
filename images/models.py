@@ -34,18 +34,19 @@ class SiteSettings(models.Model):
     Singleton model for site-wide configuration settings.
     Used to store deployment-specific text and preferences.
     """
+
     site_title = models.CharField(
         max_length=200,
         default="Yesterdays",
-        help_text="Main title displayed on the homepage"
+        help_text="Main title displayed on the homepage",
     )
     site_subtitle = models.TextField(
         default="Place historical images on the map!",
-        help_text="Subtitle/description displayed on the homepage"
+        help_text="Subtitle/description displayed on the homepage",
     )
     footer_content = models.TextField(
         default='Yesterdays is proudly built by <a href="https://maprva.org" target="_blank" class="text-decoration-none">MapRVA</a>',
-        help_text="HTML content for the site footer"
+        help_text="HTML content for the site footer",
     )
 
     class Meta:
@@ -206,6 +207,11 @@ class Image(models.Model):
     title = models.CharField(max_length=500)
     permalink = models.URLField(
         help_text="Direct link to the image (CDN or processed URL)"
+    )
+    thumbnail = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Direct link to the thumbnail (CDN or processed URL)",
     )
     original_url = models.URLField(
         null=True, help_text="Original URL from the source website"
@@ -1213,6 +1219,7 @@ class TopRatedImageView(models.Model):
     A model representing the images_top_rated_view database view.
     This view stores image ratings and statistics for displaying top rated images.
     """
+
     image_id = models.IntegerField(primary_key=True)
     avg_rating = models.FloatField()
     vote_count = models.IntegerField()
@@ -1220,4 +1227,4 @@ class TopRatedImageView(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'images_top_rated_view'
+        db_table = "images_top_rated_view"

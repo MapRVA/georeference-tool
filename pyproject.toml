@@ -15,6 +15,7 @@ dependencies = [
     "markdown>=3.10",
     "nh3>=0.3.2",
     "osm-login-python>=2.0.0",
+    "pillow>=11.3.0",
     "psycopg[binary]>=3.2.10",
     "requests>=2.32.5",
     "torch>=2.8.0",
@@ -22,6 +23,11 @@ dependencies = [
     "tqdm>=4.67.1",
     "uvicorn[standard]>=0.35.0",
     "whitenoise>=6.10.0",
+]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
 
 [tool.uv.sources]
