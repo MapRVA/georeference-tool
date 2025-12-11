@@ -383,6 +383,7 @@ def semantic_search(request):
                     "id": image_id,
                     "title": title,
                     "permalink": permalink,
+                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
                     "original_date": str(original_date) if original_date else None,
                     "edtf_date": str(edtf_date) if edtf_date else None,
                     "distance": float(distance),
@@ -737,6 +738,9 @@ def text_search(request):
                     "id": image.id,
                     "title": image.title,
                     "permalink": image.permalink,
+                    "thumbnail": image.thumbnail
+                    if image.thumbnail
+                    else image.permalink,
                     "original_date": str(image.original_date)
                     if image.original_date
                     else None,
@@ -898,6 +902,7 @@ def text_search(request):
                 "id": image_id,
                 "title": title,
                 "permalink": permalink,
+                "thumbnail": image.thumbnail if image.thumbnail else permalink,
                 "original_date": str(original_date) if original_date else None,
                 "edtf_date": str(edtf_date) if edtf_date else None,
                 "similarity": 1.0

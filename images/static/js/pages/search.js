@@ -423,7 +423,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
                             <!-- Image Thumbnail -->
                             <a href="${escapeHtml(result.detail_url)}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
-                                <img src="${escapeHtml(result.permalink)}"
+                                <img src="${escapeHtml(result.thumbnail)}"
                                      alt="${escapeHtml(result.title)}"
                                      class="img-fluid w-100 h-100"
                                      style="object-fit: cover;"
