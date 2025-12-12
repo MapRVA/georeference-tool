@@ -90,9 +90,9 @@
 
             <!-- Pagination -->
             {% if is_filtered %}
-                {% include 'images/partials/pagination.html' with url_params="lat="|add:filter_lat|add:"&lon="|add:filter_lon|add:"&" %}
+                {% include 'images/partials/pagination.html' with url_params="lat="|add:filter_lat|add:"&lon="|add:filter_lon|add:"&" hide_count=True %}
             {% else %}
-                {% include 'images/partials/pagination.html' with url_params="" %}
+                {% include 'images/partials/pagination.html' with url_params="" hide_count=True %}
             {% endif %}
 
             <div class="text-center text-muted mt-2">

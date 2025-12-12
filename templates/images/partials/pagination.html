@@ -31,7 +31,9 @@
         </ul>
     </nav>
 
+    {% if not hide_count %}
     <div class="text-center text-muted mt-2">
         Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
     </div>
+    {% endif %}
 {% endif %}
