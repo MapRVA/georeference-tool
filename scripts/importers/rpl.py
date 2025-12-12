@@ -1,10 +1,10 @@
 import os
+import re
 import sys
 from time import sleep
 
 import click
 import requests
-import re
 from tqdm import tqdm
 
 ## SETUP
@@ -37,6 +37,7 @@ except ImportError:
     from r2_uploader import R2Uploader
 
 POLITE_WAIT_SECS = 0.75  # Be nice to the API
+MAX_RETRIES = 2  # Retry twice (3 total attempts)
 
 # ContentDM API endpoints
 BASE_API_URL = "https://rvalibrary.contentdm.oclc.org/digital/api"
@@ -163,16 +164,34 @@ def process_items(
             )
             item_info_url = f"{BASE_API_URL}/collections/{collection_code}/items/{contentdm_id}/false"
 
-            # Poll image metadata
+            # Poll image metadata with retries
             session = requests.Session()
+            item_info = None
 
-            try:
-                response = session.get(item_info_url, timeout=30)
-                response.raise_for_status()
-                item_info = response.json().get("fields", {})
+            for attempt in range(MAX_RETRIES + 1):
+                try:
+                    response = session.get(item_info_url, timeout=30)
+                    response.raise_for_status()
+                    item_info = response.json().get("fields", {})
+                    break  # Success, exit retry loop
 
-            except requests.RequestException as e:
-                click.echo(f"  ✗ Error fetching {collection_code}: {e}", err=True)
+                except requests.RequestException as e:
+                    if attempt < MAX_RETRIES:
+                        click.echo(
+                            f"    ⚠ Error fetching metadata for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
+                        )
+                        click.echo("    → Retrying...")
+                        sleep(POLITE_WAIT_SECS * 2)  # Wait a bit longer before retry
+                    else:
+                        click.echo(
+                            f"    ✗ Error fetching metadata for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}",
+                            err=True,
+                        )
+                        pbar.update(1)
+                        continue  # Skip to next item
+
+            if item_info is None:
+                continue  # Skip this item if we couldn't get metadata
 
             image_data = dict(
                 zip(
@@ -191,16 +210,33 @@ def process_items(
                 pbar.update(1)
                 continue
 
-            # Upload to R2 if not dry run
+            # Upload to R2 if not dry run (with retries for downloading from RPL)
             if not dry_run and r2_uploader:
-                try:
-                    permalink = r2_uploader.upload_url(image_url)
-                except R2UploaderError as e:
-                    click.echo(
-                        f"    ✗ R2 upload failed for {contentdm_id}: {e}", err=True
-                    )
-                    pbar.update(1)
-                    continue
+                permalink = None
+                for attempt in range(MAX_RETRIES + 1):
+                    try:
+                        permalink = r2_uploader.upload_url(image_url)
+                        break  # Success, exit retry loop
+
+                    except R2UploaderError as e:
+                        if attempt < MAX_RETRIES:
+                            click.echo(
+                                f"    ⚠ Download failed for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
+                            )
+                            click.echo("    → Retrying...")
+                            sleep(
+                                POLITE_WAIT_SECS * 2
+                            )  # Wait a bit longer before retry
+                        else:
+                            click.echo(
+                                f"    ✗ Download failed for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}",
+                                err=True,
+                            )
+                            pbar.update(1)
+                            continue  # Skip to next item
+
+                if permalink is None:
+                    continue  # Skip this item if we couldn't download the image
             else:
                 mock_key = r2_uploader.generate_key_from_url(image_url)
                 permalink = r2_uploader.get_public_url(mock_key)
