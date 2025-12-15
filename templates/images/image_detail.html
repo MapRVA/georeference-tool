@@ -84,7 +84,6 @@
     .coordinate-display {
         font-family: monospace;
         font-size: 0.9em;
-        background-color: #f8f9fa;
         padding: 0.25rem 0.5rem;
         border-radius: 0.375rem;
         display: inline-block;
@@ -174,7 +173,6 @@
     .timeline-notes {
         margin-top: 10px;
         padding: 8px 12px;
-        background-color: #e9ecef;
         border-radius: 6px;
     }
 
@@ -368,10 +366,6 @@
         color: #ffc107;
     }
 
-
-
-
-
     /* Clear rating button */
     .clear-rating-btn {
         font-size: 0.75rem;
@@ -452,7 +446,7 @@
                                     <img id="main-image" src="{{ image.permalink }}"
                                          alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                                          class="img-fluid w-100"
-                                         style="object-fit: contain; background-color: #f8f9fa; max-height: 600px; display: block; cursor: zoom-in;"
+                                         style="object-fit: contain; max-height: 600px; display: block; cursor: zoom-in;"
                                          title="Click to view full-size image">
                                 </a>
                             </div>
