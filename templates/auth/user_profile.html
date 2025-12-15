@@ -43,6 +43,16 @@
 
                 <div class="row mb-3">
                     <div class="col-sm-3">
+                        <strong>Total Georeferences:</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        {% if georeference_count == 0 %}None{% else %}{{ georeference_count }}{% endif %}
+                    </div>
+                </div>
+
+                {% if album_count > 0 %}
+                <div class="row mb-3">
+                    <div class="col-sm-3">
                         <strong>Albums:</strong>
                     </div>
                     <div class="col-sm-9">
@@ -51,6 +61,7 @@
                         </a>
                     </div>
                 </div>
+                {% endif %}
             </div>
 
         </div>
