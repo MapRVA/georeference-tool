@@ -69,6 +69,13 @@
         padding: 0.5em 0.75em;
     }
 
+    #main-image {
+        object-fit: contain;
+        max-height: 600px;
+        display: block;
+        cursor: zoom-in;
+    }
+
     .map-container {
         border-radius: 8px;
         overflow: hidden;
@@ -446,7 +453,6 @@
                                     <img id="main-image" src="{{ image.permalink }}"
                                          alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                                          class="img-fluid w-100"
-                                         style="object-fit: contain; max-height: 600px; display: block; cursor: zoom-in;"
                                          title="Click to view full-size image">
                                 </a>
                             </div>
