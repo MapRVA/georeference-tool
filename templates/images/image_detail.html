@@ -496,14 +496,22 @@
                 {% if image.is_georeferenced or polygonal_georeference %}
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if polygonal_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if polygonal_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="show-other-images-toggle">
+                                <label class="form-check-label" for="show-other-images-toggle">
+                                    Show Other Images
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
                             {% if image.is_georeferenced %}
-                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=polygonal_georeference %}
+                                {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=polygonal_georeference show_other_images=True %}
                             {% elif polygonal_georeference %}
-                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference %}
+                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference show_other_images=True %}
                             {% endif %}
                         </div>
                     </div>

@@ -1524,6 +1524,16 @@ document.addEventListener("DOMContentLoaded", function () {
       });
   }
 
+  // Handle "Show Other Images" toggle on map
+  const showOtherImagesToggle = document.getElementById(
+    "show-other-images-toggle",
+  );
+  if (showOtherImagesToggle && typeof window.toggleOtherImages === "function") {
+    showOtherImagesToggle.addEventListener("change", function () {
+      window.toggleOtherImages(this.checked);
+    });
+  }
+
   // Initialize rating system
   setTimeout(function () {
     renderAverageRatingStars();

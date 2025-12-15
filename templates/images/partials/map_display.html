@@ -609,6 +609,31 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Build vector tiles URL template
+    {% if show_other_images and image_id %}
+    // When show_other_images is enabled on an image detail page, 
+    // we need both URLs: one with image filter, one without
+    const baseUrlParams = new URLSearchParams();
+    {% if enable_scale_filter %}
+    baseUrlParams.append('enable_scale_filter', 'true');
+    {% endif %}
+    
+    const singleImageParams = new URLSearchParams(baseUrlParams);
+    singleImageParams.append('image', '{{ image_id }}');
+    
+    const baseVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+    
+    const singleImageUrl = baseUrlParams.toString() ? 
+        baseVectorTilesUrl + '?' + singleImageParams.toString() : 
+        baseVectorTilesUrl + '?image={{ image_id }}';
+    
+    const allImagesUrl = baseUrlParams.toString() ? 
+        baseVectorTilesUrl + '?' + baseUrlParams.toString() : 
+        baseVectorTilesUrl;
+    
+    // Start with only current image shown (toggle is unchecked by default)
+    let vectorTilesUrl = singleImageUrl;
+    {% else %}
+    // Standard behavior: build URL with provided filters
     const urlParams = new URLSearchParams();
 
     {% if enable_scale_filter %}
@@ -632,6 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.toString()) {
         vectorTilesUrl += '?' + urlParams.toString();
     }
+    {% endif %}
 
     // Layer Control Class
     class LayerControl {
@@ -1289,6 +1315,19 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endif %}
     });
 
+    {% if show_other_images and image_id %}
+    // Function to toggle between showing all images and just the current image
+    window.toggleOtherImages = function(showAll) {
+        const newUrl = showAll ? allImagesUrl : singleImageUrl;
+        
+        // Update the source tiles URL
+        const source = map.getSource('images');
+        if (source) {
+            source.setTiles([newUrl]);
+        }
+    };
+    {% endif %}
+
     const layerControl = new LayerControl();
     const navControl = new maplibregl.NavigationControl();
     const fullscreenControl = new maplibregl.FullscreenControl();
@@ -1607,8 +1646,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {% endif %}
         }
 
-        // Add click handlers for image markers (only for multi-image maps)
-        {% if not image_id %}
+        // Add click handlers for image markers
+        {% if not image_id or show_other_images %}
         map.on('click', 'image-circles', function(e) {
             if (!e.features.length) return;
             const properties = e.features[0].properties;
