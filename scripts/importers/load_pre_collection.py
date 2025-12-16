@@ -10,11 +10,9 @@ Usage:
 
 import os
 import sys
-import re
-import requests
-from time import sleep
-from tqdm import tqdm
+
 import click
+from tqdm import tqdm
 
 # Add the Django project to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +27,7 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image, PreCollection, PreImage
+from images.models import Collection, Image, PreCollection
 
 # Import R2 uploader from the same directory
 try:
@@ -46,7 +44,7 @@ except ImportError:
 
 def list_pre_collections():
     """List all available PreCollections with their details"""
-    pre_collections = PreCollection.objects.all().order_by('source__name', 'name')
+    pre_collections = PreCollection.objects.all().order_by("source__name", "name")
 
     if not pre_collections.exists():
         click.echo("No PreCollections found.")
@@ -58,7 +56,9 @@ def list_pre_collections():
     collection_data = []
     for i, pre_collection in enumerate(pre_collections, 1):
         reviewed_count = pre_collection.images.filter(keep=True).count()
-        not_imported_count = pre_collection.images.filter(keep=True, imported=False).count()
+        not_imported_count = pre_collection.images.filter(
+            keep=True, imported=False
+        ).count()
         total_count = pre_collection.images.count()
 
         click.echo(f"{i:2d}. {pre_collection.source.name} - {pre_collection.name}")
@@ -68,13 +68,15 @@ def list_pre_collections():
         click.echo(f"    Complete: {'Yes' if pre_collection.complete else 'No'}")
         click.echo()
 
-        collection_data.append({
-            'index': i,
-            'pre_collection': pre_collection,
-            'reviewed_count': reviewed_count,
-            'not_imported_count': not_imported_count,
-            'total_count': total_count
-        })
+        collection_data.append(
+            {
+                "index": i,
+                "pre_collection": pre_collection,
+                "reviewed_count": reviewed_count,
+                "not_imported_count": not_imported_count,
+                "total_count": total_count,
+            }
+        )
 
     return collection_data
 
@@ -90,16 +92,18 @@ def select_pre_collection():
         try:
             choice = click.prompt(
                 f"Select a PreCollection (1-{len(collection_data)}) or 0 to exit",
-                type=int
+                type=int,
             )
 
             if choice == 0:
                 return None
             elif 1 <= choice <= len(collection_data):
                 selected = collection_data[choice - 1]
-                pre_collection = selected['pre_collection']
+                pre_collection = selected["pre_collection"]
 
-                click.echo(f"\nSelected: {pre_collection.source.name} - {pre_collection.name}")
+                click.echo(
+                    f"\nSelected: {pre_collection.source.name} - {pre_collection.name}"
+                )
                 click.echo(f"Description: {pre_collection.description}")
                 click.echo(f"URL: {pre_collection.url}")
                 click.echo(f"Images to import: {selected['not_imported_count']}")
@@ -107,7 +111,9 @@ def select_pre_collection():
                 if click.confirm("\nConfirm this selection?"):
                     return pre_collection
             else:
-                click.echo(f"Please enter a number between 1 and {len(collection_data)}")
+                click.echo(
+                    f"Please enter a number between 1 and {len(collection_data)}"
+                )
 
         except (ValueError, click.Abort):
             click.echo("Invalid input. Please enter a number.")
@@ -117,8 +123,7 @@ def create_collection_from_pre_collection(pre_collection):
     """Create or get a Collection based on the PreCollection"""
     # Check if a collection with the same name already exists
     existing_collection = Collection.objects.filter(
-        source=pre_collection.source,
-        name=pre_collection.name
+        source=pre_collection.source, name=pre_collection.name
     ).first()
 
     if existing_collection:
@@ -126,7 +131,7 @@ def create_collection_from_pre_collection(pre_collection):
         return existing_collection
 
     # Show collection details for confirmation
-    click.echo(f"\nCreating new Collection:")
+    click.echo("\nCreating new Collection:")
     click.echo(f"  Source: {pre_collection.source.name}")
     click.echo(f"  Name: {pre_collection.name}")
     click.echo(f"  URL: {pre_collection.url}")
@@ -138,7 +143,7 @@ def create_collection_from_pre_collection(pre_collection):
             name=pre_collection.name,
             url=pre_collection.url,
             description=pre_collection.description,
-            public=True  # Default to public, can be changed later
+            public=True,  # Default to public, can be changed later
         )
         click.echo(f"✓ Created Collection: {collection.name}")
         return collection
@@ -176,13 +181,11 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                 existing_image = None
                 if pre_image.ref:
                     existing_image = Image.objects.filter(
-                        collection=collection,
-                        ref=pre_image.ref
+                        collection=collection, ref=pre_image.ref
                     ).first()
                 else:
                     existing_image = Image.objects.filter(
-                        collection=collection,
-                        title=pre_image.title
+                        collection=collection, title=pre_image.title
                     ).first()
 
                 if existing_image:
@@ -190,7 +193,7 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                     skipped_count += 1
                     # Mark as imported even if it already exists
                     pre_image.imported = True
-                    pre_image.save(update_fields=['imported'])
+                    pre_image.save(update_fields=["imported"])
                     continue
 
                 # Prepare image data
@@ -200,15 +203,17 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                 if upload_to_r2:
                     try:
                         permalink = r2_uploader.upload_url(
-                            pre_image.permalink,
-                            in_tqdm=True,
-                            raise_on_err=False
+                            pre_image.permalink, in_tqdm=True, raise_on_err=False
                         )
                         if permalink is None:
-                            tqdm.write(f"      ✗ Failed to upload {pre_image.title}, using original URL")
+                            tqdm.write(
+                                f"      ✗ Failed to upload {pre_image.title}, using original URL"
+                            )
                             permalink = pre_image.permalink
                     except Exception as e:
-                        tqdm.write(f"      ✗ R2 upload error for {pre_image.title}: {e}")
+                        tqdm.write(
+                            f"      ✗ R2 upload error for {pre_image.title}: {e}"
+                        )
                         permalink = pre_image.permalink
 
                 # Create the Image in the Collection
@@ -224,12 +229,12 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                     original_date=pre_image.original_date,
                     edtf_date=pre_image.edtf_date,
                     # Set original_url to the pre_image permalink for reference
-                    original_url=pre_image.permalink
+                    original_url=pre_image.permalink,
                 )
 
                 # Mark the PreImage as imported
                 pre_image.imported = True
-                pre_image.save(update_fields=['imported'])
+                pre_image.save(update_fields=["imported"])
 
                 imported_count += 1
                 tqdm.write(f"      → Imported: {image.title} (ID: {image.id})")
@@ -238,7 +243,7 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                 tqdm.write(f"      ✗ Error importing {pre_image.title}: {e}")
                 continue
 
-    click.echo(f"\n✓ Import complete!")
+    click.echo("\n✓ Import complete!")
     click.echo(f"  Imported: {imported_count} images")
     click.echo(f"  Skipped (already exist): {skipped_count} images")
 
@@ -278,14 +283,16 @@ def main(hotlink=False):
     # Step 4: Import the images
     upload_to_r2 = not hotlink
     imported_count = import_pre_images_to_collection(
-        pre_collection,
-        collection,
-        upload_to_r2=upload_to_r2
+        pre_collection, collection, upload_to_r2=upload_to_r2
     )
 
     if imported_count > 0:
-        click.echo(f"\n✓ Successfully imported {imported_count} images from PreCollection to Collection!")
-        click.echo(f"  PreCollection: {pre_collection.source.name} - {pre_collection.name}")
+        click.echo(
+            f"\n✓ Successfully imported {imported_count} images from PreCollection to Collection!"
+        )
+        click.echo(
+            f"  PreCollection: {pre_collection.source.name} - {pre_collection.name}"
+        )
         click.echo(f"  Collection: {collection.source.name} - {collection.name}")
     else:
         click.echo("\nNo images were imported.")

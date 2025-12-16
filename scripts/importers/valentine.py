@@ -8,12 +8,13 @@ Usage:
 """
 
 import os
-import sys
 import re
-import requests
+import sys
 from time import sleep
-from tqdm import tqdm
+
 import click
+import requests
+from tqdm import tqdm
 
 # Add the Django project to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +29,7 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image, PreCollection, PreImage
+from images.models import Collection, Image, PreCollection, PreImage, Source
 
 # Import R2 uploader from the same directory
 try:
@@ -37,7 +38,7 @@ except ImportError:
     # since we aren't inside a package, relative imports might not work
     import os
     import sys
-    
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, script_dir)
     from r2_uploader import R2Uploader
@@ -79,15 +80,15 @@ def create_collection_if_not_exist(
         "RecordID": -1,
         "readablePrimaryKey": readable_primary_key,
     }
-    
+
     response = requests.post(url, headers=headers, json=data)
     json_response = response.json()
     xml_content = json_response.get("d", "")
-    
+
     # Extract collection name and other details
     collection_name_match = re.search(r"<group_nam>(.*?)</group_nam>", xml_content)
     abstract_match = re.search(r"<abstract>(.*?)</abstract>", xml_content)
-    
+
     collection_name = (
         collection_name_match.group(1)
         if collection_name_match
@@ -98,12 +99,12 @@ def create_collection_if_not_exist(
         if abstract_match
         else f"Collection from The Valentine museum archives: {readable_primary_key}"
     )
-    
+
     # Extract additional collection details for display
     author_match = re.search(r"<author>(.*?)</author>", xml_content)
     inc_dte_match = re.search(r"<inc_dte>(.*?)</inc_dte>", xml_content)
     bulk_dte_match = re.search(r"<bulk_dte>(.*?)</bulk_dte>", xml_content)
-    
+
     # Check if collection already exists (check both types)
     if use_precollection:
         existing_collection = PreCollection.objects.filter(
@@ -115,13 +116,13 @@ def create_collection_if_not_exist(
             source=source, name=collection_name
         ).first()
         collection_type = "collection"
-    
+
     if existing_collection:
         print(f"  ✓ Using existing {collection_type}: {existing_collection.name}")
         return existing_collection
-    
+
     collection_url = f"https://valentine.rediscoverysoftware.com/MADetailG.aspx?rID={readable_primary_key}&db=group&dir=VALARCH"
-    
+
     # Show collection details to user for confirmation
     print(f"\n  {collection_type.title()} Details for '{readable_primary_key}':")
     print(f"  Name: {collection_name}")
@@ -129,8 +130,8 @@ def create_collection_if_not_exist(
     print(f"  URL: {collection_url}")
     print(f"  Description: {description}")
     if use_precollection:
-        print(f"  Type: Pre-collection (for review)")
-    
+        print("  Type: Pre-collection (for review)")
+
     if click.confirm(f"\n  Create this {collection_type}?"):
         if use_precollection:
             collection = PreCollection.objects.create(
@@ -163,11 +164,11 @@ def get_archival_children(archival_number: str, table: str):
         "ArchivalNumber": archival_number,
         "Directory": "VALARCH",
     }
-    
+
     response = requests.post(url, headers=headers, json=data)
     json_response = response.json()
     xml_content = json_response.get("d", "")
-    
+
     # Report high-level info of children found
     member_data = {
         # Official Valentine reference number
@@ -196,11 +197,11 @@ def get_record_details(
         "RecordID": -1,
         "readablePrimaryKey": readable_primary_key,
     }
-    
+
     response = requests.post(url, headers=headers, json=data)
     json_response = response.json()
     xml_content = json_response.get("d", "")
-    
+
     # Extract fields using regex
     title_match = re.search(r"<title>(.*?)</title>", xml_content)
     description_match = re.search(r"<categ_16>(.*?)</categ_16>", xml_content)
@@ -209,31 +210,31 @@ def get_record_details(
     geo_match = re.search(r"<sub_geo>(.*?)</sub_geo>", xml_content)
     image_match = re.search(r"<FullImage>(.*?)</FullImage>", xml_content)
     inscription_match = re.search(r"<categ_3>(.*?)</categ_3>", xml_content)
-    
+
     # Create dictionary for extracted data
     result = {
         "original_url": f"https://valentine.rediscoverysoftware.com/MADetailB.aspx?rID={readable_primary_key}&db=biblio&dir=VALARCH",
         "ref": readable_primary_key,
     }
-    
+
     if title_match:
         result["title"] = title_match.group(1)
     else:
         print("No title found!")
         breakpoint()
-    
+
     if description_match:
         result["description"] = description_match.group(1)
-    
+
     if creator_match:
         result["creator"] = creator_match.group(1)
-    
+
     if inscription_match:
         result["description"] += "\n\nInscription: " + inscription_match.group(1)
-    
+
     if geo_match:
         result["description"] += "\n\nGeographic Description: " + geo_match.group(1)
-    
+
     # Process image URL to create proper downloadable URL
     if image_match:
         # Replace backslashes with URL-encoded backslashes
@@ -243,7 +244,7 @@ def get_record_details(
         )
     else:
         print("No image found!")
-    
+
     month_map = {
         "january": 1,
         "february": 2,
@@ -258,7 +259,7 @@ def get_record_details(
         "november": 11,
         "december": 12,
     }
-    
+
     season_map = {
         "spring": 21,
         "summer": 22,
@@ -266,12 +267,12 @@ def get_record_details(
         "fall": 23,
         "winter": 24,
     }
-    
+
     # Process date further to extract year and month
     if date_match:
         date_str = date_match.group(1).strip()
         result["original_date"] = date_str
-        
+
         if first_possible_year:
             # Match "Pre YYYY-YYYY"
             pre_year_range_match = re.match(r"^Pre\s+\d{4}-(\d{4})$", date_str)
@@ -279,56 +280,58 @@ def get_record_details(
                 end_year = pre_year_range_match.group(1)
                 result["edtf_date"] = f"[{first_possible_year}..{end_year}]"
                 return result
-            
+
             # Match "Pre YYYY"
             pre_year_match = re.match(r"^Pre\s+(\d{4})$", date_str)
             if pre_year_match:
                 end_year = pre_year_match.group(1)
                 result["edtf_date"] = f"[{first_possible_year}..{end_year}]"
                 return result
-            
+
         if last_possible_year:
             post_year_range_match = re.match(r"^Post\s+(\d{4})-\d{4}$", date_str)
             if post_year_range_match:
                 first_year = post_year_range_match.group(1)
                 result["edtf_date"] = f"[{first_year}..{last_possible_year}]"
                 return result
-            
+
             # Match "Post YYYY"
             post_year_match = re.match(r"^Post\s+(\d{4})$", date_str)
             if post_year_match:
                 first_year = post_year_match.group(1)
                 result["edtf_date"] = f"[{first_year}..{last_possible_year}]"
                 return result
-            
+
         post_pre_year_match = re.match(r"^Post\s+(\d{4})\s*-\s*Pre\s+(\d{4})", date_str)
         if post_pre_year_match:
             first_year = post_pre_year_match.group(1)
             last_year = post_pre_year_match.group(2)
             result["edtf_date"] = f"[{first_year}..{last_year}]"
             return result
-        
+
         year_match = re.match(r"^(\d{4})$", date_str)
         if year_match:
             result["edtf_date"] = year_match.group(1)
             return result
-        
-        
+
         early_year_match = re.match(r"^E|early\s+(\d{4})$", date_str)
         if early_year_match:
             year = early_year_match.group(1)
             result["edtf_date"] = f"{year}-37"
             return result
-        
+
         # Try "Circa YYYY" format
         circa_match = re.match(r"(?i)(?:c|Circa|c\.)\s+(\d{4})$", date_str)
         if circa_match:
             result["edtf_date"] = circa_match.group(1) + "~"
             return result
-        
+
         # Try YYYY-YYYY year range
         # Optionally allow Circa prefix...not much we can do about that.
-        year_range_match = re.match(r"^(?:(?:c|Circa|c\.)\s+)?(\d{4})\s*-\s*(?:(?:c|Circa|c\.)\s+)?(\d{4})$", date_str)
+        year_range_match = re.match(
+            r"^(?:(?:c|Circa|c\.)\s+)?(\d{4})\s*-\s*(?:(?:c|Circa|c\.)\s+)?(\d{4})$",
+            date_str,
+        )
         if year_range_match:
             first_year = int(year_range_match.group(1))
             second_year = int(year_range_match.group(2))
@@ -337,7 +340,7 @@ def get_record_details(
             else:
                 result["edtf_date"] = f"[{first_year}..{second_year}]"
             return result
-        
+
         # Try "MM/YYYY" format
         month_year_match = re.match(r"^(\d{1,2})/(\d{4})$", date_str)
         if month_year_match:
@@ -345,7 +348,7 @@ def get_record_details(
                 month_year_match.group(2) + "-" + month_year_match.group(1).zfill(2)
             )
             return result
-        
+
         month_day_year_match = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", date_str)
         if month_day_year_match:
             # BE CAREFUL! Take note of different order in EDTF
@@ -357,7 +360,7 @@ def get_record_details(
                 + month_day_year_match.group(2).zfill(2)
             )
             return result
-        
+
         # Try "Month YYYY" format (e.g., "June 1993")
         month_name_year_match = re.match(r"^(\w+)\s+(\d{4})$", date_str)
         if month_name_year_match:
@@ -369,7 +372,7 @@ def get_record_details(
                     + str(month_map[month_name]).zfill(2)
                 )
                 return result
-        
+
         # Try "Month Day, YYYY" format (e.g., "June 13, 1993")
         month_name_day_year_match = re.match(
             r"^(\w+)\s+(\d{1,2})(?:,)?\s+(\d{4})$", date_str
@@ -386,7 +389,7 @@ def get_record_details(
                     + month_name_day_year_match.group(2).zfill(2)
                 )
                 return result
-    
+
         # Try Season YYYY
         season_year_match = re.match(r"^(\w+)\s+(\d{4})$", date_str)
         if season_year_match:
@@ -396,13 +399,12 @@ def get_record_details(
                     season_year_match.group(2) + "-" + str(season_map[season_name])
                 )
                 return result
-    
+
         # If no matches found, breakpoint for debugging
         print("No date found!")
         breakpoint()
-    
+
     return result
-    
 
 
 @click.command()
@@ -423,7 +425,13 @@ def get_record_details(
     type=int,
     help='First possible year for date ranges like "Pre YYYY" or "Pre YYYY-YYYY"',
 )
-def main(archive_id, search_table, hotlink=False, last_possible_year=None, first_possible_year=None):
+def main(
+    archive_id,
+    search_table,
+    hotlink=False,
+    last_possible_year=None,
+    first_possible_year=None,
+):
     """Scrape archival records from The Valentine Museum's digital archives."""
 
     source = create_source_if_not_exist()

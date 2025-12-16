@@ -63,7 +63,9 @@ class PrimoAPIClient:
             response = self.session.get(url)
             response.raise_for_status()
 
-            print(f"Page loaded successfully (status {response.status_code}, length {len(response.text)})")
+            print(
+                f"Page loaded successfully (status {response.status_code}, length {len(response.text)})"
+            )
 
             # Look for bearer token in the page JavaScript
             token_patterns = [
@@ -157,7 +159,9 @@ class PrimoAPIClient:
             if self.bearer_token:
                 headers["Authorization"] = f"Bearer {self.bearer_token}"
 
-            response = self.session.get(collection_api_url, params=query_params, headers=headers)
+            response = self.session.get(
+                collection_api_url, params=query_params, headers=headers
+            )
             print(f"API response status: {response.status_code}")
 
             if response.status_code == 200:
@@ -200,7 +204,7 @@ class PrimoAPIClient:
                 headers=headers,
                 params={"vid": vid, "lang": "en", "googleScholar": "false"},
                 json={"sharedDigitalCandidates": None},
-                timeout=15
+                timeout=15,
             )
 
             if response.status_code == 200:
@@ -284,7 +288,12 @@ class PrimoAPIClient:
 
                 return None
 
-        except (requests.RequestException, json.JSONDecodeError, KeyError, IndexError) as e:
+        except (
+            requests.RequestException,
+            json.JSONDecodeError,
+            KeyError,
+            IndexError,
+        ) as e:
             print(f"  ✗ Error fetching manifest for IE{ie_number}: {e}")
             return None
 
@@ -326,16 +335,28 @@ class PrimoAPIClient:
                                 # Try to get image info
                                 try:
                                     with requests.Session() as session:
-                                        info_response = session.get(image_url, timeout=15)
+                                        info_response = session.get(
+                                            image_url, timeout=15
+                                        )
                                         if info_response.status_code == 200:
                                             try:
                                                 image_info = info_response.json()
-                                                if "service" in image_info and "@id" in image_info["service"]:
-                                                    service_id = image_info["service"]["@id"]
+                                                if (
+                                                    "service" in image_info
+                                                    and "@id" in image_info["service"]
+                                                ):
+                                                    service_id = image_info["service"][
+                                                        "@id"
+                                                    ]
                                                     return f"{service_id}/full/max/0/default.jpg"
                                             except json.JSONDecodeError:
                                                 # If it's not JSON but a direct image, return the URL
-                                                if 'image/' in info_response.headers.get('Content-Type', ''):
+                                                if (
+                                                    "image/"
+                                                    in info_response.headers.get(
+                                                        "Content-Type", ""
+                                                    )
+                                                ):
                                                     return image_url
                                 except Exception as e:
                                     print(f"Error fetching image info: {e}")
@@ -347,7 +368,10 @@ class PrimoAPIClient:
                         for annotation_page in item["items"]:
                             if "items" in annotation_page:
                                 for annotation in annotation_page["items"]:
-                                    if "body" in annotation and "id" in annotation["body"]:
+                                    if (
+                                        "body" in annotation
+                                        and "id" in annotation["body"]
+                                    ):
                                         return annotation["body"]["id"]
 
             # Check for any image URLs in the manifest
@@ -494,11 +518,19 @@ class PrimoAPIClient:
                             record["iiif_thumbnail_url"] = thumbnail_url
                             # Replace thumbnail parameters with full size
                             if "/full/150," in thumbnail_url:
-                                record["iiif_full_url"] = thumbnail_url.replace("/full/150,", "/full/max/")
-                                record["iiif_medium_url"] = thumbnail_url.replace("/full/150,", "/full/800,/")
+                                record["iiif_full_url"] = thumbnail_url.replace(
+                                    "/full/150,", "/full/max/"
+                                )
+                                record["iiif_medium_url"] = thumbnail_url.replace(
+                                    "/full/150,", "/full/800,/"
+                                )
                             elif "/full/small" in thumbnail_url:
-                                record["iiif_full_url"] = thumbnail_url.replace("/full/small", "/full/max")
-                                record["iiif_medium_url"] = thumbnail_url.replace("/full/small", "/full/800,")
+                                record["iiif_full_url"] = thumbnail_url.replace(
+                                    "/full/small", "/full/max"
+                                )
+                                record["iiif_medium_url"] = thumbnail_url.replace(
+                                    "/full/small", "/full/800,"
+                                )
 
                     # Check for linktorsrc which might contain IIIF manifest links
                     if "linktorsrc" in links and links["linktorsrc"]:
@@ -531,7 +563,10 @@ class PrimoAPIClient:
                     continue
 
                 # If thumbnailForCD has hasD=true, this indicates there's digital content
-                if "thumbnailForCD" in doc and doc["thumbnailForCD"].get("hasD") == True:
+                if (
+                    "thumbnailForCD" in doc
+                    and doc["thumbnailForCD"].get("hasD") == True
+                ):
                     record["has_digital_content"] = True
 
                 # If we don't have image URLs, try to get them using our LVA-specific method
@@ -541,7 +576,9 @@ class PrimoAPIClient:
                     if image_url:
                         # Check if the URL is a IIIF presentation URL
                         if "/delivery/iiif/presentation/" in image_url:
-                            print(f"  ⚠ Found IIIF presentation URL, extracting actual image URL...")
+                            print(
+                                "  ⚠ Found IIIF presentation URL, extracting actual image URL..."
+                            )
                             try:
                                 # Use the session from the class
                                 with self.session as session:
@@ -549,11 +586,18 @@ class PrimoAPIClient:
                                     if response.status_code == 200:
                                         try:
                                             data = response.json()
-                                            if "service" in data and "@id" in data["service"]:
+                                            if (
+                                                "service" in data
+                                                and "@id" in data["service"]
+                                            ):
                                                 image_url = f"{data['service']['@id']}/full/max/0/default.jpg"
-                                                print(f"  ✓ Extracted actual image URL from IIIF metadata: {image_url[:60]}...")
+                                                print(
+                                                    f"  ✓ Extracted actual image URL from IIIF metadata: {image_url[:60]}..."
+                                                )
                                         except json.JSONDecodeError:
-                                            print(f"  ✗ Failed to parse IIIF metadata as JSON")
+                                            print(
+                                                "  ✗ Failed to parse IIIF metadata as JSON"
+                                            )
                                             continue
                             except Exception as e:
                                 print(f"  ✗ Error accessing IIIF presentation URL: {e}")
@@ -564,22 +608,37 @@ class PrimoAPIClient:
                             # Use the session from the class
                             with self.session as session:
                                 headers_response = session.head(image_url, timeout=10)
-                                content_type = headers_response.headers.get('Content-Type', '')
+                                content_type = headers_response.headers.get(
+                                    "Content-Type", ""
+                                )
 
-                                if 'application/json' in content_type:
-                                    print(f"  ⚠ URL returns JSON metadata instead of an image: {image_url[:60]}...")
+                                if "application/json" in content_type:
+                                    print(
+                                        f"  ⚠ URL returns JSON metadata instead of an image: {image_url[:60]}..."
+                                    )
                                     # Try to extract actual image URL from JSON
                                     try:
-                                        json_response = session.get(image_url, timeout=10)
+                                        json_response = session.get(
+                                            image_url, timeout=10
+                                        )
                                         data = json_response.json()
-                                        if "service" in data and "@id" in data["service"]:
+                                        if (
+                                            "service" in data
+                                            and "@id" in data["service"]
+                                        ):
                                             image_url = f"{data['service']['@id']}/full/max/0/default.jpg"
-                                            print(f"  ✓ Extracted actual image URL from JSON: {image_url[:60]}...")
+                                            print(
+                                                f"  ✓ Extracted actual image URL from JSON: {image_url[:60]}..."
+                                            )
                                     except Exception as e:
-                                        print(f"  ✗ Failed to extract image URL from JSON: {e}")
+                                        print(
+                                            f"  ✗ Failed to extract image URL from JSON: {e}"
+                                        )
                                         continue
-                                elif 'image/' not in content_type:
-                                    print(f"  ⚠ URL does not return an image ({content_type}): {image_url[:60]}...")
+                                elif "image/" not in content_type:
+                                    print(
+                                        f"  ⚠ URL does not return an image ({content_type}): {image_url[:60]}..."
+                                    )
                                     continue
                         except Exception as e:
                             print(f"  ⚠ Could not verify image URL: {e}")
@@ -587,17 +646,13 @@ class PrimoAPIClient:
                         record["iiif_full_url"] = image_url
                         record["iiif_thumbnail_url"] = image_url.replace(
                             "/full/max/", "/full/300,/"
-                        ).replace(
-                            "/full/full/", "/full/300,/"
-                        )
+                        ).replace("/full/full/", "/full/300,/")
                         record["iiif_medium_url"] = image_url.replace(
                             "/full/max/", "/full/800,/"
-                        ).replace(
-                            "/full/full/", "/full/800,/"
-                        )
+                        ).replace("/full/full/", "/full/800,/")
                         print(f"  ✓ Found image URL: {image_url[:60]}...")
                     else:
-                        print(f"  ✗ Could not find image URL")
+                        print("  ✗ Could not find image URL")
                         record["iiif_full_url"] = ""
                         record["iiif_thumbnail_url"] = ""
                         record["iiif_medium_url"] = ""
@@ -610,15 +665,25 @@ class PrimoAPIClient:
                 record["delivery"] = doc["delivery"]
 
                 # Check if delivery contains thumbnail URL
-                if not record.get("iiif_thumbnail_url") and "almagetit" in record["delivery"]:
+                if (
+                    not record.get("iiif_thumbnail_url")
+                    and "almagetit" in record["delivery"]
+                ):
                     alma_data = record["delivery"]["almagetit"]
                     if alma_data and "thumbnail_url" in alma_data:
                         thumbnail_url = alma_data["thumbnail_url"]
                         record["iiif_thumbnail_url"] = thumbnail_url
                         # Attempt to convert to full size URL if it's IIIF
-                        if "virginiamemory.com" in thumbnail_url and "/full/" in thumbnail_url:
-                            record["iiif_full_url"] = re.sub(r"/full/\d+,/", "/full/max/", thumbnail_url)
-                            record["iiif_medium_url"] = re.sub(r"/full/\d+,/", "/full/800,/", thumbnail_url)
+                        if (
+                            "virginiamemory.com" in thumbnail_url
+                            and "/full/" in thumbnail_url
+                        ):
+                            record["iiif_full_url"] = re.sub(
+                                r"/full/\d+,/", "/full/max/", thumbnail_url
+                            )
+                            record["iiif_medium_url"] = re.sub(
+                                r"/full/\d+,/", "/full/800,/", thumbnail_url
+                            )
 
             records.append(record)
 
@@ -650,9 +715,7 @@ class PrimoAPIClient:
                     print(f"  ✓ {i + 1}. {title} - WORKING")
                     working_count += 1
                 else:
-                    print(
-                        f"  ✗ {i + 1}. {title} - FAILED ({response.status_code})"
-                    )
+                    print(f"  ✗ {i + 1}. {title} - FAILED ({response.status_code})")
             except Exception as e:
                 print(f"  ✗ {i + 1}. {title} - ERROR ({e})")
 
@@ -747,11 +810,13 @@ class PrimoAPIClient:
         limit = 20  # API limit per request - this is what the browser uses
         offset = 0
 
-        print(f"Fetching up to {max_records} records from collection ID: '{collection_id}'...")
+        print(
+            f"Fetching up to {max_records} records from collection ID: '{collection_id}'..."
+        )
         print(f"Using pagination with {limit} records per request")
 
         # First attempt - get initial batch of records
-        print(f"\nFetching initial records...")
+        print("\nFetching initial records...")
         api_response = self.fetch_collection_by_id(collection_id, vid, limit, offset)
 
         if not api_response:
@@ -761,7 +826,9 @@ class PrimoAPIClient:
         # Some debugging info about the response structure
         if "docs" in api_response:
             print(f"Found {len(api_response['docs'])} items in 'docs' field")
-            print(f"Total items in collection: {api_response.get('info', {}).get('total', 'unknown')}")
+            print(
+                f"Total items in collection: {api_response.get('info', {}).get('total', 'unknown')}"
+            )
         else:
             print("Response structure:")
             for key in api_response.keys():
@@ -787,7 +854,9 @@ class PrimoAPIClient:
             # Move to next page
             offset += limit
             print(f"\nFetching records {offset + 1}-{offset + limit}...")
-            api_response = self.fetch_collection_by_id(collection_id, vid, limit, offset)
+            api_response = self.fetch_collection_by_id(
+                collection_id, vid, limit, offset
+            )
 
             if not api_response:
                 print("API request failed, stopping pagination...")
@@ -805,35 +874,37 @@ class PrimoAPIClient:
         """
         records_with_images = [r for r in records if r.get("iiif_full_url")]
 
-        print(f"\nFound {len(records_with_images)} records with image URLs out of {len(records)} total records")
+        print(
+            f"\nFound {len(records_with_images)} records with image URLs out of {len(records)} total records"
+        )
         if len(records_with_images) == 0:
             print("No images found in any records!")
 
             # Debug the first few records to see why we're missing images
             print("\nDebugging first 5 records to check for image URL issues:")
             for i, record in enumerate(records[:5]):
-                print(f"\nRecord {i+1}: {record.get('title', 'No title')[:40]}")
+                print(f"\nRecord {i + 1}: {record.get('title', 'No title')[:40]}")
                 print(f"  Record ID: {record.get('record_id', 'None')}")
                 print(f"  IE number: {record.get('ie_number', 'None')}")
                 print(f"  Reference number: {record.get('reference_number', 'None')}")
 
                 # Check for identifiers that might contain IE numbers
-                if 'identifiers' in record:
+                if "identifiers" in record:
                     print(f"  Identifiers: {record['identifiers']}")
 
                 # Check if there are links in PNX that might contain images
-                if 'full_pnx' in record and 'links' in record['full_pnx']:
-                    links = record['full_pnx']['links']
+                if "full_pnx" in record and "links" in record["full_pnx"]:
+                    links = record["full_pnx"]["links"]
                     print(f"  PNX links: {list(links.keys())}")
-                    if 'thumbnail' in links:
+                    if "thumbnail" in links:
                         print(f"  Thumbnail: {links['thumbnail']}")
 
                 # Check delivery data
-                if 'delivery' in record:
+                if "delivery" in record:
                     print(f"  Delivery keys: {list(record['delivery'].keys())}")
-                    if 'almagetit' in record['delivery']:
-                        alma = record['delivery']['almagetit']
-                        if isinstance(alma, dict) and 'thumbnail_url' in alma:
+                    if "almagetit" in record["delivery"]:
+                        alma = record["delivery"]["almagetit"]
+                        if isinstance(alma, dict) and "thumbnail_url" in alma:
                             print(f"  Alma thumbnail: {alma['thumbnail_url']}")
 
         script_content = f"""#!/bin/bash
@@ -912,7 +983,9 @@ def create_source_if_not_exist():
     return source
 
 
-def create_collection_if_not_exist(source, collection_name, collection_id, vid, use_precollection=False):
+def create_collection_if_not_exist(
+    source, collection_name, collection_id, vid, use_precollection=False
+):
     """Get or create a collection for the LVA Primo data"""
     collection_type = "pre-collection" if use_precollection else "collection"
     Model = PreCollection if use_precollection else Collection
@@ -1118,25 +1191,49 @@ def parse_date(date_str, default_edtf=None, min_year=None, max_year=None):
 
 @click.command()
 @click.argument("collection_name")
-@click.option("--collection-id", required=True, help="Collection ID (e.g., '81106146120005756')")
+@click.option(
+    "--collection-id", required=True, help="Collection ID (e.g., '81106146120005756')"
+)
 @click.option("--vid", required=True, help="View ID (e.g., '01LVA_INST:01LVA')")
-@click.option("--min-year", type=int, required=True, help="Minimum year for incomplete dates (e.g., 1900)")
-@click.option("--max-year", type=int, required=True, help="Maximum year for incomplete dates (e.g., 1950)")
+@click.option(
+    "--min-year",
+    type=int,
+    required=True,
+    help="Minimum year for incomplete dates (e.g., 1900)",
+)
+@click.option(
+    "--max-year",
+    type=int,
+    required=True,
+    help="Maximum year for incomplete dates (e.g., 1950)",
+)
 @click.option("--max-records", type=int, default=2000, help="Maximum records to fetch")
 @click.option(
     "--hotlink", is_flag=True, help="Hotlink images instead of uploading to R2"
 )
 @click.option("--default-edtf", help="EDTF date to use when 'no date' is found.")
+@click.option("--debug", is_flag=True, help="Enable additional debugging output")
 @click.option(
-    "--debug", is_flag=True, help="Enable additional debugging output"
-)
-@click.option(
-    "--skip-missing-images", is_flag=True, help="Skip records without image URLs (otherwise fail)"
+    "--skip-missing-images",
+    is_flag=True,
+    help="Skip records without image URLs (otherwise fail)",
 )
 @click.option(
     "--save-json", is_flag=True, help="Save all records to JSON file for debugging"
 )
-def main(collection_name, collection_id, vid, min_year, max_year, max_records, hotlink, default_edtf, debug, skip_missing_images, save_json):
+def main(
+    collection_name,
+    collection_id,
+    vid,
+    min_year,
+    max_year,
+    max_records,
+    hotlink,
+    default_edtf,
+    debug,
+    skip_missing_images,
+    save_json,
+):
     """Scrape records from LVA Primo collection by ID and import into Django."""
     source = create_source_if_not_exist()
 
@@ -1147,19 +1244,24 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
     # Display API URL for reference
     api_url = f"https://lva.primo.exlibrisgroup.com/primaws/rest/pub/pnxs?q=cdparentid,exact,{collection_id}&vid={vid}"
     print(f"API URL: {api_url}")
-    print("Please verify this collection is accessible in your browser before proceeding.")
+    print(
+        "Please verify this collection is accessible in your browser before proceeding."
+    )
 
     if debug:
         # Try to access the URL directly to validate it
         try:
             import requests
+
             print("\nValidating collection URL...")
             response = requests.get(collection_url)
             print(f"Status code: {response.status_code}")
             if response.status_code == 200:
                 print("✓ Collection URL is accessible")
             else:
-                print(f"⚠ Warning: Collection URL returned status {response.status_code}")
+                print(
+                    f"⚠ Warning: Collection URL returned status {response.status_code}"
+                )
         except Exception as e:
             print(f"⚠ Warning: Error validating collection URL: {e}")
 
@@ -1192,7 +1294,9 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
         print("  - The collection ID might be incorrect")
         print("  - The collection might be empty")
         print("  - The API might require authentication")
-        print("\nTry accessing the collection URL in a browser and check the network tab")
+        print(
+            "\nTry accessing the collection URL in a browser and check the network tab"
+        )
         print(f"to see what API calls are made: {collection_url}")
         print("\nThe correct API call should be:")
         print(f"curl '{api_url}&limit=20&offset=0'")
@@ -1200,10 +1304,14 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
 
     # Count records with images
     records_with_images = [r for r in records if r.get("iiif_full_url")]
-    print(f"\nFound {len(records_with_images)} records with image URLs out of {len(records)} total records")
+    print(
+        f"\nFound {len(records_with_images)} records with image URLs out of {len(records)} total records"
+    )
 
     if len(records_with_images) == 0:
-        print("\n⚠ No images found in any records! This collection might not have accessible IIIF images.")
+        print(
+            "\n⚠ No images found in any records! This collection might not have accessible IIIF images."
+        )
         print("Possible causes:")
         print("  - Images may require authentication")
         print("  - Images may use a different access method")
@@ -1231,8 +1339,10 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
 
         if "iiif_full_url" not in record or not record["iiif_full_url"]:
             if skip_missing_images:
-                tqdm.write(f"      ✗ No image URL found for {record.get('title')[:30]}..., importing metadata only")
-                permalink = "" # Empty permalink, will create record without image
+                tqdm.write(
+                    f"      ✗ No image URL found for {record.get('title')[:30]}..., importing metadata only"
+                )
+                permalink = ""  # Empty permalink, will create record without image
             else:
                 tqdm.write("      ✗ No image URL found for record, skipping")
                 continue
@@ -1259,9 +1369,9 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
 
                         # Verify the content type of our URL
                         response = session.head(permalink, timeout=10)
-                        content_type = response.headers.get('Content-Type', '')
+                        content_type = response.headers.get("Content-Type", "")
 
-                        if 'application/json' in content_type:
+                        if "application/json" in content_type:
                             try:
                                 json_response = session.get(permalink, timeout=10)
                                 data = json_response.json()
@@ -1274,10 +1384,13 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
 
                 # Final check for proper URL format
                 if "virginiamemory.com" in permalink:
-                    if "iiif/presentation" in permalink or "delivery/iiif/presentation" in permalink:
+                    if (
+                        "iiif/presentation" in permalink
+                        or "delivery/iiif/presentation" in permalink
+                    ):
                         # Extract IE and FL numbers if possible
-                        ie_match = re.search(r'IE(\d+)', permalink)
-                        fl_match = re.search(r'FL(\d+)', permalink)
+                        ie_match = re.search(r"IE(\d+)", permalink)
+                        fl_match = re.search(r"FL(\d+)", permalink)
 
                         if ie_match and fl_match:
                             ie_num = ie_match.group(1)
@@ -1330,7 +1443,9 @@ def main(collection_name, collection_id, vid, min_year, max_year, max_records, h
     images_imported = sum(1 for record in records if record.get("iiif_full_url"))
     metadata_only = len(records) - images_imported
 
-    print(f"\n✓ Imported {len(records)} records ({images_imported} with images, {metadata_only} metadata only)")
+    print(
+        f"\n✓ Imported {len(records)} records ({images_imported} with images, {metadata_only} metadata only)"
+    )
 
     if save_json:
         json_file = f"collection_{collection_id}_records.json"

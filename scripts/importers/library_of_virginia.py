@@ -19,8 +19,7 @@ import argparse
 import os
 import sys
 import time
-from urllib.parse import urljoin, urlparse
-from urllib.request import urlretrieve
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup

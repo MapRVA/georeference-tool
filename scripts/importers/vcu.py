@@ -7,12 +7,13 @@ Usage:
 """
 
 import os
-import sys
 import re
-import requests
+import sys
 from time import sleep
-from tqdm import tqdm
+
 import click
+import requests
+from tqdm import tqdm
 
 # Add the Django project to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +28,7 @@ import django
 
 django.setup()
 
-from images.models import Source, Collection, Image, PreCollection, PreImage
+from images.models import Collection, Image, PreCollection, PreImage, Source
 
 # Import R2 uploader from the same directory
 try:
@@ -120,7 +121,7 @@ def create_collection_if_not_exist(source, collection_id, use_precollection=Fals
         else f"  Description: {description}"
     )
     if use_precollection:
-        print(f"  Type: Pre-collection (for review)")
+        print("  Type: Pre-collection (for review)")
 
     if click.confirm(f"\n  Create this {collection_type}?"):
         if use_precollection:
@@ -187,7 +188,10 @@ def extract_license_from_rights(html_content):
     rights_text = rights_match.group(1).strip()
 
     # Check for public domain text
-    if "This material is in the public domain in the United States and thus is free of any copyright restriction." in rights_text:
+    if (
+        "This material is in the public domain in the United States and thus is free of any copyright restriction."
+        in rights_text
+    ):
         return {"license_title": "Public Domain"}
 
     return {}
@@ -275,8 +279,21 @@ def get_image_details(
             year = int(mm_dd_yyyy_match.group(3))
 
             # Convert month number to name for readable date
-            month_names = ["", "January", "February", "March", "April", "May", "June",
-                          "July", "August", "September", "October", "November", "December"]
+            month_names = [
+                "",
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ]
             month_name = month_names[month] if 1 <= month <= 12 else None
 
             if month_name:
@@ -508,11 +525,16 @@ def cli(
             print(f"\n✗ Image {image_id} has no determinable date. Cannot continue.")
             print(f"  Title: {details.get('title')}")
             print(f"  Original date string: {details.get('original_date', 'N/A')}")
-            print(f"\n  Please provide --first-possible-year and/or --last-possible-year")
+            print(
+                "\n  Please provide --first-possible-year and/or --last-possible-year"
+            )
             sys.exit(1)
 
         # Check if image is public domain
-        if "license_title" not in details or details["license_title"] != "Public Domain":
+        if (
+            "license_title" not in details
+            or details["license_title"] != "Public Domain"
+        ):
             non_public_domain_count += 1
             continue
 
