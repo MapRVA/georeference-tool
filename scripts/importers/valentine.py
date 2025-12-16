@@ -22,7 +22,7 @@ sys.path.insert(0, project_root)
 
 # Change to project directory for Django
 os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "georeference_tool.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
 
 import django
 

@@ -1,5 +1,5 @@
 """
-Django settings for georeference_tool project.
+Django settings for yesterdays project.
 """
 
 import os
@@ -74,7 +74,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "georeference_tool.urls"
+ROOT_URLCONF = "yesterdays.urls"
 
 TEMPLATES = [
     {
@@ -93,7 +93,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "georeference_tool.wsgi.application"
+WSGI_APPLICATION = "yesterdays.wsgi.application"
 
 
 # Database
