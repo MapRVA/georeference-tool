@@ -973,14 +973,20 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         return False
 
     fieldsets = (
-        ("Homepage Content", {
-            'fields': ('site_title', 'site_subtitle'),
-            'description': 'Text displayed on the homepage'
-        }),
-        ("Footer", {
-            'fields': ('footer_content',),
-            'description': 'HTML content displayed in the site footer'
-        }),
+        (
+            "Homepage Content",
+            {
+                "fields": ("site_title", "site_subtitle"),
+                "description": "Text displayed on the homepage",
+            },
+        ),
+        (
+            "Footer",
+            {
+                "fields": ("footer_content",),
+                "description": "HTML content displayed in the site footer",
+            },
+        ),
     )
 
 

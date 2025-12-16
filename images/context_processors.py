@@ -8,8 +8,8 @@ def site_settings(request):
     """
     site_settings_model = SiteSettings.load()
     return {
-        'site_title': site_settings_model.site_title,
-        'site_subtitle': site_settings_model.site_subtitle,
-        'footer_content': site_settings_model.footer_content,
-        'protomaps_api_key': settings.PROTOMAPS_API_KEY,
+        "site_title": site_settings_model.site_title,
+        "site_subtitle": site_settings_model.site_subtitle,
+        "footer_content": site_settings_model.footer_content,
+        "protomaps_api_key": settings.PROTOMAPS_API_KEY,
     }

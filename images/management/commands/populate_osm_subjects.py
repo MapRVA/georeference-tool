@@ -122,11 +122,15 @@ class Command(BaseCommand):
                         osm_element.geometry = GEOSGeometry(json.dumps(geometry))
                         osm_element.save()
                         self.stdout.write(
-                            self.style.SUCCESS(f"  Updated OSM element {osm_element.osm_id}")
+                            self.style.SUCCESS(
+                                f"  Updated OSM element {osm_element.osm_id}"
+                            )
                         )
                     else:
                         self.stdout.write(
-                            self.style.SUCCESS(f"  Created OSM element {osm_element.osm_id}")
+                            self.style.SUCCESS(
+                                f"  Created OSM element {osm_element.osm_id}"
+                            )
                         )
 
                     # Link to subject (replacing any existing link)
@@ -225,6 +229,8 @@ class Command(BaseCommand):
                 f"Try increasing timeout with --timeout flag: {str(e)}"
             )
         except requests.RequestException as e:
-            raise requests.RequestException(f"Failed to fetch from Postpass API: {str(e)}")
+            raise requests.RequestException(
+                f"Failed to fetch from Postpass API: {str(e)}"
+            )
         except (json.JSONDecodeError, KeyError) as e:
             raise Exception(f"Failed to parse Postpass response: {str(e)}")
