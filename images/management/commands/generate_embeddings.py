@@ -5,14 +5,13 @@ Usage:
     python manage.py generate_embeddings [--batch-size 100] [--force] [--image-ids 1,2,3]
 """
 
-import os
-import requests
-import torch
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import clip
+import requests
+import torch
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from PIL import Image as PILImage
