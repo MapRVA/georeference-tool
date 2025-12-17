@@ -6,10 +6,10 @@ Usage:
 """
 
 import ssl
-import torch
 from pathlib import Path
 
 import clip
+import torch
 from django.core.management.base import BaseCommand
 
 
