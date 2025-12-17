@@ -162,6 +162,50 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Celery Configuration (RabbitMQ)
+CELERY_BROKER_URL = os.getenv(
+    "CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//"
+)
+CELERY_RESULT_BACKEND = None  # Results stored in Image.thumbnail field directly
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_TIME_LIMIT = 300  # 5 minutes max per task
+CELERY_TASK_SOFT_TIME_LIMIT = 240  # Soft limit at 4 minutes
+
+# RabbitMQ-specific settings
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_HEARTBEAT = 10  # Heartbeat interval in seconds
+CELERY_BROKER_POOL_LIMIT = 10  # Connection pool size
+
+# Queue routing configuration
+CELERY_TASK_ROUTES = {
+    # Thumbnail generation goes to background queue
+    "yesterdays.tasks.generate_thumbnail_for_image": {"queue": "background"},
+    "yesterdays.tasks.generate_thumbnails_batch": {"queue": "background"},
+    # Add any urgent tasks here as needed
+    # "yesterdays.tasks.some_urgent_task": {"queue": "urgent"},
+}
+
+# Default queue for tasks not explicitly routed
+CELERY_TASK_DEFAULT_QUEUE = "urgent"
+CELERY_TASK_DEFAULT_EXCHANGE = "tasks"
+CELERY_TASK_DEFAULT_EXCHANGE_TYPE = "direct"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "urgent"
+
+# Queue definitions
+CELERY_TASK_QUEUES = {
+    "urgent": {
+        "exchange": "tasks",
+        "routing_key": "urgent",
+    },
+    "background": {
+        "exchange": "tasks",
+        "routing_key": "background",
+    },
+}
+
 # OSM Authentication Settings
 OSM_URL = os.getenv("OSM_URL", "https://www.openstreetmap.org")
 OSM_CLIENT_ID = os.getenv("OSM_CLIENT_ID")

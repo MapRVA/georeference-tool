@@ -11,11 +11,14 @@ The view only needs to refresh when:
 """
 
 import logging
+
 from django.db import connection, transaction
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .models import Georeference, Collection, Source
+from images.models import Image
+
+from .models import Collection, Georeference, Source
 
 logger = logging.getLogger(__name__)
 
@@ -80,3 +83,54 @@ def refresh_view_on_source_save(sender, instance, **kwargs):
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
         transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
+
+
+@receiver(post_save, sender=Image)
+def queue_thumbnail_generation(sender, instance, created, **kwargs):
+    """
+    Queue thumbnail generation when a new Image is created.
+
+    This signal handler triggers when an Image instance is saved.
+    It only queues the thumbnail generation task for newly created images
+    that don't already have a thumbnail.
+
+    Args:
+        sender: The model class that sent the signal (Image)
+        instance: The actual instance of the model that was saved
+        created: Boolean indicating if this is a new instance
+        **kwargs: Additional keyword arguments from the signal
+    """
+    # Debug logging
+    logger.info(f"Signal triggered for Image {instance.id}, created={created}")
+
+    # Only process newly created images
+    if not created:
+        logger.info(f"Image {instance.id} is not new, skipping")
+        return
+
+    # Skip if thumbnail already exists
+    if instance.thumbnail:
+        logger.info(f"Image {instance.id} already has thumbnail, skipping generation")
+        return
+
+    logger.info(f"Processing new Image {instance.id} for thumbnail generation")
+
+    # Import here to avoid circular imports
+    from yesterdays.tasks import generate_thumbnail_for_image
+
+    # Queue the thumbnail generation task
+    try:
+        # Use a small delay to ensure the database transaction is committed
+        # before the Celery worker tries to fetch the image
+        task = generate_thumbnail_for_image.apply_async(
+            args=[instance.id],
+            countdown=5,  # Wait 5 seconds before starting
+            queue="background",  # Use background queue for thumbnail generation
+        )
+        logger.info(
+            f"Queued thumbnail generation for Image {instance.id}, task ID: {task.id}"
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to queue thumbnail generation for Image {instance.id}: {e}"
+        )
