@@ -1,11 +1,11 @@
 import json
 
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
-from django.core.exceptions import ValidationError
 
 from .models import (
     Collection,
