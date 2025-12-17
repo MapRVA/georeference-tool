@@ -1,10 +1,11 @@
 import json
+import traceback
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import Avg
+from django.db import connection, transaction
+from django.db.models import Avg, Case, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -17,6 +18,21 @@ from ..models import (
     ImageRating,
     ImageSkip,
 )
+from .search import _get_text_embedding
+
+# Try to import PostgreSQL search functions
+try:
+    from django.contrib.postgres.search import (
+        SearchQuery,
+        SearchRank,
+        SearchVector,
+        TrigramSimilarity,
+    )
+
+    HAS_POSTGRES_SEARCH = True
+except ImportError:
+    HAS_POSTGRES_SEARCH = False
+
 
 # Defines the minimum zoom level at which a scale becomes visible.
 # At a given zoom level, all images with a scale value greater than or equal to
@@ -153,8 +169,6 @@ def add_comment(request, image_id):
     except Image.DoesNotExist:
         return JsonResponse({"success": False, "error": "Image not found"}, status=404)
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
@@ -503,3 +517,139 @@ def update_image_scale(request):
         return JsonResponse(
             {"success": False, "error": "Invalid scale value"}, status=400
         )
+
+
+@staff_member_required
+def label_scales(request):
+    """
+    Admin interface for labeling the scale of images.
+    Can be filtered by a search query.
+    """
+    georeferenced_only = (
+        request.GET.get("georeferenced_only", "false").lower() == "true"
+    )
+    query = request.GET.get("q", "").strip()
+    search_type = request.GET.get("search_type", "text")  # 'text' or 'semantic'
+
+    # Start with images that need scale labeling
+    images = Image.objects.filter(scale__isnull=True)
+
+    if georeferenced_only:
+        images = images.filter(georeferences__isnull=False).distinct()
+
+    if query:
+        if search_type == "semantic" and CLIP_AVAILABLE:
+            try:
+                query_embedding = _get_text_embedding(query)
+                embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+                base_image_ids = list(images.values_list("id", flat=True))
+
+                if not base_image_ids:
+                    images = Image.objects.none()
+                else:
+                    with connection.cursor() as cursor:
+                        # Find images with embeddings and order by similarity
+                        sql = """
+                            SELECT id, (embedding::vector <=> %s::vector) as distance
+                            FROM images_image
+                            WHERE id = ANY(%s) AND embedding IS NOT NULL
+                            ORDER BY distance
+                        """
+                        cursor.execute(sql, [embedding_str, base_image_ids])
+                        result_ids = [row[0] for row in cursor.fetchall()]
+
+                    if not result_ids:
+                        images = Image.objects.none()
+                    else:
+                        # Preserve the search order
+                        preserved_order = Case(
+                            *[
+                                When(pk=pk, then=pos)
+                                for pos, pk in enumerate(result_ids)
+                            ]
+                        )
+                        images = Image.objects.filter(id__in=result_ids).order_by(
+                            preserved_order
+                        )
+
+            except Exception:  # Broad exception to avoid crashing the admin page
+                # Could log this error
+                images = images.order_by("id")  # Fallback to default ordering
+
+        elif search_type == "text" and HAS_POSTGRES_SEARCH:
+            try:
+                base_image_ids = list(images.values_list("id", flat=True))
+                distance_threshold = 0.7  # A reasonable default
+
+                if not base_image_ids:
+                    images = Image.objects.none()
+                else:
+                    with connection.cursor() as cursor:
+                        sql = """
+                            SELECT id, LEAST(
+                                COALESCE(%(query)s <<-> title, 1.0),
+                                COALESCE(%(query)s <<-> description, 1.0)
+                            ) as distance
+                            FROM images_image
+                            WHERE id = ANY(%(ids)s)
+                            AND LEAST(
+                                COALESCE(%(query)s <<-> title, 1.0),
+                                COALESCE(%(query)s <<-> description, 1.0)
+                            ) < %(threshold)s
+                            ORDER BY distance ASC
+                        """
+                        params = {
+                            "query": query,
+                            "ids": base_image_ids,
+                            "threshold": distance_threshold,
+                        }
+                        cursor.execute(sql, params)
+                        result_ids = [row[0] for row in cursor.fetchall()]
+
+                    if not result_ids:
+                        images = Image.objects.none()
+                    else:
+                        preserved_order = Case(
+                            *[
+                                When(pk=pk, then=pos)
+                                for pos, pk in enumerate(result_ids)
+                            ]
+                        )
+                        images = Image.objects.filter(id__in=result_ids).order_by(
+                            preserved_order
+                        )
+            except Exception:
+                images = images.order_by("id")
+        else:
+            # If search is requested but not possible, just order by ID
+            images = images.order_by("id")
+    else:
+        # No query, default ordering
+        images = images.order_by("id")
+
+    image_data = []
+    for image in images:
+        image_data.append(
+            {
+                "id": image.id,
+                "title": image.title,
+                "permalink": image.permalink,
+                "description": image.description,
+                "date_display": image.date_display,
+                "scale": image.scale,
+                "absolute_url": image.get_absolute_url(),
+            }
+        )
+
+    context = {
+        "title": "Label Image Scales",
+        "images": images,
+        "image_data_json": json.dumps(image_data),
+        "site_title": "Georef Admin",
+        "site_header": "Image Georeferencing Admin",
+        "georeferenced_only": georeferenced_only,
+        "search_query": query,
+        "search_type": search_type,
+    }
+
+    return render(request, "admin/images/label_scales.html", context)

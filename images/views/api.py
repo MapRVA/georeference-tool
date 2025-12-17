@@ -1,14 +1,15 @@
 import json
 
-from django.http import HttpResponse, JsonResponse
-from django.urls import reverse
 from django.contrib.gis.geos import Point
 from django.db import connection
+from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 
 from ..models import (
     Image,
     LayerCollection,
 )
+from .core import get_min_scale_for_zoom
 
 
 def geojson_endpoint(request):
@@ -375,7 +376,7 @@ def vector_tiles_endpoint(request, z, x, y):
 def osm_elements_vector_tiles_endpoint(request, z, x, y):
     """Return MVT vector tiles of OSM elements (mixed geometries: points, lines, polygons)"""
 
-    sql = f"""
+    sql = """
         SELECT ST_AsMVT(mvtgeoms.*, 'osm_elements') as mvt FROM (
             SELECT
                 ST_AsMVTGeom(ST_Transform(oe.geometry, 3857), ST_TileEnvelope(%s, %s, %s)) AS geom,
