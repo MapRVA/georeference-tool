@@ -59,9 +59,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <div class="row">
-        <div class="col-lg-8 mx-auto">
+        <div class="col-12">
             <h1 class="mb-4">
                 <i class="fas fa-search me-2"></i>Image Search
             </h1>
@@ -74,6 +74,9 @@
             </div>
             {% else %}
 
+            <!-- Search Form (narrower, centered) -->
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
             <div class="card mb-4">
                 <div class="card-body">
                     <!-- Search Mode Toggle -->
@@ -205,6 +208,9 @@
                     </div>
                 </div>
             </div>
+                </div>
+            </div>
+            <!-- End Search Form -->
 
             <!-- Loading indicator -->
             <div class="text-center loading" id="loadingIndicator">
@@ -213,6 +219,13 @@
                 </div>
                 <p class="mt-2">Searching images...</p>
             </div>
+
+            <!-- Bulk Actions UI (shows after search results) -->
+            {% if user.is_authenticated %}
+            <div class="row" id="bulkActionsContainer" style="display: none;">
+                {% include 'images/partials/bulk_actions_ui.html' %}
+            </div>
+            {% endif %}
 
             <!-- Search results -->
             <div id="searchResults"></div>
@@ -228,6 +241,20 @@
 
 {% if clip_available %}
 {% load static %}
+<script>
+    // Configuration object for bulk operations
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "images:subject_autocomplete" %}',
+            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        }
+    };
+</script>
+<script src="{% static 'js/components/bulk_selection.js' %}"></script>
 <script src="{% static 'js/pages/search.js' %}"></script>
 {% endif %}
 {% endblock %}

@@ -336,7 +336,22 @@ document.addEventListener("DOMContentLoaded", async function () {
                     Try a different search term or filter.
                 </div>
             `;
+      // Hide bulk actions when no results
+      const bulkActionsContainer = document.getElementById(
+        "bulkActionsContainer",
+      );
+      if (bulkActionsContainer) {
+        bulkActionsContainer.style.display = "none";
+      }
       return;
+    }
+
+    // Show bulk actions when there are results
+    const bulkActionsContainer = document.getElementById(
+      "bulkActionsContainer",
+    );
+    if (bulkActionsContainer) {
+      bulkActionsContainer.style.display = "block";
     }
 
     // Build filter summary
@@ -399,7 +414,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
 
       html += `
-                <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                <div class="col-lg-3 col-md-4 col-sm-6 mb-4" data-image-id="${result.id}">
                     <div class="card h-100 shadow-sm image-card">
                         <div class="position-relative">
                             ${similarityBadge}
@@ -482,6 +497,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     html += "</div>";
     html += renderPagination(data);
     searchResults.innerHTML = html;
+
+    // Re-enable selection mode if it was active before the update
+    if (
+      window.bulkSelectionInstance &&
+      window.bulkSelectionInstance.selectionMode
+    ) {
+      window.bulkSelectionInstance.enableSelectionMode();
+    }
   }
 
   function displayError(error) {

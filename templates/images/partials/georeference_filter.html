@@ -1,11 +1,16 @@
 <!-- Georeference Status Filter -->
+<!-- This template provides filtering UI for image lists with bulk actions -->
+
 {% csrf_token %}
+<!-- Filter Panel -->
 <div class="col-12 mb-3" x-data="bulkSelection()">
     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#georeferenceFilterPanel" aria-expanded="false" aria-controls="georeferenceFilterPanel">
         <i class="fas fa-filter me-1"></i>Filters
     </button>
+    
+    <!-- Bulk Actions Button (inline) -->
     {% if user.is_authenticated %}
-    <button class="btn btn-sm" :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" type="button" @click="toggleSelectionMode()">
+    <button class="btn btn-sm ms-2" :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" type="button" @click="toggleSelectionMode()">
         <i class="fas" :class="selectionMode ? 'fa-circle-xmark' : 'fa-square-check'" class="me-1"></i>
         <span x-text="selectionMode ? 'Exit Selection' : 'Select Images'"></span>
     </button>
@@ -193,77 +198,77 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- Bulk Add to Album Modal -->
-<div class="modal fade" id="bulkAddToAlbumModal" tabindex="-1" aria-labelledby="bulkAddToAlbumModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bulkAddToAlbumModalLabel">Add Selected Images to Album</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted">Add <span id="bulkAlbumSelectedCount">0</span> selected images to an album.</p>
-
-                <!-- Album Mode Toggle -->
-                <div class="btn-group w-100 mb-3" role="group" aria-label="Album selection mode">
-                    <input type="radio" class="btn-check" name="albumMode" id="albumModeExisting" value="existing" checked>
-                    <label class="btn btn-outline-primary" for="albumModeExisting">
-                        <i class="fas fa-folder-open me-1"></i>Existing Album
-                    </label>
-                    <input type="radio" class="btn-check" name="albumMode" id="albumModeNew" value="new">
-                    <label class="btn btn-outline-primary" for="albumModeNew">
-                        <i class="fas fa-plus me-1"></i>New Album
-                    </label>
+    <!-- Bulk Add to Album Modal -->
+    <div class="modal fade" id="bulkAddToAlbumModal" tabindex="-1" aria-labelledby="bulkAddToAlbumModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bulkAddToAlbumModalLabel">Add Selected Images to Album</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
+                <div class="modal-body">
+                    <p class="text-muted">Add <span id="bulkAlbumSelectedCount">0</span> selected images to an album.</p>
 
-                <!-- Existing Album Selection -->
-                <div id="existingAlbumSection">
-                    <label for="bulkAlbumSelectBtn" class="form-label">Select an Album</label>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="bulkAlbumSelectBtn" data-bs-toggle="dropdown">
-                            <span id="bulkAlbumSelectText">Choose an album...</span>
-                        </button>
-                        <ul class="dropdown-menu w-100" id="bulkAlbumDropdown" style="max-height: 300px; overflow-y: auto;">
-                            <li><span class="dropdown-item-text text-muted">Loading albums...</span></li>
-                        </ul>
-                    </div>
-                    <div id="noAlbumsMessage" class="alert alert-info mt-3" style="display: none;">
-                        <i class="fas fa-info-circle me-2"></i>You don't have any albums yet. Switch to "New Album" to create one.
-                    </div>
-                </div>
-
-                <!-- Create New Album Section -->
-                <div id="newAlbumSection" style="display: none;">
-                    <div class="mb-3">
-                        <label for="bulkNewAlbumTitle" class="form-label">Album Title <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="bulkNewAlbumTitle" placeholder="Enter album title...">
-                    </div>
-                    <div class="mb-3">
-                        <label for="bulkNewAlbumDescription" class="form-label">Description <span class="text-muted small">(optional)</span></label>
-                        <textarea class="form-control" id="bulkNewAlbumDescription" rows="2" placeholder="Enter album description..."></textarea>
-                    </div>
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="bulkNewAlbumPublic">
-                        <label class="form-check-label" for="bulkNewAlbumPublic">
-                            <i class="fas fa-globe me-1"></i>Make this album public
+                    <!-- Album Mode Toggle -->
+                    <div class="btn-group w-100 mb-3" role="group" aria-label="Album selection mode">
+                        <input type="radio" class="btn-check" name="albumMode" id="albumModeExisting" value="existing" checked>
+                        <label class="btn btn-outline-primary" for="albumModeExisting">
+                            <i class="fas fa-folder-open me-1"></i>Existing Album
                         </label>
-                        <small class="text-muted d-block">Public albums can be viewed by anyone with the link.</small>
+                        <input type="radio" class="btn-check" name="albumMode" id="albumModeNew" value="new">
+                        <label class="btn btn-outline-primary" for="albumModeNew">
+                            <i class="fas fa-plus me-1"></i>New Album
+                        </label>
+                    </div>
+
+                    <!-- Existing Album Selection -->
+                    <div id="existingAlbumSection">
+                        <label for="bulkAlbumSelectBtn" class="form-label">Select an Album</label>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="bulkAlbumSelectBtn" data-bs-toggle="dropdown">
+                                <span id="bulkAlbumSelectText">Choose an album...</span>
+                            </button>
+                            <ul class="dropdown-menu w-100" id="bulkAlbumDropdown" style="max-height: 300px; overflow-y: auto;">
+                                <li><span class="dropdown-item-text text-muted">Loading albums...</span></li>
+                            </ul>
+                        </div>
+                        <div id="noAlbumsMessage" class="alert alert-info mt-3" style="display: none;">
+                            <i class="fas fa-info-circle me-2"></i>You don't have any albums yet. Switch to "New Album" to create one.
+                        </div>
+                    </div>
+
+                    <!-- Create New Album Section -->
+                    <div id="newAlbumSection" style="display: none;">
+                        <div class="mb-3">
+                            <label for="bulkNewAlbumTitle" class="form-label">Album Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="bulkNewAlbumTitle" placeholder="Enter album title...">
+                        </div>
+                        <div class="mb-3">
+                            <label for="bulkNewAlbumDescription" class="form-label">Description <span class="text-muted small">(optional)</span></label>
+                            <textarea class="form-control" id="bulkNewAlbumDescription" rows="2" placeholder="Enter album description..."></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="bulkNewAlbumPublic">
+                            <label class="form-check-label" for="bulkNewAlbumPublic">
+                                <i class="fas fa-globe me-1"></i>Make this album public
+                            </label>
+                            <small class="text-muted d-block">Public albums can be viewed by anyone with the link.</small>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="bulkAddToAlbumBtn" onclick="window.bulkSelectionInstance.bulkAddToAlbum()" disabled>
-                    <i class="fas fa-plus me-1"></i>Add to Album
-                </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="bulkAddToAlbumBtn" onclick="window.bulkSelectionInstance.bulkAddToAlbum()" disabled>
+                        <i class="fas fa-plus me-1"></i>Add to Album
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Include autocomplete CSS and styles -->
+<!-- Styles -->
 <style>
     [x-cloak] { display: none !important; }
 
@@ -315,7 +320,7 @@
         position: relative;
     }
 
-    /* Only essential autocomplete styling */
+    /* Autocomplete styling */
     .autoComplete_wrapper > ul {
         border: 1px solid var(--bs-border-color);
         border-radius: var(--bs-border-radius);
@@ -587,553 +592,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Alpine.js component for bulk selection
-function bulkSelection() {
-    return {
-        selectionMode: false,
-        selectedImages: new Set(),
-        bulkSubjectAutocomplete: null,
-        selectedBulkSubjects: [],
-
-        // New album-related properties
-        userAlbums: [],
-        selectedAlbum: null,
-        bulkAlbumDropdown: null,
-
-        init() {
-            // Store global reference for use outside Alpine scope (modals are outside x-data)
-            window.bulkSelectionInstance = this;
-
-            // Watch for selection mode changes
-            this.$watch('selectionMode', (value) => {
-                if (value) {
-                    this.enableSelectionMode();
-                } else {
-                    this.disableSelectionMode();
-                }
-            });
-        },
-
-        toggleSelectionMode() {
-            this.selectionMode = !this.selectionMode;
-        },
-
-        enableSelectionMode() {
-            // Add click handlers and overlays to image cards
-            const cards = document.querySelectorAll('[data-image-id]');
-            cards.forEach(cardWrapper => {
-                const imageId = cardWrapper.dataset.imageId;
-                const card = cardWrapper.querySelector('.image-card');
-
-                if (card && !card.querySelector('.image-selection-overlay')) {
-                    // Create selection overlay
-                    const overlay = document.createElement('div');
-                    overlay.className = 'image-selection-overlay';
-                    overlay.innerHTML = `
-                        <div class="image-selection-checkbox">
-                            <i class="fas fa-check" style="display: none;"></i>
-                        </div>
-                    `;
-
-                    overlay.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.toggleImageSelection(imageId, overlay);
-                    });
-
-                    card.style.position = 'relative';
-                    card.appendChild(overlay);
-                }
-            });
-        },
-
-        disableSelectionMode() {
-            // Remove overlays and reset selection
-            const overlays = document.querySelectorAll('.image-selection-overlay');
-            overlays.forEach(overlay => overlay.remove());
-
-            const cards = document.querySelectorAll('.image-card');
-            cards.forEach(card => card.classList.remove('selected'));
-
-            this.selectedImages.clear();
-        },
-
-        toggleImageSelection(imageId, overlay) {
-            const card = overlay.closest('.image-card');
-            const checkbox = overlay.querySelector('.image-selection-checkbox');
-            const checkIcon = checkbox ? (checkbox.querySelector('svg') || checkbox.querySelector('i')) : null;
-
-            if (this.selectedImages.has(imageId)) {
-                this.selectedImages.delete(imageId);
-                card.classList.remove('selected');
-                if (checkbox) checkbox.classList.remove('checked');
-                if (checkIcon) checkIcon.style.display = 'none';
-            } else {
-                this.selectedImages.add(imageId);
-                card.classList.add('selected');
-                if (checkbox) checkbox.classList.add('checked');
-                if (checkIcon) checkIcon.style.display = 'block';
-            }
-        },
-
-        selectAll() {
-            const cards = document.querySelectorAll('[data-image-id]');
-            cards.forEach(cardWrapper => {
-                const imageId = cardWrapper.dataset.imageId;
-                const card = cardWrapper.querySelector('.image-card');
-                const overlay = card?.querySelector('.image-selection-overlay');
-
-                if (overlay && !this.selectedImages.has(imageId)) {
-                    this.selectedImages.add(imageId);
-                    card.classList.add('selected');
-                    const checkbox = overlay.querySelector('.image-selection-checkbox');
-                    if (checkbox) {
-                        checkbox.classList.add('checked');
-                        const checkIcon = checkbox.querySelector('svg') || checkbox.querySelector('i');
-                        if (checkIcon) checkIcon.style.display = 'block';
-                    }
-                }
-            });
-        },
-
-        deselectAll() {
-            const cards = document.querySelectorAll('.image-card');
-            cards.forEach(card => {
-                card.classList.remove('selected');
-                const checkbox = card.querySelector('.image-selection-checkbox');
-                if (checkbox) {
-                    checkbox.classList.remove('checked');
-                    const checkIcon = checkbox.querySelector('svg') || checkbox.querySelector('i');
-                    if (checkIcon) checkIcon.style.display = 'none';
-                }
-            });
-            this.selectedImages.clear();
-        },
-
-        showAddSubjectModal() {
-            if (this.selectedImages.size === 0) return;
-
-            // Reset subjects list when opening modal
-            this.selectedBulkSubjects = [];
-            this.renderBulkSelectedSubjects();
-            document.getElementById('bulkAddSubjectBtn').disabled = true;
-
-            const modal = new bootstrap.Modal(document.getElementById('bulkAddSubjectModal'));
-            modal.show();
-
-            // Initialize autocomplete if not already done
-            if (!this.bulkSubjectAutocomplete) {
-                this.bulkSubjectAutocomplete = new autoComplete({
-                    selector: "#bulkSubjectSearchInput",
-                    placeHolder: "Search for a subject...",
-                    data: {
-                        src: async (query) => {
-                            try {
-                                const source = await fetch(`/api/v1/subjects/autocomplete/?q=${query}`);
-                                const data = await source.json();
-                                return data;
-                            } catch (error) {
-                                return error;
-                            }
-                        },
-                        keys: ["title"],
-                        cache: false,
-                    },
-                    resultItem: {
-                        highlight: true,
-                        element: (item, data) => {
-                            item.style = "display: flex; justify-content: space-between; align-items: center;";
-                            let description = data.value.description
-                                ? data.value.description.substring(0, 40) + "..."
-                                : "";
-                            item.innerHTML = `
-                                <span style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
-                                    ${data.match} <small class="text-muted ms-2">${description}</small>
-                                </span>
-                                <span style="display: flex; align-items: center; font-size: 13px; font-weight: 100; text-transform: uppercase; color: rgba(0,0,0,.5);">
-                                    ${data.value.wikidata_id || ""}
-                                </span>`;
-                        },
-                    },
-                    threshold: 2,
-                    events: {
-                        input: {
-                            selection: (event) => {
-                                const subject = event.detail.selection.value;
-                                // Check if subject is already selected
-                                if (!this.selectedBulkSubjects.some(s => s.id === subject.id)) {
-                                    this.selectedBulkSubjects.push(subject);
-                                    this.renderBulkSelectedSubjects();
-                                }
-                                document.getElementById('bulkAddSubjectBtn').disabled = false;
-                                this.bulkSubjectAutocomplete.input.value = "";
-                            },
-                        },
-                    },
-                });
-            }
-        },
-
-        renderBulkSelectedSubjects() {
-            const container = document.getElementById('bulkSelectedSubjectsList');
-            const emptyMessage = document.getElementById('emptySubjectsMessage');
-
-            if (this.selectedBulkSubjects.length === 0) {
-                container.innerHTML = '';
-                emptyMessage.style.display = 'block';
-            } else {
-                emptyMessage.style.display = 'none';
-                container.innerHTML = this.selectedBulkSubjects
-                    .map(subject => `
-                        <span class="badge bg-primary" data-subject-id="${subject.id}">
-                            ${this.escapeHtml(subject.title)}
-                            <button type="button" class="btn-close btn-close-white ms-1"
-                                    style="font-size: 0.65rem;"
-                                    data-subject-remove="${subject.id}">
-                            </button>
-                        </span>
-                    `)
-                    .join('');
-
-                // Add click handlers for remove buttons
-                container.querySelectorAll('[data-subject-remove]').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const subjectId = e.target.dataset.subjectRemove;
-                        this.removeBulkSubject(subjectId);
-                    });
-                });
-            }
-        },
-
-        removeBulkSubject(subjectId) {
-            this.selectedBulkSubjects = this.selectedBulkSubjects.filter(s => s.id.toString() !== subjectId.toString());
-            this.renderBulkSelectedSubjects();
-            if (this.selectedBulkSubjects.length === 0) {
-                document.getElementById('bulkAddSubjectBtn').disabled = true;
-            }
-        },
-
-        escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        },
-
-        getCsrfToken() {
-            // Try to get from hidden input first
-            const input = document.querySelector('[name=csrfmiddlewaretoken]');
-            if (input) return input.value;
-
-            // Fall back to cookie
-            const name = 'csrftoken';
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        },
-
-        async bulkAddSubject() {
-            if (this.selectedBulkSubjects.length === 0 || this.selectedImages.size === 0) return;
-
-            const btn = document.getElementById('bulkAddSubjectBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding...';
-
-            try {
-                // Process each subject
-                const results = [];
-                for (const subject of this.selectedBulkSubjects) {
-                    const response = await fetch('/api/v1/subjects/bulk-add/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': this.getCsrfToken()
-                        },
-                        body: JSON.stringify({
-                            image_ids: Array.from(this.selectedImages),
-                            wikidata_id: subject.wikidata_id
-                        })
-                    });
-                    const result = await response.json();
-                    results.push({ subject: subject, result: result });
-                }
-
-                // Close modal and reset
-                const modal = bootstrap.Modal.getInstance(document.getElementById('bulkAddSubjectModal'));
-                modal.hide();
-
-                // Build success message
-                let successCount = 0;
-                let messages = [];
-                for (const { subject, result } of results) {
-                    if (result.success) {
-                        successCount++;
-                        if (result.added_count > 0) {
-                            messages.push(`"${subject.title}": ${result.added_count} added`);
-                        }
-                        if (result.already_exists_count > 0) {
-                            messages.push(`"${subject.title}": ${result.already_exists_count} already had this subject`);
-                        }
-                    } else {
-                        messages.push(`"${subject.title}": Error - ${result.error}`);
-                    }
-                }
-
-                // Show detailed message
-                if (successCount > 0) {
-                    const subjectNames = this.selectedBulkSubjects.map(s => s.title).join(', ');
-                    showAlert('success', `Successfully added ${successCount} subject(s) (${subjectNames}) to ${this.selectedImages.size} images.`);
-                } else {
-                    showAlert('danger', 'Failed to add subjects. Please try again.');
-                }
-
-                // Reset selection
-                this.toggleSelectionMode();
-
-                // Reset modal state
-                this.selectedBulkSubjects = [];
-                this.renderBulkSelectedSubjects();
-                document.getElementById('bulkAddSubjectBtn').disabled = true;
-
-            } catch (error) {
-                console.error('Error adding subject:', error);
-                showAlert('danger', 'An error occurred while adding the subject. Please try again.');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = 'Add Subject';
-            }
-        },
-
-        // Album mode (existing or new)
-        albumMode: 'existing',
-
-        // Show Add to Album Modal
-        showAddToAlbumModal() {
-            if (this.selectedImages.size === 0) return;
-
-            this.selectedAlbum = null;
-            this.albumMode = 'existing';
-            this.resetAlbumModal();
-            this.loadUserAlbums();
-
-            // Update the count display (since modal is outside x-data scope)
-            document.getElementById('bulkAlbumSelectedCount').textContent = this.selectedImages.size;
-
-            const modal = new bootstrap.Modal(document.getElementById('bulkAddToAlbumModal'));
-            modal.show();
-
-            // Set up mode toggle listeners
-            this.setupAlbumModeToggle();
-        },
-
-        // Reset album modal to initial state
-        resetAlbumModal() {
-            document.getElementById('bulkAlbumSelectText').textContent = 'Choose an album...';
-            document.getElementById('bulkNewAlbumTitle').value = '';
-            document.getElementById('bulkNewAlbumDescription').value = '';
-            document.getElementById('bulkNewAlbumPublic').checked = false;
-            document.getElementById('albumModeExisting').checked = true;
-            document.getElementById('existingAlbumSection').style.display = 'block';
-            document.getElementById('newAlbumSection').style.display = 'none';
-            document.getElementById('noAlbumsMessage').style.display = 'none';
-            this.updateAddToAlbumButton();
-        },
-
-        // Set up album mode toggle listeners
-        setupAlbumModeToggle() {
-            const existingRadio = document.getElementById('albumModeExisting');
-            const newRadio = document.getElementById('albumModeNew');
-
-            existingRadio.addEventListener('change', () => {
-                if (existingRadio.checked) {
-                    this.albumMode = 'existing';
-                    document.getElementById('existingAlbumSection').style.display = 'block';
-                    document.getElementById('newAlbumSection').style.display = 'none';
-                    this.updateAddToAlbumButton();
-                }
-            });
-
-            newRadio.addEventListener('change', () => {
-                if (newRadio.checked) {
-                    this.albumMode = 'new';
-                    document.getElementById('existingAlbumSection').style.display = 'none';
-                    document.getElementById('newAlbumSection').style.display = 'block';
-                    this.selectedAlbum = null;
-                    document.getElementById('bulkAlbumSelectText').textContent = 'Choose an album...';
-                    this.updateAddToAlbumButton();
-                }
-            });
-        },
-
-        // Load user albums
-        async loadUserAlbums() {
-            try {
-                const response = await fetch(window.filterConfig.urls.userAlbumsApi);
-                if (response.ok) {
-                    const data = await response.json();
-                    this.userAlbums = data.albums || [];
-                    this.renderAlbumDropdown();
-                } else {
-                    console.error("Failed to load albums:", response.statusText);
-                }
-            } catch (error) {
-                console.error("Error loading albums:", error);
-            }
-        },
-
-        // Render album dropdown
-        renderAlbumDropdown() {
-            const dropdown = document.getElementById('bulkAlbumDropdown');
-            const noAlbumsMessage = document.getElementById('noAlbumsMessage');
-            dropdown.innerHTML = '';
-
-            if (this.userAlbums.length === 0) {
-                dropdown.innerHTML = '<li><span class="dropdown-item-text text-muted">No albums found</span></li>';
-                noAlbumsMessage.style.display = 'block';
-                return;
-            }
-
-            noAlbumsMessage.style.display = 'none';
-
-            this.userAlbums.forEach(album => {
-                const li = document.createElement('li');
-                const escapedTitle = this.escapeHtml(album.title);
-                li.innerHTML = `
-                    <button class="dropdown-item d-flex justify-content-between align-items-center" type="button" data-album-id="${album.id}" data-album-title="${escapedTitle}">
-                        <span>${escapedTitle}</span>
-                        ${album.public ? '<i class="fas fa-globe text-muted ms-2" title="Public album"></i>' : '<i class="fas fa-lock text-muted ms-2" title="Private album"></i>'}
-                    </button>
-                `;
-                // Add click handler
-                li.querySelector('button').addEventListener('click', (e) => {
-                    const btn = e.currentTarget;
-                    // Note: album IDs are UUIDs (strings), not integers
-                    this.selectAlbum(btn.dataset.albumId, btn.dataset.albumTitle);
-                });
-                dropdown.appendChild(li);
-            });
-        },
-
-        // Select album
-        selectAlbum(albumId, albumTitle) {
-            this.selectedAlbum = { id: albumId, title: albumTitle };
-            document.getElementById('bulkAlbumSelectText').textContent = albumTitle;
-            this.updateAddToAlbumButton();
-        },
-
-        // Update add to album button state
-        updateAddToAlbumButton() {
-            const btn = document.getElementById('bulkAddToAlbumBtn');
-            let hasValidSelection = false;
-
-            if (this.albumMode === 'existing') {
-                hasValidSelection = this.selectedAlbum !== null;
-            } else {
-                hasValidSelection = document.getElementById('bulkNewAlbumTitle').value.trim() !== '';
-            }
-
-            btn.disabled = !hasValidSelection;
-        },
-
-        // Bulk add to album
-        async bulkAddToAlbum() {
-            if (this.selectedImages.size === 0) return;
-
-            const btn = document.getElementById('bulkAddToAlbumBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding...';
-
-            try {
-                let response;
-                let albumTitle;
-
-                if (this.albumMode === 'new') {
-                    // Create new album and add images
-                    const newAlbumTitle = document.getElementById('bulkNewAlbumTitle').value.trim();
-                    if (!newAlbumTitle) {
-                        throw new Error('Please enter an album title');
-                    }
-
-                    response = await fetch(window.filterConfig.urls.bulkCreateAndAddToAlbum, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        },
-                        body: JSON.stringify({
-                            title: newAlbumTitle,
-                            description: document.getElementById('bulkNewAlbumDescription').value.trim(),
-                            is_public: document.getElementById('bulkNewAlbumPublic').checked,
-                            image_ids: Array.from(this.selectedImages)
-                        })
-                    });
-                    albumTitle = newAlbumTitle;
-                } else if (this.selectedAlbum) {
-                    // Add to existing album
-                    response = await fetch(window.filterConfig.urls.bulkAddToAlbum, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        },
-                        body: JSON.stringify({
-                            album_id: this.selectedAlbum.id,
-                            image_ids: Array.from(this.selectedImages)
-                        })
-                    });
-                    albumTitle = this.selectedAlbum.title;
-                } else {
-                    throw new Error('Please select an album');
-                }
-
-                if (response.ok) {
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Show success message with detailed info
-                        let message = result.message;
-                        if (result.total_requested !== result.added_count) {
-                            message += ` (${result.added_count} of ${result.total_requested} images were new to the album)`;
-                        }
-                        showAlert('success', message);
-
-                        // Close modal and reset
-                        bootstrap.Modal.getInstance(document.getElementById('bulkAddToAlbumModal')).hide();
-                        this.selectedAlbum = null;
-                        this.resetAlbumModal();
-
-                        // Exit selection mode
-                        this.toggleSelectionMode();
-                    } else {
-                        throw new Error(result.error || 'Failed to add images to album');
-                    }
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-                }
-
-            } catch (error) {
-                console.error('Error adding to album:', error);
-                showAlert('danger', `Error adding images to album: ${error.message}`);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-plus me-1"></i>Add to Album';
-            }
-        }
-    }
-}
-
-
-
-// Handle new album title input
+// Handle new album title input for enabling/disabling button
 document.addEventListener('input', function(e) {
     if (e.target.id === 'bulkNewAlbumTitle') {
         if (window.bulkSelectionInstance) {
@@ -1141,24 +600,4 @@ document.addEventListener('input', function(e) {
         }
     }
 });
-
-// Helper function to show alerts (toast notifications)
-function showAlert(type, message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    document.body.appendChild(alertDiv);
-
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.classList.remove('show');
-            setTimeout(() => alertDiv.remove(), 150);
-        }
-    }, 5000);
-}
 </script>
