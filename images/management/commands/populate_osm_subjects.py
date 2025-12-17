@@ -73,7 +73,6 @@ class Command(BaseCommand):
 
             try:
                 bbox_clause = "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)"
-                sql_query = f"""SELECT osm_id, tags, geom FROM postpass_pointlinepolygon WHERE tags->>'wikidata' = '{wikidata_id}' AND geom && {bbox_clause}"""
 
                 features = self._fetch_osm_features(
                     session, postpass_url, wikidata_id, timeout, bbox_clause
