@@ -16,6 +16,14 @@ The recommended way to run your database is using podman and
 podman run -d --replace --name georef-postgres -e POSTGRES_DB=georef -e POSTGRES_USER=django_user -e POSTGRES_PASSWORD=dev_password -p 5432:5432 ghcr.io/maprva/postgis-pgvector-local:latest
 ```
 
+## Run Task Queue
+
+Yesterdays uses Celery with RabbitMQ to manage background processing tasks.
+
+```
+podman run -d --name rabbitmq -p 5672:5672 -p 15672:15672 --replace rabbitmq:3-management
+```
+
 ### Set up environment variables
 
 Setup the following env vars:
@@ -30,6 +38,7 @@ export PG_PASSWORD=dev_password
 export PG_HOST=localhost
 export PG_PORT=5432
 export PG_SSL_MODE=disable
+export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 ```
 
 Save those to `my.env` in the root of this repository, and then apply them by running `source my.env`
