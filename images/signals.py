@@ -16,9 +16,7 @@ from django.db import connection, transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from images.models import Image
-
-from .models import Collection, Georeference, Source
+from .models import Collection, Georeference, Image, Source
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +114,7 @@ def queue_thumbnail_generation(sender, instance, created, **kwargs):
     logger.info(f"Processing new Image {instance.id} for thumbnail generation")
 
     # Import here to avoid circular imports
-    from yesterdays.tasks import generate_thumbnail_for_image
+    from .tasks import generate_thumbnail_for_image
 
     # Queue the thumbnail generation task
     try:

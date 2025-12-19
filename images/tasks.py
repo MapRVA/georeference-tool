@@ -5,8 +5,8 @@ import requests
 from celery import shared_task
 from PIL import Image as PILImage
 
-from images.models import Image
-from images.utils import R2Uploader, R2UploaderError
+from .models import Image
+from .utils import R2Uploader, R2UploaderError
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
