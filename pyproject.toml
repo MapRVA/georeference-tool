@@ -24,6 +24,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "uvicorn[standard]>=0.35.0",
     "whitenoise>=6.10.0",
+    "zensical>=0.0.13",
 ]
 
 [tool.uv]
