@@ -131,8 +131,10 @@ def stats(request):
     # Top contributors - aggregate georeferences and validations by username
     georeference_contributors = (
         Georeference.objects.values(username=F("georeferenced_by__first_name"))
-        .annotate(georeference_count=Count("id"))
-        .order_by("-georeference_count")
+        .annotate(
+            georeference_count=Count("id"), last_georeference=Max("georeferenced_at")
+        )
+        .order_by("-georeference_count", "last_georeference")
     )
 
     validation_contributors = (
@@ -148,6 +150,7 @@ def stats(request):
         contributors[username] = {
             "georeferences": entry["georeference_count"],
             "validations": 0,
+            "last_georeference": entry["last_georeference"],
         }
 
     for entry in validation_contributors:
@@ -158,10 +161,16 @@ def stats(request):
             contributors[username] = {
                 "georeferences": 0,
                 "validations": entry["validation_count"],
+                "last_georeference": None,
             }
 
     sorted_contributors = sorted(
-        contributors.items(), key=lambda item: item[1]["georeferences"], reverse=True
+        contributors.items(),
+        key=lambda item: (
+            -item[1]["georeferences"],  # Primary: georeferences descending
+            item[1]["last_georeference"]
+            or "",  # Secondary: oldest first (None becomes empty string, sorts first)
+        ),
     )
 
     # Overall statistics
