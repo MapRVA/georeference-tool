@@ -30,6 +30,7 @@ site_author = "<your name here>"
 #site_url = "https://www.example.com/"
 
 repo_url = "https://github.com/MapRVA/yesterdays"
+repo_name = "MapRVA/yesterdays"
 edit_uri = "edit/trunk/docs/"
 
 # The copyright notice appears in the page footer and can contain an HTML
