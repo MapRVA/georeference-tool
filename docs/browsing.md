@@ -1,12 +1,13 @@
 # Browsing Yesterdays
 
 All images on Yesterdays are from third-party sources.
-**Yesterdays is not an archival system.**
+**Yesterdays is not a preservation system.**
 It is a platform for exploring images across a wide variety of sources, and crowdsourcing metadata for those images.
+In other words, Yesterdays is meant to sit between the user and various information preservation systems, including museums and libraries.
 
 ## Sources
 
-Sources represent institutions such as libraries or museums where we have sourced images on Yesterdays.
+Sources represent individual institutions, e.g. Library of Congress, where we have sourced images on Yesterdays.
 The images in Yesterdays are from online databases provided by these institutions.
 
 ## Collections
