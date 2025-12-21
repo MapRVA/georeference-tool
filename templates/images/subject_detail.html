@@ -135,7 +135,7 @@
         {% if page_obj %}
             <div class="row">
                 {% for image in page_obj %}
-                    {% with georeference_url="/georeference/" %}
+                    {% with georeference_url="/georeference/?subject="|add:subject.slug %}
                         {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True image_id=image.id %}
                     {% endwith %}
                 {% endfor %}
