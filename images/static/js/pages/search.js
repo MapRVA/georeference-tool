@@ -455,7 +455,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
                         <div class="card-body p-3">
                             <h6 class="card-title">
-                                <a href="${escapeHtml(result.detail_url)}" class="text-dark text-decoration-none">
+                                <a href="${escapeHtml(result.detail_url)}" class="text-body text-decoration-none">
                                     ${
                                       escapeHtml(result.title).length > 50
                                         ? escapeHtml(result.title).substring(
