@@ -80,6 +80,25 @@ Usage:
 .maplibregl-popup-content {
     max-width: 60vw;
 }
+
+/* Dark mode support for MapLibre popups using Bootstrap CSS variables */
+[data-bs-theme="dark"] .maplibregl-popup-content {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .maplibregl-popup-tip {
+    border-top-color: var(--bs-body-bg);
+}
+
+[data-bs-theme="dark"] .maplibregl-popup-close-button {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .maplibregl-popup-close-button:hover {
+    background-color: var(--bs-secondary-bg);
+}
+
 .layer-control {
     position: relative;
     z-index: 1000;
