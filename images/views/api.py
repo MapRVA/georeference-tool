@@ -343,7 +343,7 @@ def vector_tiles_endpoint(request, z, x, y):
             SELECT
                 ST_AsMVTGeom(point_3857, ST_TileEnvelope(%s, %s, %s)) AS geom,
                 image_id as id,
-                img_url,
+                thumbnail,
                 original_date,
                 edtf_date,
                 start_decdate,
