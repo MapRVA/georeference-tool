@@ -51,7 +51,13 @@ from .georeference import (
     georeference_interface,
     validate_georeference,
 )
-from .search import find_similar_images, search_page, semantic_search, text_search
+from .search import (
+    find_similar_images,
+    reverse_image_search,
+    search_page,
+    semantic_search,
+    text_search,
+)
 from .subject import (
     add_subject_to_image,
     all_subjects_api,

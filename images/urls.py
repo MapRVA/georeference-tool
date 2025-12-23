@@ -121,6 +121,11 @@ urlpatterns = [
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),
     path(
+        "api/v1/search/reverse/",
+        views.reverse_image_search,
+        name="reverse_image_search",
+    ),
+    path(
         "api/v1/subjects/autocomplete/",
         views.subject_autocomplete,
         name="subject_autocomplete",

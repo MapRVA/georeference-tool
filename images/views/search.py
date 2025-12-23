@@ -1,13 +1,17 @@
 import json
+import re
 from pathlib import Path
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db import models
+from django.db import connection, models
 from django.db.models import Func
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
+from PIL import Image as PILImage
 
 from ..models import Image
 
@@ -67,9 +71,6 @@ def _load_clip_model():
     model_name = "ViT-L/14@336px"
     local_model_dir = Path("./models").absolute()
 
-    # Download model if it doesn't exist
-    from django.core.management import call_command
-
     try:
         call_command(
             "download_clip_model",
@@ -99,6 +100,30 @@ def _get_text_embedding(text):
         text_features /= text_features.norm(dim=-1, keepdim=True)
 
     return text_features.cpu().numpy()[0].tolist()
+
+
+def _get_image_embedding(image):
+    """Generate embedding for an image using CLIP"""
+
+    model, preprocess, device = _load_clip_model()
+
+    # If image is a file path or file object, open it
+    if isinstance(image, (str, Path)):
+        pil_image = PILImage.open(image).convert("RGB")
+    elif hasattr(image, "read"):
+        # File-like object (Django UploadedFile)
+        pil_image = PILImage.open(image).convert("RGB")
+    else:
+        # Assume it's already a PIL Image
+        pil_image = image.convert("RGB")
+
+    # Preprocess and get embedding
+    with torch.no_grad():
+        image_input = preprocess(pil_image).unsqueeze(0).to(device)
+        image_features = model.encode_image(image_input)
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+
+    return image_features.cpu().numpy()[0].tolist()
 
 
 @require_http_methods(["GET", "POST"])
@@ -219,8 +244,6 @@ def semantic_search(request):
         # First, detect the dimension of existing embeddings in the database
         sample_embedding = None
         expected_dimension = None
-
-        from django.db import connection
 
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -462,8 +485,6 @@ def find_similar_images(request, image_id):
         "georeferenced", "all"
     )  # 'all', 'yes', or 'none'
 
-    from django.db import connection
-
     try:
         with connection.cursor() as cursor:
             # Convert embedding to PostgreSQL array format
@@ -552,8 +573,6 @@ def _generate_highlighted_snippet(text, query, max_length=200):
     """
     if not text or not query:
         return {"snippet": text[:max_length] if text else "", "highlighted": text or ""}
-
-    import re
 
     # Split query into individual terms
     query_terms = [term.strip().lower() for term in query.split() if term.strip()]
@@ -787,8 +806,6 @@ def text_search(request):
             )
 
         # 2. Use Raw SQL for the complex trigram query for performance and control
-        from django.db import connection
-
         with connection.cursor() as cursor:
             # First, get total count of results that meet the threshold
             count_sql = """
@@ -936,4 +953,341 @@ def text_search(request):
     except Exception as e:
         return JsonResponse(
             {"success": False, "error": f"Text search failed: {str(e)}"}, status=500
+        )
+
+
+@login_required
+@require_http_methods(["POST"])
+def reverse_image_search(request):
+    """API endpoint for reverse image search using CLIP embeddings - requires authentication"""
+    if not CLIP_AVAILABLE:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Reverse image search not available. CLIP dependencies not installed.",
+            },
+            status=503,
+        )
+
+    # Check if an image was uploaded
+    if "image" not in request.FILES:
+        return JsonResponse(
+            {"success": False, "error": "No image file provided"}, status=400
+        )
+
+    uploaded_file = request.FILES["image"]
+
+    # Validate file type
+    if not uploaded_file.content_type.startswith("image/"):
+        return JsonResponse(
+            {"success": False, "error": "Uploaded file must be an image"}, status=400
+        )
+
+    # Get search and pagination parameters
+    limit = min(int(request.POST.get("pagelimit", 20)), 100)
+    page = int(request.POST.get("page", 1))
+    if page < 1:
+        page = 1
+    offset = (page - 1) * limit
+
+    georeferenced_only = (
+        request.POST.get("georeferenced_only", "false").lower() == "true"
+    )
+    non_georeferenced_only = (
+        request.POST.get("non_georeferenced_only", "false").lower() == "true"
+    )
+
+    # Year filtering parameters
+    start_year = request.POST.get("start_year")
+    end_year = request.POST.get("end_year")
+
+    # Validate year parameters
+    if start_year:
+        try:
+            start_year = int(start_year)
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid start_year parameter. Must be an integer.",
+                },
+                status=400,
+            )
+
+    if end_year:
+        try:
+            end_year = int(end_year)
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid end_year parameter. Must be an integer.",
+                },
+                status=400,
+            )
+
+    # Subject filtering parameters
+    with_subjects_str = request.POST.get("with_subjects")
+    without_subjects_str = request.POST.get("without_subjects")
+    no_subjects = request.POST.get("no_subjects", "false").lower() == "true"
+
+    with_subject_ids = []
+    if with_subjects_str:
+        try:
+            with_subject_ids = [
+                int(s_id) for s_id in with_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid with_subjects parameter. Must be comma-separated integers.",
+                },
+                status=400,
+            )
+
+    without_subject_ids = []
+    if without_subjects_str:
+        try:
+            without_subject_ids = [
+                int(s_id) for s_id in without_subjects_str.split(",") if s_id.strip()
+            ]
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid without_subjects parameter. Must be comma-separated integers.",
+                },
+                status=400,
+            )
+
+    try:
+        # Open and validate the image
+        try:
+            pil_image = PILImage.open(uploaded_file)
+            pil_image.verify()  # Verify it's a valid image
+            uploaded_file.seek(0)  # Reset file pointer after verify
+            query_embedding = _get_image_embedding(uploaded_file)
+        except Exception as e:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f"Failed to process uploaded image: {str(e)}",
+                },
+                status=400,
+            )
+
+        query_dimension = len(query_embedding)
+
+        # Check dimension compatibility with database
+        sample_embedding = None
+        expected_dimension = None
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT embedding
+                FROM images_image
+                WHERE embedding IS NOT NULL
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true
+                )
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if result:
+                sample_embedding = result[0]
+                expected_dimension = len(sample_embedding)
+
+        # Check dimension compatibility
+        if expected_dimension and query_dimension != expected_dimension:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f"Model dimension mismatch. Database contains {expected_dimension}D embeddings, but current model produces {query_dimension}D embeddings.",
+                },
+                status=400,
+            )
+
+        # Use raw SQL for vector similarity search
+        with connection.cursor() as cursor:
+            # Convert embedding to PostgreSQL array format
+            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+
+            # Build dynamic WHERE conditions and separate parameters
+            where_conditions = ["embedding IS NOT NULL"]
+            where_params = []
+
+            # Add georeferenced filter
+            if georeferenced_only:
+                where_conditions.append(
+                    "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
+            elif non_georeferenced_only:
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
+
+            # Add year filtering conditions
+            if start_year is not None:
+                where_conditions.append(
+                    "(start_decdate >= %s OR fuzzy_start_decdate >= %s)"
+                )
+                where_params.extend([start_year, start_year])
+
+            if end_year is not None:
+                where_conditions.append(
+                    "(end_decdate <= %s OR fuzzy_end_decdate <= %s)"
+                )
+                where_params.extend([end_year, end_year])
+
+            # Add subject filtering conditions
+            if no_subjects:
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id)"
+                )
+            else:
+                if with_subject_ids:
+                    for subject_id in with_subject_ids:
+                        where_conditions.append(
+                            "EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id AND sm.subject_id = %s)"
+                        )
+                        where_params.append(subject_id)
+
+                if without_subject_ids:
+                    where_conditions.append(
+                        "images_image.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%s))"
+                    )
+                    where_params.append(without_subject_ids)
+
+            # Combine all WHERE conditions
+            where_clause = " AND ".join(where_conditions)
+
+            # Get total count for pagination
+            count_sql = f"""
+                SELECT COUNT(images_image.id)
+                FROM images_image
+                WHERE {where_clause}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+            """
+            cursor.execute(count_sql, where_params)
+            total_count = cursor.fetchone()[0]
+
+            # Raw SQL query for cosine similarity
+            sql = f"""
+                SELECT
+                    id,
+                    title,
+                    permalink,
+                    original_date,
+                    edtf_date,
+                    start_decdate,
+                    end_decdate,
+                    (embedding::vector <=> %s::vector) as distance
+                FROM images_image
+                WHERE {where_clause}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+                ORDER BY embedding::vector <=> %s::vector
+                LIMIT %s
+                OFFSET %s
+            """
+
+            query_params = (
+                [embedding_str] + where_params + [embedding_str, limit, offset]
+            )
+
+            cursor.execute(sql, query_params)
+            results = cursor.fetchall()
+
+        # Format results
+        search_results = []
+        for row in results:
+            (
+                image_id,
+                title,
+                permalink,
+                original_date,
+                edtf_date,
+                start_decdate,
+                end_decdate,
+                distance,
+            ) = row
+
+            # Get the full image object for additional data
+            try:
+                image = Image.objects.select_related("collection__source").get(
+                    id=image_id
+                )
+
+                result = {
+                    "id": image_id,
+                    "title": title,
+                    "permalink": permalink,
+                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                    "original_date": str(original_date) if original_date else None,
+                    "edtf_date": str(edtf_date) if edtf_date else None,
+                    "distance": float(distance),
+                    "similarity": 1.0
+                    - float(distance),  # Convert distance to similarity
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image_id}/",
+                    "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
+                }
+
+                # Add georeference data if available
+                if image.is_georeferenced:
+                    georeference = image.get_georeference()
+                    if georeference:
+                        result["georeference"] = {
+                            "latitude": georeference.point.y,
+                            "longitude": georeference.point.x,
+                            "direction": georeference.direction,
+                            "confidence": georeference.confidence,
+                        }
+
+                search_results.append(result)
+
+            except Image.DoesNotExist:
+                # Skip if image was deleted between query and retrieval
+                continue
+
+        return JsonResponse(
+            {
+                "success": True,
+                "query": "reverse_image_search",
+                "results": search_results,
+                "count": total_count,
+                "page": page,
+                "limit": limit,
+                "search_type": "reverse_image",
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": f"Reverse image search failed: {str(e)}"},
+            status=500,
         )

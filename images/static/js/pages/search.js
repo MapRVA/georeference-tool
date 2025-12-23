@@ -26,12 +26,29 @@ document.addEventListener("DOMContentLoaded", async function () {
   const searchResults = document.getElementById("searchResults");
   const semanticMode = document.getElementById("semanticMode");
   const textMode = document.getElementById("textMode");
+  const reverseMode = document.getElementById("reverseMode");
   const semanticDescription = document.getElementById("semanticDescription");
   const textDescription = document.getElementById("textDescription");
+  const reverseDescription = document.getElementById("reverseDescription");
+  const textSearchContainer = document.getElementById("textSearchContainer");
+  const reverseSearchContainer = document.getElementById(
+    "reverseSearchContainer",
+  );
+  const imageDropZone = document.getElementById("imageDropZone");
+  const imageFileInput = document.getElementById("imageFileInput");
+  const selectFileBtn = document.getElementById("selectFileBtn");
+  const dropZoneContent = document.getElementById("dropZoneContent");
+  const imagePreviewContainer = document.getElementById(
+    "imagePreviewContainer",
+  );
+  const imagePreview = document.getElementById("imagePreview");
+  const changeImageBtn = document.getElementById("changeImageBtn");
   const subjectSearchWrapper = document.getElementById(
     "subject-search-wrapper",
   );
   const noSubjectsRadio = document.getElementById("noSubjects");
+
+  let uploadedImageFile = null;
 
   function renderSelectedSubjects() {
     const container = document.getElementById("selected-subjects");
@@ -56,6 +73,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (urlParams.has("mode") && urlParams.get("mode") === "text") {
       textMode.checked = true;
       textMode.dispatchEvent(new Event("change"));
+    } else if (urlParams.has("mode") && urlParams.get("mode") === "reverse") {
+      reverseMode.checked = true;
+      reverseMode.dispatchEvent(new Event("change"));
     } else {
       semanticMode.checked = true;
       semanticMode.dispatchEvent(new Event("change"));
@@ -163,6 +183,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (this.checked) {
       semanticDescription.style.display = "block";
       textDescription.style.display = "none";
+      reverseDescription.style.display = "none";
+      textSearchContainer.style.display = "flex";
+      reverseSearchContainer.style.display = "none";
       searchQuery.placeholder = "Describe what you're looking for...";
     }
   });
@@ -171,9 +194,212 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (this.checked) {
       semanticDescription.style.display = "none";
       textDescription.style.display = "block";
+      reverseDescription.style.display = "none";
+      textSearchContainer.style.display = "flex";
+      reverseSearchContainer.style.display = "none";
       searchQuery.placeholder = "Search for keywords...";
     }
   });
+
+  reverseMode.addEventListener("change", function () {
+    if (this.checked) {
+      semanticDescription.style.display = "none";
+      textDescription.style.display = "none";
+      reverseDescription.style.display = "block";
+      textSearchContainer.style.display = "none";
+      reverseSearchContainer.style.display = "block";
+      searchQuery.placeholder = "Upload an image to search...";
+    }
+  });
+
+  // Reverse image search functionality
+  function handleImageFile(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
+    }
+
+    uploadedImageFile = file;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      imagePreview.src = e.target.result;
+      dropZoneContent.style.display = "none";
+      imagePreviewContainer.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Click to select file
+  if (selectFileBtn) {
+    selectFileBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      imageFileInput.click();
+    });
+  }
+
+  // Drop zone click
+  if (imageDropZone) {
+    imageDropZone.addEventListener("click", function (e) {
+      if (
+        e.target.id === "imageDropZone" ||
+        e.target.id === "dropZoneContent"
+      ) {
+        imageFileInput.click();
+      }
+    });
+  }
+
+  // File input change
+  if (imageFileInput) {
+    imageFileInput.addEventListener("change", function (e) {
+      if (e.target.files && e.target.files[0]) {
+        handleImageFile(e.target.files[0]);
+      }
+    });
+  }
+
+  // Drag and drop
+  if (imageDropZone) {
+    imageDropZone.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.style.borderColor = "#0d6efd";
+      this.style.backgroundColor = "#e7f1ff";
+    });
+
+    imageDropZone.addEventListener("dragleave", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.style.borderColor = "#dee2e6";
+      this.style.backgroundColor = "#f8f9fa";
+    });
+
+    imageDropZone.addEventListener("drop", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.style.borderColor = "#dee2e6";
+      this.style.backgroundColor = "#f8f9fa";
+
+      const files = e.dataTransfer.files;
+      if (files && files[0]) {
+        handleImageFile(files[0]);
+      }
+    });
+  }
+
+  // Paste image
+  document.addEventListener("paste", function (e) {
+    if (reverseMode && reverseMode.checked) {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const blob = items[i].getAsFile();
+          handleImageFile(blob);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  });
+
+  // Change image button
+  if (changeImageBtn) {
+    changeImageBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      uploadedImageFile = null;
+      imagePreview.src = "";
+      dropZoneContent.style.display = "block";
+      imagePreviewContainer.style.display = "none";
+      imageFileInput.value = "";
+    });
+  }
+
+  function performReverseImageSearch(page = 1) {
+    if (!uploadedImageFile) {
+      alert("Please upload an image first");
+      return;
+    }
+
+    const apiEndpoint = "/api/v1/search/reverse/";
+    const formData = new FormData();
+    formData.append("image", uploadedImageFile);
+    formData.append("page", page);
+
+    if (pagelimitSelect.value) {
+      formData.append("pagelimit", pagelimitSelect.value);
+    }
+    if (startYear.value) {
+      formData.append("start_year", startYear.value);
+    }
+    if (endYear.value) {
+      formData.append("end_year", endYear.value);
+    }
+
+    const georeferencedOption = document.querySelector(
+      'input[name="georeferencedOptions"]:checked',
+    ).value;
+    if (georeferencedOption === "georeferenced") {
+      formData.append("georeferenced_only", "true");
+    } else if (georeferencedOption === "not_georeferenced") {
+      formData.append("non_georeferenced_only", "true");
+    }
+
+    // Add subject params
+    const subjectOption = document.querySelector(
+      'input[name="subjectOptions"]:checked',
+    ).value;
+    const subjectIds = selectedSubjects.map((s) => s.id).join(",");
+
+    if (subjectOption === "none") {
+      formData.append("no_subjects", "true");
+    } else if (subjectIds) {
+      if (subjectOption === "with") {
+        formData.append("with_subjects", subjectIds);
+      } else if (subjectOption === "without") {
+        formData.append("without_subjects", subjectIds);
+      }
+    }
+
+    loadingIndicator.style.display = "block";
+    searchResults.innerHTML = "";
+
+    fetch(apiEndpoint, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "X-CSRFToken": getCsrfToken(),
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        loadingIndicator.style.display = "none";
+        if (data.success) {
+          displayResults(data);
+        } else {
+          displayError(data.error);
+        }
+      })
+      .catch((error) => {
+        loadingIndicator.style.display = "none";
+        displayError("Search failed: " + error.message);
+      });
+  }
+
+  function getCsrfToken() {
+    const name = "csrftoken";
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === name + "=") {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
 
   function performSearch(page = 1) {
     const query = searchQuery.value.trim();
@@ -182,6 +408,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     ).value;
     const hasSubjectFilter =
       subjectOption === "none" || selectedSubjects.length > 0;
+
+    // Handle reverse image search differently
+    if (reverseMode && reverseMode.checked) {
+      if (!uploadedImageFile) {
+        alert("Please upload an image first");
+        return;
+      }
+      performReverseImageSearch(page);
+      return;
+    }
 
     if (!query && !hasSubjectFilter) {
       return; // Do not search if there is no query and no subject filter
