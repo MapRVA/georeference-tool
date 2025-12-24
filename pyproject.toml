@@ -12,6 +12,7 @@ dependencies = [
     "clip",
     "django>=5.2.6",
     "django-cors-headers>=4.9.0",
+    "django-ratelimit>=4.1.0",
     "edtf>=5.0.0",
     "markdown>=3.10",
     "nh3>=0.3.2",

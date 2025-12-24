@@ -13,6 +13,7 @@ from django.db.models import Func
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
+from django_ratelimit.decorators import ratelimit
 from PIL import Image as PILImage
 from psycopg import sql
 
@@ -20,7 +21,10 @@ from ..models import Image
 
 logger = logging.getLogger(__name__)
 
-# Image security settings - protection against decompression bombs
+# Query security settings
+MAX_SEMANTIC_SEARCH_LENGTH = 500  # Reasonable limit for CLIP text queries
+
+# Image security settings
 MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
 PILImage.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 MAX_DIMENSION = 10000  # Max width or height
@@ -114,18 +118,6 @@ def _get_text_embedding(text):
     return text_features.cpu().numpy()[0].tolist()
 
 
-import logging
-
-from PIL import Image as PILImage
-
-logger = logging.getLogger(__name__)
-
-# Module-level constants
-MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
-MAX_DIMENSION = 10000  # Max width or height
-ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
-
-
 def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
     """
     Re-encode image, an attempt to sidestep malicious content.
@@ -214,6 +206,8 @@ def _get_image_embedding(image):
     return image_features.cpu().numpy()[0].tolist()
 
 
+@ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
+@ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 @require_http_methods(["GET", "POST"])
 def semantic_search(request):
     """API endpoint for semantic search using CLIP embeddings"""
@@ -247,11 +241,24 @@ def semantic_search(request):
             status=400,
         )
 
+    # Validate query length
+    if len(query) > MAX_SEMANTIC_SEARCH_LENGTH:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": f"Query too long. Maximum {MAX_SEMANTIC_SEARCH_LENGTH} characters.",
+            },
+            status=400,
+        )
+
     # Get search and pagination parameters
-    limit = min(int(request.GET.get("pagelimit", 20)), 100)
-    page = int(request.GET.get("page", 1))
-    if page < 1:
-        page = 1
+    try:
+        limit = min(int(request.GET.get("pagelimit", 20)), 100)
+        page = max(int(request.GET.get("page", 1)), 1)
+    except ValueError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid pagination parameters"}, status=400
+        )
     offset = (page - 1) * limit
 
     include_no_embedding = (
@@ -353,8 +360,15 @@ def semantic_search(request):
                 expected_dimension = len(sample_embedding)
 
         # Generate query embedding
-        query_embedding = _get_text_embedding(query)
-        query_dimension = len(query_embedding)
+        try:
+            query_embedding = _get_text_embedding(query)
+            query_dimension = len(query_embedding)
+        except Exception as e:
+            logger.warning(f"Text embedding generation failed: {type(e).__name__}")
+            return JsonResponse(
+                {"success": False, "error": "Could not process search query"},
+                status=400,
+            )
 
         # Check dimension compatibility
         if expected_dimension and query_dimension != expected_dimension:
@@ -542,9 +556,17 @@ def semantic_search(request):
             }
         )
 
-    except Exception as e:
+    except DatabaseError as e:
+        logger.error(f"Database error in semantic search: {e}", exc_info=True)
         return JsonResponse(
-            {"success": False, "error": f"Search failed: {str(e)}"}, status=500
+            {"success": False, "error": "Database query failed. Please try again."},
+            status=500,
+        )
+    except Exception:
+        logger.exception("Unexpected error in semantic search")
+        return JsonResponse(
+            {"success": False, "error": "An unexpected error occurred."},
+            status=500,
         )
 
 
@@ -701,6 +723,8 @@ def _generate_highlighted_snippet(text, query, max_length=200):
     return {"snippet": highlighted_snippet, "highlighted": highlighted_full}
 
 
+@ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
+@ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 @require_http_methods(["GET", "POST"])
 def text_search(request):
     """API endpoint for text search using PostgreSQL trigram word similarity."""
@@ -726,10 +750,15 @@ def text_search(request):
         query = request.GET.get("q", "").strip()
 
     # Get search and pagination parameters
-    limit = min(int(request.GET.get("pagelimit", 20)), 100)
-    page = int(request.GET.get("page", 1))
-    if page < 1:
-        page = 1
+    try:
+        limit = min(int(request.GET.get("pagelimit", 20)), 100)
+        page = max(int(request.GET.get("page", 1)), 1)
+        distance_threshold = float(request.GET.get("threshold", 0.7))
+    except ValueError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid pagination or threshold parameters"},
+            status=400,
+        )
     offset = (page - 1) * limit
     georeferenced_only = (
         request.GET.get("georeferenced_only", "false").lower() == "true"
@@ -737,8 +766,6 @@ def text_search(request):
     non_georeferenced_only = (
         request.GET.get("non_georeferenced_only", "false").lower() == "true"
     )
-    # Distance is 1 - similarity. A lower distance is a better match.
-    distance_threshold = float(request.GET.get("threshold", 0.7))
 
     # Year filtering parameters
     start_year = request.GET.get("start_year")
@@ -1048,6 +1075,8 @@ def text_search(request):
         )
 
 
+@ratelimit(key="ip", rate="100/h", method=["POST"])  # Stricter for image processing
+@ratelimit(key="ip", rate="20/5m", method=["POST"])  # Lower burst
 @login_required
 @require_http_methods(["POST"])
 def reverse_image_search(request):
@@ -1082,10 +1111,13 @@ def reverse_image_search(request):
         )
 
     # Get search and pagination parameters
-    limit = min(int(request.POST.get("pagelimit", 20)), 100)
-    page = int(request.POST.get("page", 1))
-    if page < 1:
-        page = 1
+    try:
+        limit = min(int(request.POST.get("pagelimit", 20)), 100)
+        page = max(int(request.POST.get("page", 1)), 1)
+    except ValueError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid pagination parameters"}, status=400
+        )
     offset = (page - 1) * limit
 
     georeferenced_only = (
@@ -1163,19 +1195,26 @@ def reverse_image_search(request):
         # Sanitize and validate the image (defense-in-depth security)
         try:
             sanitized_image = _sanitize_image(uploaded_file)
-            query_embedding = _get_image_embedding(sanitized_image)
         except ValueError as e:
-            # ValueError contains our custom error messages
+            # ValueError contains our custom error messages from sanitization
             return JsonResponse(
                 {"success": False, "error": str(e)},
                 status=400,
             )
         except Exception as e:
+            logger.warning(f"Image sanitization error: {type(e).__name__}")
             return JsonResponse(
-                {
-                    "success": False,
-                    "error": f"Failed to process uploaded image: {str(e)}",
-                },
+                {"success": False, "error": "Failed to process uploaded image"},
+                status=400,
+            )
+
+        # Generate embedding from sanitized image
+        try:
+            query_embedding = _get_image_embedding(sanitized_image)
+        except Exception as e:
+            logger.warning(f"Image embedding generation failed: {type(e).__name__}")
+            return JsonResponse(
+                {"success": False, "error": "Could not generate image embedding"},
                 status=400,
             )
 
