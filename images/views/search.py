@@ -380,8 +380,16 @@ def semantic_search(request):
             cursor.execute(sql, query_params)
             results = cursor.fetchall()
 
-        # Format results
+        # Format results - Fetch all images in one query to avoid N+1 problem
         search_results = []
+        image_ids = [row[0] for row in results]
+        images_dict = {
+            img.id: img
+            for img in Image.objects.select_related("collection__source").filter(
+                id__in=image_ids
+            )
+        }
+
         for row in results:
             (
                 image_id,
@@ -395,50 +403,45 @@ def semantic_search(request):
             ) = row
 
             # Get the full image object for additional data
-            try:
-                image = Image.objects.select_related("collection__source").get(
-                    id=image_id
-                )
-
-                result = {
-                    "id": image_id,
-                    "title": title,
-                    "permalink": permalink,
-                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
-                    "original_date": str(original_date) if original_date else None,
-                    "edtf_date": str(edtf_date) if edtf_date else None,
-                    "distance": float(distance),
-                    "similarity": 1.0
-                    - float(distance),  # Convert distance to similarity
-                    "collection": {
-                        "name": image.collection.name,
-                        "slug": image.collection.slug,
-                    },
-                    "source": {
-                        "name": image.collection.source.name,
-                        "slug": image.collection.source.slug,
-                    },
-                    "detail_url": f"/{image_id}/",
-                    "georeferenced": image.is_georeferenced,
-                    "will_not_georef": image.will_not_georef,
-                }
-
-                # Add georeference data if available
-                if image.is_georeferenced:
-                    georeference = image.get_georeference()
-                    if georeference:
-                        result["georeference"] = {
-                            "latitude": georeference.point.y,
-                            "longitude": georeference.point.x,
-                            "direction": georeference.direction,
-                            "confidence": georeference.confidence,
-                        }
-
-                search_results.append(result)
-
-            except Image.DoesNotExist:
+            image = images_dict.get(image_id)
+            if not image:
                 # Skip if image was deleted between query and retrieval
                 continue
+
+            result = {
+                "id": image_id,
+                "title": title,
+                "permalink": permalink,
+                "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                "original_date": str(original_date) if original_date else None,
+                "edtf_date": str(edtf_date) if edtf_date else None,
+                "distance": float(distance),
+                "similarity": 1.0 - float(distance),  # Convert distance to similarity
+                "collection": {
+                    "name": image.collection.name,
+                    "slug": image.collection.slug,
+                },
+                "source": {
+                    "name": image.collection.source.name,
+                    "slug": image.collection.source.slug,
+                },
+                "detail_url": f"/{image_id}/",
+                "georeferenced": image.is_georeferenced,
+                "will_not_georef": image.will_not_georef,
+            }
+
+            # Add georeference data if available
+            if image.is_georeferenced:
+                georeference = image.get_georeference()
+                if georeference:
+                    result["georeference"] = {
+                        "latitude": georeference.point.y,
+                        "longitude": georeference.point.x,
+                        "direction": georeference.direction,
+                        "confidence": georeference.confidence,
+                    }
+
+            search_results.append(result)
 
         return JsonResponse(
             {
@@ -1213,8 +1216,16 @@ def reverse_image_search(request):
             cursor.execute(sql, query_params)
             results = cursor.fetchall()
 
-        # Format results
+        # Format results - Fetch all images in one query to avoid N+1 problem
         search_results = []
+        image_ids = [row[0] for row in results]
+        images_dict = {
+            img.id: img
+            for img in Image.objects.select_related("collection__source").filter(
+                id__in=image_ids
+            )
+        }
+
         for row in results:
             (
                 image_id,
@@ -1228,50 +1239,45 @@ def reverse_image_search(request):
             ) = row
 
             # Get the full image object for additional data
-            try:
-                image = Image.objects.select_related("collection__source").get(
-                    id=image_id
-                )
-
-                result = {
-                    "id": image_id,
-                    "title": title,
-                    "permalink": permalink,
-                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
-                    "original_date": str(original_date) if original_date else None,
-                    "edtf_date": str(edtf_date) if edtf_date else None,
-                    "distance": float(distance),
-                    "similarity": 1.0
-                    - float(distance),  # Convert distance to similarity
-                    "collection": {
-                        "name": image.collection.name,
-                        "slug": image.collection.slug,
-                    },
-                    "source": {
-                        "name": image.collection.source.name,
-                        "slug": image.collection.source.slug,
-                    },
-                    "detail_url": f"/{image_id}/",
-                    "georeferenced": image.is_georeferenced,
-                    "will_not_georef": image.will_not_georef,
-                }
-
-                # Add georeference data if available
-                if image.is_georeferenced:
-                    georeference = image.get_georeference()
-                    if georeference:
-                        result["georeference"] = {
-                            "latitude": georeference.point.y,
-                            "longitude": georeference.point.x,
-                            "direction": georeference.direction,
-                            "confidence": georeference.confidence,
-                        }
-
-                search_results.append(result)
-
-            except Image.DoesNotExist:
+            image = images_dict.get(image_id)
+            if not image:
                 # Skip if image was deleted between query and retrieval
                 continue
+
+            result = {
+                "id": image_id,
+                "title": title,
+                "permalink": permalink,
+                "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                "original_date": str(original_date) if original_date else None,
+                "edtf_date": str(edtf_date) if edtf_date else None,
+                "distance": float(distance),
+                "similarity": 1.0 - float(distance),  # Convert distance to similarity
+                "collection": {
+                    "name": image.collection.name,
+                    "slug": image.collection.slug,
+                },
+                "source": {
+                    "name": image.collection.source.name,
+                    "slug": image.collection.source.slug,
+                },
+                "detail_url": f"/{image_id}/",
+                "georeferenced": image.is_georeferenced,
+                "will_not_georef": image.will_not_georef,
+            }
+
+            # Add georeference data if available
+            if image.is_georeferenced:
+                georeference = image.get_georeference()
+                if georeference:
+                    result["georeference"] = {
+                        "latitude": georeference.point.y,
+                        "longitude": georeference.point.x,
+                        "direction": georeference.direction,
+                        "confidence": georeference.confidence,
+                    }
+
+            search_results.append(result)
 
         return JsonResponse(
             {
