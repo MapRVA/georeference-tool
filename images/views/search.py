@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db import DatabaseError, connection, models
+from django.db import DatabaseError, connection
 from django.db.models import Func
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,7 +22,7 @@ from ..models import Image
 logger = logging.getLogger(__name__)
 
 # Query security settings
-MAX_SEMANTIC_SEARCH_LENGTH = 500  # Reasonable limit for CLIP text queries
+MAX_TEXT_QUERY_LENGTH = 500  # Reasonable limit for CLIP text queries
 
 # Image security settings
 MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
@@ -242,11 +242,11 @@ def semantic_search(request):
         )
 
     # Validate query length
-    if len(query) > MAX_SEMANTIC_SEARCH_LENGTH:
+    if len(query) > MAX_TEXT_QUERY_LENGTH:
         return JsonResponse(
             {
                 "success": False,
-                "error": f"Query too long. Maximum {MAX_SEMANTIC_SEARCH_LENGTH} characters.",
+                "error": f"Query too long. Maximum {MAX_TEXT_QUERY_LENGTH} characters.",
             },
             status=400,
         )
@@ -749,16 +749,32 @@ def text_search(request):
     else:  # GET request
         query = request.GET.get("q", "").strip()
 
+    # Validate query length
+    if len(query) > MAX_TEXT_QUERY_LENGTH:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": f"Query too long. Maximum {MAX_TEXT_QUERY_LENGTH} characters.",
+            },
+            status=400,
+        )
+
     # Get search and pagination parameters
     try:
         limit = min(int(request.GET.get("pagelimit", 20)), 100)
         page = max(int(request.GET.get("page", 1)), 1)
         distance_threshold = float(request.GET.get("threshold", 0.7))
+
+        # Convert years here
+        start_year_str = request.GET.get("start_year")
+        end_year_str = request.GET.get("end_year")
+        start_year = int(start_year_str) if start_year_str else None
+        end_year = int(end_year_str) if end_year_str else None
     except ValueError:
         return JsonResponse(
-            {"success": False, "error": "Invalid pagination or threshold parameters"},
-            status=400,
+            {"success": False, "error": "Invalid numeric parameters"}, status=400
         )
+
     offset = (page - 1) * limit
     georeferenced_only = (
         request.GET.get("georeferenced_only", "false").lower() == "true"
@@ -766,10 +782,6 @@ def text_search(request):
     non_georeferenced_only = (
         request.GET.get("non_georeferenced_only", "false").lower() == "true"
     )
-
-    # Year filtering parameters
-    start_year = request.GET.get("start_year")
-    end_year = request.GET.get("end_year")
 
     # Subject filtering parameters
     with_subjects_str = request.GET.get("with_subjects")
@@ -817,119 +829,75 @@ def text_search(request):
 
     # --- Start of Query Logic ---
     try:
-        # 1. Use the ORM for initial filtering (easier for optional filters)
-        images = (
-            Image.objects.filter(
-                collection__public=True,
-                collection__source__public=True,
-                duplicate_of__isnull=True,
-            )
-            .select_related("collection__source")
-            .prefetch_related("georeferences")
-        )
+        # Build SQL WHERE conditions for all filters
+        # This is much more efficient than loading IDs into memory
+        sql_where_conditions = [
+            "c.public = true",
+            "s.public = true",
+            "i.duplicate_of_id IS NULL",
+        ]
+        sql_params = {
+            "query": query,
+            "threshold": distance_threshold,
+            "limit": limit,
+            "offset": offset,
+        }
 
+        # Georeferenced filtering
         if georeferenced_only:
-            images = images.filter(georeferences__isnull=False).distinct()
+            sql_where_conditions.append(
+                "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)"
+            )
         elif non_georeferenced_only:
-            images = images.filter(georeferences__isnull=True)
+            sql_where_conditions.append(
+                "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)"
+            )
 
+        # Year filtering
         if start_year:
-            try:
-                images = images.filter(
-                    models.Q(start_decdate__gte=int(start_year))
-                    | models.Q(fuzzy_start_decdate__gte=int(start_year))
-                )
-            except ValueError:
-                return JsonResponse(
-                    {"success": False, "error": "Invalid start_year"}, status=400
-                )
+            sql_where_conditions.append(
+                "(i.start_decdate >= %(start_year)s OR i.fuzzy_start_decdate >= %(start_year)s)"
+            )
+            sql_params["start_year"] = start_year
 
         if end_year:
-            try:
-                images = images.filter(
-                    models.Q(end_decdate__lte=int(end_year))
-                    | models.Q(fuzzy_end_decdate__lte=int(end_year))
-                )
-            except ValueError:
-                return JsonResponse(
-                    {"success": False, "error": "Invalid end_year"}, status=400
-                )
+            sql_where_conditions.append(
+                "(i.end_decdate <= %(end_year)s OR i.fuzzy_end_decdate <= %(end_year)s)"
+            )
+            sql_params["end_year"] = end_year
 
-        # Add subject filtering
+        # Subject filtering
         if no_subjects:
-            images = images.filter(subjects__isnull=True)
+            sql_where_conditions.append(
+                "NOT EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id)"
+            )
         else:
             if with_subject_ids:
-                for subject_id in with_subject_ids:
-                    images = images.filter(subjects__id=subject_id)
+                for idx, subject_id in enumerate(with_subject_ids):
+                    param_name = f"with_subject_{idx}"
+                    sql_where_conditions.append(
+                        f"EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = i.id AND sm.subject_id = %({param_name})s)"
+                    )
+                    sql_params[param_name] = subject_id
 
             if without_subject_ids:
-                images = images.exclude(subjects__id__in=without_subject_ids)
+                sql_where_conditions.append(
+                    "i.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%(without_subject_ids)s))"
+                )
+                sql_params["without_subject_ids"] = without_subject_ids
 
-        # Handle case where there is no text query (filter-only search)
-        if not query:
-            paginator = Paginator(images.distinct().order_by("id"), limit)
-            page_obj = paginator.get_page(page)
-            search_results = []
-            for image in page_obj.object_list:
-                result = {
-                    "id": image.id,
-                    "title": image.title,
-                    "permalink": image.permalink,
-                    "thumbnail": image.thumbnail
-                    if image.thumbnail
-                    else image.permalink,
-                    "original_date": str(image.original_date)
-                    if image.original_date
-                    else None,
-                    "edtf_date": str(image.edtf_date) if image.edtf_date else None,
-                    "collection": {
-                        "name": image.collection.name,
-                        "slug": image.collection.slug,
-                    },
-                    "source": {
-                        "name": image.collection.source.name,
-                        "slug": image.collection.source.slug,
-                    },
-                    "detail_url": f"/{image.id}/",
-                    "georeferenced": image.is_georeferenced,
-                    "will_not_georef": image.will_not_georef,
-                }
-                search_results.append(result)
-
-            return JsonResponse(
-                {
-                    "success": True,
-                    "query": query,
-                    "results": search_results,
-                    "count": paginator.count,
-                    "page": page,
-                    "limit": limit,
-                    "search_type": "filter_only",
-                }
-            )
-
-        # --- Text search logic for when a query is present ---
-        filtered_ids = list(images.values_list("id", flat=True))
-
-        if not filtered_ids:
-            return JsonResponse(
-                {
-                    "success": True,
-                    "query": query,
-                    "results": [],
-                    "count": 0,
-                    "page": page,
-                    "limit": limit,
-                }
-            )
+        where_clause = " AND ".join(sql_where_conditions)
 
         # 2. Use Raw SQL for the complex trigram query for performance and control
         with connection.cursor() as cursor:
             # First, get total count of results that meet the threshold
-            count_sql = """
+            where_clause = " AND ".join(sql_where_conditions)
+
+            count_sql = sql.SQL("""
                 SELECT COUNT(i.id)
                 FROM images_image i
+                JOIN images_collection c ON i.collection_id = c.id
+                JOIN images_source s ON c.source_id = s.id
                 LEFT JOIN LATERAL (
                     SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
                     FROM images_comment c
@@ -948,7 +916,7 @@ def text_search(request):
                     AND ag.confidence_notes != ''
                 ) aerial_match ON true
                 WHERE
-                    i.id = ANY(%(ids)s)
+                    {where_clause}
                     AND LEAST(
                         COALESCE(%(query)s <<-> i.title, 1.0),
                         COALESCE(%(query)s <<-> i.description, 1.0),
@@ -956,17 +924,13 @@ def text_search(request):
                         COALESCE(geo_match.best_geo_distance, 1.0),
                         COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) < %(threshold)s
-            """
-            count_params = {
-                "query": query,
-                "ids": filtered_ids,
-                "threshold": distance_threshold,
-            }
-            cursor.execute(count_sql, count_params)
+            """).format(where_clause=sql.SQL(where_clause))
+
+            cursor.execute(count_sql, sql_params)
             total_count = cursor.fetchone()[0]
 
             # Now, get the paginated results
-            sql = """
+            page_query = sql.SQL("""
                 SELECT
                     i.id, i.title, i.permalink, i.original_date, i.edtf_date,
                     LEAST(
@@ -977,6 +941,8 @@ def text_search(request):
                         COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) as distance
                 FROM images_image i
+                JOIN images_collection c ON i.collection_id = c.id
+                JOIN images_source s ON c.source_id = s.id
                 LEFT JOIN LATERAL (
                     SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
                     FROM images_comment c
@@ -995,7 +961,7 @@ def text_search(request):
                     AND ag.confidence_notes != ''
                 ) aerial_match ON true
                 WHERE
-                    i.id = ANY(%(ids)s)
+                    {where_clause}
                     AND LEAST(
                         COALESCE(%(query)s <<-> i.title, 1.0),
                         COALESCE(%(query)s <<-> i.description, 1.0),
@@ -1005,15 +971,8 @@ def text_search(request):
                     ) < %(threshold)s
                 ORDER BY distance ASC, i.id ASC
                 LIMIT %(limit)s OFFSET %(offset)s
-            """
-            params = {
-                "query": query,
-                "ids": filtered_ids,
-                "threshold": distance_threshold,
-                "limit": limit,
-                "offset": offset,
-            }
-            cursor.execute(sql, params)
+            """).format(where_clause=sql.SQL(where_clause))
+            cursor.execute(page_query, sql_params)
             rows = cursor.fetchall()
 
         # 3. Format the results
@@ -1069,9 +1028,16 @@ def text_search(request):
             }
         )
 
-    except Exception as e:
+    except DatabaseError as e:
+        logger.error(f"Database error in text search: {e}", exc_info=True)
         return JsonResponse(
-            {"success": False, "error": f"Text search failed: {str(e)}"}, status=500
+            {"success": False, "error": "Search query failed. Please try again."},
+            status=500,
+        )
+    except Exception:
+        logger.exception("Unexpected error in text search")
+        return JsonResponse(
+            {"success": False, "error": "An unexpected error occurred."}, status=500
         )
 
 
@@ -1274,13 +1240,13 @@ def reverse_image_search(request):
                 where_conditions.append(
                     "(start_decdate >= %s OR fuzzy_start_decdate >= %s)"
                 )
-                where_params.extend([start_year, start_year])
+                where_params["start_year"] = start_year
 
             if end_year is not None:
                 where_conditions.append(
                     "(end_decdate <= %s OR fuzzy_end_decdate <= %s)"
                 )
-                where_params.extend([end_year, end_year])
+                where_params["end_year"] = end_year
 
             # Add subject filtering conditions
             if no_subjects:
