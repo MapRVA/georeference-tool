@@ -23,3 +23,19 @@ On [the search page](https://yesterdays.maprva.org/search/), there is also a cla
 - Image titles (from source)
 - Image descriptions (from source)
 - Comments and georeference notes
+
+## Reverse Image Search
+
+!!! info
+    Reverse image search is currently only available to logged-in users.
+    It is free and easy to make an account with OpenStreetMap!
+
+The reverse image search feature allows you to upload your own image, and find similar images in Yesterdays. Currently, only JPEG, PNG, GIF, and WEBP image formats are supported.
+
+You can upload your image by doing any of the following:
+
+- clicking on the "Select File" button to select an image file from your filesystem,
+- dragging an image file into the upload area from e.g. your file browser, or
+- pasting an image from your clipboard using CTRL+V or CMD+V
+
+Images are searched using the same CLIP model described in the Semantic Search section above.
