@@ -469,7 +469,7 @@ def semantic_search(request):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-                ORDER BY embedding::vector <=> %s::vector
+                ORDER BY embedding::vector <=> %s::vector, id ASC  -- ← ADD ", id ASC"
                 LIMIT %s
                 OFFSET %s
             """).format(where_clause=sql.SQL(where_clause))
@@ -1003,7 +1003,7 @@ def text_search(request):
                         COALESCE(geo_match.best_geo_distance, 1.0),
                         COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) < %(threshold)s
-                ORDER BY distance ASC
+                ORDER BY distance ASC, i.id ASC
                 LIMIT %(limit)s OFFSET %(offset)s
             """
             params = {
@@ -1340,7 +1340,7 @@ def reverse_image_search(request):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-                ORDER BY embedding::vector <=> %s::vector
+                ORDER BY embedding::vector <=> %s::vector, id ASC  -- ← ADD ", id ASC"
                 LIMIT %s
                 OFFSET %s
             """).format(where_clause=sql.SQL(where_clause))
