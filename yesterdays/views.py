@@ -1,6 +1,6 @@
 import json
 
-from django.db.models import Count, F
+from django.db.models import Count, F, Max
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import render
