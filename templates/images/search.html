@@ -113,7 +113,7 @@
                         </p>
                         {% if user.is_authenticated %}
                         <p class="card-text mb-3" id="reverseDescription" style="display: none;">
-                            Upload an image to find visually similar images in the collection.
+                            Upload an image to find visually similar images in Yesterdays.
                         </p>
                         {% else %}
                         <div class="alert mb-3" role="alert" id="reverseDescription" style="display: none; background-color: #ffc107; border-color: #ffb300; color: black;">
@@ -144,23 +144,23 @@
                                     <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                                     <h5 class="mb-2">Upload or Paste an Image</h5>
                                     <p class="text-muted mb-3">
-                                        Click to select a file, drag and drop, or paste (Ctrl+V) an image
+                                        Click to select a file, drag and drop, or paste an image
                                     </p>
                                     <button type="button" class="btn btn-outline-primary" id="selectFileBtn">
                                         <i class="fas fa-folder-open me-2"></i>Select File
                                     </button>
                                 </div>
-                                <div id="imagePreviewContainer" style="display: none;">
-                                    <img id="imagePreview" src="" alt="Preview" class="img-fluid mb-3" style="max-height: 300px; border-radius: 0.375rem;">
-                                    <div class="mt-3">
-                                        <button type="button" class="btn btn-outline-secondary me-2" id="changeImageBtn">
-                                            <i class="fas fa-sync-alt me-2"></i>Change Image
-                                        </button>
-                                        <button type="submit" class="btn btn-primary" id="searchWithImageBtn">
-                                            <i class="fas fa-search me-2"></i>Search with this Image
-                                        </button>
-                                    </div>
+                                <div id="imagePreviewContainer" class="d-flex align-items-center justify-content-center" style="display: none;">
+                                    <img id="imagePreview" src="" alt="" class="img-fluid" style="max-height: 300px; border-radius: 0.375rem;">
                                 </div>
+                            </div>
+                            <div id="imageActionsContainer" class="mt-3 text-center" style="display: none;">
+                                <button type="button" class="btn btn-outline-secondary me-2" id="changeImageBtn">
+                                    <i class="fas fa-sync-alt me-2"></i>Change Image
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="searchWithImageBtn">
+                                    <i class="fas fa-search me-2"></i>Search with this Image
+                                </button>
                             </div>
                             {% endif %}
                         </div>

@@ -42,6 +42,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     "imagePreviewContainer",
   );
   const imagePreview = document.getElementById("imagePreview");
+  const imageActionsContainer = document.getElementById(
+    "imageActionsContainer",
+  );
   const changeImageBtn = document.getElementById("changeImageBtn");
   const subjectSearchWrapper = document.getElementById(
     "subject-search-wrapper",
@@ -225,6 +228,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       imagePreview.src = e.target.result;
       dropZoneContent.style.display = "none";
       imagePreviewContainer.style.display = "block";
+      if (imageActionsContainer) {
+        imageActionsContainer.style.display = "block";
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -240,12 +246,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Drop zone click
   if (imageDropZone) {
     imageDropZone.addEventListener("click", function (e) {
-      if (
-        e.target.id === "imageDropZone" ||
-        e.target.id === "dropZoneContent"
-      ) {
-        imageFileInput.click();
-      }
+      // Allow clicking anywhere in the drop zone to trigger file selection
+      imageFileInput.click();
     });
   }
 
@@ -263,22 +265,19 @@ document.addEventListener("DOMContentLoaded", async function () {
     imageDropZone.addEventListener("dragover", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      this.style.borderColor = "#0d6efd";
-      this.style.backgroundColor = "#e7f1ff";
+      this.classList.add("border-primary", "bg-primary-subtle");
     });
 
     imageDropZone.addEventListener("dragleave", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      this.style.borderColor = "#dee2e6";
-      this.style.backgroundColor = "#f8f9fa";
+      this.classList.remove("border-primary", "bg-primary-subtle");
     });
 
     imageDropZone.addEventListener("drop", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      this.style.borderColor = "#dee2e6";
-      this.style.backgroundColor = "#f8f9fa";
+      this.classList.remove("border-primary", "bg-primary-subtle");
 
       const files = e.dataTransfer.files;
       if (files && files[0]) {
@@ -310,6 +309,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       imagePreview.src = "";
       dropZoneContent.style.display = "block";
       imagePreviewContainer.style.display = "none";
+      if (imageActionsContainer) {
+        imageActionsContainer.style.display = "none";
+      }
       imageFileInput.value = "";
     });
   }

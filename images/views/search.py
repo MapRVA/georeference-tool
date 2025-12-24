@@ -1,19 +1,31 @@
 import json
+import logging
 import re
+from io import BytesIO
 from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db import connection, models
+from django.db import DatabaseError, connection, models
 from django.db.models import Func
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from PIL import Image as PILImage
+from psycopg import sql
 
 from ..models import Image
+
+logger = logging.getLogger(__name__)
+
+# Image security settings - protection against decompression bombs
+MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
+PILImage.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+MAX_DIMENSION = 10000  # Max width or height
+ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+
 
 # Global variables for CLIP model (loaded on first use)
 _clip_model = None
@@ -100,6 +112,82 @@ def _get_text_embedding(text):
         text_features /= text_features.norm(dim=-1, keepdim=True)
 
     return text_features.cpu().numpy()[0].tolist()
+
+
+import logging
+
+from PIL import Image as PILImage
+
+logger = logging.getLogger(__name__)
+
+# Module-level constants
+MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
+MAX_DIMENSION = 10000  # Max width or height
+ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+
+
+def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
+    """
+    Re-encode image, an attempt to sidestep malicious content.
+
+    Args:
+        uploaded_file: Django UploadedFile object
+        max_pixels: Maximum total pixel count allowed
+
+    Returns:
+        BytesIO: Image data re-encoded as PNG
+    """
+    try:
+        # Open image
+        img = PILImage.open(uploaded_file)
+
+        # Validate format (must be done before .load())
+        if img.format not in ALLOWED_FORMATS:
+            raise ValueError(
+                f"Image format '{img.format}' not supported. "
+                f"Allowed formats: {', '.join(sorted(ALLOWED_FORMATS))}"
+            )
+
+        # Force full decompression to trigger any issues
+        img.load()
+
+        # Check individual dimensions
+        if img.width > MAX_DIMENSION or img.height > MAX_DIMENSION:
+            raise ValueError(
+                f"Image dimensions ({img.width}x{img.height}) exceed "
+                f"maximum {MAX_DIMENSION}px per side"
+            )
+
+        # Check total pixel count (decompression bomb protection)
+        total_pixels = img.width * img.height
+        if total_pixels > max_pixels:
+            raise ValueError(
+                f"Image has too many pixels ({total_pixels:,}). Maximum: {max_pixels:,}"
+            )
+
+        # Convert to RGB if necessary (normalizes color modes)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+
+        # Re-encode to a clean buffer (strips metadata and malicious content)
+        output = BytesIO()
+        img.save(output, format="PNG")  # Always save as PNG for consistency
+        output.seek(0)
+
+        return output
+
+    except ValueError:
+        # Re-raise our custom validation errors (safe messages)
+        raise
+    except PILImage.DecompressionBombError:
+        # Explicit handling of decompression bombs
+        logger.warning("Decompression bomb detected in uploaded image")
+        raise ValueError("Image rejected: decompression bomb detected")
+    except Exception as e:
+        # Catch any Pillow parsing/processing errors
+        # Log technical details but return generic message
+        logger.warning(f"Image sanitization failed: {type(e).__name__}: {e}")
+        raise ValueError("Invalid or corrupted image file")
 
 
 def _get_image_embedding(image):
@@ -332,7 +420,7 @@ def semantic_search(request):
             where_clause = " AND ".join(where_conditions)
 
             # Get total count for pagination
-            count_sql = f"""
+            count_sql = sql.SQL("""
                 SELECT COUNT(images_image.id)
                 FROM images_image
                 WHERE {where_clause}
@@ -343,12 +431,12 @@ def semantic_search(request):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-            """
+            """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
 
             # Raw SQL query for cosine similarity
-            sql = f"""
+            query_sql = sql.SQL("""
                 SELECT
                     id,
                     title,
@@ -370,14 +458,14 @@ def semantic_search(request):
                 ORDER BY embedding::vector <=> %s::vector
                 LIMIT %s
                 OFFSET %s
-            """
+            """).format(where_clause=sql.SQL(where_clause))
 
             # Pass embedding as parameter - pgvector accepts array format
             query_params = (
                 [query_embedding] + where_params + [query_embedding, limit, offset]
             )
 
-            cursor.execute(sql, query_params)
+            cursor.execute(query_sql, query_params)
             results = cursor.fetchall()
 
         # Format results - Fetch all images in one query to avoid N+1 problem
@@ -504,7 +592,7 @@ def find_similar_images(request, image_id):
             where_clause = " AND ".join(where_conditions)
 
             # Raw SQL query for cosine similarity to get all similar images
-            sql = f"""
+            query_sql = sql.SQL("""
                 SELECT
                     id,
                     (embedding::vector <=> %s::vector) as distance
@@ -518,8 +606,8 @@ def find_similar_images(request, image_id):
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
                 ORDER BY distance
-            """
-            cursor.execute(sql, [target_image.embedding] + where_params)
+            """).format(where_clause=sql.SQL(where_clause))
+            cursor.execute(query_sql, [target_image.embedding] + where_params)
             all_results = cursor.fetchall()
 
         # Get a list of all similar image IDs, ordered by similarity
@@ -964,6 +1052,8 @@ def text_search(request):
 @require_http_methods(["POST"])
 def reverse_image_search(request):
     """API endpoint for reverse image search using CLIP embeddings - requires authentication"""
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
     if not CLIP_AVAILABLE:
         return JsonResponse(
             {
@@ -980,6 +1070,10 @@ def reverse_image_search(request):
         )
 
     uploaded_file = request.FILES["image"]
+
+    # Check file size
+    if uploaded_file.size > MAX_UPLOAD_SIZE:
+        return JsonResponse({"success": False, "error": "File too large"}, status=400)
 
     # Validate file type
     if not uploaded_file.content_type.startswith("image/"):
@@ -1066,12 +1160,16 @@ def reverse_image_search(request):
             )
 
     try:
-        # Open and validate the image
+        # Sanitize and validate the image (defense-in-depth security)
         try:
-            pil_image = PILImage.open(uploaded_file)
-            pil_image.verify()  # Verify it's a valid image
-            uploaded_file.seek(0)  # Reset file pointer after verify
-            query_embedding = _get_image_embedding(uploaded_file)
+            sanitized_image = _sanitize_image(uploaded_file)
+            query_embedding = _get_image_embedding(sanitized_image)
+        except ValueError as e:
+            # ValueError contains our custom error messages
+            return JsonResponse(
+                {"success": False, "error": str(e)},
+                status=400,
+            )
         except Exception as e:
             return JsonResponse(
                 {
@@ -1168,7 +1266,7 @@ def reverse_image_search(request):
             where_clause = " AND ".join(where_conditions)
 
             # Get total count for pagination
-            count_sql = f"""
+            count_sql = sql.SQL("""
                 SELECT COUNT(images_image.id)
                 FROM images_image
                 WHERE {where_clause}
@@ -1179,12 +1277,12 @@ def reverse_image_search(request):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-            """
+            """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
 
             # Raw SQL query for cosine similarity
-            sql = f"""
+            query_sql = sql.SQL("""
                 SELECT
                     id,
                     title,
@@ -1206,14 +1304,14 @@ def reverse_image_search(request):
                 ORDER BY embedding::vector <=> %s::vector
                 LIMIT %s
                 OFFSET %s
-            """
+            """).format(where_clause=sql.SQL(where_clause))
 
             # Pass embedding as parameter - pgvector accepts array format
             query_params = (
                 [query_embedding] + where_params + [query_embedding, limit, offset]
             )
 
-            cursor.execute(sql, query_params)
+            cursor.execute(query_sql, query_params)
             results = cursor.fetchall()
 
         # Format results - Fetch all images in one query to avoid N+1 problem
@@ -1291,8 +1389,15 @@ def reverse_image_search(request):
             }
         )
 
-    except Exception as e:
+    except DatabaseError as e:
+        logger.error(f"Database error in reverse image search: {e}", exc_info=True)
         return JsonResponse(
-            {"success": False, "error": f"Reverse image search failed: {str(e)}"},
+            {"success": False, "error": "Database query failed. Please try again."},
+            status=500,
+        )
+    except Exception:
+        logger.exception("Unexpected error in reverse image search")
+        return JsonResponse(
+            {"success": False, "error": "An unexpected error occurred."},
             status=500,
         )
