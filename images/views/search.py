@@ -282,9 +282,6 @@ def semantic_search(request):
         # Note: This requires pgvector extension to be installed
 
         with connection.cursor() as cursor:
-            # Convert embedding to PostgreSQL array format
-            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
-
             # Build dynamic WHERE conditions and separate parameters
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
@@ -375,8 +372,9 @@ def semantic_search(request):
                 OFFSET %s
             """
 
+            # Pass embedding as parameter - pgvector accepts array format
             query_params = (
-                [embedding_str] + where_params + [embedding_str, limit, offset]
+                [query_embedding] + where_params + [query_embedding, limit, offset]
             )
 
             cursor.execute(sql, query_params)
@@ -487,15 +485,20 @@ def find_similar_images(request, image_id):
 
     try:
         with connection.cursor() as cursor:
-            # Convert embedding to PostgreSQL array format
-            embedding_str = "[" + ",".join(map(str, target_image.embedding)) + "]"
-
             # Build WHERE conditions based on georeferenced filter
-            georeference_condition = ""
+            where_conditions = ["embedding IS NOT NULL", "id != %s"]
+            where_params = [target_image.id]
+
             if georeferenced_status == "yes":
-                georeference_condition = "AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                where_conditions.append(
+                    "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
             elif georeferenced_status == "none":
-                georeference_condition = "AND NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                )
+
+            where_clause = " AND ".join(where_conditions)
 
             # Raw SQL query for cosine similarity to get all similar images
             sql = f"""
@@ -503,9 +506,7 @@ def find_similar_images(request, image_id):
                     id,
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
-                WHERE embedding IS NOT NULL
-                AND id != %s
-                {georeference_condition}
+                WHERE {where_clause}
                 AND id IN (
                     SELECT i.id
                     FROM images_image i
@@ -515,7 +516,7 @@ def find_similar_images(request, image_id):
                 )
                 ORDER BY distance
             """
-            cursor.execute(sql, [embedding_str, target_image.id])
+            cursor.execute(sql, [target_image.embedding] + where_params)
             all_results = cursor.fetchall()
 
         # Get a list of all similar image IDs, ordered by similarity
@@ -1114,9 +1115,6 @@ def reverse_image_search(request):
 
         # Use raw SQL for vector similarity search
         with connection.cursor() as cursor:
-            # Convert embedding to PostgreSQL array format
-            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
-
             # Build dynamic WHERE conditions and separate parameters
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
@@ -1207,8 +1205,9 @@ def reverse_image_search(request):
                 OFFSET %s
             """
 
+            # Pass embedding as parameter - pgvector accepts array format
             query_params = (
-                [embedding_str] + where_params + [embedding_str, limit, offset]
+                [query_embedding] + where_params + [query_embedding, limit, offset]
             )
 
             cursor.execute(sql, query_params)
