@@ -734,15 +734,18 @@ export function initializeMap(config) {
   const fullscreenControl = new maplibregl.FullscreenControl();
 
   map.addControl(layerControl, "top-right");
-  map.addControl(navControl);
-  map.addControl(fullscreenControl);
+
+  // Add navigation and fullscreen controls after time slider will be added
+  // These will be positioned below the time slider
+  map.addControl(navControl, "top-right");
+  map.addControl(fullscreenControl, "top-right");
 
   if (geolocate) {
     const geolocateControl = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
     });
-    map.addControl(geolocateControl);
+    map.addControl(geolocateControl, "top-right");
   }
 
   // Build scale visibility helper functions
@@ -1155,20 +1158,19 @@ export function initializeMap(config) {
         !imageId
       ) {
         const timeSlider = new TimeSliderControl(minYear, maxYear, mapId);
-        map.addControl(timeSlider, "top-right");
-
-        // Re-add other controls to enforce order
-        map.removeControl(navControl);
-        map.removeControl(fullscreenControl);
-        map.addControl(navControl);
-        map.addControl(fullscreenControl);
-
-        if (geolocate) {
-          const geolocateControl = new maplibregl.GeolocateControl({
-            positionOptions: { enableHighAccuracy: true },
-            trackUserLocation: true,
-          });
-          map.addControl(geolocateControl);
+        // Insert time slider after layer control but before other controls
+        const layerControlElement = map
+          .getContainer()
+          .querySelector(".layer-control");
+        if (layerControlElement && layerControlElement.parentNode) {
+          const timeSliderElement = timeSlider.onAdd(map);
+          layerControlElement.parentNode.insertBefore(
+            timeSliderElement,
+            layerControlElement.nextSibling,
+          );
+        } else {
+          // Fallback to regular positioning
+          map.addControl(timeSlider, "top-right");
         }
       }
 
