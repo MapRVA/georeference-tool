@@ -1,0 +1,10 @@
+/* Subject Cards Component Styles */
+
+.subject-card .subject-card-control {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.subject-card:hover .subject-card-control {
+  opacity: 1;
+}

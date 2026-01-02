@@ -1,0 +1,29 @@
+/* Main stylesheet - imported by all pages */
+
+/* CSS Variables for consistent theming */
+:root {
+  --border-radius-sm: 0.375rem;
+  --border-radius: 0.5rem;
+  --border-radius-lg: 0.75rem;
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Global utility classes that extend Bootstrap */
+.card {
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.breadcrumb {
+  background: none;
+  padding: 0;
+}
+
+.action-button {
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}

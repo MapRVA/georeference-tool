@@ -1,0 +1,106 @@
+/* Timeline Component Styles */
+
+.timeline {
+  position: relative;
+  padding-left: 1.5em;
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.5em;
+}
+
+/* Vertical line between timeline icons */
+.timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: -1.1em;
+  top: 1em;
+  width: 0.2em;
+  height: calc(100% + 10px);
+  background-color: #dee2e6;
+}
+
+.timeline-marker {
+  position: absolute;
+  left: -1.5em;
+  top: 1em;
+  width: 1em;
+  height: 1em;
+  background-color: #fff;
+  border: 0.2em solid #dee2e6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-marker i {
+  color: #333;
+}
+
+.timeline-marker.active {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+}
+
+.active-badge {
+  position: absolute;
+  top: -8px;
+  right: -45px;
+  background-color: #dc3545;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.timeline-content {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  margin-left: 10px;
+  position: relative;
+}
+
+.timeline-details .badge {
+  font-size: 0.75em;
+}
+
+.timeline-notes {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.timeline-validations {
+  border-top: 1px solid #e9ecef;
+  padding-top: 12px;
+}
+
+.validation-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.validation-icon {
+  width: 0.75em;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 0.25em;
+}
+
+.validation-user .badge {
+  font-size: 0.7em;
+}
+
+.validation-notes {
+  font-style: italic;
+}

@@ -7,7 +7,7 @@ Besides placing images on the map (our core goal), this app provides a growing r
 - search image descriptions, or their content ("semantic" search) using a CLIP model
 - ...and much more!
 
-Beyond Django, this project makes extensive use of MapLibre, and Alpine.js is also imported in the base template, so it's best to follow Alpine.js best practices where we can.
+Alongside Django, this project uses Vite (managed by bun) to bundle JavaScript and CSS assets from /assets. The application makes heavy use of MapLibre, and Alpine.js is universally available so it's best to follow Alpine.js best practices where we can.
 
 We are developing this tool together. We can run Django commands in our development environment using `uv`:
 

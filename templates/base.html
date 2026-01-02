@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Yesterdays{% endblock %}</title>
 
+    {% load django_vite %}
+    {% vite_hmr_client %}
+
     {% block opengraph %}{% endblock %}
     <!-- Preconnect to CDN origins to reduce DNS/TLS overhead -->
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css" rel="stylesheet">
+
 
     <!-- Dark mode detection script (must run before content renders) -->
     <script>
@@ -29,8 +31,8 @@
         })();
     </script>
 
-    <!-- Alpine.js -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.15.0/cdn.min.js"></script>
+    <!-- Global bundle (Alpine.js + site-wide scripts) -->
+    {% vite_asset 'assets/index.js' %}
 
     <!-- 100% privacy-first analytics -->
     <script async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
@@ -150,10 +152,6 @@
         </div>
     </footer>
 
-    <!-- Bootstrap JS and Font Awesome -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.bundle.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/js/fontawesome.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/js/solid.min.js"></script>
     {% load static %}
     <!-- Global Utilities -->
     <script src="{% static 'js/utils/notifications.js' %}"></script>

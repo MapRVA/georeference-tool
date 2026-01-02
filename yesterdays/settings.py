@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "django.contrib.postgres",
     "corsheaders",
+    "django_vite",
     "osm_auth",
     "images",
 ]
@@ -153,10 +154,29 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# In production: STATIC_ROOT is where collectstatic puts files and where they're served from
+# In development: STATICFILES_DIRS tells Django where to find static files
+if DEBUG:
+    STATIC_ROOT = None  # Not used in development
+    STATICFILES_DIRS = [
+        BASE_DIR / "static",  # Vite build output (for production builds during dev)
+    ]
+else:
+    STATIC_ROOT = BASE_DIR / "static"  # Vite outputs here, Whitenoise serves from here
+    STATICFILES_DIRS = []  # No additional dirs in production
 
 # Whitenoise configuration for static file serving in production
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Django Vite configuration
+DJANGO_VITE = {
+    "default": {
+        "dev_mode": os.getenv("DJANGO_VITE_DEV_MODE", "False").lower() == "true",
+        "dev_server_host": "localhost",
+        "dev_server_port": 5173,
+        "manifest_path": BASE_DIR / "static" / "manifest.json",
+    }
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
