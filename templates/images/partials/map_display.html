@@ -1431,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             // Load the direction arrow image
-            const image = await map.loadImage('https://maprva.org/img/surveillance-direction.png');
+            const image = await map.loadImage('{% static "images/surveillance-direction.png" %}');
             map.addImage('image-direction', image.data);
         } catch (error) {
             console.warn('Could not load direction arrow image:', error);
