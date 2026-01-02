@@ -7,7 +7,7 @@
     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#georeferenceFilterPanel" aria-expanded="false" aria-controls="georeferenceFilterPanel">
         <i class="fas fa-filter me-1"></i>Filters
     </button>
-    
+
     <!-- Bulk Actions Button (inline) -->
     {% if user.is_authenticated %}
     <button class="btn btn-sm ms-2" :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" type="button" @click="toggleSelectionMode()">
@@ -347,7 +347,7 @@
 </style>
 
 <!-- Include autocomplete library if not already included -->
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tarekraafat-autocomplete.js/10.2.7/autoComplete.min.js"></script>
 
 <!-- Filter functionality scripts -->
 <script>

@@ -1,3 +1,4 @@
+{% load static %}
 {% comment %}
 Shared map display component that uses the GeoJSON endpoint for all map data.
 Usage:
@@ -10,15 +11,16 @@ Usage:
 - Auto-zoom to contents: {% include 'images/partials/map_display.html' with zoom_to_contents=True %}
 {% endcomment %}
 
-<!-- MapLibre GL JS CSS and JS - only load once per page -->
+<!-- Preload MapLibre stylesheet -->
+<link rel="preload" href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" as="style">
 <link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
+<script defer src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js"></script>
 <!-- PMTiles library for Sanborn map support -->
-<script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+<script defer src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
 
 {% if include_geocoder %}
 <!-- MapLibre GL Geocoder -->
-<script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
+<script defer src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.9.0/dist/maplibre-gl-geocoder.css" />
 
 <style>
@@ -629,26 +631,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Build vector tiles URL template
     {% if show_other_images and image_id %}
-    // When show_other_images is enabled on an image detail page, 
+    // When show_other_images is enabled on an image detail page,
     // we need both URLs: one with image filter, one without
     const baseUrlParams = new URLSearchParams();
     {% if enable_scale_filter %}
     baseUrlParams.append('enable_scale_filter', 'true');
     {% endif %}
-    
+
     const singleImageParams = new URLSearchParams(baseUrlParams);
     singleImageParams.append('image', '{{ image_id }}');
-    
+
     const baseVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
-    
-    const singleImageUrl = baseUrlParams.toString() ? 
-        baseVectorTilesUrl + '?' + singleImageParams.toString() : 
+
+    const singleImageUrl = baseUrlParams.toString() ?
+        baseVectorTilesUrl + '?' + singleImageParams.toString() :
         baseVectorTilesUrl + '?image={{ image_id }}';
-    
-    const allImagesUrl = baseUrlParams.toString() ? 
-        baseVectorTilesUrl + '?' + baseUrlParams.toString() : 
+
+    const allImagesUrl = baseUrlParams.toString() ?
+        baseVectorTilesUrl + '?' + baseUrlParams.toString() :
         baseVectorTilesUrl;
-    
+
     // Start with only current image shown (toggle is unchecked by default)
     let vectorTilesUrl = singleImageUrl;
     {% else %}
@@ -1338,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to toggle between showing all images and just the current image
     window.toggleOtherImages = function(showAll) {
         const newUrl = showAll ? allImagesUrl : singleImageUrl;
-        
+
         // Update the source tiles URL
         const source = map.getSource('images');
         if (source) {
