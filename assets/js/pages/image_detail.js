@@ -10,6 +10,7 @@ import "../../styles/main.css";
 import "../../styles/components/rating-stars.css";
 import "../../styles/components/timeline.css";
 import "../../styles/pages/image-detail.css";
+import "../../styles/components/markdown.css";
 
 // Import components
 import { initSubjectEditor } from "../components/subject_editor.js";

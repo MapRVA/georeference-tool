@@ -59,6 +59,15 @@ export default defineConfig({
           "./assets/js/pages/browse_subjects.js",
         ),
         from_above: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
+        georeference_interface: path.resolve(
+          __dirname,
+          "./assets/js/pages/georeference_interface.js",
+        ),
+        from_above_georeference_interface: path.resolve(
+          __dirname,
+          "./assets/js/pages/from_above_georeference_interface.js",
+        ),
+        stats: path.resolve(__dirname, "./assets/js/pages/stats.js"),
       },
       output: {
         entryFileNames: `js/[name]-bundle.js`,
