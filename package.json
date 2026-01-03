@@ -26,6 +26,7 @@
     "maplibre-gl": "^5.15.0",
     "photoswipe": "5.4.4",
     "pmtiles": "4.3.0",
+    "sass": "^1.97.1",
     "sortablejs": "1.15.6"
   }
 }

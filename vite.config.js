@@ -3,6 +3,18 @@ import path from "path";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
 export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      scss: {
+        silenceDeprecations: [
+          "import",
+          "color-functions",
+          "global-builtin",
+          "if-function",
+        ],
+      },
+    },
+  },
   base: "/static/",
   plugins: [
     viteStaticCopy({
@@ -46,7 +58,7 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/browse_subjects.js",
         ),
-        map_display: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
+        from_above: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
       },
       output: {
         entryFileNames: `js/[name]-bundle.js`,
