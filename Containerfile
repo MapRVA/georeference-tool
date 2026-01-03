@@ -66,9 +66,6 @@ RUN mkdir -p /app/static
 # 2. Run bun build to generate Vite-bundled JS/CSS into /static
 RUN bun run build
 
-# 3. Run collectstatic to gather Django static files (production mode)
-RUN DJANGO_DEBUG=False DJANGO_SECRET_KEY=build-time-only uv run manage.py collectstatic --noinput
-
 # Final runtime image - minimal Debian
 FROM debian:bookworm-slim AS release
 WORKDIR /app
