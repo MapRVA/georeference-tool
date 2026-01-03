@@ -5,10 +5,7 @@ from django.db import connection
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 
-from ..models import (
-    Image,
-    LayerCollection,
-)
+from ..models import Image
 from .core import get_min_scale_for_zoom
 
 
@@ -415,38 +412,3 @@ def osm_elements_vector_tiles_endpoint(request, z, x, y):
             return response
         else:
             return HttpResponse(b"", content_type="application/x-protobuf")
-
-
-def map_layers_view(request):
-    """Return all map layers organized by collections in a single object"""
-    collections = LayerCollection.objects.prefetch_related("layers").all()
-
-    collections_data = []
-    for collection in collections:
-        collection_data = {
-            "name": collection.name,
-            "description": collection.description,
-            "layers": [],
-        }
-
-        for layer in collection.layers.all():
-            layer_data = {
-                "name": layer.name,
-                "type": layer.type,
-                "url": layer.url,
-            }
-
-            # Add optional fields if they exist
-            if layer.attribution:
-                layer_data["attribution"] = layer.attribution
-            if layer.description:
-                layer_data["description"] = layer.description
-
-            collection_data["layers"].append(layer_data)
-
-        collections_data.append(collection_data)
-
-    # Return single object with all metadata
-    response_data = {"collections": collections_data}
-
-    return JsonResponse(response_data)

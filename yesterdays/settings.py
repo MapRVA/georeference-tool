@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "django_vite",
     "osm_auth",
     "images",
+    "maps",
 ]
 
 MIDDLEWARE = [

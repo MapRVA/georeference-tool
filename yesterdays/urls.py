@@ -36,6 +36,7 @@ urlpatterns = [
         name="user_albums_list",
     ),
     path("", include("images.urls")),
+    path("", include("maps.urls")),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
 ]

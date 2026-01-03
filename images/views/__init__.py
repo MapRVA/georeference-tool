@@ -13,7 +13,6 @@ from .album import (
 from .api import (
     aerial_geojson_endpoint,
     geojson_endpoint,
-    map_layers_view,
     osm_elements_vector_tiles_endpoint,
     polygonal_georeferences_at_point,
     vector_tiles_endpoint,

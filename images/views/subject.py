@@ -27,7 +27,6 @@ from ..models import (
     Image,
     ImageRating,
     ImageSkip,
-    LayerCollection,
     TopRatedImageView,
     Source,
     Subject,
