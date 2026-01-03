@@ -403,20 +403,15 @@ class LayerControl {
     if (this.mapLayersLoaded) return;
 
     try {
-      console.log("Loading map layers...");
-      const response = await fetch("/map-layers/");
-      console.log("Map layers response:", response);
-
+      const response = await fetch("/api/v1/map-layers/");
       if (!response.ok)
         throw new Error(`Failed to fetch map layers: ${response.status}`);
 
       const data = await response.json();
-      console.log("Map layers data:", data);
 
       this.collectionsData = data.collections;
       this.populateCollectionSubmenus();
       this.mapLayersLoaded = true;
-      console.log("Map layers loaded successfully");
     } catch (error) {
       console.error("Error loading map layers:", error);
       this.addErrorItem();
