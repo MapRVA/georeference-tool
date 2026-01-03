@@ -12,6 +12,11 @@
 {% endblock %}
 
 
+{% block extra_css %}
+<link rel="preload" as="image" href="{{ image.permalink }}">
+{% endblock %}
+
+
 {% block extra_js %}
 <script>
     // Configuration object for image_detail.js
@@ -120,7 +125,8 @@
                                     <img id="main-image" src="{{ image.permalink }}"
                                          alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                                          class="img-fluid w-100"
-                                         title="Click to view full-size image">
+                                         title="Click to view full-size image"
+                                         fetchpriority="high">
                                 </a>
                             </div>
 
