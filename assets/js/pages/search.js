@@ -33,7 +33,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   const pagelimitSelect = document.getElementById("pagelimitSelect");
   const startYear = document.getElementById("startYear");
   const endYear = document.getElementById("endYear");
-  const loadingIndicator = document.getElementById("loadingIndicator");
   const searchResults = document.getElementById("searchResults");
   const semanticMode = document.getElementById("semanticMode");
   const textMode = document.getElementById("textMode");
@@ -373,8 +372,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     }
 
-    loadingIndicator.style.display = "block";
-    searchResults.innerHTML = "";
+    searchResults.innerHTML = renderLoadingPlaceholder();
 
     fetch(apiEndpoint, {
       method: "POST",
@@ -385,7 +383,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     })
       .then((response) => response.json())
       .then((data) => {
-        loadingIndicator.style.display = "none";
         if (data.success) {
           displayResults(data);
         } else {
@@ -393,9 +390,19 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
       })
       .catch((error) => {
-        loadingIndicator.style.display = "none";
         displayError("Search failed: " + error.message);
       });
+  }
+
+  function renderLoadingPlaceholder() {
+    return `
+      <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Searching...</span>
+        </div>
+        <p class="mt-2 text-muted">Searching images...</p>
+      </div>
+    `;
   }
 
   function getCsrfToken() {
@@ -488,13 +495,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       `${window.location.pathname}?${params.toString()}`,
     );
 
-    loadingIndicator.style.display = "block";
-    searchResults.innerHTML = "";
+    searchResults.innerHTML = renderLoadingPlaceholder();
 
     fetch(`${apiEndpoint}?${params.toString()}`)
       .then((response) => response.json())
       .then((data) => {
-        loadingIndicator.style.display = "none";
         if (data.success) {
           displayResults(data);
         } else {
@@ -502,7 +507,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
       })
       .catch((error) => {
-        loadingIndicator.style.display = "none";
         displayError("Search failed: " + error.message);
       });
   }
