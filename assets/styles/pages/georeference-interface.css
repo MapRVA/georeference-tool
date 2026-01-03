@@ -82,58 +82,20 @@
     grid-column: 1;
 }
 
-.coordinate-input {
-    font-family: monospace;
-    padding: 6px 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 0.8em;
+#latitude-input,
+#longitude-input {
     grid-column: 2;
     width: 18ch;
 }
 
-.direction-input-group {
+.input-group:has(#direction-input) {
     grid-column: 2;
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-    width: 8em;
-}
-
-#direction-input {
-    font-family: monospace;
-    padding: 6px 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 0.8em;
-    width: 14ch;
-    max-width: 100%;
-}
-
-.coordinate-input:focus,
-#direction-input:focus {
-    outline: none;
-    border-color: #666;
-    box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2);
+    max-width: 15ch;
 }
 
 #direction-input.inactive {
-    background-color: #f5f5f5;
-    color: #999;
-}
-
-#reset-direction {
-    padding: 0.5em;
-    border: 0.1em solid #ccc;
-    border-radius: 1em;
-    background-color: white;
-    cursor: pointer;
-    font-size: 0.8em;
-    width: 5ch;
-}
-
-#reset-direction:hover {
-    background-color: #f0f0f0;
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
 }
 
 #joystick-container {
