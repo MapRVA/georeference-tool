@@ -1,4 +1,6 @@
 from django.db import models
+from django.urls import reverse
+from django.utils.text import slugify
 
 
 class LayerCollection(models.Model):
@@ -7,6 +9,7 @@ class LayerCollection(models.Model):
     name = models.CharField(
         max_length=200, help_text="Display name for this collection"
     )
+    slug = models.SlugField(unique=True)
 
     description = models.TextField(
         blank=True, help_text="Optional description of this collection"
@@ -21,6 +24,14 @@ class LayerCollection(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse("maps:browse_maps")
+
     class Meta:
         ordering = ["order", "name"]
 
@@ -34,6 +45,7 @@ class MapLayer(models.Model):
     ]
 
     name = models.CharField(max_length=200, help_text="Display name for this layer")
+    slug = models.SlugField(help_text="URL-friendly identifier for this layer")
 
     type = models.CharField(
         max_length=10,
@@ -66,5 +78,9 @@ class MapLayer(models.Model):
     def __str__(self):
         return f"{self.name} ({self.collection.name})"
 
+    def get_absolute_url(self):
+        return reverse("maps:layer_detail", kwargs={"collection_slug": self.collection.slug, "layer_slug": self.slug})
+
     class Meta:
         ordering = ["collection__order", "collection__name", "order", "name"]
+        unique_together = ["collection", "slug"]

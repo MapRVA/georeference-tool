@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}{{ layer.name }} – Yesterdays{% endblock %}
+
+{% block opengraph %}
+	<meta property="og:title" content="{{ layer.name }} – Yesterdays">
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="{{ request.build_absolute_uri }}">
+	<meta property="og:description" content="{% if layer.description %}{{ layer.description }}{% else %}View the {{ layer.name }} map layer.{% endif %}">
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'maps:browse_maps' %}">Map Layers</a></li>
+                <li class="breadcrumb-item"><a href="{{ layer.collection.get_absolute_url }}">{{ layer.collection.name }}</a></li>
+                <li class="breadcrumb-item active">{{ layer.name }}</li>
+            </ol>
+        </nav>
+
+        <!-- Layer Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h1 class="card-title mb-3">{{ layer.name }}</h1>
+
+                {% if layer.description %}
+                    <p class="card-text text-muted mb-2">{{ layer.description }}</p>
+                {% endif %}
+
+                {% if layer.attribution %}
+                    <div class="mb-2">
+                        <small class="text-muted d-block">Attribution:</small>
+                        {{ layer.attribution }}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <small class="text-muted d-block">Type:</small>
+                            {{ layer.get_type_display }}
+                        </div>
+
+                        <div class="mb-2">
+                            <small class="text-muted d-block">Collection:</small>
+                            <a href="{{ layer.collection.get_absolute_url }}">{{ layer.collection.name }}</a>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-2">
+                            <small class="text-muted d-block">Source URL:</small>
+                            <code class="small">{{ layer.url }}</code>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Map Display -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-map me-2"></i>Layer Preview
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="layer-map"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
+    window.MAP_LAYER = {
+        name: "{{ layer.name|escapejs }}",
+        type: "{{ layer.type }}",
+        url: "{{ layer.url|escapejs }}",
+        attribution: "{{ layer.attribution|escapejs }}"
+    };
+</script>
+{% vite_asset 'assets/js/pages/map_detail.js' %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    #layer-map {
+        width: 100%;
+        height: 70vh;
+        border-radius: 0 0 0.375rem 0.375rem;
+    }
+</style>
+{% endblock %}

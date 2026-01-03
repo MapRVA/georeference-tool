@@ -1,8 +1,21 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 
 from django.http import JsonResponse
 
-from .models import LayerCollection
+from .models import LayerCollection, MapLayer
+
+
+def browse_maps(request):
+    """Display all map layers organized by collections."""
+    collections = LayerCollection.objects.prefetch_related("layers").all()
+    return render(request, "maps/browse_maps.html", {"collections": collections})
+
+
+def layer_detail(request, collection_slug, layer_slug):
+    """Display a single map layer."""
+    layer = get_object_or_404(MapLayer, collection__slug=collection_slug, slug=layer_slug)
+    return render(request, "maps/map_detail.html", {"layer": layer})
+
 
 def map_layers_view(request):
     """Return all map layers organized by collections in a single object"""

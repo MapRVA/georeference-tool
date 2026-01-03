@@ -72,6 +72,7 @@ export default defineConfig({
           __dirname,
           "./assets/js/components/bulk_selection.js",
         ),
+        map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.js"),
       },
       output: {
         entryFileNames: `js/[name]-bundle.js`,
