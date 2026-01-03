@@ -16,10 +16,10 @@ from ..utils import render_markdown_safe
 
 def apply_image_filters(request, queryset):
     """
-    Apply standard filters from georeference_filter.html to a queryset.
+    Apply standard filters from filter_cards.html to a queryset.
 
     This is a unified helper function used across all views that include
-    the georeference_filter.html partial.
+    the filter_cards.html partial.
 
     Supports:
     - georeference_status: georeferenced, pending, will_not_georef
@@ -684,7 +684,7 @@ def browse_aerials(request):
         .prefetch_related("subjects")
     )
 
-    # Apply standard filters from georeference_filter.html
+    # Apply standard filters from filter_cards.html
     aerials = apply_image_filters(request, aerials)
 
     # Check for location filtering

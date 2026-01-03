@@ -16,6 +16,10 @@
 
 {% block extra_css %}
 <style>
+    #source-map {
+        width: 100%;
+        height: 40vh;
+    }
     .progress {
         border-radius: 3px;
     }
@@ -111,7 +115,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='60vh' zoom_to_contents=True %}
+                    {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' zoom_to_contents=True %}
                 </div>
             </div>
         {% endif %}
@@ -153,7 +157,7 @@
                             </div>
 
                             {% if collection.total_images > 0 %}
-                                <div class="progress mb-3" style="height: 6px;">
+                                <div class="progress mb-3" style="height: 0.5em;">
                                     {% widthratio collection.georeferenced_images collection.total_images 100 as collection_completion_percent %}
                                     <div class="progress-bar bg-success"
                                          style="width: {{ collection_completion_percent }}%"

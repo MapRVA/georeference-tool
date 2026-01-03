@@ -1,6 +1,6 @@
 import maplibregl from "maplibre-gl";
 
-// Import bulk selection component (used in georeference_filter.html)
+// Import bulk selection component (used in filter_cards.html)
 import { bulkSelection } from "../components/bulk_selection.js";
 
 // Register the bulk selection component with Alpine

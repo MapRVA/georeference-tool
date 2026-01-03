@@ -1,41 +1,41 @@
 /* Markdown Content Rendering Styles */
 
 .markdown-content {
-  line-height: 1.6;
+    line-height: 1.6;
 }
 
 .markdown-content p {
-  margin-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
 }
 
 .markdown-content p:last-child {
-  margin-bottom: 0;
+    margin-bottom: 0;
 }
 
 .markdown-content ul,
 .markdown-content ol {
-  margin-bottom: 0.75rem;
-  padding-left: 2rem;
+    margin-bottom: 0.75rem;
+    padding-left: 2rem;
 }
 
 .markdown-content li {
-  margin-bottom: 0.25rem;
+    margin-bottom: 0.25rem;
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #dee2e6;
-  padding-left: 1rem;
-  margin-left: 0;
-  margin-bottom: 0.75rem;
-  color: #6c757d;
-  font-style: italic;
+    border-left: 4px solid #dee2e6;
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-bottom: 0.75rem;
+    color: #6c757d;
+    font-style: italic;
 }
 
 .markdown-content a {
-  color: #0d6efd;
-  text-decoration: none;
+    color: #0d6efd;
+    text-decoration: none;
 }
 
 .markdown-content a:hover {
-  text-decoration: underline;
+    text-decoration: underline;
 }

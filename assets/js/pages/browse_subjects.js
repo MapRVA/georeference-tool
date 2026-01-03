@@ -1,4 +1,7 @@
 import "../../styles/pages/browse-subjects.css";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+import maplibregl from "maplibre-gl";
 
 document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");

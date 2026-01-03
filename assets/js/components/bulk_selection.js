@@ -1,5 +1,5 @@
 /**
- * Bulk Selection Component for Image Grids
+ * Bulk Selection Component
  *
  * This Alpine.js component provides bulk selection and action capabilities
  * for image grids across the application.
@@ -17,7 +17,8 @@
  * 4. Ensure image cards have data-image-id attribute
  */
 
-// Import autocomplete styles
+// Import autocomplete
+import autoComplete from "@tarekraafat/autocomplete.js";
 import "../../styles/components/autocomplete.css";
 
 /**
@@ -324,6 +325,7 @@ export function bulkSelection() {
               wikidata_id: subject.wikidata_id,
             }),
           });
+
           const result = await response.json();
           results.push({ subject: subject, result: result });
         }
@@ -431,6 +433,7 @@ export function bulkSelection() {
     setupAlbumModeToggle() {
       const existingRadio = document.getElementById("albumModeExisting");
       const newRadio = document.getElementById("albumModeNew");
+      const newAlbumTitleInput = document.getElementById("bulkNewAlbumTitle");
 
       existingRadio.addEventListener("change", () => {
         if (existingRadio.checked) {
@@ -454,6 +457,13 @@ export function bulkSelection() {
           this.updateAddToAlbumButton();
         }
       });
+
+      // Listen for input on the new album title field
+      if (newAlbumTitleInput) {
+        newAlbumTitleInput.addEventListener("input", () => {
+          this.updateAddToAlbumButton();
+        });
+      }
     },
 
     /**
@@ -480,6 +490,7 @@ export function bulkSelection() {
     renderAlbumDropdown() {
       const dropdown = document.getElementById("bulkAlbumDropdown");
       const noAlbumsMessage = document.getElementById("noAlbumsMessage");
+
       dropdown.innerHTML = "";
 
       if (this.userAlbums.length === 0) {
@@ -500,11 +511,13 @@ export function bulkSelection() {
                         ${album.public ? '<i class="fas fa-globe text-muted ms-2" title="Public album"></i>' : '<i class="fas fa-lock text-muted ms-2" title="Private album"></i>'}
                     </button>
                 `;
+
         // Add click handler
         li.querySelector("button").addEventListener("click", (e) => {
           const btn = e.currentTarget;
           this.selectAlbum(btn.dataset.albumId, btn.dataset.albumTitle);
         });
+
         dropdown.appendChild(li);
       });
     },
@@ -523,13 +536,15 @@ export function bulkSelection() {
      */
     updateAddToAlbumButton() {
       const btn = document.getElementById("bulkAddToAlbumBtn");
+      if (!btn) return;
+
       let hasValidSelection = false;
 
       if (this.albumMode === "existing") {
         hasValidSelection = this.selectedAlbum !== null;
       } else {
-        hasValidSelection =
-          document.getElementById("bulkNewAlbumTitle").value.trim() !== "";
+        const titleInput = document.getElementById("bulkNewAlbumTitle");
+        hasValidSelection = titleInput && titleInput.value.trim() !== "";
       }
 
       btn.disabled = !hasValidSelection;
@@ -578,6 +593,7 @@ export function bulkSelection() {
               }),
             },
           );
+
           albumTitle = newAlbumTitle;
         } else if (this.selectedAlbum) {
           // Add to existing album
@@ -592,6 +608,7 @@ export function bulkSelection() {
               image_ids: Array.from(this.selectedImages),
             }),
           });
+
           albumTitle = this.selectedAlbum.title;
         } else {
           throw new Error("Please select an album");
@@ -606,6 +623,7 @@ export function bulkSelection() {
             if (result.total_requested !== result.added_count) {
               message += ` (${result.added_count} of ${result.total_requested} images were new to the album)`;
             }
+
             showAlert("success", message);
 
             // Close modal and reset
@@ -683,6 +701,7 @@ export function showAlert(type, message) {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
+
   document.body.appendChild(alertDiv);
 
   // Auto-dismiss after 5 seconds

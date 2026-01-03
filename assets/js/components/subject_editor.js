@@ -1,0 +1,331 @@
+import autoComplete from "@tarekraafat/autocomplete.js";
+import Sortable from "sortablejs";
+
+import "../../styles/components/autocomplete.css";
+import "../../styles/components/subject-cards.css";
+
+/**
+ * Initialize the subject editor component
+ * Reads configuration from data attributes on #subject-editor element
+ */
+export function initSubjectEditor() {
+  const editorElement = document.getElementById("subject-editor");
+  if (!editorElement) {
+    return;
+  }
+
+  // Prevent double initialization
+  if (editorElement.dataset.initialized === "true") {
+    return;
+  }
+  editorElement.dataset.initialized = "true";
+
+  const isAuthenticated = editorElement.dataset.authenticated === "true";
+  if (!isAuthenticated) {
+    return;
+  }
+
+  const urls = {
+    addSubject: editorElement.dataset.addSubjectUrl,
+    subjectAutocomplete: editorElement.dataset.autocompleteUrl,
+    removeSubjectPattern: editorElement.dataset.removeSubjectUrl,
+    reorderSubjects: editorElement.dataset.reorderUrl,
+  };
+
+  const addBtn = document.getElementById("add-subject-btn");
+  const subjectInput = document.getElementById("subject-autocomplete");
+  const subjectRow = document.getElementById("image-subjects-row");
+
+  // Create the remove subject confirmation modal
+  let removeSubjectModal = document.getElementById("removeSubjectModal");
+  if (!removeSubjectModal) {
+    removeSubjectModal = document.createElement("div");
+    removeSubjectModal.id = "removeSubjectModal";
+    removeSubjectModal.className = "modal fade";
+    removeSubjectModal.tabIndex = -1;
+    removeSubjectModal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Remove Subject</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to remove this subject from the image?</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmRemoveSubjectBtn">
+              <i class="fas fa-times me-1"></i>Remove
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(removeSubjectModal);
+  }
+
+  const bsRemoveModal = new bootstrap.Modal(removeSubjectModal);
+  let pendingRemoval = null;
+
+  function addSubjectByWikidataId(wikidataId) {
+    if (!wikidataId || !wikidataId.match(/^Q\d+$/)) {
+      showAlert(
+        "danger",
+        "Invalid Wikidata ID format. Must be Q followed by numbers (e.g., Q123456)",
+      );
+      return;
+    }
+
+    addBtn.disabled = true;
+    const originalText = addBtn.innerHTML;
+    addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Adding...';
+
+    const csrfToken = document.querySelector(
+      '[name="csrfmiddlewaretoken"]',
+    )?.value;
+
+    fetch(urls.addSubject, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken,
+      },
+      body: JSON.stringify({ wikidata_id: wikidataId }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((err) => {
+            throw new Error(err.error || "Server error");
+          });
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          showAlert("success", data.message);
+          subjectInput.value = "";
+          location.reload();
+        } else {
+          showAlert("danger", data.error);
+        }
+      })
+      .catch((error) => {
+        showAlert("danger", `Error adding subject: ${error.message}`);
+      })
+      .finally(() => {
+        addBtn.disabled = false;
+        addBtn.innerHTML = originalText;
+      });
+  }
+
+  // Add button click handler
+  if (addBtn) {
+    addBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      const inputValue = subjectInput.value.trim();
+      if (inputValue.match(/^Q\d+$/)) {
+        addSubjectByWikidataId(inputValue);
+      } else {
+        showAlert(
+          "info",
+          "Please select a subject from the suggestions or enter a valid Wikidata ID.",
+        );
+      }
+    });
+  }
+
+  // Initialize autocomplete
+  if (subjectInput) {
+    const subjectAutocomplete = new autoComplete({
+      selector: "#subject-autocomplete",
+      placeHolder: "Search for a subject by name...",
+      data: {
+        src: async (query) => {
+          try {
+            const source = await fetch(
+              `${urls.subjectAutocomplete}?q=${query}`,
+            );
+            const data = await source.json();
+            return data;
+          } catch (error) {
+            return error;
+          }
+        },
+        keys: ["title"],
+        cache: false,
+      },
+      resultItem: {
+        highlight: true,
+        element: (item, data) => {
+          item.style =
+            "display: flex; justify-content: space-between; align-items: center;";
+          let description = data.value.description
+            ? data.value.description.substring(0, 40) + "..."
+            : "";
+          item.innerHTML = `
+            <span style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                ${data.match} <small class="text-muted ms-2">${description}</small>
+            </span>
+            <span style="display: flex; align-items: center; font-size: 13px; font-weight: 100; text-transform: uppercase; color: rgba(0,0,0,.5);">
+                ${data.value.wikidata_id || ""}
+            </span>`;
+        },
+      },
+      threshold: 2,
+      events: {
+        input: {
+          selection: (event) => {
+            const selection = event.detail.selection.value;
+            subjectAutocomplete.input.value = selection.title;
+            if (selection.wikidata_id) {
+              addSubjectByWikidataId(selection.wikidata_id);
+            }
+          },
+        },
+      },
+    });
+  }
+
+  // Remove subject - show modal
+  document.addEventListener("click", function (e) {
+    const removeButton = e.target.closest(".remove-subject");
+    if (!removeButton) return;
+
+    const subjectRelationId = removeButton.dataset.subjectRelationId;
+    const cardWrapper = removeButton.closest(".subject-card-wrapper");
+
+    if (!subjectRelationId) return;
+
+    // Store pending removal info and show modal
+    pendingRemoval = {
+      subjectRelationId,
+      cardWrapper,
+      removeButton,
+      originalIcon: removeButton.innerHTML,
+    };
+    bsRemoveModal.show();
+  });
+
+  // Confirm remove subject
+  document
+    .getElementById("confirmRemoveSubjectBtn")
+    .addEventListener("click", function () {
+      if (!pendingRemoval) return;
+
+      const { subjectRelationId, cardWrapper, removeButton, originalIcon } =
+        pendingRemoval;
+
+      bsRemoveModal.hide();
+
+      removeButton.disabled = true;
+      removeButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      const csrfToken = document.querySelector(
+        '[name="csrfmiddlewaretoken"]',
+      )?.value;
+      const url = urls.removeSubjectPattern.replace(
+        "/0/",
+        `/${subjectRelationId}/`,
+      );
+
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+        },
+      })
+        .then((response) => {
+          if (!response.ok) {
+            return response
+              .json()
+              .catch(() => null)
+              .then((errorData) => {
+                throw new Error(errorData?.error || response.statusText);
+              });
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data.success) {
+            showAlert("success", data.message);
+            if (cardWrapper) {
+              cardWrapper.style.transition =
+                "opacity 0.3s ease-out, transform 0.3s ease-out";
+              cardWrapper.style.opacity = "0";
+              cardWrapper.style.transform = "scale(0.9)";
+              setTimeout(() => {
+                cardWrapper.remove();
+                const subjectRow =
+                  document.getElementById("image-subjects-row");
+                if (subjectRow && subjectRow.children.length === 0) {
+                  location.reload();
+                }
+              }, 300);
+            }
+          } else {
+            showAlert("danger", data.error || "An unknown error occurred.");
+            removeButton.disabled = false;
+            removeButton.innerHTML = originalIcon;
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          showAlert("danger", `Error removing subject: ${error.message}`);
+          removeButton.disabled = false;
+          removeButton.innerHTML = originalIcon;
+        })
+        .finally(() => {
+          pendingRemoval = null;
+        });
+    });
+
+  // Clear pending removal when modal is hidden
+  removeSubjectModal.addEventListener("hidden.bs.modal", function () {
+    pendingRemoval = null;
+  });
+
+  // Initialize sortable for drag-and-drop reordering
+  if (subjectRow) {
+    new Sortable(subjectRow, {
+      animation: 150,
+      handle: ".drag-handle",
+      filter: ".remove-subject",
+      preventOnFilter: true,
+      onEnd: function () {
+        const subjectCards = subjectRow.querySelectorAll(".subject-card");
+        const newOrder = Array.from(subjectCards).map(
+          (card) => card.dataset.subjectRelationId,
+        );
+
+        const csrfToken = document.querySelector(
+          '[name="csrfmiddlewaretoken"]',
+        ).value;
+
+        fetch(urls.reorderSubjects, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({ order: newOrder }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              showAlert("success", "Subject order updated.");
+            } else {
+              showAlert("danger", "Error updating order: " + data.error);
+            }
+          })
+          .catch((error) => {
+            showAlert(
+              "danger",
+              "An unexpected error occurred while reordering.",
+            );
+            console.error("Error:", error);
+          });
+      },
+    });
+  }
+}

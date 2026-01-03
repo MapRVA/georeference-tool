@@ -1,7 +1,8 @@
 <!-- Bulk Actions UI Component -->
 <!-- This component provides bulk selection and actions UI for image grids -->
-<!-- Requires: Alpine.js, Bootstrap 5, autoComplete.js -->
+<!-- Requires: Alpine.js, Bootstrap 5 -->
 <!-- Expects: window.filterConfig with URLs for bulk operations -->
+<!-- Note: bulk_selection.js must be loaded via Vite -->
 
 {% csrf_token %}
 <div class="col-12 mb-3" x-data="bulkSelection()">
@@ -197,18 +198,3 @@
         position: relative;
     }
 </style>
-
-<!-- Bulk Actions Scripts -->
-<!-- Note: This file expects bulk_selection.js to be loaded separately -->
-<!-- Also requires autoComplete.js for subject search in modals -->
-
-<!-- Handle new album title input for enabling/disabling button -->
-<script>
-document.addEventListener('input', function(e) {
-    if (e.target.id === 'bulkNewAlbumTitle') {
-        if (window.bulkSelectionInstance) {
-            window.bulkSelectionInstance.updateAddToAlbumButton();
-        }
-    }
-});
-</script>

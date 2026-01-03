@@ -1,20 +1,18 @@
 // Import dependencies
 import PhotoSwipe from "photoswipe";
 import PhotoSwipeLightbox from "photoswipe/lightbox";
-import autoComplete from "@tarekraafat/autocomplete.js";
-import Sortable from "sortablejs";
 
 // Import vendor CSS
 import "photoswipe/style.css";
-import "@tarekraafat/autocomplete.js/dist/css/autoComplete.css";
 
 // Import our custom styles
 import "../../styles/main.css";
 import "../../styles/components/rating-stars.css";
 import "../../styles/components/timeline.css";
-import "../../styles/components/autocomplete.css";
-import "../../styles/components/subject-cards.css";
 import "../../styles/pages/image-detail.css";
+
+// Import components
+import { initSubjectEditor } from "../components/subject_editor.js";
 
 // Utility function for difficulty badge colors
 function getBootstrapColor(difficulty) {
@@ -625,207 +623,6 @@ document.addEventListener("DOMContentLoaded", function () {
     };
   }
 
-  // Subject management functionality (logged-in users only)
-  console.log("User is authenticated:", isAuthenticated);
-
-  if (isAuthenticated) {
-    const addBtn = document.getElementById("add-subject-btn");
-    const subjectInput = document.getElementById("subject-autocomplete");
-
-    function addSubjectByWikidataId(wikidataId) {
-      if (!wikidataId || !wikidataId.match(/^Q\d+$/)) {
-        showAlert(
-          "danger",
-          "Invalid Wikidata ID format. Must be Q followed by numbers (e.g., Q123456)",
-        );
-        return;
-      }
-
-      addBtn.disabled = true;
-      const originalText = addBtn.innerHTML;
-      addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Adding...';
-
-      const csrfToken = document.querySelector(
-        '[name="csrfmiddlewaretoken"]',
-      )?.value;
-
-      fetch(config.urls.addSubject, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        body: JSON.stringify({ wikidata_id: wikidataId }),
-      })
-        .then((response) => {
-          if (!response.ok) {
-            return response.json().then((err) => {
-              throw new Error(err.error || "Server error");
-            });
-          }
-          return response.json();
-        })
-        .then((data) => {
-          if (data.success) {
-            showAlert("success", data.message);
-            subjectInput.value = "";
-            location.reload(); // Reload to see the new subject
-          } else {
-            showAlert("danger", data.error);
-          }
-        })
-        .catch((error) => {
-          showAlert("danger", `Error adding subject: ${error.message}`);
-        })
-        .finally(() => {
-          addBtn.disabled = false;
-          addBtn.innerHTML = originalText;
-        });
-    }
-
-    if (addBtn) {
-      addBtn.addEventListener("click", function (e) {
-        e.preventDefault();
-        const inputValue = subjectInput.value.trim();
-        if (inputValue.match(/^Q\d+$/)) {
-          addSubjectByWikidataId(inputValue);
-        } else {
-          showAlert(
-            "info",
-            "Please select a subject from the suggestions or enter a valid Wikidata ID.",
-          );
-        }
-      });
-    }
-
-    // Init Autocomplete
-    const subjectAutocomplete = new autoComplete({
-      selector: "#subject-autocomplete",
-      placeHolder: "Search for a subject by name...",
-      data: {
-        src: async (query) => {
-          try {
-            const source = await fetch(
-              `${config.urls.subjectAutocomplete}?q=${query}`,
-            );
-            const data = await source.json();
-            return data;
-          } catch (error) {
-            return error;
-          }
-        },
-        keys: ["title"],
-        cache: false,
-      },
-      resultItem: {
-        highlight: true,
-        element: (item, data) => {
-          item.style =
-            "display: flex; justify-content: space-between; align-items: center;";
-          let description = data.value.description
-            ? data.value.description.substring(0, 40) + "..."
-            : "";
-          item.innerHTML = `
-                    <span style=\"text-overflow: ellipsis; white-space: nowrap; overflow: hidden;\">
-                        ${data.match} <small class=\"text-muted ms-2\">${description}</small>
-                    </span>
-                    <span style=\"display: flex; align-items: center; font-size: 13px; font-weight: 100; text-transform: uppercase; color: rgba(0,0,0,.5);\">
-                        ${data.value.wikidata_id || ""}
-                    </span>`;
-        },
-      },
-      threshold: 2,
-      events: {
-        input: {
-          selection: (event) => {
-            const selection = event.detail.selection.value;
-            subjectAutocomplete.input.value = selection.title;
-            if (selection.wikidata_id) {
-              addSubjectByWikidataId(selection.wikidata_id);
-            }
-          },
-        },
-      },
-    });
-
-    document.addEventListener("click", function (e) {
-      const removeButton = e.target.closest(".remove-subject");
-      if (removeButton) {
-        const subjectRelationId = removeButton.dataset.subjectRelationId;
-        const cardWrapper = removeButton.closest(".subject-card-wrapper");
-
-        if (!subjectRelationId) return;
-
-        if (
-          !confirm(
-            "Are you sure you want to remove this subject from the image?",
-          )
-        ) {
-          return;
-        }
-
-        removeButton.disabled = true;
-        const originalIcon = removeButton.innerHTML;
-        removeButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        const csrfToken = document.querySelector(
-          '[name="csrfmiddlewaretoken"]',
-        )?.value;
-        const url = config.urls.removeSubjectPattern.replace(
-          "/0/",
-          `/${subjectRelationId}/`,
-        );
-
-        fetch(url, {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": csrfToken,
-          },
-        })
-          .then((response) => {
-            if (!response.ok) {
-              return response
-                .json()
-                .catch(() => null)
-                .then((errorData) => {
-                  throw new Error(errorData?.error || response.statusText);
-                });
-            }
-            return response.json();
-          })
-          .then((data) => {
-            if (data.success) {
-              showAlert("success", data.message);
-              if (cardWrapper) {
-                cardWrapper.style.transition =
-                  "opacity 0.3s ease-out, transform 0.3s ease-out";
-                cardWrapper.style.opacity = "0";
-                cardWrapper.style.transform = "scale(0.9)";
-                setTimeout(() => {
-                  cardWrapper.remove();
-                  const subjectRow =
-                    document.getElementById("image-subjects-row");
-                  if (subjectRow && subjectRow.children.length === 0) {
-                    location.reload();
-                  }
-                }, 300);
-              }
-            } else {
-              showAlert("danger", data.error || "An unknown error occurred.");
-              removeButton.disabled = false;
-              removeButton.innerHTML = originalIcon;
-            }
-          })
-          .catch((error) => {
-            console.error("Error:", error);
-            showAlert("danger", `Error removing subject: ${error.message}`);
-            removeButton.disabled = false;
-            removeButton.innerHTML = originalIcon;
-          });
-      }
-    });
-  }
-
   // Album dropdown functionality for image detail page
   if (isAuthenticated) {
     const createAlbumModal = document.getElementById("createAlbumModal");
@@ -1026,68 +823,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Sortable subjects (logged-in users only)
-  if (isAuthenticated) {
-    const subjectRow = document.querySelector("#image-subjects-row");
-    if (subjectRow) {
-      const sortable = new Sortable(subjectRow, {
-        animation: 150,
-        handle: ".drag-handle",
-        filter: ".remove-subject", // Clicks on remove button should not start a drag
-        preventOnFilter: true,
-        onEnd: function (evt) {
-          const subjectCards = subjectRow.querySelectorAll(".subject-card");
-          const newOrder = Array.from(subjectCards).map(
-            (card) => card.dataset.subjectRelationId,
-          );
-
-          const csrfToken = document.querySelector(
-            '[name="csrfmiddlewaretoken"]',
-          ).value;
-
-          fetch(config.urls.reorderSubjects, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": csrfToken,
-            },
-            body: JSON.stringify({ order: newOrder }),
-          })
-            .then((response) => response.json())
-            .then((data) => {
-              if (data.success) {
-                showAlert("success", "Subject order updated.");
-              } else {
-                showAlert("danger", "Error updating order: " + data.error);
-                // Revert the drag visually on failure
-                sortable.sort(
-                  newOrder
-                    .map((id, index) => ({ id, index }))
-                    .sort(
-                      (a, b) => evt.oldDraggableIndex - evt.newDraggableIndex,
-                    )
-                    .map((item) => item.id),
-                );
-              }
-            })
-            .catch((error) => {
-              showAlert(
-                "danger",
-                "An unexpected error occurred while reordering.",
-              );
-              console.error("Error:", error);
-              // Revert the drag visually on failure
-              sortable.sort(
-                newOrder
-                  .map((id, index) => ({ id, index }))
-                  .sort((a, b) => evt.oldDraggableIndex - evt.newDraggableIndex)
-                  .map((item) => item.id),
-              );
-            });
-        },
-      });
-    }
-  }
+  // Initialize subject editor component
+  initSubjectEditor();
 
   // Rating functionality - Cleaner implementation
   let ratingEventsSetup = false;

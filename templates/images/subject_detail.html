@@ -18,7 +18,7 @@
 {% block extra_js %}
 {% load static %}
 <script>
-    // Configuration object for georeference_filter.html bulk operations
+    // Configuration object for filter_cards.html bulk operations
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
@@ -145,8 +145,8 @@
             </div>
         {% endif %}
 
-        <!-- Georeference Status Filter -->
-        {% include 'images/partials/georeference_filter.html' %}
+        <!-- Image Card Filters -->
+        {% include 'images/partials/filter_cards.html' %}
 
         <!-- Images Grid -->
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -173,8 +173,6 @@
 {% endblock %}
 
 {% block extra_css %}
-<link href='https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.7.1/maplibre-gl.css' rel='stylesheet' />
-
 <style>
     #subject-map {
         width: 100%;

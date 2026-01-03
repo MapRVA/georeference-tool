@@ -1,140 +1,140 @@
 /* Rating Stars Component Styles */
 
 .rating-stars-display {
-  display: inline-flex;
-  gap: 0.25rem;
-  align-items: center;
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
 }
 
 .rating-stars-input {
-  display: inline-flex;
-  align-items: baseline;
-  vertical-align: baseline;
-  line-height: 1;
+    display: inline-flex;
+    align-items: baseline;
+    vertical-align: baseline;
+    line-height: 1;
 }
 
 .rating-star {
-  font-size: 1.5rem;
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease;
-  position: relative;
-  display: inline-block;
-  padding: 0.125rem;
-  margin: -0.125rem;
+    font-size: 1.5rem;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease;
+    position: relative;
+    display: inline-block;
+    padding: 0.125rem;
+    margin: -0.125rem;
 }
 
 .rating-star.filled {
-  color: #ffc107;
+    color: #ffc107;
 }
 
 .rating-star.empty {
-  color: #ddd;
+    color: #ddd;
 }
 
 .rating-star.hover-active {
-  color: #ffc107 !important;
+    color: #ffc107 !important;
 }
 
 .rating-star.hover-inactive {
-  color: #ddd !important;
+    color: #ddd !important;
 }
 
 /* User rating stars */
 .user-rating-star {
-  font-size: 1.2rem;
-  display: inline-block;
-  margin-right: 0.25rem;
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease;
+    font-size: 1.2rem;
+    display: inline-block;
+    margin-right: 0.25rem;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease;
 }
 
 .user-rating-star.filled {
-  color: #ffc107;
+    color: #ffc107;
 }
 
 .user-rating-star.empty {
-  color: #ddd;
+    color: #ddd;
 }
 
 .user-rating-star.hover-active {
-  color: #ffc107 !important;
+    color: #ffc107 !important;
 }
 
 .user-rating-star.hover-inactive {
-  color: #ddd !important;
+    color: #ddd !important;
 }
 
 /* User fractional stars */
 .rating-stars-input .star-fractional {
-  position: relative;
-  display: inline-block;
-  font-size: 1.2rem;
-  margin-right: 0.25rem;
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-  height: 1.2rem;
+    position: relative;
+    display: inline-block;
+    font-size: 1.2rem;
+    margin-right: 0.25rem;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    height: 1.2rem;
 }
 
 /* Average rating display stars */
 .avg-rating-star {
-  font-size: 1.2rem;
-  display: inline-block;
-  margin-right: 0.25rem;
+    font-size: 1.2rem;
+    display: inline-block;
+    margin-right: 0.25rem;
 }
 
 .avg-rating-star.filled {
-  color: #ffc107;
+    color: #ffc107;
 }
 
 .avg-rating-star.empty {
-  color: #ddd;
+    color: #ddd;
 }
 
 /* Fractional star display */
 .star-fractional {
-  position: relative;
-  display: inline-block;
-  font-size: 1.2rem;
-  margin-right: 0.25rem;
+    position: relative;
+    display: inline-block;
+    font-size: 1.2rem;
+    margin-right: 0.25rem;
 }
 
 .star-fractional .star-bg {
-  color: #ddd;
-  position: relative;
+    color: #ddd;
+    position: relative;
 }
 
 .star-fractional .star-fill-container {
-  position: absolute;
-  left: 0;
-  top: 0;
-  overflow: hidden;
-  white-space: nowrap;
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .star-fractional .star-fill {
-  color: #ffc107;
+    color: #ffc107;
 }
 
 /* Clear rating button */
 .clear-rating-btn {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  margin-left: 0.5rem;
-  border: 1px solid #dc3545;
-  background: transparent;
-  color: #dc3545;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-left: 0.5rem;
+    border: 1px solid #dc3545;
+    background: transparent;
+    color: #dc3545;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
 
 .clear-rating-btn:hover {
-  background: #dc3545;
-  color: white;
+    background: #dc3545;
+    color: white;
 }

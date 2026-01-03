@@ -1,7 +1,9 @@
 import Alpine from "alpinejs";
 
-// Import Bootstrap CSS and JS
-import "bootstrap/dist/css/bootstrap.min.css";
+// Import our custom styles (includes Bootstrap via Sass)
+import "./scss/styles.scss";
+
+// Import Bootstrap JS
 import * as bootstrap from "bootstrap";
 
 // Import global component styles

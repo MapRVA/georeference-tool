@@ -1,3 +1,5 @@
+import "../../styles/pages/collection-detail.css";
+
 // Import bulk selection component and showAlert helper
 import { showAlert, bulkSelection } from "../components/bulk_selection.js";
 

@@ -9,11 +9,6 @@
     {% vite_hmr_client %}
 
     {% block opengraph %}{% endblock %}
-    <!-- Preconnect to CDN origins to reduce DNS/TLS overhead -->
-    <link rel="preconnect" href="https://unpkg.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-
-
     <!-- Dark mode detection script (must run before content renders) -->
     <script>
         // Detect user's color scheme preference and apply dark mode if requested
