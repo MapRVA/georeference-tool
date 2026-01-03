@@ -1,11 +1,17 @@
-import Alpine from 'alpinejs'
+import Alpine from "alpinejs";
 
 // Import Bootstrap CSS and JS
-import 'bootstrap/dist/css/bootstrap.min.css'
-import * as bootstrap from 'bootstrap'
+import "bootstrap/dist/css/bootstrap.min.css";
+import * as bootstrap from "bootstrap";
+
+// Import global component styles
+import "./styles/components/image-cards.css";
+
+// Import global utilities
+import "./js/components/notifications.js";
 
 // Import Font Awesome core
-import { library, dom } from '@fortawesome/fontawesome-svg-core'
+import { library, dom } from "@fortawesome/fontawesome-svg-core";
 
 // Import only the specific icons we use (much smaller bundle)
 import {
@@ -79,8 +85,8 @@ import {
   faUser,
   faUserCheck,
   faUserCircle,
-  faUsers
-} from '@fortawesome/free-solid-svg-icons'
+  faUsers,
+} from "@fortawesome/free-solid-svg-icons";
 
 // Add all icons to the library
 library.add(
@@ -154,20 +160,20 @@ library.add(
   faUser,
   faUserCheck,
   faUserCircle,
-  faUsers
-)
+  faUsers,
+);
 
 // Replace any existing <i> tags with <svg> and set up a MutationObserver to
 // continue doing this as the DOM changes.
-dom.watch()
+dom.watch();
 
 // Make Bootstrap globally available
-window.bootstrap = bootstrap
+window.bootstrap = bootstrap;
 
 // Make Alpine globally available
-window.Alpine = Alpine
+window.Alpine = Alpine;
 
 // Start Alpine
-Alpine.start()
+Alpine.start();
 
-console.log('Vite bundle loaded with Alpine.js, Bootstrap, and Font Awesome')
+console.log("Vite bundle loaded with Alpine.js, Bootstrap, and Font Awesome");

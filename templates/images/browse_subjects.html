@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load django_vite %}
 
 {% block title %}Browse Subjects – Yesterdays{% endblock %}
 
@@ -14,11 +14,20 @@
 	{% endif %}
 {% endblock %}
 
+
 {% block extra_css %}
 <link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.7.1/maplibre-gl.css" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.7.1/maplibre-gl.js"></script>
-<link rel="stylesheet" href="{% static 'css/browse-subjects.css' %}">
 {% endblock %}
+
+
+{% block extra_js %}
+<script>
+    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
+</script>
+{% vite_asset 'assets/js/pages/browse_subjects.js' %}
+{% endblock %}
+
 
 {% block content %}
 <div class="row">
@@ -152,10 +161,4 @@
         {% endif %}
     </div>
 </div>
-
-{% load static %}
-<script>
-    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
-</script>
-<script src="{% static 'js/pages/browse_subjects.js' %}"></script>
 {% endblock %}

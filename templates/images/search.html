@@ -1,31 +1,10 @@
 {% extends "base.html" %}
+{% load django_vite %}
 
 {% block title %}Search – Yesterdays{% endblock %}
 
 {% block extra_css %}
 <style>
-    .image-placeholder {
-        border-radius: 0.375rem 0.375rem 0 0;
-    }
-
-    .badge {
-        font-size: 0.65rem;
-    }
-
-    .card-footer {
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
-    }
-
-    .loading {
-        display: none;
-    }
-
-    .search-stats {
-        color: #6c757d;
-        font-size: 0.9em;
-    }
-
     .advanced-toggle .fa-chevron-down {
         transition: transform 0.3s ease;
     }
@@ -33,30 +12,29 @@
     .advanced-toggle[aria-expanded="true"] .fa-chevron-down {
         transform: rotate(180deg);
     }
-
-    .autoComplete_wrapper > ul {
-        border: 1px solid var(--bs-border-color);
-        border-radius: var(--bs-border-radius);
-        background-color: var(--bs-body-bg);
-        margin-top: 0.25rem;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-        position: absolute;
-        z-index: 1000;
-        width: 100%;
-    }
-    .autoComplete_wrapper > ul > li {
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-    }
-    .autoComplete_wrapper > ul > li:hover {
-        background-color: #e9ecef;
-    }
-    .autoComplete_wrapper > ul > li[aria-selected="true"] {
-        background-color: #0d6efd;
-        color: white;
-    }
 </style>
 {% endblock %}
+
+
+{% block extra_js %}
+{% if clip_available %}
+<script>
+    // Configuration object for bulk operations
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "images:subject_autocomplete" %}',
+            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        }
+    };
+</script>
+{% endif %}
+{% vite_asset 'assets/js/pages/search.js' %}
+{% endblock %}
+
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -259,7 +237,7 @@
             <!-- End Search Form -->
 
             <!-- Loading indicator -->
-            <div class="text-center loading" id="loadingIndicator">
+            <div class="text-center d-none" id="loadingIndicator">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Searching...</span>
                 </div>
@@ -280,27 +258,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tarekraafat-autocomplete.js/10.2.7/autoComplete.min.js"></script>
-
-{% if clip_available %}
-{% load static %}
-<script>
-    // Configuration object for bulk operations
-    window.filterConfig = {
-        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
-        urls: {
-            subjectsApi: '{% url "images:subject_autocomplete" %}',
-            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
-            userAlbumsApi: '{% url "images:user_albums_api" %}',
-            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
-        }
-    };
-</script>
-<script src="{% static 'js/components/bulk_selection.js' %}"></script>
-<script src="{% static 'js/pages/search.js' %}"></script>
-{% endif %}
 {% endblock %}

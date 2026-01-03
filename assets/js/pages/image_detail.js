@@ -1,3 +1,21 @@
+// Import dependencies
+import PhotoSwipe from "photoswipe";
+import PhotoSwipeLightbox from "photoswipe/lightbox";
+import autoComplete from "@tarekraafat/autocomplete.js";
+import Sortable from "sortablejs";
+
+// Import vendor CSS
+import "photoswipe/style.css";
+import "@tarekraafat/autocomplete.js/dist/css/autoComplete.css";
+
+// Import our custom styles
+import "../../styles/main.css";
+import "../../styles/components/rating-stars.css";
+import "../../styles/components/timeline.css";
+import "../../styles/components/autocomplete.css";
+import "../../styles/components/subject-cards.css";
+import "../../styles/pages/image-detail.css";
+
 // Utility function for difficulty badge colors
 function getBootstrapColor(difficulty) {
   const colors = { easy: "success", medium: "warning", hard: "danger" };

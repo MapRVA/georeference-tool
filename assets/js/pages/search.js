@@ -1,3 +1,14 @@
+import autoComplete from "@tarekraafat/autocomplete.js";
+import "../../styles/components/autocomplete.css";
+
+// Import bulk selection component (used in bulk_actions_ui.html)
+import { bulkSelection } from "../components/bulk_selection.js";
+
+// Register the bulk selection component with Alpine
+if (window.Alpine) {
+  window.Alpine.data("bulkSelection", bulkSelection);
+}
+
 document.addEventListener("DOMContentLoaded", async function () {
   // Fetch all subjects from the API
   let allSubjects = [];

@@ -1,3 +1,13 @@
+import maplibregl from "maplibre-gl";
+
+// Import bulk selection component (used in georeference_filter.html)
+import { bulkSelection } from "../components/bulk_selection.js";
+
+// Register the bulk selection component with Alpine
+if (window.Alpine) {
+  window.Alpine.data("bulkSelection", bulkSelection);
+}
+
 function aerialsPage() {
   return {
     // Map and data state
@@ -458,4 +468,9 @@ function aerialsPage() {
 
     // Computed properties
   };
+}
+
+// Make aerialsPage available globally for Alpine
+if (typeof window !== "undefined") {
+  window.aerialsPage = aerialsPage;
 }

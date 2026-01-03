@@ -13,7 +13,7 @@ Usage:
 {% endcomment %}
 
 <!-- Load bundled map display module (includes all CSS) -->
-{% vite_asset 'assets/javascript/map_display.js' %}
+{% vite_asset 'assets/js/components/map_display.js' %}
 
 <div id="{{ map_id|default:'map-display' }}" style="height: {{ height|default:'300px' }}; width: 100%; border-radius: {{ border_radius|default:'8px' }};"></div>
 

@@ -13,6 +13,20 @@
 	{% endif %}
 {% endblock %}
 
+
+{% block extra_css %}
+<style>
+    .progress {
+        border-radius: 3px;
+    }
+    .breadcrumb {
+        background: none;
+        padding: 0;
+    }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -187,19 +201,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    .progress {
-        border-radius: 3px;
-    }
-    .breadcrumb {
-        background: none;
-        padding: 0;
-    }
-</style>
-{% endblock %}
-
-{% block extra_js %}
 {% endblock %}

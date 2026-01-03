@@ -1,8 +1,23 @@
 import { defineConfig } from "vite";
 import path from "path";
+import { viteStaticCopy } from "vite-plugin-static-copy";
 
 export default defineConfig({
   base: "/static/",
+  plugins: [
+    viteStaticCopy({
+      targets: [
+        {
+          src: "assets/admin",
+          dest: ".",
+        },
+        {
+          src: "assets/images",
+          dest: ".",
+        },
+      ],
+    }),
+  ],
   build: {
     outDir: path.resolve(__dirname, "./static"),
     emptyOutDir: false,
@@ -12,12 +27,26 @@ export default defineConfig({
         index: path.resolve(__dirname, "./assets/index.js"),
         image_detail: path.resolve(
           __dirname,
-          "./assets/javascript/image_detail.js",
+          "./assets/js/pages/image_detail.js",
         ),
         map_display: path.resolve(
           __dirname,
-          "./assets/javascript/map_display.js",
+          "./assets/js/components/map_display.js",
         ),
+        album_detail: path.resolve(
+          __dirname,
+          "./assets/js/pages/album_detail.js",
+        ),
+        collection_detail: path.resolve(
+          __dirname,
+          "./assets/js/pages/collection_detail.js",
+        ),
+        search: path.resolve(__dirname, "./assets/js/pages/search.js"),
+        browse_subjects: path.resolve(
+          __dirname,
+          "./assets/js/pages/browse_subjects.js",
+        ),
+        map_display: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
       },
       output: {
         entryFileNames: `js/[name]-bundle.js`,

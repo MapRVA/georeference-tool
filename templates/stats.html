@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load django_vite %}
 
 {% block title %}Statistics - {{ block.super }}{% endblock %}
 
@@ -11,6 +12,18 @@
     }
 </style>
 {% endblock %}
+
+
+{% block extra_js %}
+<div id="chart-data"
+     data-daily-labels='{{ daily_labels|safe }}'
+     data-daily-counts='{{ daily_counts|safe }}'
+     data-status-labels='{{ status_labels|safe }}'
+     data-status-counts='{{ status_counts|safe }}'
+     style="display: none;"></div>
+{% vite_asset 'assets/js/pages/stats.js' %}
+{% endblock %}
+
 
 {% block content %}
 <div class="container">
@@ -112,108 +125,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Daily Georeferences Chart
-        const dailyCtx = document.getElementById('dailyGeoreferencesChart').getContext('2d');
-
-        // Convert labels and counts to data points with x (date) and y (count) values
-        const labels = {{ daily_labels|safe }};
-        const counts = {{ daily_counts|safe }};
-        const dataPoints = labels.map((label, index) => ({
-            x: label,
-            y: counts[index]
-        }));
-
-        new Chart(dailyCtx, {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Cumulative Georeferences',
-                    data: dataPoints,
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    fill: true,
-                    tension: 0.1,
-                    pointRadius: 0,
-                    pointHoverRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day',
-                            displayFormats: {
-                                day: 'MMM d, yyyy'
-                            },
-                            tooltipFormat: 'PPP'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Date'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Cumulative Georeferences'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Image Status Pie Chart
-        const statusCtx = document.getElementById('imageStatusChart').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'pie',
-            data: {
-                labels: {{ status_labels|safe }},
-                datasets: [{
-                    label: 'Image Status',
-                    data: {{ status_counts|safe }},
-                    backgroundColor: [
-                        'rgba(108, 117, 125, 0.7)', // Grey
-                        'rgba(255, 99, 132, 0.7)',  // Light Red
-                        'rgba(255, 205, 86, 0.7)', // Yellow
-                        'rgba(75, 192, 192, 0.7)'  // Green
-                    ],
-                    borderColor: [
-                        'rgba(108, 117, 125, 1)',
-                        'rgba(255, 99, 132, 1)',
-                        'rgba(255, 205, 86, 1)',
-                        'rgba(75, 192, 192, 1)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.parsed || 0;
-                                const imageWord = value === 1 ? 'Image' : 'Images';
-                                return ` ${value} ${imageWord}`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    });
-</script>
 {% endblock %}

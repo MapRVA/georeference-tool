@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load django_vite %}
 
 {% block title %}Images Similar to Subject: {{ subject.title }} – Yesterdays{% endblock %}
 
@@ -66,8 +67,7 @@
 {% endblock %}
 
 {% block extra_css %}
-{% load static %}
-<link href="{% static 'css/image-cards.css' %}" rel="stylesheet" />
+
 {% endblock %}
 
 {% block extra_js %}

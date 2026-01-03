@@ -1,4 +1,4 @@
-/* Shared styles for image cards across collection and subject detail pages */
+/* Image card styles */
 
 .image-placeholder {
     border-radius: 0.375rem 0.375rem 0 0;
@@ -29,6 +29,3 @@
     height: 40vh;
     border-radius: 0.375rem;
 }
-```
-
-Now let me update the collection_detail.html template to use the shared partials:

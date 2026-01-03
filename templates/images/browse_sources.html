@@ -13,6 +13,16 @@
 	{% endif %}
 {% endblock %}
 
+
+{% block extra_css %}
+<style>
+    .progress {
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -124,12 +134,4 @@
         {% endif %}
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    .progress {
-        border-radius: 4px;
-    }
-</style>
 {% endblock %}

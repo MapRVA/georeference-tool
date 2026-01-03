@@ -1,3 +1,5 @@
+import "../../styles/pages/album_detail.css";
+
 document.addEventListener("DOMContentLoaded", function () {
   const toggleBtn = document.getElementById("togglePublicBtn");
 

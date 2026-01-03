@@ -1,3 +1,15 @@
+// Import bulk selection component and showAlert helper
+import { showAlert, bulkSelection } from "../components/bulk_selection.js";
+
+// Make showAlert globally available for this module
+window.showAlert = showAlert;
+
+// Register the bulk selection component with Alpine
+// This runs before index.js loads and starts Alpine (see base.html template)
+if (window.Alpine) {
+  window.Alpine.data("bulkSelection", bulkSelection);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   // Get configuration from window object (set by Django template)
   const config = window.collectionDetailConfig;

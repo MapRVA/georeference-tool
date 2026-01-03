@@ -1,3 +1,5 @@
+import "../../styles/pages/browse-subjects.css";
+
 document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
   if (!mapContainer) return; // Exit if no map on this page

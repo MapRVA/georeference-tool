@@ -1,6 +1,27 @@
 {% extends 'base.html' %}
+{% load django_vite %}
 
 {% block title %}Similar Images to: {{ target_image.title|default:target_image.id }} – Yesterdays{% endblock %}
+
+
+{% block extra_js %}
+{% load static %}
+<script>
+    // Configuration object for filtering functionality
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "images:subject_autocomplete" %}',
+            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        }
+    };
+</script>
+{% vite_asset 'assets/js/components/bulk_selection.js' %}
+{% endblock %}
+
 
 {% block content %}
 <div class="container">
@@ -58,35 +79,10 @@
                     {% include 'images/partials/pagination.html' with url_params="" %}
                 {% endif %}
 
-
-
             {% else %}
                 {% include 'images/partials/empty_images.html' with empty_message="Could not find any images with similar content." empty_icon="fa-search" %}
             {% endif %}
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-{% load static %}
-<link href="{% static 'css/image-cards.css' %}" rel="stylesheet" />
-{% endblock %}
-
-{% block extra_js %}
-{% load static %}
-<script>
-    // Configuration object for filtering functionality
-    window.filterConfig = {
-        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
-        urls: {
-            subjectsApi: '{% url "images:subject_autocomplete" %}',
-            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
-            userAlbumsApi: '{% url "images:user_albums_api" %}',
-            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
-        }
-    };
-</script>
-<script src="{% static 'js/components/bulk_selection.js' %}"></script>
 {% endblock %}

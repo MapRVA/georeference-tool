@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load django_vite %}
 
 {% block title %}{{ subject.title }} – Yesterdays{% endblock %}
 
@@ -12,6 +13,26 @@
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
+
+
+{% block extra_js %}
+{% load static %}
+<script>
+    // Configuration object for georeference_filter.html bulk operations
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "images:subject_autocomplete" %}',
+            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        }
+    };
+</script>
+{% vite_asset 'assets/js/components/bulk_selection.js' %}
+{% endblock %}
+
 
 {% block content %}
 <div class="row">
@@ -153,8 +174,7 @@
 
 {% block extra_css %}
 <link href='https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.7.1/maplibre-gl.css' rel='stylesheet' />
-{% load static %}
-<link href="{% static 'css/image-cards.css' %}" rel="stylesheet" />
+
 <style>
     #subject-map {
         width: 100%;
@@ -162,22 +182,4 @@
         border-radius: 0.375rem;
     }
 </style>
-{% endblock %}
-
-{% block extra_js %}
-{% load static %}
-<script>
-    // Configuration object for georeference_filter.html bulk operations
-    window.filterConfig = {
-        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
-        urls: {
-            subjectsApi: '{% url "images:subject_autocomplete" %}',
-            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
-            userAlbumsApi: '{% url "images:user_albums_api" %}',
-            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
-        }
-    };
-</script>
-<script src="{% static 'js/components/bulk_selection.js' %}"></script>
 {% endblock %}

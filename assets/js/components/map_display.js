@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
-import "../styles/components/map_display.css";
+import "../../styles/components/map_display.css";
 
 // Make libraries globally available
 window.maplibregl = maplibregl;

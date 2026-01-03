@@ -11,9 +11,56 @@
 	<meta property="og:description" content="Image from {{ image.collection.source.name }}, {{ image.collection.name }}.">
 {% endblock %}
 
-{% block extra_css %}
-{% vite_asset 'assets/javascript/image_detail.js' %}
+
+{% block extra_js %}
+<script>
+    // Configuration object for image_detail.js
+    // This passes Django template variables to the standalone JavaScript file
+    window.imageDetailConfig = {
+        imageId: {{ image.id }},
+        isStaff: {{ user.is_staff|yesno:'true,false' }},
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        isGeoreferenced: {{ image.is_georeferenced|yesno:'true,false' }},
+        isAerial: {{ image.aerial|yesno:'true,false' }},
+        {% if image.is_georeferenced and image.get_georeference %}
+        georeference: {
+            id: {{ image.get_georeference.id }},
+            lat: {{ image.get_georeference.point.y|floatformat:6 }},
+            lng: {{ image.get_georeference.point.x|floatformat:6 }},
+            {% if image.get_georeference.direction is not None %}
+            direction: {{ image.get_georeference.direction }},
+            {% else %}
+            direction: null,
+            {% endif %}
+            validationUrl: '{% url "images:validate_georeference" image.get_georeference.id %}'
+        },
+        {% else %}
+        georeference: null,
+        {% endif %}
+        avgRating: {{ avg_rating|default:'null' }},
+        userRating: {{ user_rating|default:'null' }},
+        ratingCount: {{ rating_count|default:'0' }},
+        urls: {
+            markDifficulty: '{% url "images:mark_difficulty" image.id %}',
+            markScale: '{% url "images:mark_scale" image.id %}',
+            markAerial: '{% url "images:mark_aerial" image.id %}',
+            markWillNotGeoref: '{% url "images:mark_will_not_georef" image.id %}',
+            addSubject: '{% url "images:add_subject_to_image" image.id %}',
+            subjectAutocomplete: '{% url "images:subject_autocomplete" %}',
+            removeSubjectPattern: '{% url "images:remove_subject_from_image" 0 %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            createAlbum: '{% url "images:create_and_add_to_album" %}',
+            addToAlbum: '{% url "images:add_image_to_album" %}',
+            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
+            reorderSubjects: '{% url "images:reorder_subjects" image.id %}',
+            addComment: '/{{ image.id }}/add-comment/',
+            rate: '/{{ image.id }}/rate/'
+        }
+    };
+</script>
+{% vite_asset 'assets/js/pages/image_detail.js' %}
 {% endblock %}
+
 
 {% block content %}
 <div class="row">
@@ -1181,52 +1228,4 @@
     </div>
 </div>
 {% endif %}
-{% endblock %}
-
-{% block extra_js %}
-<script>
-    // Configuration object for image_detail.js
-    // This passes Django template variables to the standalone JavaScript file
-    window.imageDetailConfig = {
-        imageId: {{ image.id }},
-        isStaff: {{ user.is_staff|yesno:'true,false' }},
-        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
-        isGeoreferenced: {{ image.is_georeferenced|yesno:'true,false' }},
-        isAerial: {{ image.aerial|yesno:'true,false' }},
-        {% if image.is_georeferenced and image.get_georeference %}
-        georeference: {
-            id: {{ image.get_georeference.id }},
-            lat: {{ image.get_georeference.point.y|floatformat:6 }},
-            lng: {{ image.get_georeference.point.x|floatformat:6 }},
-            {% if image.get_georeference.direction is not None %}
-            direction: {{ image.get_georeference.direction }},
-            {% else %}
-            direction: null,
-            {% endif %}
-            validationUrl: '{% url "images:validate_georeference" image.get_georeference.id %}'
-        },
-        {% else %}
-        georeference: null,
-        {% endif %}
-        avgRating: {{ avg_rating|default:'null' }},
-        userRating: {{ user_rating|default:'null' }},
-        ratingCount: {{ rating_count|default:'0' }},
-        urls: {
-            markDifficulty: '{% url "images:mark_difficulty" image.id %}',
-            markScale: '{% url "images:mark_scale" image.id %}',
-            markAerial: '{% url "images:mark_aerial" image.id %}',
-            markWillNotGeoref: '{% url "images:mark_will_not_georef" image.id %}',
-            addSubject: '{% url "images:add_subject_to_image" image.id %}',
-            subjectAutocomplete: '{% url "images:subject_autocomplete" %}',
-            removeSubjectPattern: '{% url "images:remove_subject_from_image" 0 %}',
-            userAlbumsApi: '{% url "images:user_albums_api" %}',
-            createAlbum: '{% url "images:create_and_add_to_album" %}',
-            addToAlbum: '{% url "images:add_image_to_album" %}',
-            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
-            reorderSubjects: '{% url "images:reorder_subjects" image.id %}',
-            addComment: '/{{ image.id }}/add-comment/',
-            rate: '/{{ image.id }}/rate/'
-        }
-    };
-</script>
 {% endblock %}
