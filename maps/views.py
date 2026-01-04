@@ -1,13 +1,15 @@
-from django.shortcuts import render, get_object_or_404
-
+from django.db.models import Prefetch
 from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404
 
 from .models import LayerCollection, MapLayer
 
 
 def browse_maps(request):
     """Display all map layers organized by collections."""
-    collections = LayerCollection.objects.prefetch_related("layers").all()
+    collections = LayerCollection.objects.prefetch_related(
+        Prefetch("layers", queryset=MapLayer.objects.order_by("order"))
+    ).order_by("order")
     return render(request, "maps/browse_maps.html", {"collections": collections})
 
 
