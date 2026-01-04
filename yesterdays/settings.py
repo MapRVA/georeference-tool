@@ -166,8 +166,13 @@ else:
     STATIC_ROOT = BASE_DIR / "static"  # Vite outputs here, Whitenoise serves from here
     STATICFILES_DIRS = []  # No additional dirs in production
 
-# Whitenoise configuration for static file serving in production
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Whitenoise configuration
+# In development, use default storage so Vite rebuilds are picked up immediately
+# In production, use CompressedManifestStaticFilesStorage for caching/compression
+if DEBUG:
+    WHITENOISE_AUTOREFRESH = True
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Django Vite configuration
 DJANGO_VITE = {
