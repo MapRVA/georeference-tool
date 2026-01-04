@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django_ratelimit.decorators import ratelimit
 
 from django.core.exceptions import ValidationError
 
@@ -399,6 +400,8 @@ def reorder_subjects(request, image_id):
         )
 
 
+@ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
+@ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 def find_similar_images_to_subject(request, subject_slug):
     """
     Find and display images with embeddings most similar to the centroid
@@ -436,6 +439,16 @@ def find_similar_images_to_subject(request, subject_slug):
         "georeferenced", "all"
     )  # 'all', 'yes', or 'none'
 
+    # Pagination parameters - use SQL-level pagination to avoid memory issues
+    per_page = 24
+    try:
+        page_number = int(request.GET.get("page", 1))
+        if page_number < 1:
+            page_number = 1
+    except (ValueError, TypeError):
+        page_number = 1
+    offset = (page_number - 1) * per_page
+
     try:
         # Calculate the centroid of all subject image embeddings
         subject_embeddings = []
@@ -470,9 +483,26 @@ def find_similar_images_to_subject(request, subject_slug):
             elif georeferenced_status == "none":
                 georeference_condition = "AND NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
 
-            # Raw SQL query for cosine similarity to get all similar images
-            # Exclude images that are already part of this subject
-            sql = f"""
+            # Get total count for pagination
+            count_sql = f"""
+                SELECT COUNT(id)
+                FROM images_image
+                WHERE embedding IS NOT NULL
+                AND id != ALL(%s)
+                {georeference_condition}
+                AND id IN (
+                    SELECT i.id
+                    FROM images_image i
+                    JOIN images_collection c ON i.collection_id = c.id
+                    JOIN images_source s ON c.source_id = s.id
+                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
+                )
+            """
+            cursor.execute(count_sql, [subject_image_ids])
+            total_count = cursor.fetchone()[0]
+
+            # SQL-level pagination - only fetch the IDs we need for this page
+            query_sql = f"""
                 SELECT
                     id,
                     (embedding::vector <=> %s::vector) as distance
@@ -487,21 +517,16 @@ def find_similar_images_to_subject(request, subject_slug):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-                ORDER BY distance
+                ORDER BY distance, id ASC
+                LIMIT %s OFFSET %s
             """
-            cursor.execute(sql, [embedding_str, subject_image_ids])
-            all_results = cursor.fetchall()
+            cursor.execute(query_sql, [embedding_str, subject_image_ids, per_page, offset])
+            page_results = cursor.fetchall()
 
-        # Get a list of all similar image IDs, ordered by similarity
-        all_similar_ids = [row[0] for row in all_results]
-
-        # Paginate the full list of IDs
-        paginator = Paginator(all_similar_ids, 24)  # 24 images per page
-        page_number = request.GET.get("page")
-        page_obj = paginator.get_page(page_number)
+        # Get the IDs for this page only
+        current_page_ids = [row[0] for row in page_results]
 
         # Get the full Image objects for the current page
-        current_page_ids = page_obj.object_list
         images_on_page = Image.objects.filter(id__in=current_page_ids).select_related(
             "collection__source"
         )
@@ -509,15 +534,65 @@ def find_similar_images_to_subject(request, subject_slug):
         # Create a dictionary to map IDs to image objects for correct ordering
         images_by_id = {img.id: img for img in images_on_page}
 
-        # Re-order the fetched image objects based on the paginated ID list
+        # Re-order the fetched image objects based on the result order
         ordered_images_on_page = [
             images_by_id[img_id]
             for img_id in current_page_ids
             if img_id in images_by_id
         ]
 
-        # Replace the list of IDs in the page object with the actual image objects
-        page_obj.object_list = ordered_images_on_page
+        # Create a simple page object for template compatibility
+        total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+
+        class SimplePaginator:
+            def __init__(self, num_pages, count, per_page):
+                self.num_pages = num_pages
+                self.count = count
+                self.per_page = per_page
+
+            @property
+            def page_range(self):
+                return range(1, self.num_pages + 1)
+
+        class SimplePage:
+            def __init__(self, object_list, number, total_pages, total_count, per_page):
+                self.object_list = object_list
+                self.number = number
+                self._per_page = per_page
+                self._total_count = total_count
+                self.paginator = SimplePaginator(total_pages, total_count, per_page)
+
+            def __iter__(self):
+                return iter(self.object_list)
+
+            def __len__(self):
+                return len(self.object_list)
+
+            def has_previous(self):
+                return self.number > 1
+
+            def has_next(self):
+                return self.number < self.paginator.num_pages
+
+            def previous_page_number(self):
+                return self.number - 1
+
+            def next_page_number(self):
+                return self.number + 1
+
+            @property
+            def start_index(self):
+                if self._total_count == 0:
+                    return 0
+                return (self.number - 1) * self._per_page + 1
+
+            @property
+            def end_index(self):
+                if self._total_count == 0:
+                    return 0
+                return min(self.number * self._per_page, self._total_count)
+
+        page_obj = SimplePage(ordered_images_on_page, page_number, total_pages, total_count, per_page)
 
         # Get total number of images for this subject
         total_subject_images = (
@@ -536,7 +611,7 @@ def find_similar_images_to_subject(request, subject_slug):
             "subject_image_count": subject_images.count(),
             "total_subject_images": total_subject_images,
             "page_obj": page_obj,
-            "total_similar_count": paginator.count,
+            "total_similar_count": total_count,
             "georeferenced_status": georeferenced_status,
         }
 
