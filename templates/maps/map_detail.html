@@ -34,7 +34,7 @@
                 {% if layer.attribution %}
                     <div class="mb-2">
                         <small class="text-muted d-block">Attribution:</small>
-                        {{ layer.attribution }}
+                        {{ layer.attribution|safe }}
                     </div>
                 {% endif %}
 
