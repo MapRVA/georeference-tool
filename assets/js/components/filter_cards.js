@@ -73,7 +73,7 @@ function updateGeoreferenceFilterText() {
 
   const selectedOptions = [];
   if (georeferenced.checked) selectedOptions.push("Georeferenced");
-  if (pending.checked) selectedOptions.push("Pending");
+  if (pending.checked) selectedOptions.push("Available");
   if (willNotGeoref.checked) selectedOptions.push("Will Not Georeference");
 
   if (selectedOptions.length === 3) {
@@ -83,7 +83,7 @@ function updateGeoreferenceFilterText() {
   } else if (selectedOptions.length === 1) {
     const shortNames = {
       Georeferenced: "Georef",
-      Pending: "Pending",
+      Available: "Available",
       "Will Not Georeference": "Won't Georef",
     };
     statusText.textContent =

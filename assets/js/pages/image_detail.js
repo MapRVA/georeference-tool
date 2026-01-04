@@ -331,12 +331,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const badgeContainer = cardHeader.querySelector(".d-flex.gap-2");
     if (!badgeContainer) return;
 
-    // Find the status badge (the one that shows georeferenced/pending/will not georeference)
+    // Find the status badge (the one that shows georeferenced/available/will not georeference)
     let statusBadge = null;
     badgeContainer.querySelectorAll(".badge").forEach((badge) => {
       if (
         badge.innerHTML.includes("Georeferenced") ||
-        badge.innerHTML.includes("Pending") ||
+        badge.innerHTML.includes("Available") ||
         badge.innerHTML.includes("Will Not Georeference")
       ) {
         statusBadge = badge;
@@ -349,14 +349,14 @@ document.addEventListener("DOMContentLoaded", function () {
         statusBadge.innerHTML =
           '<i class="fas fa-ban me-1"></i>Will Not Georeference';
       } else {
-        // Check if it's georeferenced or pending
+        // Check if it's georeferenced or available
         if (isGeoreferenced) {
           statusBadge.className = "badge status-badge bg-success";
           statusBadge.innerHTML =
             '<i class="fas fa-map-marker-alt me-1"></i>Georeferenced';
         } else {
           statusBadge.className = "badge status-badge bg-warning text-dark";
-          statusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Pending';
+          statusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Available';
         }
       }
     }

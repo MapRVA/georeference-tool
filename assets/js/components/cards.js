@@ -162,7 +162,7 @@ class CardRenderer {
         '<span class="badge bg-secondary"><i class="fas fa-ban"></i> Will Not Reference</span>';
     } else {
       statusBadge =
-        '<span class="badge bg-warning"><i class="fas fa-clock"></i> Pending</span>';
+        '<span class="badge bg-warning"><i class="fas fa-clock"></i> Available</span>';
     }
 
     const yearDisplay =
