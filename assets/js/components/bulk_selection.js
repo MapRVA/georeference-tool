@@ -21,6 +21,10 @@
 import autoComplete from "@tarekraafat/autocomplete.js";
 import "../../styles/components/autocomplete.css";
 
+// Import filter cards component (auto-initializes and exposes global functions)
+// This is imported here because bulk_selection and filter_cards are always used together
+import "./filter_cards.js";
+
 /**
  * Alpine.js component for bulk selection
  * This is the main component that handles all bulk selection logic

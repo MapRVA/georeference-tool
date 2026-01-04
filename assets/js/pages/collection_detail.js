@@ -3,6 +3,9 @@ import "../../styles/pages/collection-detail.css";
 // Import bulk selection component and showAlert helper
 import { showAlert, bulkSelection } from "../components/bulk_selection.js";
 
+// Import filter cards component (auto-initializes and exposes global functions)
+import "../components/filter_cards.js";
+
 // Make showAlert globally available for this module
 window.showAlert = showAlert;
 

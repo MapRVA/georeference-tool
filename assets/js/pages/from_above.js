@@ -5,6 +5,9 @@ import { OSM_STYLE_URL } from "../constants/map.js";
 // Import bulk selection component (used in filter_cards.html)
 import { bulkSelection } from "../components/bulk_selection.js";
 
+// Import filter cards component (auto-initializes and exposes global functions)
+import "../components/filter_cards.js";
+
 // Register the bulk selection component with Alpine
 if (window.Alpine) {
   window.Alpine.data("bulkSelection", bulkSelection);

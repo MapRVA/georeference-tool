@@ -320,12 +320,14 @@ export function initFilterCards() {
       }
     }
   });
-
-  // Expose functions globally for onclick handlers in HTML
-  window.applyFilters = applyFilters;
-  window.clearFilters = clearFilters;
-  window.updateSubjectMode = updateSubjectMode;
 }
+
+// Expose functions globally for onclick handlers in HTML
+// This must happen at module load time, before DOMContentLoaded,
+// so that onclick attributes can reference these functions
+window.applyFilters = applyFilters;
+window.clearFilters = clearFilters;
+window.updateSubjectMode = updateSubjectMode;
 
 // Auto-initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", function () {
