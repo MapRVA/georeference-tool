@@ -32,8 +32,8 @@
                 {% endif %}
                 <h1 class="card-title mb-3">{{ layer.name }}</h1>
 
-                {% if layer.description %}
-                    <p class="card-text text-muted mb-2">{{ layer.description }}</p>
+                {% if rendered_description %}
+                    <div class="card-text text-muted mb-2 markdown-content">{{ rendered_description|safe }}</div>
                 {% endif %}
 
                 <div class="row row-cols-1 row-cols-md-2 g-3">
