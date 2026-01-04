@@ -56,6 +56,12 @@ class MapLayer(models.Model):
     url = models.URLField(
         help_text="URL to the tile source (PMTiles file or XYZ endpoint)"
     )
+    source_link = models.URLField(
+        blank=True, help_text="Optional URL to the source of this map layer"
+    )
+    oim_link = models.URLField(
+        blank=True, help_text="Optional URL to the OIM (OldInsuranceMaps.net) entry"
+    )
     attribution = models.TextField(blank=True, help_text="Optional attribution text")
     collection = models.ForeignKey(
         LayerCollection,
@@ -79,7 +85,10 @@ class MapLayer(models.Model):
         return f"{self.name} ({self.collection.name})"
 
     def get_absolute_url(self):
-        return reverse("maps:layer_detail", kwargs={"collection_slug": self.collection.slug, "layer_slug": self.slug})
+        return reverse(
+            "maps:layer_detail",
+            kwargs={"collection_slug": self.collection.slug, "layer_slug": self.slug},
+        )
 
     class Meta:
         ordering = ["collection__order", "collection__name", "order", "name"]

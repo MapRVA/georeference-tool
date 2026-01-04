@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import LayerCollection, MapLayer
 
+
 @admin.register(LayerCollection)
 class LayerCollectionAdmin(admin.ModelAdmin):
     list_display = ("name", "order", "layer_count", "created_at")
@@ -27,9 +28,10 @@ class MapLayerAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Basic Information",
-            {"fields": ("name", "collection", "order", "description")},
+            {"fields": ("name", "slug", "collection", "order", "description")},
         ),
         ("Map Data", {"fields": ("type", "url", "attribution")}),
+        ("Links", {"fields": ("source_link", "oim_link")}),
         (
             "System Information",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},

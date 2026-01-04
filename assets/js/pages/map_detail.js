@@ -4,6 +4,25 @@ import maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 
 document.addEventListener("DOMContentLoaded", async function () {
+  // Extract and display domain from source link
+  const sourceLink = document.querySelector("[data-source-url]");
+  if (sourceLink) {
+    try {
+      const url = new URL(sourceLink.dataset.sourceUrl);
+      const domain = url.hostname.replace(/^www\./, "");
+      const domainSpan = sourceLink.querySelector(".source-domain");
+      if (domainSpan) {
+        domainSpan.textContent = domain;
+      }
+    } catch (e) {
+      console.error("Error parsing source URL:", e);
+      const domainSpan = sourceLink.querySelector(".source-domain");
+      if (domainSpan) {
+        domainSpan.textContent = sourceLink.dataset.sourceUrl;
+      }
+    }
+  }
+
   const mapContainer = document.getElementById("layer-map");
   if (!mapContainer) return;
 

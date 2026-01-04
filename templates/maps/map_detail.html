@@ -24,38 +24,39 @@
 
         <!-- Layer Header -->
         <div class="card mb-4">
-            <div class="card-body">
+            <div class="card-body position-relative">
+                {% if layer.oim_link %}
+                    <a href="{{ layer.oim_link }}" target="_blank" class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-3">
+                        Edit in OIM
+                    </a>
+                {% endif %}
                 <h1 class="card-title mb-3">{{ layer.name }}</h1>
 
                 {% if layer.description %}
                     <p class="card-text text-muted mb-2">{{ layer.description }}</p>
                 {% endif %}
 
-                {% if layer.attribution %}
-                    <div class="mb-2">
-                        <small class="text-muted d-block">Attribution:</small>
-                        {{ layer.attribution|safe }}
-                    </div>
-                {% endif %}
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-2">
-                            <small class="text-muted d-block">Type:</small>
-                            {{ layer.get_type_display }}
+                <div class="row row-cols-1 row-cols-md-2 g-3">
+                    {% if layer.source_link %}
+                        <div class="col">
+                            <small class="text-muted d-block">Source:</small>
+                            <a href="{{ layer.source_link }}" target="_blank" class="text-decoration-none" data-source-url="{{ layer.source_link }}">
+                                <span class="source-domain">Loading...</span>
+                                <i class="fas fa-external-link-alt ms-1 small"></i>
+                            </a>
                         </div>
+                    {% endif %}
 
-                        <div class="mb-2">
-                            <small class="text-muted d-block">Collection:</small>
-                            <a href="{{ layer.collection.get_absolute_url }}">{{ layer.collection.name }}</a>
+                    {% if layer.attribution %}
+                        <div class="col">
+                            <small class="text-muted d-block">Attribution:</small>
+                            {{ layer.attribution|safe }}
                         </div>
-                    </div>
+                    {% endif %}
 
-                    <div class="col-md-6">
-                        <div class="mb-2">
-                            <small class="text-muted d-block">Source URL:</small>
-                            <code class="small">{{ layer.url }}</code>
-                        </div>
+                    <div class="col">
+                        <small class="text-muted d-block">{% if layer.type == 'xyz' %}XYZ URL{% else %}PMTiles URL{% endif %}:</small>
+                        <code class="small">{{ layer.url }}</code>
                     </div>
                 </div>
 
