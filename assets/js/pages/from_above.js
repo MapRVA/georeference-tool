@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { OSM_STYLE_URL } from "../constants/map.js";
 
 // Import bulk selection component (used in filter_cards.html)
