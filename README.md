@@ -2,6 +2,8 @@
 
 A Django web application for georeferencing historical images.
 
+[Visit the site live](https://yesterdays.maprva.org), or [check out our documentation](https://docs.yesterdays.maprva.org/).
+
 ## Local development
 
 To run yesterdays locally, you need:
