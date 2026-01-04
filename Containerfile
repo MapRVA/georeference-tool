@@ -92,6 +92,7 @@ COPY --from=build /app/pyproject.toml /app/
 COPY --from=build /app/uv.lock /app/
 COPY --from=build /app/.python-version /app/
 COPY --from=build /app/images /app/images
+COPY --from=build /app/maps /app/maps
 COPY --from=build /app/osm_auth /app/osm_auth
 COPY --from=build /app/scripts /app/scripts
 COPY --from=build /app/templates /app/templates
