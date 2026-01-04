@@ -633,16 +633,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     // Get current search mode for display
-    const currentSearchMode = semanticMode.checked ? "semantic" : "text";
-    const searchModeLabel =
-      data.search_type === "filter_only"
-        ? "filters"
-        : currentSearchMode === "semantic"
-          ? "semantic search"
-          : "text search";
-    const forQuery = data.query
-      ? ` for "<strong>${escapeHtml(data.query)}</strong>"`
-      : "";
+    let searchModeLabel;
+    if (data.search_type === "reverse_image") {
+      searchModeLabel = "reverse image search";
+    } else if (data.search_type === "filter_only") {
+      searchModeLabel = "filters";
+    } else if (semanticMode.checked) {
+      searchModeLabel = "semantic search";
+    } else {
+      searchModeLabel = "text search";
+    }
+    const forQuery =
+      data.query && data.search_type !== "reverse_image"
+        ? ` for "<strong>${escapeHtml(data.query)}</strong>"`
+        : "";
 
     let html = `
             <div class="search-stats mb-3">
