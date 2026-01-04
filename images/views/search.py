@@ -3,6 +3,7 @@ import logging
 import re
 from io import BytesIO
 from pathlib import Path
+from contextlib import ExitStack
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -184,26 +185,27 @@ def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
 
 def _get_image_embedding(image):
     """Generate embedding for an image using CLIP"""
-
     model, preprocess, device = _load_clip_model()
 
-    # If image is a file path or file object, open it
-    if isinstance(image, (str, Path)):
-        pil_image = PILImage.open(image).convert("RGB")
-    elif hasattr(image, "read"):
-        # File-like object (Django UploadedFile)
-        pil_image = PILImage.open(image).convert("RGB")
-    else:
-        # Assume it's already a PIL Image
-        pil_image = image.convert("RGB")
+    with ExitStack() as stack:
+        if isinstance(image, (str, Path)):
+            # If image is a file path or file object, open it
+            pil_image = stack.enter_context(PILImage.open(image))
+            pil_image = pil_image.convert("RGB")
+        elif hasattr(image, "read"):
+            # File-like object (Django UploadedFile)
+            pil_image = stack.enter_context(PILImage.open(image))
+            pil_image = pil_image.convert("RGB")
+        else:
+            # Assume it's already a PIL Image
+            pil_image = image.convert("RGB")
 
-    # Preprocess and get embedding
-    with torch.no_grad():
-        image_input = preprocess(pil_image).unsqueeze(0).to(device)
-        image_features = model.encode_image(image_input)
-        image_features /= image_features.norm(dim=-1, keepdim=True)
+        with torch.no_grad():
+            image_input = preprocess(pil_image).unsqueeze(0).to(device)
+            image_features = model.encode_image(image_input)
+            image_features /= image_features.norm(dim=-1, keepdim=True)
 
-    return image_features.cpu().numpy()[0].tolist()
+        return image_features.cpu().numpy()[0].tolist()
 
 
 @ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
