@@ -66,6 +66,7 @@ Vite bundles JavaScript and CSS assets for Yesterdays.
 It is important to run Vite in the background during development:
 
 ```
+bun install
 bun run dev
 ```
 
