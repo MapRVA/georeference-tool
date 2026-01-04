@@ -22,6 +22,7 @@ from django.urls import include, path
 
 from osm_auth import views as auth_views
 
+from maps.views import map_layers_view
 from . import views
 
 urlpatterns = [
@@ -36,6 +37,7 @@ urlpatterns = [
         name="user_albums_list",
     ),
     path("", include("images.urls")),
+    path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
     path("maps/", include("maps.urls")),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
