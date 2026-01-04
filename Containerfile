@@ -51,6 +51,7 @@ COPY vite.config.js ./
 COPY pyproject.toml ./
 COPY assets ./assets
 COPY images ./images
+COPY maps ./maps
 COPY osm_auth ./osm_auth
 COPY scripts ./scripts
 COPY templates ./templates
