@@ -18,7 +18,7 @@ from ..models import (
     ImageRating,
     ImageSkip,
 )
-from .search import _get_text_embedding
+from .search import _get_text_embedding, CLIP_AVAILABLE
 
 # Try to import PostgreSQL search functions
 try:
