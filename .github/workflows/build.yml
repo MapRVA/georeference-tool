@@ -5,7 +5,7 @@ on:
       - trunk
 
 env:
-  IMAGE_NAME: georeference-tool
+  IMAGE_NAME: yesterdays
   IMAGE_REGISTRY: ghcr.io/maprva
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}
