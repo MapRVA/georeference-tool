@@ -1,13 +1,13 @@
 import json
 import logging
 import re
+import threading
 from io import BytesIO
 from pathlib import Path
 from contextlib import ExitStack
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connection
 from django.db.models import Func
@@ -36,6 +36,7 @@ ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
 _clip_model = None
 _clip_preprocess = None
 _clip_device = None
+_clip_model_lock = threading.Lock()
 
 
 # Try to import PostgreSQL search functions
@@ -71,40 +72,35 @@ def search_page(request):
 
 
 def _load_clip_model():
-    """Load CLIP model on first use"""
+    """Load CLIP model on first use (cached per-worker, thread-safe)"""
     global _clip_model, _clip_preprocess, _clip_device
 
+    # Fast path: model already loaded (no lock needed)
     if _clip_model is not None:
         return _clip_model, _clip_preprocess, _clip_device
 
-    if not CLIP_AVAILABLE:
-        raise ImportError(
-            "CLIP dependencies not available. Install torch and openai-clip."
+    # Slow path: acquire lock to prevent concurrent loading
+    with _clip_model_lock:
+        # Double-check after acquiring lock (another thread may have loaded it)
+        if _clip_model is not None:
+            return _clip_model, _clip_preprocess, _clip_device
+
+        if not CLIP_AVAILABLE:
+            raise ImportError(
+                "CLIP dependencies not available. Install torch and openai-clip."
+            )
+
+        # Determine device
+        _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        model_name = "ViT-L/14@336px"
+        local_model_dir = Path("./models").absolute()
+
+        _clip_model, _clip_preprocess = clip.load(
+            model_name, device=_clip_device, download_root=local_model_dir
         )
 
-    # Determine device
-    _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    model_name = "ViT-L/14@336px"
-    local_model_dir = Path("./models").absolute()
-
-    try:
-        call_command(
-            "download_clip_model",
-            model_name=model_name,
-            device=_clip_device,
-            verbosity=0,  # Suppress output
-        )
-    except Exception:
-        # If download command fails, continue anyway - clip.load will handle it
-        pass
-
-    # Load from local directory
-    _clip_model, _clip_preprocess = clip.load(
-        model_name, device=_clip_device, download_root=local_model_dir
-    )
-
-    return _clip_model, _clip_preprocess, _clip_device
+        return _clip_model, _clip_preprocess, _clip_device
 
 
 def _get_text_embedding(text):
