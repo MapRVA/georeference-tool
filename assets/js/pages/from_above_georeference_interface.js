@@ -18,6 +18,7 @@ import PhotoSwipeLightbox from "photoswipe/lightbox";
 import autoComplete from "@tarekraafat/autocomplete.js";
 import Sortable from "sortablejs";
 import { Geoman } from "@geoman-io/maplibre-geoman-free";
+import { OSM_STYLE_URL } from "../constants/map.js";
 
 function setupPhotoSwipeData(img) {
   const link = img.parentElement;
@@ -93,7 +94,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   var map = new maplibregl.Map({
     container: "mymap",
-    style: "https://styles.trailsta.sh/openmaptiles-osm.json",
+    style: OSM_STYLE_URL,
     center: [-77.44, 37.53],
     zoom: 11.5,
   });

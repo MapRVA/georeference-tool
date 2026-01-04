@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { OSM_STYLE_URL } from "../constants/map.js";
 
 // Import bulk selection component (used in filter_cards.html)
 import { bulkSelection } from "../components/bulk_selection.js";
@@ -40,7 +41,7 @@ function aerialsPage() {
         // Initialize the map
         this.map = new maplibregl.Map({
           container: "aerial-map",
-          style: "https://styles.trailsta.sh/openmaptiles-osm.json",
+          style: OSM_STYLE_URL,
           center: [-77.43916, 37.54376],
           zoom: 11,
         });

@@ -1,5 +1,6 @@
 // Map display module for shared map functionality
 import maplibregl from "maplibre-gl";
+import { OSM_STYLE_URL } from "../constants/map.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
@@ -681,7 +682,7 @@ export function initializeMap(config) {
   window.initializeMap = initializeMap;
   const {
     mapId,
-    styleUrl = "https://styles.trailsta.sh/openmaptiles-osm.json",
+    styleUrl = OSM_STYLE_URL,
     center = [-77.43916, 37.54376],
     zoom = 10,
     hash = false,

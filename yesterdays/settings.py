@@ -269,3 +269,8 @@ LOGIN_URL = "/auth/login/"
 # Map Settings
 # Protomaps API key for map tiles
 PROTOMAPS_API_KEY = os.getenv("PROTOMAPS_API_KEY")
+
+# MapLibre style URL for OSM base map
+OSM_STYLE_URL = os.getenv(
+    "OSM_STYLE_URL", "https://styles.maprva.org/openmaptiles-osm.json"
+)
