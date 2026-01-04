@@ -691,7 +691,7 @@
         csrfToken: "{{ csrf_token }}",
         imageId: {{ image.id }},
         urls: {
-            mapLayers: "{% url 'images:map_layers' %}",
+            mapLayers: "{% url 'maps:map_layers' %}",
             imageDetail: "{% url 'images:image_detail' image.id %}",
             aerialGeoreferenceImage: "{% url 'images:aerial_georeference_image' image.id %}",
             markDifficulty: "{% url 'images:mark_difficulty' image.id %}",

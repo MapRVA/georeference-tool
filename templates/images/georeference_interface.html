@@ -543,7 +543,7 @@
             skipImage: {% if current_image %}"{% url 'images:skip_image' current_image.id %}"{% else %}null{% endif %},
             markDifficulty: {% if current_image %}"{% url 'images:mark_difficulty' current_image.id %}"{% else %}null{% endif %},
             markWillNotGeoref: {% if current_image %}"{% url 'images:mark_will_not_georef' current_image.id %}"{% else %}null{% endif %},
-            mapLayers: "{% url 'images:map_layers' %}",
+            mapLayers: "{% url 'maps:map_layers' %}",
             vectorTiles: "{% url 'images:vector_tiles' z=0 x=0 y=0 %}",
             imageDetail: {% if current_image %}"{% url 'images:image_detail' current_image.id %}"{% else %}null{% endif %},
             georeferenceInterface: "{% url 'images:georeference_interface' %}",
