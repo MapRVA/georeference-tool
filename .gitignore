@@ -2,6 +2,10 @@ my.env
 models
 /static
 
+## Claude-specific
+.claude
+CLAUDE.md
+
 #### From Bun / Vite ###
 
 # Logs
