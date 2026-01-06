@@ -362,23 +362,3 @@
 .maplibregl-ctrl-geocoder .suggestions > li > a:hover {
     background-color: #f0f0f0;
 }
-
-/* Responsive adjustments for small screens */
-@media (max-width: 30em) {
-    .maplibregl-ctrl-top-left {
-        width: 100%;
-    }
-    .maplibregl-ctrl-geocoder {
-        width: calc(100% - 2em);
-        max-width: none;
-    }
-}
-
-.maplibregl-ctrl-geocoder--input {
-    height: 2.5em;
-}
-
-.maplibregl-ctrl-geocoder--icon-search {
-    top: 0.5em;
-    left: 0.5em;
-}

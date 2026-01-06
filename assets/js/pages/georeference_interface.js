@@ -5,18 +5,17 @@
 
 import "../../styles/pages/georeference-interface.css";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "photoswipe/dist/photoswipe.css";
 
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
-import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
 import PhotoSwipe from "photoswipe";
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 
 import { initSubjectEditor } from "../components/subject_editor.js";
 import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
+import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
 
 document.addEventListener("DOMContentLoaded", function () {
   // Check if configuration is available
@@ -921,60 +920,7 @@ document.addEventListener("DOMContentLoaded", function () {
       await addMapSourcesAndLayers();
 
       // Add address search control powered by Nominatim
-      const geocoderApi = {
-        forwardGeocode: async (config) => {
-          const features = [];
-          try {
-            const request = `https://nominatim.openstreetmap.org/search?q=${
-              config.query
-            }&format=geojson&polygon_geojson=1&addressdetails=1&layer=address&viewbox=-77.61976,37.60954,-77.36673,37.44393&bounded=1`;
-            const response = await fetch(request);
-            const geojson = await response.json();
-            for (const feature of geojson.features) {
-              const center = [
-                feature.bbox[0] + (feature.bbox[2] - feature.bbox[0]) / 2,
-                feature.bbox[1] + (feature.bbox[3] - feature.bbox[1]) / 2,
-              ];
-              const point = {
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: center,
-                },
-                place_name: feature.properties.display_name,
-                properties: feature.properties,
-                text: feature.properties.display_name,
-                place_type: ["place"],
-                center,
-              };
-              features.push(point);
-            }
-          } catch (e) {
-            console.error(`Failed to forwardGeocode with error: ${e}`);
-          }
-
-          return {
-            features,
-          };
-        },
-      };
-
-      if (MaplibreGeocoder) {
-        const geocoder = new MaplibreGeocoder(geocoderApi, {
-          maplibregl,
-          placeholder: "Search places",
-        });
-
-        map.addControl(geocoder, "top-left");
-
-        // fix geocoder search on mobile chrome
-        const geocoderInput = document.getElementsByClassName(
-          "maplibregl-ctrl-geocoder--input",
-        )[0];
-        if (geocoderInput) {
-          geocoderInput.type = "search";
-        }
-      }
+      addResponsiveGeocoder(map);
 
       // Initialize MapSwap link and update on map move
       updateMapSwapLink();

@@ -5,14 +5,12 @@
 
 // CSS imports
 import "maplibre-gl/dist/maplibre-gl.css";
-import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "photoswipe/dist/photoswipe.css";
 import "@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.css";
 
 // JS imports
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
-import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
 import PhotoSwipe from "photoswipe";
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import autoComplete from "@tarekraafat/autocomplete.js";
