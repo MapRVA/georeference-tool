@@ -80,8 +80,11 @@ export class LayerControl {
     this.container.innerHTML = `
       <button type="button" class="layer-control-button" aria-label="Map layers">
         <i class="fas fa-layer-group"></i>
+        <span class="layer-control-label"></span>
       </button>
     `;
+
+    this.layerLabel = this.container.querySelector(".layer-control-label");
 
     this.triggerButton = this.container.querySelector(".layer-control-button");
     this.createOffcanvas();
@@ -96,6 +99,9 @@ export class LayerControl {
         this.loadMapLayers();
       });
     }
+
+    // Initialize the label with current layer
+    this.updateLayerLabel(null);
 
     return this.container;
   }
@@ -490,11 +496,30 @@ export class LayerControl {
     );
     if (baseLayerItem) baseLayerItem.classList.add("active");
 
+    let overlayLayerName = null;
     if (this.currentOverlayLayer) {
       const overlayLayerItem = this.offcanvas.querySelector(
         `.overlay-layer[data-layer="${this.currentOverlayLayer}"]`,
       );
-      if (overlayLayerItem) overlayLayerItem.classList.add("active");
+      if (overlayLayerItem) {
+        overlayLayerItem.classList.add("active");
+        overlayLayerName = overlayLayerItem.textContent.trim();
+      }
+    }
+
+    // Update the layer label
+    this.updateLayerLabel(overlayLayerName);
+  }
+
+  updateLayerLabel(overlayLayerName) {
+    if (!this.layerLabel) return;
+
+    const baseLayerName = this.baseLayers[this.currentBaseLayer]?.name || "";
+
+    if (overlayLayerName) {
+      this.layerLabel.textContent = `${baseLayerName} + ${overlayLayerName}`;
+    } else {
+      this.layerLabel.textContent = baseLayerName;
     }
   }
 

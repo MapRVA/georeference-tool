@@ -34,6 +34,7 @@
 .layer-control {
     position: relative;
     z-index: 1000;
+    width: auto;
 }
 
 .maplibregl-ctrl-group .layer-control {
@@ -48,9 +49,21 @@
     padding: 0.4rem;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.4rem;
     cursor: pointer;
     transition: all 0.15s ease-in-out;
+}
+
+.layer-control .layer-control-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+@media (max-width: 1000px) {
+    .layer-control .layer-control-label {
+        display: none;
+    }
 }
 
 .layer-control .layer-control-button:hover {
@@ -73,6 +86,12 @@
 
 .maplibregl-ctrl-group.layer-control {
     border: none;
+    width: auto;
+    max-width: none;
+}
+
+.maplibregl-ctrl-group.layer-control button {
+    width: auto;
 }
 
 /* Layer offcanvas active states */
@@ -85,8 +104,6 @@
 
 /* Time Slider Control */
 .time-slider-control {
-    width: 280px;
-    padding: 10px;
     background-color: #fff;
     font-size: 0.9rem;
     border-radius: 0.375rem;
@@ -94,18 +111,95 @@
     box-shadow: none;
 }
 
-.time-slider-values {
+/* Toolbar with toggle and close buttons */
+.time-slider-toolbar {
     display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
+    justify-content: flex-end;
+    align-items: center;
+    height: 32px;
+}
+
+/* Shared button styles */
+.time-slider-toggle,
+.time-slider-close {
+    background-color: transparent;
+    border: none;
+    color: #495057;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-slider-toggle:hover,
+.time-slider-close:hover {
+    background-color: #f8f9fa;
+}
+
+.time-slider-toggle:focus,
+.time-slider-close:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Hide close button when collapsed, hide toggle when expanded */
+.time-slider-close {
+    display: none;
+}
+
+.time-slider-control:has(.collapse.show) .time-slider-close,
+.time-slider-control:has(.collapsing) .time-slider-close {
+    display: flex;
+}
+
+.time-slider-control:has(.collapse.show) .time-slider-toggle,
+.time-slider-control:has(.collapsing) .time-slider-toggle {
+    display: none;
+}
+
+/* Collapsible body - no animation */
+.time-slider-control .collapse,
+.time-slider-control .collapsing {
+    padding: 0 0.5rem 0.5rem 0.5rem;
+}
+
+.time-slider-control .collapsing {
+    transition: none;
+    height: auto !important;
+}
+
+/* Header layout - in toolbar, hidden when collapsed */
+.time-slider-header {
+    display: none;
+    flex-grow: 1;
+    padding-left: 0.5rem;
     font-weight: 500;
     font-size: 0.8rem;
     color: #495057;
 }
 
+.time-slider-control:has(.collapse.show) .time-slider-header,
+.time-slider-control:has(.collapsing) .time-slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.time-slider-label {
+    color: #495057;
+}
+
+.time-slider-range-label {
+    font-weight: 600;
+}
+
 .time-slider-container {
     position: relative;
     height: 24px;
+    width: 250px;
 }
 
 .slider-track {
@@ -137,6 +231,7 @@
     top: 0;
     margin: 0;
     z-index: 3;
+    touch-action: none;
 }
 
 .time-slider-container input[type="range"]::-webkit-slider-thumb {

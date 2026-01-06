@@ -50,17 +50,41 @@ class TimeSliderControl {
     this._outerContainer = document.createElement("div");
     this._outerContainer.className = "maplibregl-ctrl";
 
+    const isSmallScreen = window.matchMedia("(max-width: 1000px)").matches;
+    const collapseClass = isSmallScreen ? "collapse" : "collapse show";
+    const ariaExpanded = isSmallScreen ? "false" : "true";
+
     this._outerContainer.innerHTML = `
             <div class="time-slider-control">
-                <div class="time-slider-values">
-                    <span id="time-slider-label-${this._mapId}">Date Range</span>
-                    <span id="time-slider-range-label-${this._mapId}"></span>
+                <div class="time-slider-toolbar">
+                    <div class="time-slider-header">
+                        <span class="time-slider-label">Date Range</span>
+                        <span id="time-slider-range-label-${this._mapId}" class="time-slider-range-label"></span>
+                    </div>
+                    <button type="button"
+                            class="time-slider-toggle"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#time-slider-body-${this._mapId}"
+                            aria-expanded="${ariaExpanded}"
+                            aria-controls="time-slider-body-${this._mapId}"
+                            aria-label="Date filter">
+                        <i class="fas fa-calendar-days"></i>
+                    </button>
+                    <button type="button"
+                            class="time-slider-close"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#time-slider-body-${this._mapId}"
+                            aria-label="Close date filter">
+                        <i class="fas fa-square-up-right"></i>
+                    </button>
                 </div>
-                <div class="time-slider-container">
-                    <div class="slider-track"></div>
-                    <div class="slider-range" id="slider-range-${this._mapId}"></div>
-                    <input type="range" id="start-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._minYear}">
-                    <input type="range" id="end-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
+                <div class="${collapseClass}" id="time-slider-body-${this._mapId}">
+                    <div class="time-slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range" id="slider-range-${this._mapId}"></div>
+                        <input type="range" id="start-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._minYear}">
+                        <input type="range" id="end-slider-${this._mapId}" min="${this._minYear}" max="${this._maxYear}" value="${this._maxYear}">
+                    </div>
                 </div>
             </div>
         `;
