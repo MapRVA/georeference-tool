@@ -36,107 +36,51 @@
     z-index: 1000;
 }
 
-.layer-control .dropdown-menu {
-    min-width: 250px;
-    width: max-content;
-    margin-top: 0;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-    border-top: none;
-    box-shadow: none;
-}
-
 .maplibregl-ctrl-group .layer-control {
     z-index: 1000 !important;
 }
 
-.layer-control .dropdown-toggle {
+.layer-control .layer-control-button {
     background-color: #fff;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 0.375rem;
     color: #495057;
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.5rem 2rem 0.5rem 1rem;
-    text-align: left;
-    white-space: nowrap;
-    position: relative;
+    padding: 0.4rem;
     display: flex;
     align-items: center;
-    line-height: 1;
+    justify-content: center;
+    cursor: pointer;
     transition: all 0.15s ease-in-out;
-    box-shadow: none;
-    width: auto;
-    min-width: 120px;
 }
 
-.layer-control .dropdown-toggle::after {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.layer-control .dropdown-toggle:hover {
+.layer-control .layer-control-button:hover {
     background-color: #f8f9fa;
     border-color: rgba(0, 0, 0, 0.15);
 }
 
-.layer-control .dropdown-toggle:focus {
-    box-shadow: none;
+.layer-control .layer-control-button:focus {
+    outline: none;
     border-color: #86b7fe;
 }
 
-.layer-control .dropdown-toggle.show {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-color: transparent;
-    box-shadow: none;
-}
-
-.layer-control .dropdown-item {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-}
-
-.layer-control .dropdown-header {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem 0.25rem;
-}
-
-.layer-control .overlay-layer {
-    padding-left: 1.5rem;
-    font-size: 0.9rem;
-    position: relative;
-}
-
-.layer-control .overlay-layer.active {
-    background-color: transparent !important;
-    color: inherit !important;
-}
-
-.layer-control .overlay-layer.active::before {
-    content: "✓";
-    position: absolute;
-    left: 0.5rem;
-    font-weight: bold;
-}
-
-.layer-control .dropdown-item.active {
-    background-color: #0d6efd;
-    color: white;
-}
-
-.layer-control .dropdown-divider {
-    margin: 0.5rem 0;
+.layer-control .layer-control-button svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .maplibregl-ctrl-group.layer-control {
     border: none;
+}
+
+/* Layer offcanvas active states */
+.offcanvas .list-group-item.layer-option.active,
+.offcanvas .list-group-item.overlay-layer.active {
+    background-color: var(--bs-primary);
+    color: white;
+    border-color: var(--bs-primary);
 }
 
 /* Time Slider Control */
