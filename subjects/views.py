@@ -1,46 +1,25 @@
 import json
-from pathlib import Path
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.gis.geos import Point, GEOSGeometry
-from django.core.paginator import Page, Paginator
-from django.db import connection, IntegrityError, models, transaction
-from django.db.models import Avg, Case, Count, Func, IntegerField, Q, Value, When
+from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.db import connection, models, transaction
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-from django.views.decorators.clickjacking import xframe_options_exempt
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from django.core.exceptions import ValidationError
+from images.models import Image, SubjectMapping, TopRatedImageView
 
-from ..models import (
-    AerialGeoreference,
-    Album,
-    Collection,
-    Comment,
-    Georeference,
-    GeoreferenceValidation,
-    Image,
-    ImageRating,
-    ImageSkip,
-    TopRatedImageView,
-    Source,
-    Subject,
-    SubjectMapping,
-    WikidataItem,
-)
-from ..utils import render_markdown_safe
+from .models import Subject, WikidataItem
 
 # Try to import CLIP dependencies (for subject similarity search)
 try:
     import clip
-    import torch
     import numpy as np
+    import torch
 
     CLIP_AVAILABLE = True
 except ImportError:
@@ -400,6 +379,240 @@ def reorder_subjects(request, image_id):
         )
 
 
+def browse_subjects(request):
+    """Browse all subjects"""
+    subjects = (
+        Subject.objects.all()
+        .select_related("wikidata_item")
+        .prefetch_related("image_mappings__image")
+    )
+
+    # Add statistics for each subject
+    for subject in subjects:
+        # Count images associated with this subject (excluding duplicates)
+        subject.total_images = subject.image_mappings.filter(
+            image__duplicate_of__isnull=True,
+            image__collection__public=True,
+            image__collection__source__public=True,
+        ).count()
+        subject.georeferenced_images = (
+            subject.image_mappings.filter(
+                image__duplicate_of__isnull=True,
+                image__collection__public=True,
+                image__collection__source__public=True,
+                image__georeferences__isnull=False,
+            )
+            .distinct()
+            .count()
+        )
+
+        subject.pending_images = subject.total_images - subject.georeferenced_images
+
+    # Filter out subjects with no images and sort by total_images in descending order, then by title
+    subjects = [s for s in subjects if s.total_images > 0]
+    subjects = sorted(subjects, key=lambda s: (-s.total_images, s.title))
+
+    # Calculate overall statistics
+    total_subjects = len(subjects)
+    total_images = sum(subject.total_images for subject in subjects)
+    total_georeferenced = sum(subject.georeferenced_images for subject in subjects)
+
+    overall_stats = {
+        "total_subjects": total_subjects,
+        "total_images": total_images,
+        "total_georeferenced": total_georeferenced,
+        "georeferenced_percentage": round((total_georeferenced / total_images * 100), 1)
+        if total_images > 0
+        else 0,
+    }
+
+    # Paginate subjects for browsing
+    paginator = Paginator(subjects, 12)  # 12 subjects per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Get top-rated image from entire site for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.all()
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
+    context = {
+        "page_obj": page_obj,
+        "overall_stats": overall_stats,
+        "top_rated_image": top_rated_image,
+    }
+    return render(request, "subjects/browse_subjects.html", context)
+
+
+def subject_detail(request, subject_slug):
+    """Detail view for a specific subject showing its images"""
+    subject = get_object_or_404(Subject, slug=subject_slug)
+
+    # Get filter parameters from URL
+    georeference_status = (
+        request.GET.get("georeference_status", "").split(",")
+        if request.GET.get("georeference_status")
+        else []
+    )
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+    with_subjects = (
+        request.GET.get("with_subjects", "").split(",")
+        if request.GET.get("with_subjects")
+        else []
+    )
+    without_subjects = (
+        request.GET.get("without_subjects", "").split(",")
+        if request.GET.get("without_subjects")
+        else []
+    )
+    no_subjects = request.GET.get("no_subjects") == "true"
+
+    # Get images associated with this subject (only from public collections, excluding duplicates)
+    images = (
+        Image.objects.filter(
+            subject_mappings__subject=subject,
+            collection__public=True,
+            collection__source__public=True,
+            duplicate_of__isnull=True,
+        )
+        .select_related("collection__source")
+        .prefetch_related("subjects")
+        .annotate(
+            has_georeference=Case(
+                When(
+                    Q(georeferences__isnull=False)
+                    | Q(aerial=True, aerial_georeferences__isnull=False),
+                    then=Value(1),
+                ),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("will_not_georef", "has_georeference", "id")
+    )
+
+    # Apply year filtering
+    if start_year:
+        try:
+            start_year_int = int(start_year)
+            images = images.filter(
+                Q(fuzzy_start_decdate__gte=start_year_int)
+                | Q(start_decdate__gte=start_year_int)
+            )
+        except ValueError:
+            pass
+
+    if end_year:
+        try:
+            end_year_int = int(end_year)
+            images = images.filter(
+                Q(fuzzy_end_decdate__lte=end_year_int)
+                | Q(end_decdate__lte=end_year_int)
+            )
+        except ValueError:
+            pass
+
+    # Apply additional subject filtering (beyond the main subject)
+    if no_subjects:
+        # This doesn't make sense for a subject detail view, but keep for consistency
+        images = images.filter(subjects__isnull=True)
+    elif with_subjects:
+        # Include only images with ALL of these subjects (in addition to the main subject)
+        for subject_id in with_subjects:
+            if subject_id and subject_id != str(subject.id):
+                images = images.filter(subjects__id=subject_id)
+    elif without_subjects:
+        # Exclude images with ANY of these subjects
+        exclude_ids = [sid for sid in without_subjects if sid != str(subject.id)]
+        if exclude_ids:
+            images = images.exclude(subjects__id__in=exclude_ids)
+
+    # Apply georeference status filtering
+    if georeference_status:
+        # Build the filter conditions based on selected statuses
+        filter_conditions = Q()
+
+        if "georeferenced" in georeference_status:
+            filter_conditions |= Q(georeferences__isnull=False) | Q(
+                aerial=True, aerial_georeferences__isnull=False
+            )
+
+        if "pending" in georeference_status:
+            filter_conditions |= (
+                Q(georeferences__isnull=True)
+                & Q(aerial=False)
+                & Q(will_not_georef=False)
+            )
+
+        if "will_not_georef" in georeference_status:
+            filter_conditions |= Q(will_not_georef=True)
+
+        # Apply the filter if any conditions were added
+        if filter_conditions:
+            images = images.filter(filter_conditions)
+
+    # Get counts before filtering for statistics
+    all_images = Image.objects.filter(
+        subject_mappings__subject=subject,
+        duplicate_of__isnull=True,
+        collection__public=True,
+        collection__source__public=True,
+    )
+    total_images = all_images.count()
+    georeferenced_images = (
+        all_images.filter(georeferences__isnull=False).distinct().count()
+    )
+    pending_images = (
+        total_images
+        - georeferenced_images
+        - all_images.filter(will_not_georef=True).count()
+    )
+
+    # Paginate the filtered images for browsing
+    paginator = Paginator(images.distinct(), 24)  # 24 images per page for grid layout
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Check if subject has images with embeddings for similarity search
+    has_images_with_embeddings = all_images.filter(embedding__isnull=False).exists()
+
+    # Get top-rated image from this subject for Open Graph metadata
+    top_rated_entry = (
+        TopRatedImageView.objects.filter(
+            image_id__in=all_images.values_list("id", flat=True)
+        )
+        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+        .first()
+    )
+    top_rated_image = None
+    if top_rated_entry:
+        top_rated_image = Image.objects.select_related("collection__source").get(
+            id=top_rated_entry.image_id
+        )
+
+    context = {
+        "subject": subject,
+        "page_obj": page_obj,
+        "total_images": total_images,
+        "georeferenced_images": georeferenced_images,
+        "pending_images": pending_images,
+        "completion_percentage": (georeferenced_images / total_images * 100)
+        if total_images > 0
+        else 0,
+        "has_images_with_embeddings": has_images_with_embeddings,
+        "top_rated_image": top_rated_image,
+    }
+    return render(request, "subjects/subject_detail.html", context)
+
+
 @ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
 @ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 def find_similar_images_to_subject(request, subject_slug):
@@ -413,7 +626,7 @@ def find_similar_images_to_subject(request, subject_slug):
             request,
             "Similarity search is not available. CLIP dependencies not installed.",
         )
-        return redirect("images:subject_detail", subject_slug=subject_slug)
+        return redirect("subjects:subject_detail", subject_slug=subject_slug)
 
     # Get the target subject
     subject = get_object_or_404(Subject, slug=subject_slug)
@@ -432,7 +645,7 @@ def find_similar_images_to_subject(request, subject_slug):
             request,
             "This subject has no images with embeddings, so similar images cannot be found.",
         )
-        return redirect("images:subject_detail", subject_slug=subject_slug)
+        return redirect("subjects:subject_detail", subject_slug=subject_slug)
 
     # Get georeferenced filter from query parameter
     georeferenced_status = request.GET.get(
@@ -461,7 +674,7 @@ def find_similar_images_to_subject(request, subject_slug):
                 request,
                 "Unable to calculate centroid - no valid embeddings found.",
             )
-            return redirect("images:subject_detail", subject_slug=subject_slug)
+            return redirect("subjects:subject_detail", subject_slug=subject_slug)
 
         # Calculate centroid as the mean of all embeddings
         centroid_embedding = np.mean(subject_embeddings, axis=0)
@@ -520,7 +733,9 @@ def find_similar_images_to_subject(request, subject_slug):
                 ORDER BY distance, id ASC
                 LIMIT %s OFFSET %s
             """
-            cursor.execute(query_sql, [embedding_str, subject_image_ids, per_page, offset])
+            cursor.execute(
+                query_sql, [embedding_str, subject_image_ids, per_page, offset]
+            )
             page_results = cursor.fetchall()
 
         # Get the IDs for this page only
@@ -592,7 +807,9 @@ def find_similar_images_to_subject(request, subject_slug):
                     return 0
                 return min(self.number * self._per_page, self._total_count)
 
-        page_obj = SimplePage(ordered_images_on_page, page_number, total_pages, total_count, per_page)
+        page_obj = SimplePage(
+            ordered_images_on_page, page_number, total_pages, total_count, per_page
+        )
 
         # Get total number of images for this subject
         total_subject_images = (
@@ -615,10 +832,10 @@ def find_similar_images_to_subject(request, subject_slug):
             "georeferenced_status": georeferenced_status,
         }
 
-        return render(request, "images/subject_similar_images.html", context)
+        return render(request, "subjects/subject_similar_images.html", context)
 
     except Exception as e:
         messages.error(
             request, f"An error occurred while finding similar images: {str(e)}"
         )
-        return redirect("images:subject_detail", subject_slug=subject_slug)
+        return redirect("subjects:subject_detail", subject_slug=subject_slug)

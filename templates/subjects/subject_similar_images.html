@@ -9,8 +9,8 @@
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
-            subjectsApi: '{% url "images:subject_autocomplete" %}',
-            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            subjectsApi: '{% url "subject_autocomplete" %}',
+            bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
             bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
@@ -27,7 +27,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'images:subject_detail' subject.slug %}">{{ subject.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'subjects:subject_detail' subject.slug %}">{{ subject.title }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">Similar Images</li>
         </ol>
     </nav>
@@ -43,7 +43,7 @@
                         <p class="card-text">{{ subject.description|truncatechars:300 }}</p>
                     {% endif %}
                     <div class="d-flex gap-2 align-items-center">
-                        <a href="{% url 'images:subject_detail' subject.slug %}" class="btn btn-primary">View Subject</a>
+                        <a href="{% url 'subjects:subject_detail' subject.slug %}" class="btn btn-primary">View Subject</a>
                         {% if subject_image_count < total_subject_images %}
                             <span class="text-muted small">
                                 <i class="fas fa-info-circle me-1"></i>

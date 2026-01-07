@@ -50,14 +50,14 @@
             markScale: '{% url "images:mark_scale" image.id %}',
             markAerial: '{% url "images:mark_aerial" image.id %}',
             markWillNotGeoref: '{% url "images:mark_will_not_georef" image.id %}',
-            addSubject: '{% url "images:add_subject_to_image" image.id %}',
-            subjectAutocomplete: '{% url "images:subject_autocomplete" %}',
-            removeSubjectPattern: '{% url "images:remove_subject_from_image" 0 %}',
+            addSubject: '{% url "subjects:add_subject_to_image" image.id %}',
+            subjectAutocomplete: '{% url "subject_autocomplete" %}',
+            removeSubjectPattern: '{% url "subjects:remove_subject_from_image" 0 %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             createAlbum: '{% url "images:create_and_add_to_album" %}',
             addToAlbum: '{% url "images:add_image_to_album" %}',
             removeFromAlbum: '{% url "images:remove_image_from_album" %}',
-            reorderSubjects: '{% url "images:reorder_subjects" image.id %}',
+            reorderSubjects: '{% url "subjects:reorder_subjects" image.id %}',
             addComment: '/{{ image.id }}/add-comment/',
             rate: '/{{ image.id }}/rate/'
         }

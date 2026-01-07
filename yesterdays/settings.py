@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_vite",
     "osm_auth",
+    "subjects",
     "images",
     "maps",
 ]

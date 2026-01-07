@@ -20,9 +20,10 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from osm_auth import views as auth_views
-
 from maps.views import map_layers_view
+from osm_auth import views as auth_views
+from subjects import views as subject_views
+
 from . import views
 
 urlpatterns = [
@@ -36,7 +37,24 @@ urlpatterns = [
         auth_views.user_albums_list,
         name="user_albums_list",
     ),
+    path("subjects/", include("subjects.urls")),
     path("", include("images.urls")),
+    # Subject API endpoints (kept at /api/v1/subjects/ for backwards compatibility)
+    path(
+        "api/v1/subjects/autocomplete/",
+        subject_views.subject_autocomplete,
+        name="subject_autocomplete",
+    ),
+    path(
+        "api/v1/subjects/all/",
+        subject_views.all_subjects_api,
+        name="all_subjects_api",
+    ),
+    path(
+        "api/v1/subjects/bulk-add/",
+        subject_views.bulk_add_subject_to_images,
+        name="bulk_add_subject_to_images",
+    ),
     path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
     path("maps/", include("maps.urls")),
     path("admin/", admin.site.urls),

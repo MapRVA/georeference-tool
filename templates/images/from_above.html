@@ -35,8 +35,8 @@
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
-            subjectsApi: '{% url "images:subject_autocomplete" %}',
-            bulkAddSubject: '{% url "images:bulk_add_subject_to_images" %}',
+            subjectsApi: '{% url "subject_autocomplete" %}',
+            bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
             bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'

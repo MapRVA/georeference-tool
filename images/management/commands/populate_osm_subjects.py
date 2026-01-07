@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from images.models import OsmElement, Subject
+from subjects.models import OsmElement, Subject
 
 
 class Command(BaseCommand):

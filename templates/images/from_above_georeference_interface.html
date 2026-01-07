@@ -696,10 +696,10 @@
             aerialGeoreferenceImage: "{% url 'images:aerial_georeference_image' image.id %}",
             markDifficulty: "{% url 'images:mark_difficulty' image.id %}",
             markWillNotGeoref: "{% url 'images:mark_will_not_georef' image.id %}",
-            addSubjectToImage: "{% url 'images:add_subject_to_image' image.id %}",
-            subjectAutocomplete: "{% url 'images:subject_autocomplete' %}",
-            removeSubjectFromImagePattern: "{% url 'images:remove_subject_from_image' 0 %}",
-            reorderSubjects: "{% url 'images:reorder_subjects' image.id %}"
+            addSubjectToImage: "{% url 'subjects:add_subject_to_image' image.id %}",
+            subjectAutocomplete: "{% url 'subject_autocomplete' %}",
+            removeSubjectFromImagePattern: "{% url 'subjects:remove_subject_from_image' 0 %}",
+            reorderSubjects: "{% url 'subjects:reorder_subjects' image.id %}"
         }
     };
 </script>

@@ -14,14 +14,6 @@ urlpatterns = [
         name="collection_detail",
     ),
     path("from-above/", views.browse_aerials, name="browse_aerials"),
-    # Subject browsing
-    path("subjects/", views.browse_subjects, name="browse_subjects"),
-    path("subjects/<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
-    path(
-        "subjects/<slug:subject_slug>/similar/",
-        views.find_similar_images_to_subject,
-        name="subject_similar_images",
-    ),
     # Community favorites
     path("favorites/", views.top_rated_images, name="favorites"),
     # Georeferencing interface
@@ -83,22 +75,6 @@ urlpatterns = [
     ),
     path("admin/label-scales/", views.label_scales, name="label_scales"),
     path("admin/update-scale/", views.update_image_scale, name="update_image_scale"),
-    # Subject management endpoints
-    path(
-        "<int:image_id>/subjects/add/",
-        views.add_subject_to_image,
-        name="add_subject_to_image",
-    ),
-    path(
-        "subjects/mapping/<int:subject_mapping_id>/remove/",
-        views.remove_subject_from_image,
-        name="remove_subject_from_image",
-    ),
-    path(
-        "image/<int:image_id>/subjects/reorder/",
-        views.reorder_subjects,
-        name="reorder_subjects",
-    ),
     # Public API endpoints
     path("api/v1/geojson/", views.geojson_endpoint, name="geojson"),
     path("api/v1/geojson/above/", views.aerial_geojson_endpoint, name="aerial_geojson"),
@@ -123,17 +99,6 @@ urlpatterns = [
         "api/v1/search/reverse/",
         views.reverse_image_search,
         name="reverse_image_search",
-    ),
-    path(
-        "api/v1/subjects/autocomplete/",
-        views.subject_autocomplete,
-        name="subject_autocomplete",
-    ),
-    path("api/v1/subjects/all/", views.all_subjects_api, name="all_subjects_api"),
-    path(
-        "api/v1/subjects/bulk-add/",
-        views.bulk_add_subject_to_images,
-        name="bulk_add_subject_to_images",
     ),
     # Embeddable map URL
     path("map/embed/", views.map_embed, name="map_embed"),

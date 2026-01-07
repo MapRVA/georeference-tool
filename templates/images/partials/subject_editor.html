@@ -2,10 +2,10 @@
     <div class="col-12">
         <div class="card" id="subject-editor" 
              data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}"
-             data-add-subject-url="{% url 'images:add_subject_to_image' image.id %}"
-             data-autocomplete-url="{% url 'images:subject_autocomplete' %}"
-             data-remove-subject-url="{% url 'images:remove_subject_from_image' 0 %}"
-             data-reorder-url="{% url 'images:reorder_subjects' image.id %}">
+             data-add-subject-url="{% url 'subjects:add_subject_to_image' image.id %}"
+             data-autocomplete-url="{% url 'subject_autocomplete' %}"
+             data-remove-subject-url="{% url 'subjects:remove_subject_from_image' 0 %}"
+             data-reorder-url="{% url 'subjects:reorder_subjects' image.id %}">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-map-pin me-2"></i>Image Subjects</h5>
                 {% if request.user.is_authenticated %}

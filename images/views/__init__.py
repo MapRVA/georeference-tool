@@ -20,12 +20,10 @@ from .api import (
 from .browse import (
     browse_aerials,
     browse_sources,
-    browse_subjects,
     collection_detail,
     image_detail,
     image_list,
     source_detail,
-    subject_detail,
     top_rated_images,
 )
 from .core import (
@@ -56,13 +54,4 @@ from .search import (
     search_page,
     semantic_search,
     text_search,
-)
-from .subject import (
-    add_subject_to_image,
-    all_subjects_api,
-    bulk_add_subject_to_images,
-    find_similar_images_to_subject,
-    remove_subject_from_image,
-    reorder_subjects,
-    subject_autocomplete,
 )
