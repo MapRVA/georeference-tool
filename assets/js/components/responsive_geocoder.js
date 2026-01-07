@@ -21,6 +21,7 @@
 
 import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
+import "../../styles/components/geocoder-overrides.css";
 import maplibregl from "maplibre-gl";
 
 /**

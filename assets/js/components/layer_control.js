@@ -21,6 +21,8 @@
  *   }), 'top-right');
  */
 
+import "../../styles/components/layer-control.css";
+
 export class LayerControl {
   /**
    * @param {Object} options

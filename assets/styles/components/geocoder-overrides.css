@@ -1,0 +1,68 @@
+/**
+ * MapLibre Geocoder Size Overrides
+ *
+ * The upstream maplibre-gl-geocoder library uses a 640px breakpoint to switch
+ * between "mobile" (large) and "desktop" (compact) sizes. We want the compact
+ * size to always apply so the geocoder doesn't take up extra space on small screens.
+ *
+ * These rules duplicate the @media (min-width: 640px) styles from:
+ * @maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css
+ *
+ * When updating the maplibre-gl-geocoder library, check if these upstream styles
+ * have changed and update this file accordingly.
+ *
+ * Last synced with: @maplibre/maplibre-gl-geocoder v1.9.0
+ */
+
+/* Force compact size on all screen sizes (overrides mobile-first large styles) */
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed {
+    width: 36px;
+    min-width: 36px;
+}
+
+.maplibregl-ctrl-geocoder {
+    width: 33.3333%;
+    font-size: 15px;
+    line-height: 20px;
+    max-width: 360px;
+}
+
+.maplibregl-ctrl-geocoder .suggestions {
+    font-size: 13px;
+}
+
+.maplibregl-ctrl-geocoder--icon {
+    top: 8px;
+}
+
+.maplibregl-ctrl-geocoder--icon-close {
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    margin-right: 0;
+}
+
+.maplibregl-ctrl-geocoder--icon-search {
+    left: 7px;
+    width: 20px;
+    height: 20px;
+}
+
+.maplibregl-ctrl-geocoder--input {
+    height: 36px;
+    padding: 6px 35px;
+}
+
+.maplibregl-ctrl-geocoder--icon-loading {
+    width: 26px;
+    height: 26px;
+    margin-top: -2px;
+    margin-right: -5px;
+}
+
+.maplibre-gl-geocoder--error {
+    color: #909090;
+    padding: 6px 12px;
+    font-size: 16px;
+    text-align: center;
+}
