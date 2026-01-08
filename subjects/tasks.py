@@ -1,9 +1,9 @@
 """
 Celery tasks for refreshing external metadata (Wikidata, OSM).
 
-These tasks are rate-limited per-service to be respectful to external APIs.
-The coordinator task runs periodically via Celery Beat and queues individual
-fetch tasks for stale records.
+Rate limiting is achieved through Celery Beat scheduling: Beat triggers
+each refresh task at a fixed interval (e.g., every 15 seconds for 4/minute),
+ensuring global rate limits regardless of worker count.
 """
 
 import json
@@ -18,6 +18,8 @@ from django.db.models import F, Q
 from django.utils import timezone
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from .models import OsmElement, WikidataItem
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +54,10 @@ def create_request_session():
 # =============================================================================
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=60, ignore_result=True)
-def refresh_wikidata_item(self, wikidata_item_id: int):
+def _do_refresh_wikidata_item(item):
     """
-    Fetch and update metadata for a single WikidataItem.
-
-    Rate limit is applied at the task level via Celery's rate_limit option,
-    which is set dynamically based on settings.
+    Perform the actual refresh of a WikidataItem.
     """
-    from .models import WikidataItem
-
-    try:
-        item = WikidataItem.objects.get(pk=wikidata_item_id)
-    except WikidataItem.DoesNotExist:
-        logger.warning(f"WikidataItem {wikidata_item_id} not found")
-        return {"status": "error", "message": "Item not found"}
 
     logger.info(f"Refreshing WikidataItem {item.wikidata_id}")
 
@@ -88,18 +79,12 @@ def refresh_wikidata_item(self, wikidata_item_id: int):
             return {"status": "no_data", "wikidata_id": item.wikidata_id}
 
     except Exception as e:
-        # Update failure tracking
-        WikidataItem.objects.filter(pk=wikidata_item_id).update(
+        WikidataItem.objects.filter(pk=item.pk).update(
             metadata_last_fetched=timezone.now(),
             metadata_fetch_failures=F("metadata_fetch_failures") + 1,
         )
-        logger.error(f"Error refreshing WikidataItem {wikidata_item_id}: {e}")
-
-        # Retry on transient errors
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=e)
-
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Error refreshing WikidataItem {item.wikidata_id}: {e}")
+        return {"status": "error", "wikidata_id": item.wikidata_id, "message": str(e)}
 
 
 # =============================================================================
@@ -130,21 +115,10 @@ def get_postpass_bbox():
     )
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=60, ignore_result=True)
-def refresh_osm_element(self, osm_element_id: int):
+def _do_refresh_osm_element(element):
     """
-    Fetch and update geometry for a single OsmElement.
-
-    This queries the Postpass API using the Wikidata ID of linked subjects
-    to find the current OSM geometry.
+    Perform the actual refresh of an OsmElement.
     """
-    from .models import OsmElement
-
-    try:
-        element = OsmElement.objects.get(pk=osm_element_id)
-    except OsmElement.DoesNotExist:
-        logger.warning(f"OsmElement {osm_element_id} not found")
-        return {"status": "error", "message": "Element not found"}
 
     # Get the Wikidata ID from linked subjects
     subject = element.subjects.filter(wikidata_item__isnull=False).first()
@@ -197,16 +171,12 @@ def refresh_osm_element(self, osm_element_id: int):
         return {"status": "success", "osm_id": element.osm_id}
 
     except Exception as e:
-        OsmElement.objects.filter(pk=osm_element_id).update(
+        OsmElement.objects.filter(pk=element.pk).update(
             metadata_last_fetched=timezone.now(),
             metadata_fetch_failures=F("metadata_fetch_failures") + 1,
         )
-        logger.error(f"Error refreshing OsmElement {osm_element_id}: {e}")
-
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=e)
-
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Error refreshing OsmElement {element.osm_id}: {e}")
+        return {"status": "error", "osm_id": element.osm_id, "message": str(e)}
 
     finally:
         session.close()
@@ -245,54 +215,75 @@ def fetch_osm_features(session, wikidata_id: str) -> list:
 
 
 # =============================================================================
-# Coordinator Task
+# Coordinator Tasks (Beat-driven rate limiting)
 # =============================================================================
 
 
-@shared_task(ignore_result=True)
-def refresh_stale_metadata():
-    """
-    Coordinator task that finds stale records and queues refresh tasks.
-
-    This runs periodically via Celery Beat. It finds WikidataItems and
-    OsmElements that haven't been refreshed recently and queues individual
-    refresh tasks for each.
-    """
-    from .models import OsmElement, WikidataItem
+def get_next_stale_wikidata_item():
+    """Find the next WikidataItem that needs refreshing."""
 
     stale_days = get_stale_threshold_days()
     max_failures = get_max_failures()
     stale_threshold = timezone.now() - timedelta(days=stale_days)
 
-    # Find stale WikidataItems
-    stale_wikidata = WikidataItem.objects.filter(
-        Q(metadata_last_fetched__isnull=True)
-        | Q(metadata_last_fetched__lt=stale_threshold),
-        metadata_fetch_failures__lt=max_failures,
-    ).values_list("id", flat=True)
-
-    wikidata_count = 0
-    for item_id in stale_wikidata:
-        refresh_wikidata_item.delay(item_id)
-        wikidata_count += 1
-
-    # Find stale OsmElements
-    stale_osm = OsmElement.objects.filter(
-        Q(metadata_last_fetched__isnull=True)
-        | Q(metadata_last_fetched__lt=stale_threshold),
-        metadata_fetch_failures__lt=max_failures,
-    ).values_list("id", flat=True)
-
-    osm_count = 0
-    for element_id in stale_osm:
-        refresh_osm_element.delay(element_id)
-        osm_count += 1
-
-    logger.info(
-        f"Queued metadata refresh: {wikidata_count} WikidataItems, {osm_count} OsmElements"
+    return (
+        WikidataItem.objects.filter(
+            Q(metadata_last_fetched__isnull=True)
+            | Q(metadata_last_fetched__lt=stale_threshold),
+            metadata_fetch_failures__lt=max_failures,
+        )
+        .order_by("metadata_last_fetched")
+        .first()
     )
 
-    return {
-        "wikidata_queued": wikidata_count,
-        "osm_queued": osm_count,
-    }
+
+def get_next_stale_osm_element():
+    """Find the next OsmElement that needs refreshing."""
+
+    stale_days = get_stale_threshold_days()
+    max_failures = get_max_failures()
+    stale_threshold = timezone.now() - timedelta(days=stale_days)
+
+    return (
+        OsmElement.objects.filter(
+            Q(metadata_last_fetched__isnull=True)
+            | Q(metadata_last_fetched__lt=stale_threshold),
+            metadata_fetch_failures__lt=max_failures,
+        )
+        .order_by("metadata_last_fetched")
+        .first()
+    )
+
+
+@shared_task(ignore_result=True)
+def refresh_next_wikidata_item():
+    """
+    Refresh a single stale WikidataItem.
+
+    Called periodically by Celery Beat at the configured rate limit interval.
+    This approach ensures global rate limiting regardless of worker count.
+    """
+    item = get_next_stale_wikidata_item()
+    if item is None:
+        logger.debug("No stale WikidataItems to refresh")
+        return {"status": "idle", "message": "No stale items"}
+
+    # Perform the refresh inline (not queued) since Beat controls the rate
+    return _do_refresh_wikidata_item(item)
+
+
+@shared_task(ignore_result=True)
+def refresh_next_osm_element():
+    """
+    Refresh a single stale OsmElement.
+
+    Called periodically by Celery Beat at the configured rate limit interval.
+    This approach ensures global rate limiting regardless of worker count.
+    """
+    element = get_next_stale_osm_element()
+    if element is None:
+        logger.debug("No stale OsmElements to refresh")
+        return {"status": "idle", "message": "No stale elements"}
+
+    # Perform the refresh inline (not queued) since Beat controls the rate
+    return _do_refresh_osm_element(element)

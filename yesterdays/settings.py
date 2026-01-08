@@ -212,19 +212,17 @@ CELERY_TASK_ROUTES = {
     "images.tasks.generate_thumbnail_for_image": {"queue": "background"},
     "images.tasks.generate_thumbnails_batch": {"queue": "background"},
     # Metadata refresh tasks go to background queue
-    "subjects.tasks.refresh_wikidata_item": {"queue": "background"},
-    "subjects.tasks.refresh_osm_element": {"queue": "background"},
-    "subjects.tasks.refresh_stale_metadata": {"queue": "background"},
+    "subjects.tasks.refresh_next_wikidata_item": {"queue": "background"},
+    "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
 }
 
-# Task-specific settings (rate limits applied per-task)
-# Rate limits use Celery format: "4/m" = 4 per minute, "1/s" = 1 per second
-_WIKIDATA_RATE = os.getenv("METADATA_REFRESH_WIKIDATA_RATE_LIMIT", "4/m")
-_OSM_RATE = os.getenv("METADATA_REFRESH_OSM_RATE_LIMIT", "4/m")
-CELERY_TASK_ANNOTATIONS = {
-    "subjects.tasks.refresh_wikidata_item": {"rate_limit": _WIKIDATA_RATE},
-    "subjects.tasks.refresh_osm_element": {"rate_limit": _OSM_RATE},
-}
+# Metadata refresh intervals (seconds between each refresh)
+# These control how often Celery Beat triggers each refresh task
+# Default 15s = 4 per minute, matching the previous rate limit behavior
+METADATA_REFRESH_WIKIDATA_INTERVAL = int(
+    os.getenv("METADATA_REFRESH_WIKIDATA_INTERVAL", "15")
+)
+METADATA_REFRESH_OSM_INTERVAL = int(os.getenv("METADATA_REFRESH_OSM_INTERVAL", "15"))
 
 # Default queue for tasks not explicitly routed
 CELERY_TASK_DEFAULT_QUEUE = "urgent"
@@ -245,10 +243,15 @@ CELERY_TASK_QUEUES = {
 }
 
 # Celery Beat schedule for periodic tasks
+# Rate limiting is achieved by Beat's schedule interval, not per-worker limits
 CELERY_BEAT_SCHEDULE = {
-    "refresh-stale-metadata": {
-        "task": "subjects.tasks.refresh_stale_metadata",
-        "schedule": 300.0,  # Run every 5 minutes
+    "refresh-next-wikidata-item": {
+        "task": "subjects.tasks.refresh_next_wikidata_item",
+        "schedule": float(METADATA_REFRESH_WIKIDATA_INTERVAL),
+    },
+    "refresh-next-osm-element": {
+        "task": "subjects.tasks.refresh_next_osm_element",
+        "schedule": float(METADATA_REFRESH_OSM_INTERVAL),
     },
 }
 
