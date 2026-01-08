@@ -9,6 +9,8 @@ Besides placing images on the map (our core goal), this app provides a growing r
 
 Alongside Django, this project uses Vite (managed by bun) to bundle JavaScript and CSS assets from /assets. The application makes heavy use of MapLibre, and Alpine.js is universally available so it's best to follow Alpine.js best practices where we can.
 
+Celery handles background tasks (thumbnail generation, metadata refresh) with RabbitMQ as the broker. Celery Beat schedules periodic tasks, including rate-limited refreshes of external data from Wikidata and OpenStreetMap.
+
 We are developing this tool together. We can run Django commands in our development environment using `uv`:
 
 `uv run manage.py makemigrations`
