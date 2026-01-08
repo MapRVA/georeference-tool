@@ -69,3 +69,10 @@
     color: white;
     border-color: var(--bs-primary);
 }
+
+/* Reset font when offcanvas is inside map container (fullscreen mode) */
+.maplibregl-map .offcanvas {
+    font: var(--bs-body-font-size) / var(--bs-body-line-height)
+        var(--bs-body-font-family);
+    font-size: 1rem;
+}
