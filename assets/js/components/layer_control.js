@@ -70,6 +70,7 @@ export class LayerControl {
     this.collectionsData = null;
     this.offcanvas = null;
     this.offcanvasInstance = null;
+    this.fullscreenChangeHandler = null;
   }
 
   onAdd(map) {
@@ -149,9 +150,32 @@ export class LayerControl {
 
     document.body.appendChild(this.offcanvas);
     this.offcanvasInstance = new bootstrap.Offcanvas(this.offcanvas);
+
+    // Listen for fullscreen changes to move offcanvas appropriately
+    this.fullscreenChangeHandler = () => this.handleFullscreenChange();
+    document.addEventListener("fullscreenchange", this.fullscreenChangeHandler);
+  }
+
+  handleFullscreenChange() {
+    const fullscreenElement = document.fullscreenElement;
+    const mapContainer = this.map.getContainer();
+
+    if (fullscreenElement === mapContainer) {
+      // Map is now fullscreen - move offcanvas inside the map container
+      mapContainer.appendChild(this.offcanvas);
+    } else if (!fullscreenElement) {
+      // Exited fullscreen - move offcanvas back to document.body
+      document.body.appendChild(this.offcanvas);
+    }
   }
 
   onRemove() {
+    if (this.fullscreenChangeHandler) {
+      document.removeEventListener(
+        "fullscreenchange",
+        this.fullscreenChangeHandler,
+      );
+    }
     if (this.offcanvas && this.offcanvas.parentNode) {
       if (this.offcanvasInstance) {
         this.offcanvasInstance.dispose();
