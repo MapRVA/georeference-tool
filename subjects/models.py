@@ -38,9 +38,20 @@ class WikidataItem(models.Model):
         null=True, blank=True, help_text="Date of construction/inception"
     )
     last_updated = models.DateTimeField(
-        auto_now=True, help_text="When metadata was last fetched from Wikidata"
+        auto_now=True, help_text="When this row was last modified"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Metadata refresh tracking
+    metadata_last_fetched = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When we last attempted to fetch metadata from Wikidata",
+    )
+    metadata_fetch_failures = models.PositiveIntegerField(
+        default=0,
+        help_text="Consecutive fetch failures (resets on success)",
+    )
 
     def __str__(self):
         return f"{self.wikidata_id}: {self.title}"
@@ -192,6 +203,17 @@ class OsmElement(models.Model):
         auto_now=True, help_text="When this row was last updated"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Metadata refresh tracking
+    metadata_last_fetched = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When we last attempted to fetch geometry from OSM",
+    )
+    metadata_fetch_failures = models.PositiveIntegerField(
+        default=0,
+        help_text="Consecutive fetch failures (resets on success)",
+    )
 
     def __str__(self):
         return f"OSM Element {self.osm_id}"

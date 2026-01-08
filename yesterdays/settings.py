@@ -209,10 +209,21 @@ CELERY_BROKER_POOL_LIMIT = 10  # Connection pool size
 # Queue routing configuration
 CELERY_TASK_ROUTES = {
     # Thumbnail generation goes to background queue
-    "yesterdays.tasks.generate_thumbnail_for_image": {"queue": "background"},
-    "yesterdays.tasks.generate_thumbnails_batch": {"queue": "background"},
-    # Add any urgent tasks here as needed
-    # "yesterdays.tasks.some_urgent_task": {"queue": "urgent"},
+    "images.tasks.generate_thumbnail_for_image": {"queue": "background"},
+    "images.tasks.generate_thumbnails_batch": {"queue": "background"},
+    # Metadata refresh tasks go to background queue
+    "subjects.tasks.refresh_wikidata_item": {"queue": "background"},
+    "subjects.tasks.refresh_osm_element": {"queue": "background"},
+    "subjects.tasks.refresh_stale_metadata": {"queue": "background"},
+}
+
+# Task-specific settings (rate limits applied per-task)
+# Rate limits use Celery format: "4/m" = 4 per minute, "1/s" = 1 per second
+_WIKIDATA_RATE = os.getenv("METADATA_REFRESH_WIKIDATA_RATE_LIMIT", "4/m")
+_OSM_RATE = os.getenv("METADATA_REFRESH_OSM_RATE_LIMIT", "4/m")
+CELERY_TASK_ANNOTATIONS = {
+    "subjects.tasks.refresh_wikidata_item": {"rate_limit": _WIKIDATA_RATE},
+    "subjects.tasks.refresh_osm_element": {"rate_limit": _OSM_RATE},
 }
 
 # Default queue for tasks not explicitly routed
@@ -232,6 +243,33 @@ CELERY_TASK_QUEUES = {
         "routing_key": "background",
     },
 }
+
+# Celery Beat schedule for periodic tasks
+CELERY_BEAT_SCHEDULE = {
+    "refresh-stale-metadata": {
+        "task": "subjects.tasks.refresh_stale_metadata",
+        "schedule": 300.0,  # Run every 5 minutes
+    },
+}
+
+# External Metadata Refresh Settings
+# Days after which metadata is considered stale and needs refresh
+METADATA_REFRESH_STALE_DAYS = int(os.getenv("METADATA_REFRESH_STALE_DAYS", "30"))
+# Max consecutive failures before giving up on a record
+METADATA_REFRESH_MAX_FAILURES = int(os.getenv("METADATA_REFRESH_MAX_FAILURES", "5"))
+# Postpass API settings for OSM geometry fetching
+METADATA_REFRESH_POSTPASS_URL = os.getenv(
+    "METADATA_REFRESH_POSTPASS_URL",
+    "https://postpass.geofabrik.de/api/0.2/interpreter",
+)
+METADATA_REFRESH_POSTPASS_TIMEOUT = int(
+    os.getenv("METADATA_REFRESH_POSTPASS_TIMEOUT", "60")
+)
+# Bounding box for OSM queries (Virginia and surrounding area)
+METADATA_REFRESH_POSTPASS_BBOX = os.getenv(
+    "METADATA_REFRESH_POSTPASS_BBOX",
+    "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
+)
 
 # OSM Authentication Settings
 OSM_URL = os.getenv("OSM_URL", "https://www.openstreetmap.org")
