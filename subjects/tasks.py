@@ -182,9 +182,6 @@ def _do_refresh_osm_element(element):
         session.close()
 
 
-METADATA_REFRESH_STALE_DAYS
-
-
 def fetch_osm_features(session, wikidata_id: str) -> list:
     """Fetch OSM features from Postpass API for a Wikidata item."""
     postpass_url = get_postpass_url()
