@@ -218,11 +218,11 @@ CELERY_TASK_ROUTES = {
 
 # Metadata refresh intervals (seconds between each refresh)
 # These control how often Celery Beat triggers each refresh task
-# Default 15s = 4 per minute, matching the previous rate limit behavior
+# Default 1 minute (60s)
 METADATA_REFRESH_WIKIDATA_INTERVAL = int(
-    os.getenv("METADATA_REFRESH_WIKIDATA_INTERVAL", "15")
+    os.getenv("METADATA_REFRESH_WIKIDATA_INTERVAL", "60")
 )
-METADATA_REFRESH_OSM_INTERVAL = int(os.getenv("METADATA_REFRESH_OSM_INTERVAL", "15"))
+METADATA_REFRESH_OSM_INTERVAL = int(os.getenv("METADATA_REFRESH_OSM_INTERVAL", "60"))
 
 # Default queue for tasks not explicitly routed
 CELERY_TASK_DEFAULT_QUEUE = "urgent"
@@ -256,8 +256,8 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # External Metadata Refresh Settings
-# Days after which metadata is considered stale and needs refresh
-METADATA_REFRESH_STALE_DAYS = int(os.getenv("METADATA_REFRESH_STALE_DAYS", "30"))
+# Hours after which metadata is considered stale and needs refresh
+METADATA_REFRESH_STALE_HOURS = int(os.getenv("METADATA_REFRESH_STALE_HOURS", "24"))
 # Max consecutive failures before giving up on a record
 METADATA_REFRESH_MAX_FAILURES = int(os.getenv("METADATA_REFRESH_MAX_FAILURES", "5"))
 # Postpass API settings for OSM geometry fetching

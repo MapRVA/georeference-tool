@@ -24,9 +24,9 @@ from .models import OsmElement, WikidataItem
 logger = logging.getLogger(__name__)
 
 
-def get_stale_threshold_days():
-    """Get the number of days after which metadata is considered stale."""
-    return getattr(settings, "METADATA_REFRESH_STALE_DAYS", 30)
+def get_stale_threshold_hours():
+    """Get the number of hours after which metadata is considered stale."""
+    return getattr(settings, "METADATA_REFRESH_STALE_HOURS", 24)
 
 
 def get_max_failures():
@@ -182,6 +182,9 @@ def _do_refresh_osm_element(element):
         session.close()
 
 
+METADATA_REFRESH_STALE_DAYS
+
+
 def fetch_osm_features(session, wikidata_id: str) -> list:
     """Fetch OSM features from Postpass API for a Wikidata item."""
     postpass_url = get_postpass_url()
@@ -222,9 +225,9 @@ def fetch_osm_features(session, wikidata_id: str) -> list:
 def get_next_stale_wikidata_item():
     """Find the next WikidataItem that needs refreshing."""
 
-    stale_days = get_stale_threshold_days()
+    stale_hours = get_stale_threshold_hours()
     max_failures = get_max_failures()
-    stale_threshold = timezone.now() - timedelta(days=stale_days)
+    stale_threshold = timezone.now() - timedelta(hours=stale_hours)
 
     return (
         WikidataItem.objects.filter(
@@ -240,9 +243,9 @@ def get_next_stale_wikidata_item():
 def get_next_stale_osm_element():
     """Find the next OsmElement that needs refreshing."""
 
-    stale_days = get_stale_threshold_days()
+    stale_hours = get_stale_threshold_hours()
     max_failures = get_max_failures()
-    stale_threshold = timezone.now() - timedelta(days=stale_days)
+    stale_threshold = timezone.now() - timedelta(hours=stale_hours)
 
     return (
         OsmElement.objects.filter(
