@@ -200,6 +200,7 @@ export function initializeMap(config) {
     zoomToContents = false,
     directionImageUrl,
     onMapLoad = null,
+    currentImageDirection = null,
   } = config;
 
   // Setup PMTiles protocol
@@ -217,10 +218,12 @@ export function initializeMap(config) {
   // Setup toggle for other images if enabled
   if (showOtherImages && imageId) {
     window.toggleOtherImages = function (showAll) {
-      const newUrl = showAll ? allImagesUrl : singleImageUrl;
-      const source = map.getSource("images");
-      if (source) {
-        source.setTiles([newUrl]);
+      const visibility = showAll ? "visible" : "none";
+      if (map.getLayer("image-circles")) {
+        map.setLayoutProperty("image-circles", "visibility", visibility);
+      }
+      if (map.getLayer("image-directions")) {
+        map.setLayoutProperty("image-directions", "visibility", visibility);
       }
     };
   }
@@ -429,14 +432,26 @@ export function initializeMap(config) {
       }
     }
 
-    // Add vector tiles source
-    if (vectorTilesUrl) {
+    // Add vector tiles source for other images
+    const tilesUrl =
+      showOtherImages && allImagesUrl ? allImagesUrl : vectorTilesUrl;
+    if (tilesUrl) {
       map.addSource("images", {
         type: "vector",
-        tiles: [vectorTilesUrl],
+        tiles: [tilesUrl],
         minzoom: 0,
         maxzoom: 18,
       });
+
+      // Start hidden if in showOtherImages mode (toggle controls visibility)
+      const initialVisibility = showOtherImages ? "none" : "visible";
+
+      // Build filter to exclude current image if in showOtherImages mode
+      // Convert imageId to number since vector tile properties are integers
+      const excludeCurrentFilter =
+        showOtherImages && imageId
+          ? ["!=", ["get", "id"], parseInt(imageId, 10)]
+          : null;
 
       // Add direction markers
       if (map.hasImage("image-direction")) {
@@ -445,7 +460,9 @@ export function initializeMap(config) {
           type: "symbol",
           source: "images",
           "source-layer": "image_points",
-          filter: ["has", "direction"],
+          filter: excludeCurrentFilter
+            ? ["all", ["has", "direction"], excludeCurrentFilter]
+            : ["has", "direction"],
           layout: {
             "icon-image": "image-direction",
             "icon-overlap": "always",
@@ -458,6 +475,7 @@ export function initializeMap(config) {
             "icon-rotate": ["to-number", ["get", "direction"]],
             "icon-rotation-alignment": "map",
             "icon-pitch-alignment": "map",
+            visibility: initialVisibility,
           },
           paint: {
             "icon-opacity": scaleHelpers.buildDirectionOpacityExpression(),
@@ -471,12 +489,67 @@ export function initializeMap(config) {
         type: "circle",
         source: "images",
         "source-layer": "image_points",
+        filter: excludeCurrentFilter || ["literal", true],
+        layout: {
+          visibility: initialVisibility,
+        },
         paint: {
           "circle-radius": scaleHelpers.buildCircleRadiusExpression(),
           "circle-color": "green",
           "circle-stroke-color": "#fff",
           "circle-stroke-width":
             scaleHelpers.buildCircleStrokeWidthExpression(),
+        },
+      });
+    }
+
+    // Add current image as GeoJSON layer (always visible, distinct color, on top)
+    if (showOtherImages && imageId && center) {
+      map.addSource("current-image", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: center,
+          },
+          properties: {
+            id: imageId,
+            direction: currentImageDirection,
+          },
+        },
+      });
+
+      // Add direction marker for current image
+      if (map.hasImage("image-direction") && currentImageDirection !== null) {
+        map.addLayer({
+          id: "current-image-direction",
+          type: "symbol",
+          source: "current-image",
+          layout: {
+            "icon-image": "image-direction",
+            "icon-overlap": "always",
+            "icon-size": 1,
+            "icon-rotate": currentImageDirection,
+            "icon-rotation-alignment": "map",
+            "icon-pitch-alignment": "map",
+          },
+          paint: {
+            "icon-opacity": 1,
+          },
+        });
+      }
+
+      // Add circle for current image
+      map.addLayer({
+        id: "current-image-circle",
+        type: "circle",
+        source: "current-image",
+        paint: {
+          "circle-radius": 8,
+          "circle-color": "#dc3545",
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 2,
         },
       });
     }
@@ -573,15 +646,6 @@ export function initializeMap(config) {
             if (retryFeatures.length > 0) {
               initialFeaturesLoaded = true;
               processFeatures(retryFeatures);
-            } else {
-              if (!aerialGeoreference) {
-                document.getElementById(mapId).innerHTML =
-                  '<div class="d-flex align-items-center justify-content-center h-100 text-muted bg-light">' +
-                  '<div class="text-center">' +
-                  '<i class="fas fa-map-marker-alt fa-2x mb-2"></i><br>' +
-                  "No georeferenced images found" +
-                  "</div></div>";
-              }
             }
           }, 1000);
         }

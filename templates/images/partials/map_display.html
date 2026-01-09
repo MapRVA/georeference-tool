@@ -41,20 +41,16 @@ document.addEventListener('DOMContentLoaded', function() {
     baseUrlParams.append('enable_scale_filter', 'true');
     {% endif %}
 
-    const singleImageParams = new URLSearchParams(baseUrlParams);
-    singleImageParams.append('image', '{{ image_id }}');
-
     const baseVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 
-    const singleImageUrl = baseUrlParams.toString() ?
-        baseVectorTilesUrl + '?' + singleImageParams.toString() :
-        baseVectorTilesUrl + '?image={{ image_id }}';
-
+    // URL for all images (used when "show other images" is enabled)
     const allImagesUrl = baseUrlParams.toString() ?
         baseVectorTilesUrl + '?' + baseUrlParams.toString() :
         baseVectorTilesUrl;
 
-    const vectorTilesUrl = singleImageUrl;
+    // Current image will be shown via GeoJSON, so vector tiles start hidden (null)
+    const vectorTilesUrl = null;
+    const singleImageUrl = null;
     {% else %}
     const urlParams = new URLSearchParams();
 
@@ -101,7 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
         geolocate: {{ geolocate|yesno:"true,false,false" }},
         aerialGeoreference: {% if aerial_georeference %}{{ aerial_georeference.polygon.geojson|safe }}{% else %}null{% endif %},
         zoomToContents: {{ zoom_to_contents|yesno:"true,false,false" }},
-        directionImageUrl: '{% static "images/surveillance-direction.png" %}'
+        directionImageUrl: '{% static "images/surveillance-direction.png" %}',
+        currentImageDirection: {% if current_image_direction is not None %}{{ current_image_direction }}{% else %}null{% endif %}
     });
 });
 </script>
