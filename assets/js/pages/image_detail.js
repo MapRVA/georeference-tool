@@ -1284,9 +1284,22 @@ document.addEventListener("DOMContentLoaded", function () {
   const showOtherImagesToggle = document.getElementById(
     "show-other-images-toggle",
   );
+  const otherImagesLoading = document.getElementById("other-images-loading");
   if (showOtherImagesToggle && typeof window.toggleOtherImages === "function") {
     showOtherImagesToggle.addEventListener("change", function () {
-      window.toggleOtherImages(this.checked);
+      const showAll = this.checked;
+
+      // Show loading spinner when enabling other images
+      if (showAll && otherImagesLoading) {
+        otherImagesLoading.classList.remove("d-none");
+      }
+
+      window.toggleOtherImages(showAll, function () {
+        // Hide loading spinner when layer finishes loading
+        if (otherImagesLoading) {
+          otherImagesLoading.classList.add("d-none");
+        }
+      });
     });
   }
 

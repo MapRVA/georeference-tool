@@ -217,13 +217,31 @@ export function initializeMap(config) {
 
   // Setup toggle for other images if enabled
   if (showOtherImages && imageId) {
-    window.toggleOtherImages = function (showAll) {
+    let otherImagesLoaded = false;
+
+    window.toggleOtherImages = function (showAll, onLoadCallback) {
       const visibility = showAll ? "visible" : "none";
       if (map.getLayer("image-circles")) {
         map.setLayoutProperty("image-circles", "visibility", visibility);
       }
       if (map.getLayer("image-directions")) {
         map.setLayoutProperty("image-directions", "visibility", visibility);
+      }
+
+      // Handle loading callback
+      if (showAll && onLoadCallback) {
+        if (otherImagesLoaded) {
+          // Already loaded, call immediately
+          onLoadCallback();
+        } else {
+          // Wait for idle event (tiles finished loading)
+          const onIdle = function () {
+            otherImagesLoaded = true;
+            onLoadCallback();
+            map.off("idle", onIdle);
+          };
+          map.on("idle", onIdle);
+        }
       }
     };
   }
