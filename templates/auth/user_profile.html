@@ -50,18 +50,20 @@
                     </div>
                 </div>
 
-                {% if album_count > 0 %}
                 <div class="row mb-3">
                     <div class="col-sm-3">
                         <strong>Albums:</strong>
                     </div>
                     <div class="col-sm-9">
+                        {% if album_count > 0 %}
                         <a href="{% url 'user_albums_list' display_name %}" class="btn btn-primary btn-sm">
                             <i class="fas fa-photo-video me-1"></i>View Albums
                         </a>
+                        {% else %}
+                        {{ display_name }} has no albums yet
+                        {% endif %}
                     </div>
                 </div>
-                {% endif %}
             </div>
 
         </div>
