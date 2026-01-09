@@ -484,12 +484,7 @@ export function initializeMap(config) {
           layout: {
             "icon-image": "image-direction",
             "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
-            },
+            "icon-size": 1,
             "icon-rotate": ["to-number", ["get", "direction"]],
             "icon-rotation-alignment": "map",
             "icon-pitch-alignment": "map",
