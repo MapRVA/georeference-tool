@@ -16,7 +16,7 @@
                         <div class="timeline-marker">
                             <i class="fas fa-map-marker-alt"></i>
                         </div>
-                        <div class="timeline-content">
+                        <div class="timeline-content border rounded-2">
                             <div class="timeline-header">
                                 <h6 class="timeline-title">
                                     Georeferenced by
@@ -79,13 +79,13 @@
 
                             <!-- Validations for this georeference -->
                             {% if georeference.validations.exists %}
-                                <div class="timeline-validations mt-3">
+                                <div class="timeline-validations mt-3 pt-3 border-top">
                                     <h6 class="small text-muted mb-2">
                                         <i class="fas fa-users me-1"></i>Community Validations:
                                     </h6>
                                     <div class="validation-list">
                                         {% for validation in georeference.validations.all %}
-                                            <div class="validation-item d-flex align-items-start mb-2">
+                                            <div class="validation-item d-flex align-items-start mb-2 border rounded-2">
                                                 <div class="validation-icon me-2">
                                                     {% if validation.validation == 'correct' %}
                                                         <i class="fas fa-check text-success"></i>
@@ -132,7 +132,7 @@
                         <div class="timeline-marker">
                             <i class="fas fa-plane"></i>
                         </div>
-                        <div class="timeline-content">
+                        <div class="timeline-content border rounded-2">
                             <div class="timeline-header">
                                 <h6 class="timeline-title">
                                     Aerial Georeference submitted by
@@ -178,13 +178,13 @@
 
                             <!-- Validations for this aerial georeference -->
                             {% if aerial_georeference.validations.exists %}
-                                <div class="timeline-validations mt-3">
+                                <div class="timeline-validations mt-3 pt-3 border-top">
                                     <h6 class="small text-muted mb-2">
                                         <i class="fas fa-users me-1"></i>Community Validations:
                                     </h6>
                                     <div class="validation-list">
                                         {% for validation in aerial_georeference.validations.all %}
-                                            <div class="validation-item d-flex align-items-start mb-2">
+                                            <div class="validation-item d-flex align-items-start mb-2 border rounded-2">
                                                 <div class="validation-icon me-2">
                                                     {% if validation.validation == 'correct' %}
                                                         <i class="fas fa-check text-success"></i>
@@ -231,7 +231,7 @@
                         <div class="timeline-marker">
                             <i class="fas fa-comment"></i>
                         </div>
-                        <div class="timeline-content">
+                        <div class="timeline-content border rounded-2">
                             <div class="timeline-header">
                                 <h6 class="timeline-title">
                                     Comment by
