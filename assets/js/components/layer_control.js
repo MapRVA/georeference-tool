@@ -247,6 +247,7 @@ export class LayerControl {
         const layerKey = item.dataset.layer;
         if (layerKey === this.currentBaseLayer) return;
         this.switchToBaseLayer(layerKey);
+        this.offcanvasInstance.hide();
       });
     });
   }
@@ -607,6 +608,7 @@ export class LayerControl {
             layer.type || "pmtiles",
             layer.attribution || "",
           );
+          this.offcanvasInstance.hide();
         });
 
         listGroup.appendChild(layerItem);
@@ -648,6 +650,7 @@ export class LayerControl {
     imageLayerItem.addEventListener("click", (e) => {
       e.preventDefault();
       this.toggleImageLayers();
+      this.offcanvasInstance.hide();
     });
 
     listGroup.appendChild(imageLayerItem);
