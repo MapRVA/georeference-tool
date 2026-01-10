@@ -55,6 +55,54 @@ def subject_autocomplete(request):
     return JsonResponse(results, safe=False)
 
 
+def wikidata_lookup(request):
+    """Look up a Wikidata item by ID and return subject info (creates if needed)"""
+    wikidata_id = request.GET.get("id", "").strip().upper()
+
+    if not wikidata_id or not wikidata_id.startswith("Q"):
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Invalid Wikidata ID format. Must start with 'Q'.",
+            },
+            status=400,
+        )
+
+    try:
+        # Get or create WikidataItem (this fetches from Wikidata API if new)
+        wikidata_item, _ = WikidataItem.objects.get_or_create(wikidata_id=wikidata_id)
+
+        # Get or create Subject
+        subject, _ = Subject.objects.get_or_create(
+            wikidata_item=wikidata_item,
+            defaults={
+                "title": wikidata_item.title,
+                "description": wikidata_item.description
+                or f"Subject from Wikidata: {wikidata_id}",
+            },
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "subject": {
+                    "id": subject.id,
+                    "title": subject.title,
+                    "description": subject.description,
+                    "wikidata_id": wikidata_id,
+                },
+            }
+        )
+
+    except ValidationError as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": f"Error looking up Wikidata item: {str(e)}"},
+            status=500,
+        )
+
+
 def all_subjects_api(request):
     """API endpoint to get all subjects as JSON"""
     subjects = Subject.objects.all().values("id", "title")

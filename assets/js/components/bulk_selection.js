@@ -196,7 +196,7 @@ export function bulkSelection() {
       if (!this.bulkSubjectAutocomplete) {
         this.bulkSubjectAutocomplete = new autoComplete({
           selector: "#bulkSubjectSearchInput",
-          placeHolder: "Search for a subject...",
+          placeHolder: "Search by name or enter Wikidata ID (e.g., Q123456)...",
           data: {
             src: async (query) => {
               try {
@@ -247,6 +247,101 @@ export function bulkSelection() {
             },
           },
         });
+
+        // Set up Wikidata ID button handler after autocomplete is initialized
+        const wikidataBtn = document.getElementById("bulkAddWikidataBtn");
+        const inputElement = this.bulkSubjectAutocomplete.input;
+
+        if (wikidataBtn) {
+          wikidataBtn.addEventListener("click", () => {
+            this.addWikidataId(inputElement.value.trim());
+          });
+        }
+
+        inputElement.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            const value = inputElement.value.trim();
+            if (value.match(/^Q\d+$/i)) {
+              e.preventDefault();
+              e.stopPropagation();
+              this.addWikidataId(value);
+            }
+          }
+        });
+      }
+    },
+
+    /**
+     * Add a Wikidata ID directly to the selected subjects list
+     */
+    async addWikidataId(wikidataId) {
+      // Normalize to uppercase
+      wikidataId = wikidataId.toUpperCase();
+
+      if (!wikidataId.match(/^Q\d+$/)) {
+        showAlert(
+          "danger",
+          "Invalid Wikidata ID format. Must be Q followed by numbers (e.g., Q123456).",
+        );
+        return;
+      }
+
+      // Check if already selected (by wikidata_id)
+      if (this.selectedBulkSubjects.some((s) => s.wikidata_id === wikidataId)) {
+        showAlert("info", `${wikidataId} is already in the list.`);
+        return;
+      }
+
+      // Clear input immediately
+      const searchInput = document.getElementById("bulkSubjectSearchInput");
+      if (searchInput) {
+        searchInput.value = "";
+      }
+
+      // Add a loading placeholder to the list immediately
+      const loadingId = `loading-${wikidataId}`;
+      this.selectedBulkSubjects.push({
+        id: loadingId,
+        title: null, // null title indicates loading state
+        wikidata_id: wikidataId,
+        loading: true,
+      });
+      this.renderBulkSelectedSubjects();
+
+      try {
+        // Look up the Wikidata item to get the proper title
+        const response = await fetch(
+          `/api/v1/subjects/wikidata-lookup/?id=${wikidataId}`,
+        );
+        const data = await response.json();
+
+        // Remove the loading placeholder
+        this.selectedBulkSubjects = this.selectedBulkSubjects.filter(
+          (s) => s.id !== loadingId,
+        );
+
+        if (data.success && data.subject) {
+          // Add with the resolved subject info
+          this.selectedBulkSubjects.push({
+            id: data.subject.id,
+            title: data.subject.title,
+            description: data.subject.description,
+            wikidata_id: data.subject.wikidata_id,
+          });
+
+          this.renderBulkSelectedSubjects();
+          document.getElementById("bulkAddSubjectBtn").disabled = false;
+        } else {
+          this.renderBulkSelectedSubjects();
+          showAlert("danger", data.error || "Failed to look up Wikidata item.");
+        }
+      } catch (error) {
+        // Remove the loading placeholder on error
+        this.selectedBulkSubjects = this.selectedBulkSubjects.filter(
+          (s) => s.id !== loadingId,
+        );
+        this.renderBulkSelectedSubjects();
+        showAlert("danger", `Error looking up Wikidata item: ${error.message}`);
       }
     },
 
@@ -263,24 +358,37 @@ export function bulkSelection() {
       } else {
         emptyMessage.style.display = "none";
         container.innerHTML = this.selectedBulkSubjects
-          .map(
-            (subject) => `
-                        <span class="badge bg-primary" data-subject-id="${subject.id}">
+          .map((subject) => {
+            // Use wikidata_id as the unique key for removal
+            const subjectKey = subject.wikidata_id || subject.id;
+
+            // Show spinner for loading items
+            if (subject.loading) {
+              return `
+                        <span class="badge bg-secondary" data-subject-id="${subjectKey}">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            ${this.escapeHtml(subject.wikidata_id)}
+                        </span>
+                    `;
+            }
+
+            return `
+                        <span class="badge bg-primary" data-subject-id="${subjectKey}">
                             ${this.escapeHtml(subject.title)}
                             <button type="button" class="btn-close btn-close-white ms-1"
                                     style="font-size: 0.65rem;"
-                                    data-subject-remove="${subject.id}">
+                                    data-subject-remove="${subjectKey}">
                             </button>
                         </span>
-                    `,
-          )
+                    `;
+          })
           .join("");
 
         // Add click handlers for remove buttons
         container.querySelectorAll("[data-subject-remove]").forEach((btn) => {
           btn.addEventListener("click", (e) => {
-            const subjectId = e.target.dataset.subjectRemove;
-            this.removeBulkSubject(subjectId);
+            const subjectKey = e.target.dataset.subjectRemove;
+            this.removeBulkSubject(subjectKey);
           });
         });
       }
@@ -289,10 +397,11 @@ export function bulkSelection() {
     /**
      * Remove a subject from the bulk selection list
      */
-    removeBulkSubject(subjectId) {
-      this.selectedBulkSubjects = this.selectedBulkSubjects.filter(
-        (s) => s.id.toString() !== subjectId.toString(),
-      );
+    removeBulkSubject(subjectKey) {
+      this.selectedBulkSubjects = this.selectedBulkSubjects.filter((s) => {
+        const key = s.wikidata_id || s.id;
+        return key.toString() !== subjectKey.toString();
+      });
       this.renderBulkSelectedSubjects();
       if (this.selectedBulkSubjects.length === 0) {
         document.getElementById("bulkAddSubjectBtn").disabled = true;

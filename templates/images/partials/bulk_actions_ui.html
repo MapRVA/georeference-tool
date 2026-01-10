@@ -58,8 +58,13 @@
                     <p class="text-muted">Add subjects to <span x-text="selectedImages.size"></span> selected images.</p>
                     <div class="mb-3">
                         <label for="bulkSubjectSearchInput" class="form-label">Search Subjects</label>
-                        <input type="text" id="bulkSubjectSearchInput" class="form-control" placeholder="Type to search and add multiple subjects...">
-                        <small class="text-muted">You can add multiple subjects - they will appear below</small>
+                        <div class="input-group">
+                            <input type="text" id="bulkSubjectSearchInput" class="form-control" placeholder="Search by name or enter Wikidata ID (e.g., Q123456)...">
+                            <button type="button" class="btn btn-outline-secondary" id="bulkAddWikidataBtn" title="Add Wikidata ID">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Search by name, or enter a Wikidata ID and click + to add</small>
                     </div>
                     <div id="bulkSelectedSubjects">
                         <p class="mb-2 text-muted small">Selected subjects (click × to remove):</p>

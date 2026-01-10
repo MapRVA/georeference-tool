@@ -55,6 +55,11 @@ urlpatterns = [
         subject_views.bulk_add_subject_to_images,
         name="bulk_add_subject_to_images",
     ),
+    path(
+        "api/v1/subjects/wikidata-lookup/",
+        subject_views.wikidata_lookup,
+        name="wikidata_lookup",
+    ),
     path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
     path("maps/", include("maps.urls")),
     path("admin/", admin.site.urls),

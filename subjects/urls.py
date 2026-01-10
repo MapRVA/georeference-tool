@@ -19,6 +19,11 @@ urlpatterns = [
         views.subject_autocomplete,
         name="subject_autocomplete",
     ),
+    path(
+        "api/wikidata-lookup/",
+        views.wikidata_lookup,
+        name="wikidata_lookup",
+    ),
     path("api/all/", views.all_subjects_api, name="all_subjects_api"),
     path(
         "api/bulk-add/",
