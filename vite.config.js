@@ -75,10 +75,11 @@ export default defineConfig({
         map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.js"),
       },
       output: {
-        entryFileNames: `js/[name]-bundle.js`,
+        entryFileNames: `js/[name]-[hash].js`,
+        chunkFileNames: `js/[name]-[hash].js`,
         assetFileNames: (assetInfo) => {
           if (assetInfo.name && assetInfo.name.endsWith(".css")) {
-            return "css/[name]-bundle.css";
+            return "css/[name]-[hash].css";
           }
           return "assets/[name]-[hash][extname]";
         },
