@@ -344,6 +344,10 @@ export class LayerControl {
     return (
       layerId === "image-circles" ||
       layerId === "image-directions" ||
+      layerId === "current-image-circle" ||
+      layerId === "current-image-direction" ||
+      layerId === "aerial-polygon-fill" ||
+      layerId === "aerial-polygon-outline" ||
       layerId === "pin-circle" ||
       layerId === "pin-symbol" ||
       layerId === "context-image-circles" ||
