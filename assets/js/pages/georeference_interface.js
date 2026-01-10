@@ -4,6 +4,7 @@
  */
 
 import "../../styles/pages/georeference-interface.css";
+import "../../styles/components/map-display.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "photoswipe/dist/photoswipe.css";
 
