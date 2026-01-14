@@ -25,11 +25,18 @@
         <!-- Layer Header -->
         <div class="card mb-4">
             <div class="card-body position-relative">
-                {% if layer.oim_link %}
-                    <a href="{{ layer.oim_link }}" target="_blank" class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-3">
-                        Edit in OIM
-                    </a>
-                {% endif %}
+                <div class="position-absolute top-0 end-0 m-3 d-flex gap-2">
+                    {% if layer.oim_link %}
+                        <a href="{{ layer.oim_link }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Edit in OIM
+                        </a>
+                    {% endif %}
+                    {% if request.user.is_staff %}
+                        <a href="{% url 'admin:maps_maplayer_change' layer.pk %}" class="btn btn-sm btn-outline-secondary">
+                            Edit Info
+                        </a>
+                    {% endif %}
+                </div>
                 <h1 class="card-title mb-3">{{ layer.name }}</h1>
 
                 {% if rendered_description %}
