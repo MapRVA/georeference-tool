@@ -9,6 +9,9 @@ This site documents how images are [organized](/browsing/), [georeferenced](/geo
 We are [MapRVA](https://maprva.org), a community of mapping enthusiasts based in Richmond, Virginia.
 If you are interested in Yesterdays, or other MapRVA projects, we hope you'll join us for an upcoming meetup.
 
+Join the [OpenStreetMap US Slack](https://openstreetmap.us/slack/), where we collaborate on development and contributions to Yesterdays in the `#yesterdays` channel.
+Anyone is welcome to participate.
+
 ## Contributing to Yesterdays
 
 Yesterdays is open-source, and we welcome contributions to our codebase.
