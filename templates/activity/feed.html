@@ -13,23 +13,37 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Activity Feed</h1>
         </div>
-        <!--
-        <p class="text-muted mb-4">See what's happening on Yesterdays - recent georeferences, comments, and milestones from the community.</p>
-        -->
-        {% if page_obj %}
-            <div class="activity-feed">
-                {% for event_type, event, timestamp in page_obj %}
-                    {% if event_type == 'group' %}
-                        {% include 'activity/partials/group_card.html' with group=event %}
-                    {% elif event_type == 'comment' %}
-                        {% include 'activity/partials/comment_card.html' with comment=event %}
-                    {% elif event_type == 'milestone' %}
-                        {% include 'activity/partials/milestone_card.html' with milestone=event %}
-                    {% endif %}
-                {% endfor %}
-            </div>
+        {% if events %}
+            <div x-data="activityFeed({{ has_more|yesno:'true,false' }})"
+                 x-ref="feed">
+                <div class="activity-feed" x-ref="items">
+                    {% for event_type, event, timestamp in events %}
+                        <div class="activity-item" data-timestamp="{{ timestamp|date:'c' }}">
+                            {% if event_type == 'group' %}
+                                {% include 'activity/partials/group_card.html' with group=event %}
+                            {% elif event_type == 'comment' %}
+                                {% include 'activity/partials/comment_card.html' with comment=event %}
+                            {% elif event_type == 'milestone' %}
+                                {% include 'activity/partials/milestone_card.html' with milestone=event %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
 
-            {% include 'activity/partials/pagination.html' %}
+                <div class="text-center my-4">
+                    <button x-show="hasMore && !loading"
+                            x-cloak
+                            @click="loadMore"
+                            class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-down me-2"></i>Load More
+                    </button>
+                    <div x-show="loading" x-cloak>
+                        <div class="spinner-border text-secondary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         {% else %}
             <div class="card">
                 <div class="card-body text-center py-5">

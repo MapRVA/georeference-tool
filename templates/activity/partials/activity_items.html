@@ -1,0 +1,11 @@
+{% for event_type, event, timestamp in events %}
+    <div class="activity-item" data-timestamp="{{ timestamp|date:'c' }}">
+        {% if event_type == 'group' %}
+            {% include 'activity/partials/group_card.html' with group=event %}
+        {% elif event_type == 'comment' %}
+            {% include 'activity/partials/comment_card.html' with comment=event %}
+        {% elif event_type == 'milestone' %}
+            {% include 'activity/partials/milestone_card.html' with milestone=event %}
+        {% endif %}
+    </div>
+{% endfor %}

@@ -19,6 +19,7 @@ import { library, dom } from "@fortawesome/fontawesome-svg-core";
 import {
   faAlignLeft,
   faArchive,
+  faArrowDown,
   faArrowLeft,
   faBan,
   faCalendar,
@@ -99,6 +100,7 @@ import {
 library.add(
   faAlignLeft,
   faArchive,
+  faArrowDown,
   faArrowLeft,
   faBan,
   faCalendar,
