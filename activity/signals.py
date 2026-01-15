@@ -6,6 +6,7 @@ from images.models import AerialGeoreference, Georeference
 
 from .models import (
     GROUPING_WINDOW,
+    MILESTONE_THRESHOLDS,
     GeoreferenceGroup,
     GeoreferenceGroupMember,
     UserMilestone,
