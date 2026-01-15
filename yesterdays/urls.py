@@ -38,6 +38,7 @@ urlpatterns = [
         name="user_albums_list",
     ),
     path("subjects/", include("subjects.urls")),
+    path("activity/", include("activity.urls")),
     path("", include("images.urls")),
     # Subject API endpoints (kept at /api/v1/subjects/ for backwards compatibility)
     path(

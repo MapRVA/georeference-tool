@@ -1,0 +1,74 @@
+{% load activity_tags %}
+<div class="card mb-3" x-data="{ expanded: false }">
+    <div class="card-body">
+        <div class="d-flex align-items-start">
+            <div class="me-3">
+                <span class="badge bg-success rounded-circle p-2">
+                    <i class="fas fa-map-marker-alt"></i>
+                </span>
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">
+                            {% if group.user.get_profile_url %}
+                                <a href="{{ group.user.get_profile_url }}" class="text-decoration-none">
+                                    {{ group.user.get_display_name }}
+                                </a>
+                            {% else %}
+                                {{ group.user.get_display_name }}
+                            {% endif %}
+                            georeferenced
+                            {% if group.count == 1 %}
+                                an image
+                            {% else %}
+                                <strong>{{ group.count }}</strong> images
+                            {% endif %}
+                        </h6>
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>{{ group.ended_at|timeago }}
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Preview of images (first 5) -->
+                {% if group.members.all %}
+                    <div class="mt-3">
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for member in group.members.all|slice:":5" %}
+                                {% with image=member.image %}
+                                    {% if image %}
+                                        <a href="{% url 'images:image_detail' image.id %}" class="position-relative" style="width: 80px; height: 80px;">
+                                            <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
+                                                 alt="{{ image.title|default:'Image' }}"
+                                                 class="rounded"
+                                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                                 loading="lazy">
+                                        </a>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endfor %}
+                        </div>
+
+                        {% if group.count > 5 %}
+                            <button class="btn btn-link btn-sm p-0 mt-2" @click="expanded = !expanded">
+                                <span x-show="!expanded">Show all {{ group.count }} images <i class="fas fa-chevron-down ms-1"></i></span>
+                                <span x-show="expanded" x-cloak>Show less <i class="fas fa-chevron-up ms-1"></i></span>
+                            </button>
+
+                            <div x-show="expanded" x-cloak class="mt-2">
+                                <p class="text-muted small mb-2">
+                                    Showing all {{ group.count }} georeferenced images from this session.
+                                    <a href="{% url 'user_profile' group.user.first_name %}" class="text-decoration-none">
+                                        View {{ group.user.get_display_name }}'s profile
+                                    </a>
+                                    to see all their contributions.
+                                </p>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

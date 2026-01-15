@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}Activity Feed - Yesterdays{% endblock %}
+
+{% block extra_js %}
+{% vite_asset 'assets/js/pages/activity_feed.js' %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Activity Feed</h1>
+        </div>
+        <!--
+        <p class="text-muted mb-4">See what's happening on Yesterdays - recent georeferences, comments, and milestones from the community.</p>
+        -->
+        {% if page_obj %}
+            <div class="activity-feed">
+                {% for event_type, event, timestamp in page_obj %}
+                    {% if event_type == 'group' %}
+                        {% include 'activity/partials/group_card.html' with group=event %}
+                    {% elif event_type == 'comment' %}
+                        {% include 'activity/partials/comment_card.html' with comment=event %}
+                    {% elif event_type == 'milestone' %}
+                        {% include 'activity/partials/milestone_card.html' with milestone=event %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            {% include 'activity/partials/pagination.html' %}
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No activity yet</h5>
+                    <p class="text-muted mb-0">Be the first to contribute by georeferencing an image!</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

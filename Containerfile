@@ -53,6 +53,7 @@ COPY assets ./assets
 COPY images ./images
 COPY maps ./maps
 COPY subjects ./subjects
+COPY activity ./activity
 COPY osm_auth ./osm_auth
 COPY scripts ./scripts
 COPY templates ./templates
@@ -95,6 +96,7 @@ COPY --from=build /app/.python-version /app/
 COPY --from=build /app/images /app/images
 COPY --from=build /app/maps /app/maps
 COPY --from=build /app/subjects /app/subjects
+COPY --from=build /app/activity /app/activity
 COPY --from=build /app/osm_auth /app/osm_auth
 COPY --from=build /app/scripts /app/scripts
 COPY --from=build /app/templates /app/templates

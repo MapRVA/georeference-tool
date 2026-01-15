@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "subjects",
     "images",
     "maps",
+    "activity",
 ]
 
 MIDDLEWARE = [
@@ -321,3 +322,7 @@ PROTOMAPS_API_KEY = os.getenv("PROTOMAPS_API_KEY")
 OSM_STYLE_URL = os.getenv(
     "OSM_STYLE_URL", "https://styles.maprva.org/openmaptiles-osm.json"
 )
+
+# Activity Feed Settings
+# Milestone thresholds for user georeference achievements
+ACTIVITY_MILESTONE_THRESHOLDS = [5, 15, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
