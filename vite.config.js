@@ -73,6 +73,10 @@ export default defineConfig({
           "./assets/js/components/bulk_selection.js",
         ),
         map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.js"),
+        activity_feed: path.resolve(
+          __dirname,
+          "./assets/js/pages/activity_feed.js",
+        ),
       },
       output: {
         entryFileNames: `js/[name]-[hash].js`,
