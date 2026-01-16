@@ -45,46 +45,11 @@
                 {% if image.subjects.exists %}
                     <div class="row g-3" id="image-subjects-row">
                         {% for subject_relation in image.subject_mappings.all %}
-                        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 subject-card-wrapper">
-                            <div class="card h-100 shadow-sm subject-card" data-subject-relation-id="{{ subject_relation.id }}">
-                                {% if request.user.is_authenticated %}
-                                <div class="drag-handle subject-card-control position-absolute top-0 start-0 p-2" style="cursor: move; z-index: 10;">
-                                    <i class="fas fa-grip-vertical text-muted"></i>
-                                </div>
-                                {% endif %}
-                                {% if subject_relation.subject.wikidata_item and subject_relation.subject.wikidata_item.image_url %}
-                                    <a href="{{ subject_relation.subject.get_absolute_url }}" class="d-block">
-                                        <img src="{{ subject_relation.subject.wikidata_item.image_url }}"
-                                                alt="{{ subject_relation.subject.title }}"
-                                                class="card-img-top"
-                                                loading="lazy"
-                                                style="height: 150px; object-fit: cover;">
-                                    </a>
-                                {% else %}
-                                        <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 150px;">
-                                            <i class="fas fa-image fa-3x text-muted"></i>
-                                        </div>
-                                {% endif %}
-                                <div class="card-body p-2">
-                                    <h6 class="card-title mb-1" style="font-size: 1rem;">
-                                        <a href="{{ subject_relation.subject.get_absolute_url }}" class="text-decoration-none text-body">
-                                            {{ subject_relation.subject.title }}
-                                        </a>
-                                    </h6>
-                                </div>
-                                {% if request.user.is_authenticated %}
-                                <div class="position-absolute top-0 end-0 p-1 subject-card-control">
-                                    <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="{{ subject_relation.id }}" title="Remove subject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
+                        {% include "subjects/partials/subject_card.html" %}
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="text-center py-4">
+                    <div class="text-center py-4" id="no-subjects-message">
                         <p class="text-muted">No subjects have been assigned to this image yet.</p>
                     </div>
                 {% endif %}

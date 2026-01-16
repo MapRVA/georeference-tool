@@ -34,7 +34,8 @@ export function initSubjectEditor() {
 
   const addBtn = document.getElementById("add-subject-btn");
   const subjectInput = document.getElementById("subject-autocomplete");
-  const subjectRow = document.getElementById("image-subjects-row");
+  let subjectRow = document.getElementById("image-subjects-row");
+  let sortableInstance = null;
 
   // Create the remove subject confirmation modal
   let removeSubjectModal = document.getElementById("removeSubjectModal");
@@ -105,7 +106,9 @@ export function initSubjectEditor() {
         if (data.success) {
           showAlert("success", data.message);
           subjectInput.value = "";
-          location.reload();
+
+          // Insert the new subject card HTML
+          insertSubjectCard(data.html);
         } else {
           showAlert("danger", data.error);
         }
@@ -117,6 +120,93 @@ export function initSubjectEditor() {
         addBtn.disabled = false;
         addBtn.innerHTML = originalText;
       });
+  }
+
+  function insertSubjectCard(html) {
+    // If the subjects row doesn't exist, create it and remove empty message
+    if (!subjectRow) {
+      const noSubjectsMessage = document.getElementById("no-subjects-message");
+      if (noSubjectsMessage) {
+        noSubjectsMessage.remove();
+      }
+
+      // Create the subjects row
+      subjectRow = document.createElement("div");
+      subjectRow.className = "row g-3";
+      subjectRow.id = "image-subjects-row";
+
+      // Insert it into the card body
+      const cardBody = editorElement.querySelector(".card-body");
+      cardBody.appendChild(subjectRow);
+
+      // Initialize sortable on the new row
+      initSortable();
+    }
+
+    // Parse the HTML and get the new card element
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    const newCard = temp.firstElementChild;
+
+    // Add initial styles for fade-in animation
+    newCard.style.opacity = "0";
+    newCard.style.transform = "scale(0.9)";
+
+    // Append to the row
+    subjectRow.appendChild(newCard);
+
+    // Trigger the animation
+    requestAnimationFrame(() => {
+      newCard.style.transition =
+        "opacity 0.3s ease-out, transform 0.3s ease-out";
+      newCard.style.opacity = "1";
+      newCard.style.transform = "scale(1)";
+    });
+  }
+
+  function initSortable() {
+    if (!subjectRow || sortableInstance) return;
+
+    sortableInstance = new Sortable(subjectRow, {
+      animation: 150,
+      handle: ".drag-handle",
+      filter: ".remove-subject",
+      preventOnFilter: true,
+      onEnd: function () {
+        const subjectCards = subjectRow.querySelectorAll(".subject-card");
+        const newOrder = Array.from(subjectCards).map(
+          (card) => card.dataset.subjectRelationId,
+        );
+
+        const csrfToken = document.querySelector(
+          '[name="csrfmiddlewaretoken"]',
+        ).value;
+
+        fetch(urls.reorderSubjects, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({ order: newOrder }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              showAlert("success", "Subject order updated.");
+            } else {
+              showAlert("danger", "Error updating order: " + data.error);
+            }
+          })
+          .catch((error) => {
+            showAlert(
+              "danger",
+              "An unexpected error occurred while reordering.",
+            );
+            console.error("Error:", error);
+          });
+      },
+    });
   }
 
   // Add button click handler
@@ -256,10 +346,21 @@ export function initSubjectEditor() {
               cardWrapper.style.transform = "scale(0.9)";
               setTimeout(() => {
                 cardWrapper.remove();
-                const subjectRow =
-                  document.getElementById("image-subjects-row");
+                // Check if we need to show the empty message
+                subjectRow = document.getElementById("image-subjects-row");
                 if (subjectRow && subjectRow.children.length === 0) {
-                  location.reload();
+                  subjectRow.remove();
+                  subjectRow = null;
+                  sortableInstance = null;
+
+                  // Add the empty message back
+                  const cardBody = editorElement.querySelector(".card-body");
+                  const emptyMessage = document.createElement("div");
+                  emptyMessage.className = "text-center py-4";
+                  emptyMessage.id = "no-subjects-message";
+                  emptyMessage.innerHTML =
+                    '<p class="text-muted">No subjects have been assigned to this image yet.</p>';
+                  cardBody.appendChild(emptyMessage);
                 }
               }, 300);
             }
@@ -286,46 +387,5 @@ export function initSubjectEditor() {
   });
 
   // Initialize sortable for drag-and-drop reordering
-  if (subjectRow) {
-    new Sortable(subjectRow, {
-      animation: 150,
-      handle: ".drag-handle",
-      filter: ".remove-subject",
-      preventOnFilter: true,
-      onEnd: function () {
-        const subjectCards = subjectRow.querySelectorAll(".subject-card");
-        const newOrder = Array.from(subjectCards).map(
-          (card) => card.dataset.subjectRelationId,
-        );
-
-        const csrfToken = document.querySelector(
-          '[name="csrfmiddlewaretoken"]',
-        ).value;
-
-        fetch(urls.reorderSubjects, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfToken,
-          },
-          body: JSON.stringify({ order: newOrder }),
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.success) {
-              showAlert("success", "Subject order updated.");
-            } else {
-              showAlert("danger", "Error updating order: " + data.error);
-            }
-          })
-          .catch((error) => {
-            showAlert(
-              "danger",
-              "An unexpected error occurred while reordering.",
-            );
-            console.error("Error:", error);
-          });
-      },
-    });
-  }
+  initSortable();
 }

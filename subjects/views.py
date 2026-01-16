@@ -8,6 +8,7 @@ from django.db.models import Case, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -296,20 +297,18 @@ def add_subject_to_image(request, image_id):
             image=image, subject=subject, order=max_order + 1
         )
 
+        # Render the subject card partial for live insertion
+        html = render_to_string(
+            "subjects/partials/subject_card.html",
+            {"subject_relation": subject_mapping, "request": request},
+            request=request,
+        )
+
         return JsonResponse(
             {
                 "success": True,
-                "message": f"Subject {wikidata_id} added to image",
-                "subject": {
-                    "id": subject.id,
-                    "title": subject.title,
-                    "description": subject.description,
-                    "wikidata_id": wikidata_id,
-                    "wikidata_url": wikidata_item.wikidata_url,
-                    "image_url": wikidata_item.image_url,
-                    "relation_id": subject_mapping.id,
-                    "url": subject.get_absolute_url(),
-                },
+                "message": f"Subject '{subject.title}' added to image",
+                "html": html,
             }
         )
 
