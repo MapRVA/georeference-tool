@@ -225,6 +225,19 @@ export function initSubjectEditor() {
     });
   }
 
+  // Allow Enter key to submit Wikidata ID
+  if (subjectInput) {
+    subjectInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const inputValue = subjectInput.value.trim();
+        if (inputValue.match(/^Q\d+$/)) {
+          addSubjectByWikidataId(inputValue);
+        }
+      }
+    });
+  }
+
   // Initialize autocomplete
   if (subjectInput) {
     const subjectAutocomplete = new autoComplete({
