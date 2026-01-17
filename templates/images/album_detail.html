@@ -81,32 +81,13 @@
             </div>
         {% endif %}
 
-        {% if page_obj %}
-            <div class="row">
-                {% for album_image in page_obj %}
-                    {% if album_map_mode %}
-                        {% with georeference_url="/georeference/?album="|add:album.id image=album_image %}
-                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True %}
-                        {% endwith %}
-                    {% else %}
-                        {% with georeference_url="/georeference/?album="|add:album.id image=album_image %}
-                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=False buttons=False %}
-                        {% endwith %}
-                    {% endif %}
-                {% endfor %}
-            </div>
-
-            <!-- Pagination -->
-            {% include 'images/partials/pagination.html' with url_params="" %}
-        {% else %}
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="fas fa-images fa-3x text-muted mb-3"></i>
-                    <h4 class="text-muted">No Images Yet</h4>
-                    <p class="text-muted">This album doesn't have any images yet.</p>
-                </div>
-            </div>
-        {% endif %}
+        {% with geo_url="/georeference/?album="|add:album.id %}
+            {% if album_map_mode %}
+                {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=True badges=True buttons=True empty_message="This album doesn't have any images yet." %}
+            {% else %}
+                {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=True badges=False buttons=False empty_message="This album doesn't have any images yet." %}
+            {% endif %}
+        {% endwith %}
     </div>
 </div>
 {% endblock %}

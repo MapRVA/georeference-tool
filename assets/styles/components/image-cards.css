@@ -22,3 +22,50 @@
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
 }
+
+/* Selection mode styles */
+.image-selection-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 10px;
+}
+
+.image-selection-overlay.selected {
+    background: rgba(13, 110, 253, 0.1);
+}
+
+.image-selection-checkbox {
+    width: 24px;
+    height: 24px;
+    background: white;
+    border: 2px solid var(--bs-primary);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.image-selection-checkbox.checked {
+    background: var(--bs-primary);
+}
+
+.image-selection-checkbox i,
+.image-selection-checkbox svg {
+    color: white;
+    font-size: 14px;
+}
+
+.image-card.selected {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+}

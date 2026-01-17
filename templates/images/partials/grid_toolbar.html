@@ -1,0 +1,73 @@
+<!-- Grid Toolbar - Filters and Bulk Selection Controls -->
+<!-- Used within an imageGrid() Alpine component context -->
+
+<div x-data="{ filtersOpen: false }">
+    <!-- Filters Button -->
+    <button class="btn btn-sm btn-outline-secondary" 
+            type="button" 
+            data-bs-toggle="collapse" 
+            data-bs-target="#georeferenceFilterPanel" 
+            aria-expanded="false" 
+            aria-controls="georeferenceFilterPanel"
+            :disabled="selectionMode"
+            @click="filtersOpen = !filtersOpen">
+        <i class="fas fa-filter me-1"></i>Filters
+    </button>
+
+    <!-- Bulk Selection Button -->
+    {% if user.is_authenticated %}
+    <button class="btn btn-sm ms-2" 
+            :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" 
+            type="button" 
+            data-bs-toggle="collapse"
+            data-bs-target="#bulkActionsToolbar"
+            :disabled="filtersOpen"
+            @click="toggleSelectionMode()">
+        <i class="fas" :class="selectionMode ? 'fa-circle-xmark' : 'fa-square-check'"></i>
+        <span x-text="selectionMode ? 'Exit Selection' : 'Select Images'" class="ms-1"></span>
+    </button>
+    {% endif %}
+
+    <!-- Bulk Actions Toolbar (visible when selection mode is active) -->
+    {% if user.is_authenticated %}
+    <div class="collapse" id="bulkActionsToolbar">
+        <div class="mt-2 p-2 border rounded">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">
+                        <span x-text="selectedCount"></span> images selected
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" @click="selectAll()">Select All</button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="deselectAll()">Deselect All</button>
+                </div>
+                <div class="d-flex gap-2">
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-primary dropdown-toggle" 
+                                type="button" 
+                                data-bs-toggle="dropdown" 
+                                :disabled="selectedCount === 0">
+                            Bulk Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <button class="dropdown-item" type="button" @click="$dispatch('show-add-subject-modal')">
+                                    <i class="fas fa-tag me-2"></i>Add Subject
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" type="button" @click="$dispatch('show-add-to-album-modal')">
+                                    <i class="fas fa-photo-video me-2"></i>Add to Album
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            data-bs-toggle="collapse"
+                            data-bs-target="#bulkActionsToolbar"
+                            @click="toggleSelectionMode()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>

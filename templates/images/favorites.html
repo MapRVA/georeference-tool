@@ -53,21 +53,7 @@
         </div>
 
         <!-- Images Grid -->
-        {% if page_obj %}
-            <div class="row">
-                {% for image in page_obj %}
-                    {% with georeference_url="/georeference/" %}
-                        {% include 'images/partials/image_card.html' with show_collection_link=True badges=False buttons=False %}
-                    {% endwith %}
-                {% endfor %}
-            </div>
-
-            <!-- Pagination -->
-            {% include 'images/partials/pagination.html' with url_params="" %}
-
-        {% else %}
-            {% include 'images/partials/empty_images.html' with empty_message="No rated images yet. Be the first to rate some images! Browse the collection and give your favorites a rating." empty_icon="fa-star" %}
-        {% endif %}
+        {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=False buttons=False empty_message="No rated images yet. Be the first to rate some images! Browse the collection and give your favorites a rating." empty_icon="fa-star" %}
     </div>
 </div>
 

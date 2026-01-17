@@ -105,28 +105,18 @@
         </div>
 
         <!-- Main content wrapper with cursor change during filtering -->
-        <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }">
-
-        <!-- Image Card Filters -->
-        {% include 'images/partials/filter_cards.html' %}
+        <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }" x-data="imageGrid()">
 
         <!-- Images Grid -->
+        {% if is_filtered %}
+            {% with pagination_params="lat="|add:filter_lat|add:"&lon="|add:filter_lon|add:"&" %}
+                {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True url_params=pagination_params hide_count=True empty_message="No images found at this location." empty_icon="fa-search-location" row_attrs='x-ref="imageGrid"' show_toolbar=True %}
+            {% endwith %}
+        {% else %}
+            {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True hide_count=True empty_message='No images have been marked as "from above" yet.' empty_icon="fa-plane" row_attrs='x-ref="imageGrid"' show_toolbar=True %}
+        {% endif %}
+
         {% if page_obj %}
-            <div class="row" x-ref="imageGrid">
-                {% for image in page_obj %}
-                    {% with georeference_url="/georeference/" %}
-                        {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True image_id=image.id %}
-                    {% endwith %}
-                {% endfor %}
-            </div>
-
-            <!-- Pagination -->
-            {% if is_filtered %}
-                {% include 'images/partials/pagination.html' with url_params="lat="|add:filter_lat|add:"&lon="|add:filter_lon|add:"&" hide_count=True %}
-            {% else %}
-                {% include 'images/partials/pagination.html' with url_params="" hide_count=True %}
-            {% endif %}
-
             <div class="text-center text-muted mt-2">
                 {% if is_filtered %}
                     <i class="fas fa-filter me-1"></i>
@@ -135,17 +125,6 @@
                     Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} images
                 {% endif %}
             </div>
-
-        {% else %}
-            {% if is_filtered %}
-                <div id="no-results">
-                    {% include 'images/partials/empty_images.html' with empty_message="No images found at this location." empty_icon="fa-search-location" %}
-                </div>
-            {% else %}
-                <div id="no-results">
-                    {% include 'images/partials/empty_images.html' with empty_message="No images have been marked as \"from above\" yet." empty_icon="fa-plane" %}
-                </div>
-            {% endif %}
         {% endif %}
         </div>
     </div>

@@ -1,18 +1,12 @@
 import "../../styles/pages/collection-detail.css";
 
-// Import bulk selection component and showAlert helper
-import { showAlert, bulkSelection } from "../components/bulk_selection.js";
+// Import image grid component (includes bulk selection and modal functionality)
+import { imageGrid } from "../components/image_grid.js";
 
-// Import filter cards component (auto-initializes and exposes global functions)
-import "../components/filter_cards.js";
-
-// Make showAlert globally available for this module
-window.showAlert = showAlert;
-
-// Register the bulk selection component with Alpine
+// Register the image grid component with Alpine
 // This runs before index.js loads and starts Alpine (see base.html template)
 if (window.Alpine) {
-  window.Alpine.data("bulkSelection", bulkSelection);
+  window.Alpine.data("imageGrid", imageGrid);
 }
 
 document.addEventListener("DOMContentLoaded", function () {

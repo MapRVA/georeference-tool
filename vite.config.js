@@ -72,6 +72,14 @@ export default defineConfig({
           __dirname,
           "./assets/js/components/bulk_selection.js",
         ),
+        subject_detail: path.resolve(
+          __dirname,
+          "./assets/js/pages/subject_detail.js",
+        ),
+        similar_images: path.resolve(
+          __dirname,
+          "./assets/js/pages/similar_images.js",
+        ),
         map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.js"),
         activity_feed: path.resolve(
           __dirname,

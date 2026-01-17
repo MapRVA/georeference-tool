@@ -19,7 +19,7 @@
         }
     };
 </script>
-{% vite_asset 'assets/js/components/bulk_selection.js' %}
+{% vite_asset 'assets/js/pages/similar_images.js' %}
 {% endblock %}
 
 
@@ -58,29 +58,15 @@
             </div>
         </div>
 
-        <!-- Image Card Filters -->
-        {% include 'images/partials/filter_cards.html' %}
-
-        <!-- Similar Images Grid -->
-        <div class="col-12">
-            {% if page_obj %}
-                <div class="row">
-                    {% for image in page_obj %}
-                        {% with georeference_url="/georeference/" %}
-                            {% include 'images/partials/image_card.html' with show_collection_link=True badges=True buttons=True image_id=image.id %}
-                        {% endwith %}
-                    {% endfor %}
-                </div>
-
-                <!-- Pagination -->
-                {% if georeferenced_status != 'all' %}
-                    {% include 'images/partials/pagination.html' with url_params="georeferenced="|add:georeferenced_status|add:"&" %}
-                {% else %}
-                    {% include 'images/partials/pagination.html' with url_params="" %}
-                {% endif %}
-
+        <!-- Image Grid with bulk selection support -->
+        <div class="col-12" x-data="imageGrid()">
+            <!-- Similar Images Grid -->
+            {% if georeferenced_status != 'all' %}
+                {% with pagination_params="georeferenced="|add:georeferenced_status|add:"&" %}
+                    {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True url_params=pagination_params empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
+                {% endwith %}
             {% else %}
-                {% include 'images/partials/empty_images.html' with empty_message="Could not find any images with similar content." empty_icon="fa-search" %}
+                {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
             {% endif %}
         </div>
     </div>

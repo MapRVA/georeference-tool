@@ -2,15 +2,12 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { OSM_STYLE_URL } from "../constants/map.js";
 
-// Import bulk selection component (used in filter_cards.html)
-import { bulkSelection } from "../components/bulk_selection.js";
+// Import image grid component (includes bulk selection and modal functionality)
+import { imageGrid } from "../components/image_grid.js";
 
-// Import filter cards component (auto-initializes and exposes global functions)
-import "../components/filter_cards.js";
-
-// Register the bulk selection component with Alpine
+// Register the image grid component with Alpine
 if (window.Alpine) {
-  window.Alpine.data("bulkSelection", bulkSelection);
+  window.Alpine.data("imageGrid", imageGrid);
 }
 
 function aerialsPage() {
