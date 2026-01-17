@@ -666,7 +666,13 @@ def find_similar_images_to_subject(request, subject_slug):
     """
     Find and display images with embeddings most similar to the centroid
     of all images associated with a subject.
-    Supports filtering by georeferenced status via query parameter.
+
+    Supports filtering via query parameters from filter_cards.html:
+    - georeference_status: comma-separated values (georeferenced, pending, will_not_georef)
+    - start_year, end_year: year range filtering
+    - with_subjects: comma-separated subject IDs (images must have ALL)
+    - without_subjects: comma-separated subject IDs (images must not have ANY)
+    - no_subjects: if 'true', only images with no subjects
     """
     if not CLIP_AVAILABLE:
         messages.error(
@@ -694,10 +700,25 @@ def find_similar_images_to_subject(request, subject_slug):
         )
         return redirect("subjects:subject_detail", subject_slug=subject_slug)
 
-    # Get georeferenced filter from query parameter
-    georeferenced_status = request.GET.get(
-        "georeferenced", "all"
-    )  # 'all', 'yes', or 'none'
+    # Get filter parameters from URL (matching filter_cards.html)
+    georeference_status = (
+        request.GET.get("georeference_status", "").split(",")
+        if request.GET.get("georeference_status")
+        else []
+    )
+    start_year = request.GET.get("start_year")
+    end_year = request.GET.get("end_year")
+    with_subjects = (
+        request.GET.get("with_subjects", "").split(",")
+        if request.GET.get("with_subjects")
+        else []
+    )
+    without_subjects = (
+        request.GET.get("without_subjects", "").split(",")
+        if request.GET.get("without_subjects")
+        else []
+    )
+    no_subjects = request.GET.get("no_subjects") == "true"
 
     # Pagination parameters - use SQL-level pagination to avoid memory issues
     per_page = 24
@@ -736,20 +757,81 @@ def find_similar_images_to_subject(request, subject_slug):
             # Convert centroid embedding to PostgreSQL array format
             embedding_str = "[" + ",".join(map(str, centroid_embedding.tolist())) + "]"
 
-            # Build WHERE conditions based on georeferenced filter
-            georeference_condition = ""
-            if georeferenced_status == "yes":
-                georeference_condition = "AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
-            elif georeferenced_status == "none":
-                georeference_condition = "AND NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+            # Build WHERE conditions
+            where_conditions = ["embedding IS NOT NULL", "id != ALL(%s)"]
+            where_params = [subject_image_ids]
+
+            # Georeference status filtering (matching filter_cards.html behavior)
+            if georeference_status:
+                status_conditions = []
+                if "georeferenced" in georeference_status:
+                    status_conditions.append(
+                        "(EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id) "
+                        "OR (aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id)))"
+                    )
+                if "pending" in georeference_status:
+                    status_conditions.append(
+                        "((NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id) "
+                        "AND aerial = false AND will_not_georef = false) "
+                        "OR (NOT EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id) "
+                        "AND aerial = true AND will_not_georef = false))"
+                    )
+                if "will_not_georef" in georeference_status:
+                    status_conditions.append("will_not_georef = true")
+
+                if status_conditions:
+                    where_conditions.append(f"({' OR '.join(status_conditions)})")
+
+            # Year range conditions
+            if start_year:
+                try:
+                    start_year_int = int(start_year)
+                    where_conditions.append(
+                        "(fuzzy_start_decdate >= %s OR start_decdate >= %s)"
+                    )
+                    where_params.extend([start_year_int, start_year_int])
+                except ValueError:
+                    pass
+            if end_year:
+                try:
+                    end_year_int = int(end_year)
+                    where_conditions.append(
+                        "(fuzzy_end_decdate <= %s OR end_decdate <= %s)"
+                    )
+                    where_params.extend([end_year_int, end_year_int])
+                except ValueError:
+                    pass
+
+            # Subject filtering
+            if no_subjects:
+                where_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id)"
+                )
+            elif with_subjects:
+                # Images must have ALL specified subjects
+                for subject_id in with_subjects:
+                    if subject_id:
+                        where_conditions.append(
+                            "EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id AND sm.subject_id = %s)"
+                        )
+                        where_params.append(subject_id)
+            elif without_subjects:
+                # Images must not have ANY of the specified subjects
+                valid_ids = [sid for sid in without_subjects if sid]
+                if valid_ids:
+                    placeholders = ", ".join(["%s"] * len(valid_ids))
+                    where_conditions.append(
+                        f"NOT EXISTS (SELECT 1 FROM images_subjectmapping sm WHERE sm.image_id = images_image.id AND sm.subject_id IN ({placeholders}))"
+                    )
+                    where_params.extend(valid_ids)
+
+            where_clause = " AND ".join(where_conditions)
 
             # Get total count for pagination
             count_sql = f"""
                 SELECT COUNT(id)
                 FROM images_image
-                WHERE embedding IS NOT NULL
-                AND id != ALL(%s)
-                {georeference_condition}
+                WHERE {where_clause}
                 AND id IN (
                     SELECT i.id
                     FROM images_image i
@@ -758,7 +840,7 @@ def find_similar_images_to_subject(request, subject_slug):
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
             """
-            cursor.execute(count_sql, [subject_image_ids])
+            cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
 
             # SQL-level pagination - only fetch the IDs we need for this page
@@ -767,9 +849,7 @@ def find_similar_images_to_subject(request, subject_slug):
                     id,
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
-                WHERE embedding IS NOT NULL
-                AND id != ALL(%s)
-                {georeference_condition}
+                WHERE {where_clause}
                 AND id IN (
                     SELECT i.id
                     FROM images_image i
@@ -781,7 +861,8 @@ def find_similar_images_to_subject(request, subject_slug):
                 LIMIT %s OFFSET %s
             """
             cursor.execute(
-                query_sql, [embedding_str, subject_image_ids, per_page, offset]
+                query_sql,
+                [embedding_str] + where_params + [per_page, offset],
             )
             page_results = cursor.fetchall()
 
@@ -876,7 +957,6 @@ def find_similar_images_to_subject(request, subject_slug):
             "total_subject_images": total_subject_images,
             "page_obj": page_obj,
             "total_similar_count": total_count,
-            "georeferenced_status": georeferenced_status,
         }
 
         return render(request, "subjects/subject_similar_images.html", context)

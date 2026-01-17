@@ -1,9 +1,11 @@
 {% if page_obj.has_other_pages %}
+    {# Build query string preserving all filter parameters #}
+    {% with georeference_status=request.GET.georeference_status start_year=request.GET.start_year end_year=request.GET.end_year with_subjects=request.GET.with_subjects without_subjects=request.GET.without_subjects no_subjects=request.GET.no_subjects subject=request.GET.subject collection=request.GET.collection lat=request.GET.lat lon=request.GET.lon %}
     <nav aria-label="Images pagination" class="mt-4">
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if georeference_status %}&georeference_status={{ georeference_status }}{% endif %}{% if start_year %}&start_year={{ start_year }}{% endif %}{% if end_year %}&end_year={{ end_year }}{% endif %}{% if with_subjects %}&with_subjects={{ with_subjects }}{% endif %}{% if without_subjects %}&without_subjects={{ without_subjects }}{% endif %}{% if no_subjects %}&no_subjects={{ no_subjects }}{% endif %}{% if subject %}&subject={{ subject }}{% endif %}{% if collection %}&collection={{ collection }}{% endif %}{% if lat %}&lat={{ lat }}{% endif %}{% if lon %}&lon={{ lon }}{% endif %}">
                         <i class="fas fa-chevron-left"></i> Previous
                     </a>
                 </li>
@@ -16,20 +18,21 @@
                     </li>
                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ num }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">{{ num }}</a>
+                        <a class="page-link" href="?page={{ num }}{% if georeference_status %}&georeference_status={{ georeference_status }}{% endif %}{% if start_year %}&start_year={{ start_year }}{% endif %}{% if end_year %}&end_year={{ end_year }}{% endif %}{% if with_subjects %}&with_subjects={{ with_subjects }}{% endif %}{% if without_subjects %}&without_subjects={{ without_subjects }}{% endif %}{% if no_subjects %}&no_subjects={{ no_subjects }}{% endif %}{% if subject %}&subject={{ subject }}{% endif %}{% if collection %}&collection={{ collection }}{% endif %}{% if lat %}&lat={{ lat }}{% endif %}{% if lon %}&lon={{ lon }}{% endif %}">{{ num }}</a>
                     </li>
                 {% endif %}
             {% endfor %}
 
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.georeference_status %}&georeference_status={{ request.GET.georeference_status }}{% endif %}{% if request.GET.subject %}&subject={{ request.GET.subject }}{% endif %}{% if request.GET.collection %}&collection={{ request.GET.collection }}{% endif %}">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if georeference_status %}&georeference_status={{ georeference_status }}{% endif %}{% if start_year %}&start_year={{ start_year }}{% endif %}{% if end_year %}&end_year={{ end_year }}{% endif %}{% if with_subjects %}&with_subjects={{ with_subjects }}{% endif %}{% if without_subjects %}&without_subjects={{ without_subjects }}{% endif %}{% if no_subjects %}&no_subjects={{ no_subjects }}{% endif %}{% if subject %}&subject={{ subject }}{% endif %}{% if collection %}&collection={{ collection }}{% endif %}{% if lat %}&lat={{ lat }}{% endif %}{% if lon %}&lon={{ lon }}{% endif %}">
                         Next <i class="fas fa-chevron-right"></i>
                     </a>
                 </li>
             {% endif %}
         </ul>
     </nav>
+    {% endwith %}
 
     {% if not hide_count %}
     <div class="text-center text-muted mt-2">

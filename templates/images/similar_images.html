@@ -61,13 +61,7 @@
         <!-- Image Grid with bulk selection support -->
         <div class="col-12" x-data="imageGrid()">
             <!-- Similar Images Grid -->
-            {% if georeferenced_status != 'all' %}
-                {% with pagination_params="georeferenced="|add:georeferenced_status|add:"&" %}
-                    {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True url_params=pagination_params empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
-                {% endwith %}
-            {% else %}
-                {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
-            {% endif %}
+            {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
         </div>
     </div>
 </div>
