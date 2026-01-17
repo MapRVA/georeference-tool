@@ -25,7 +25,24 @@ The recommended way to run your database is using podman and
 [MapRVA/cnpg-postgis-pgvector](https://github.com/MapRVA/cnpg-postgis-pgvector).
 
 ```
-podman run -d --replace --name georef-postgres -e POSTGRES_DB=georef -e POSTGRES_USER=django_user -e POSTGRES_PASSWORD=dev_password -p 5432:5432 ghcr.io/maprva/postgis-pgvector-local:latest
+podman run -d --replace --name georef-postgres \
+    -e POSTGRES_DB=georef \
+    -e POSTGRES_USER=django_user \
+    -e POSTGRES_PASSWORD=dev_password \
+    -p 5432:5432 \
+    ghcr.io/maprva/postgis-pgvector-local:latest
+```
+
+If you'd like, you can use a volume to persist the database between container restarts:
+
+```
+podman run -d --replace --name georef-postgres \
+        -e POSTGRES_DB=georef \
+        -e POSTGRES_USER=django_user \
+        -e POSTGRES_PASSWORD=dev_password \
+        -p 5432:5432 \
+        -v georef-postgres-data:/var/lib/postgresql/data \
+        ghcr.io/maprva/postgis-pgvector-local:latest
 ```
 
 ### (Optional) Run Task Queue
@@ -33,7 +50,10 @@ podman run -d --replace --name georef-postgres -e POSTGRES_DB=georef -e POSTGRES
 Yesterdays uses Celery with RabbitMQ to manage background processing tasks.
 
 ```
-podman run -d --name rabbitmq -p 5672:5672 -p 15672:15672 --replace rabbitmq:3-management
+podman run -d --replace --name rabbitmq \
+    -p 5672:5672 \
+    -p 15672:15672 \
+    rabbitmq:3-management
 ```
 
 ### Set up environment variables
