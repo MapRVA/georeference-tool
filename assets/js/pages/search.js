@@ -1,12 +1,12 @@
 import autoComplete from "@tarekraafat/autocomplete.js";
 import "../../styles/components/autocomplete.css";
 
-// Import bulk selection component (used in bulk_actions_ui.html)
-import { bulkSelection } from "../components/bulk_selection.js";
+// Import image grid component (includes bulk selection and modal functionality)
+import { imageGrid } from "../components/image_grid.js";
 
-// Register the bulk selection component with Alpine
+// Register the image grid component with Alpine
 if (window.Alpine) {
-  window.Alpine.data("bulkSelection", bulkSelection);
+  window.Alpine.data("imageGrid", imageGrid);
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
@@ -648,12 +648,23 @@ document.addEventListener("DOMContentLoaded", async function () {
         ? ` for "<strong>${escapeHtml(data.query)}</strong>"`
         : "";
 
+    // For semantic/reverse image search, don't show count (all images are returned ranked by similarity)
+    const statsMessage =
+      semanticMode.checked || data.search_type === "reverse_image"
+        ? `Showing results${forQuery} using ${searchModeLabel}${filterSummary}`
+        : `Found ${data.count} results${forQuery} using ${searchModeLabel}${filterSummary}`;
+
     let html = `
             <div class="search-stats mb-3">
-                Found ${data.count} results${forQuery} using ${searchModeLabel}${filterSummary}
+                ${statsMessage}
             </div>
             <div class="row">
         `;
+
+    // Clear previously registered IDs since we're loading new results
+    if (window.imageGridInstance) {
+      window.imageGridInstance.clearRegisteredIds();
+    }
 
     data.results.forEach((result) => {
       let similarityBadge = "";
@@ -670,28 +681,49 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </span>`;
       }
 
-      html += `
-                <div class="col-lg-3 col-md-4 col-sm-6 mb-4" data-image-id="${result.id}">
-                    <div class="card h-100 shadow-sm image-card">
-                        <div class="position-relative">
-                            ${similarityBadge}
+      // Build badges HTML (hidden in selection mode via template)
+      const badgesHtml = `
+        <template x-if="!selectionMode">
+          <div>
+            ${similarityBadge}
+            ${
+              result.georeferenced
+                ? `<span class="badge bg-success position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Georeferenced">
+                    <i class="fas fa-map-marker-alt"></i>
+                  </span>`
+                : result.will_not_georef
+                  ? `<span class="badge bg-secondary position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Will not georeference">
+                    <i class="fas fa-ban"></i>
+                  </span>`
+                  : ""
+            }
+          </div>
+        </template>
+      `;
 
-                            <!-- Georeferenced Status Badge -->
-                            ${
-                              result.georeferenced
-                                ? `
-                                <span class="badge bg-success position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Georeferenced">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                </span>
-                            `
-                                : result.will_not_georef
-                                  ? `
-                                <span class="badge bg-secondary position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Will not georeference">
-                                    <i class="fas fa-ban"></i>
-                                </span>
-                            `
-                                  : ""
-                            }
+      // Selection overlay HTML
+      const selectionOverlayHtml = `
+        <template x-if="selectionMode">
+          <div class="image-selection-overlay"
+               :class="{ 'selected': isSelected(${result.id}) }"
+               @click.prevent.stop="toggleSelection(${result.id})">
+            <div class="image-selection-checkbox"
+                 :class="{ 'checked': isSelected(${result.id}) }">
+              <i class="fas fa-check" x-show="isSelected(${result.id})"></i>
+            </div>
+          </div>
+        </template>
+      `;
+
+      html += `
+                <div class="col-lg-3 col-md-4 col-sm-6 mb-4"
+                     data-image-id="${result.id}"
+                     x-init="$dispatch('image-registered', { id: ${result.id} })">
+                    <div class="card h-100 shadow-sm image-card"
+                         :class="{ 'selected': selectionMode && isSelected(${result.id}) }">
+                        <div class="position-relative">
+                            ${selectionOverlayHtml}
+                            ${badgesHtml}
 
                             <!-- Image Thumbnail -->
                             <a href="${escapeHtml(result.detail_url)}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
@@ -755,12 +787,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     html += renderPagination(data);
     searchResults.innerHTML = html;
 
-    // Re-enable selection mode if it was active before the update
-    if (
-      window.bulkSelectionInstance &&
-      window.bulkSelectionInstance.selectionMode
-    ) {
-      window.bulkSelectionInstance.enableSelectionMode();
+    // Re-initialize Alpine on the new content
+    // The x-init directives will dispatch image-registered events
+    if (window.Alpine) {
+      window.Alpine.initTree(searchResults);
     }
   }
 

@@ -68,10 +68,7 @@ export default defineConfig({
           "./assets/js/pages/from_above_georeference_interface.js",
         ),
         stats: path.resolve(__dirname, "./assets/js/pages/stats.js"),
-        bulk_selection: path.resolve(
-          __dirname,
-          "./assets/js/components/bulk_selection.js",
-        ),
+
         subject_detail: path.resolve(
           __dirname,
           "./assets/js/pages/subject_detail.js",

@@ -244,15 +244,21 @@
                 <p class="mt-2">Searching images...</p>
             </div>
 
-            <!-- Bulk Actions UI (shows after search results) -->
-            {% if user.is_authenticated %}
-            <div class="row" id="bulkActionsContainer" style="display: none;">
-                {% include 'images/partials/bulk_actions_ui.html' %}
-            </div>
-            {% endif %}
+            <!-- Search results with bulk selection support -->
+            <div x-data="imageGrid()" id="searchResultsWrapper">
+                <!-- Bulk Actions Toolbar (shows after search results) -->
+                <div id="bulkActionsContainer" style="display: none;">
+                    {% include 'images/partials/grid_toolbar_no_filters.html' %}
+                </div>
 
-            <!-- Search results -->
-            <div id="searchResults"></div>
+                <!-- Search results -->
+                <div id="searchResults"></div>
+
+                <!-- Bulk Modals -->
+                {% if user.is_authenticated %}
+                    {% include 'images/partials/bulk_modals.html' %}
+                {% endif %}
+            </div>
 
             {% endif %}
         </div>
