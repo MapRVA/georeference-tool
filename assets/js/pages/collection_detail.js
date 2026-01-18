@@ -4,10 +4,10 @@ import "../../styles/pages/collection-detail.css";
 import { imageGrid } from "../components/image_grid.js";
 
 // Register the image grid component with Alpine
-// This runs before index.js loads and starts Alpine (see base.html template)
-if (window.Alpine) {
+// Use alpine:init event to ensure registration happens before Alpine.start()
+document.addEventListener("alpine:init", () => {
   window.Alpine.data("imageGrid", imageGrid);
-}
+});
 
 document.addEventListener("DOMContentLoaded", function () {
   // Get configuration from window object (set by Django template)
