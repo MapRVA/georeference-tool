@@ -11,13 +11,9 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="mb-1">
-                            {% if comment.commented_by.get_profile_url %}
-                                <a href="{{ comment.commented_by.get_profile_url }}" class="text-decoration-none">
-                                    {{ comment.commented_by.get_display_name }}
-                                </a>
-                            {% else %}
+                            <a href="{% url 'user_profile' comment.commented_by.get_display_name %}" class="text-decoration-none">
                                 {{ comment.commented_by.get_display_name }}
-                            {% endif %}
+                            </a>
                             commented on
                             <a href="{% url 'images:image_detail' comment.image.id %}" class="text-decoration-none">
                                 {{ comment.image.title|default:"an image"|truncatechars:40 }}
