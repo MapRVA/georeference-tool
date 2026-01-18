@@ -12,9 +12,43 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Activity Feed</h1>
+            <div class="dropdown"
+                 x-data='activityFilter({{ filter_states_json|safe }})'>
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">
+                    <i class="fas fa-filter me-1"></i>Filter
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.group" @change="applyFilters()">
+                            <i class="fas fa-map-marker-alt me-1"></i>Georefs
+                        </label>
+                    </li>
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.comment" @change="applyFilters()">
+                            <i class="fas fa-comment me-1"></i>Comments
+                        </label>
+                    </li>
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.milestone" @change="applyFilters()">
+                            <i class="fas fa-fire me-1"></i>Milestones
+                        </label>
+                    </li>
+                </ul>
+            </div>
         </div>
         {% if events %}
             <div x-data="activityFeed({{ has_more|yesno:'true,false' }})"
+                 @filter-changed.window="reloadFeed()"
                  x-ref="feed">
                 <div class="activity-feed" x-ref="items">
                     {% for event_type, event, timestamp in events %}

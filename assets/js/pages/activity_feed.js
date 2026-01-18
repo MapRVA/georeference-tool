@@ -1,7 +1,7 @@
 /**
  * Activity Feed page JavaScript
  *
- * Handles the "Load More" infinite scroll functionality using Alpine.js.
+ * Handles the "Load More" infinite scroll functionality and filtering using Alpine.js.
  */
 
 // Add x-cloak style to prevent flash of unstyled content
@@ -10,6 +10,42 @@ document.addEventListener("DOMContentLoaded", function () {
   style.textContent = "[x-cloak] { display: none !important; }";
   document.head.appendChild(style);
 });
+
+/**
+ * Alpine.js component for the activity type filter dropdown.
+ *
+ * @param {Object} initialFilters - Initial filter states {group, comment, milestone}
+ */
+window.activityFilter = function (initialFilters) {
+  return {
+    filters: {
+      group: initialFilters?.group ?? true,
+      comment: initialFilters?.comment ?? true,
+      milestone: initialFilters?.milestone ?? true,
+    },
+
+    applyFilters() {
+      const selected = Object.entries(this.filters)
+        .filter(([, enabled]) => enabled)
+        .map(([type]) => type);
+
+      // Update URL without reloading
+      const url = new URL(window.location.href);
+      url.searchParams.delete("before");
+
+      if (selected.length === 0 || selected.length === 3) {
+        url.searchParams.delete("types");
+      } else {
+        url.searchParams.set("types", selected.join(","));
+      }
+
+      history.replaceState(null, "", url.toString());
+
+      // Dispatch event to reload the feed
+      this.$dispatch("filter-changed", { types: selected });
+    },
+  };
+};
 
 /**
  * Alpine.js component for the activity feed with "Load More" functionality.
@@ -27,6 +63,40 @@ window.activityFeed = function (initialHasMore) {
         return items[items.length - 1].dataset.timestamp;
       }
       return null;
+    },
+
+    async reloadFeed() {
+      this.loading = true;
+
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("before");
+
+        const response = await fetch(url.toString(), {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        const html = await response.text();
+
+        // Replace the feed content
+        this.$refs.items.innerHTML = html;
+
+        // Check if there are more items
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const newItems = doc.querySelectorAll(".activity-item");
+        this.hasMore = newItems.length >= 20;
+      } catch (error) {
+        console.error("Error reloading activities:", error);
+      } finally {
+        this.loading = false;
+      }
     },
 
     async loadMore() {
