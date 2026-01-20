@@ -5,24 +5,17 @@
 
 // CSS imports
 import "maplibre-gl/dist/maplibre-gl.css";
-import "photoswipe/dist/photoswipe.css";
 import "@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.css";
+import "../../styles/components/image-viewer.css";
 
 // JS imports
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
-import PhotoSwipe from "photoswipe";
-import PhotoSwipeLightbox from "photoswipe/lightbox";
 import { Geoman } from "@geoman-io/maplibre-geoman-free";
 import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { initSubjectEditor } from "../components/subject_editor.js";
-
-function setupPhotoSwipeData(img) {
-  const link = img.parentElement;
-  link.setAttribute("data-pswp-width", img.naturalWidth);
-  link.setAttribute("data-pswp-height", img.naturalHeight);
-}
+import { initImageViewer } from "../components/image_viewer.js";
 
 function getBootstrapColor(difficulty) {
   const colors = { easy: "success", medium: "warning", hard: "danger" };
@@ -62,19 +55,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const config = window.fromAboveConfig;
 
-  // Initialize PhotoSwipe lightbox
-  if (PhotoSwipeLightbox) {
-    const lightbox = new PhotoSwipeLightbox({
-      gallery: "#pswp-gallery",
-      children: "a",
-      showHideAnimationType: "fade",
-      zoomAnimationDuration: 300,
-      maxZoomLevel: 8,
-      wheelToZoom: true,
-      pswpModule: PhotoSwipe,
-    });
-    lightbox.init();
-  }
+  initImageViewer();
 
   const submitButton = document.getElementById("submitButton");
   const backButton = document.getElementById("backButton");
@@ -284,35 +265,6 @@ document.addEventListener("DOMContentLoaded", function () {
     "notes-required-indicator",
   );
   const notesHelpText = document.getElementById("notes-help-text");
-
-  const mainImage = document.getElementById("main-image");
-  const imageFallback = document.getElementById("image-fallback");
-
-  if (mainImage && imageFallback) {
-    mainImage.onload = function () {
-      imageFallback.style.setProperty("display", "none", "important");
-      mainImage.style.display = "block";
-      mainImage.style.visibility = "visible";
-      setupPhotoSwipeData(this);
-    };
-
-    mainImage.onerror = function () {
-      mainImage.style.display = "none";
-      imageFallback.style.setProperty("display", "flex", "important");
-    };
-
-    if (mainImage.complete) {
-      if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
-        imageFallback.style.setProperty("display", "none", "important");
-        mainImage.style.display = "block";
-        mainImage.style.visibility = "visible";
-        setupPhotoSwipeData(mainImage);
-      } else {
-        mainImage.style.display = "none";
-        imageFallback.style.setProperty("display", "flex", "important");
-      }
-    }
-  }
 
   // Handle confidence level changes
   if (confidenceRadios && confidenceRadios.length > 0) {

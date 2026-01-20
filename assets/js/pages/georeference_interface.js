@@ -5,15 +5,14 @@
 
 import "../../styles/pages/georeference-interface.css";
 import "../../styles/components/map-display.css";
+import "../../styles/components/image-viewer.css";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "photoswipe/dist/photoswipe.css";
 
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
-import PhotoSwipe from "photoswipe";
-import PhotoSwipeLightbox from "photoswipe/lightbox";
 
 import { initSubjectEditor } from "../components/subject_editor.js";
+import { initImageViewer } from "../components/image_viewer.js";
 import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
@@ -36,8 +35,8 @@ document.addEventListener("DOMContentLoaded", function () {
     initializeDifficultyToggles();
   }
 
-  // Initialize PhotoSwipe lightbox
-  initializePhotoSwipe();
+  // Initialize Image Viewer
+  initImageViewer();
 
   // Initialize main functionality if we have a current image
   if (config.currentImage) {
@@ -132,45 +131,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // Update URL
     const newUrl = window.location.pathname + "?" + urlParams.toString();
     window.location.href = newUrl;
-  }
-
-  /**
-   * Initialize PhotoSwipe lightbox for image gallery
-   */
-  function initializePhotoSwipe() {
-    // Function to setup PhotoSwipe data for images
-    function setupPhotoSwipeData(img) {
-      const link = img.parentElement;
-      link.setAttribute("data-pswp-width", img.naturalWidth);
-      link.setAttribute("data-pswp-height", img.naturalHeight);
-    }
-
-    // Initialize PhotoSwipe lightbox
-    if (PhotoSwipeLightbox) {
-      const lightbox = new PhotoSwipeLightbox({
-        gallery: "#pswp-gallery",
-        children: "a",
-        showHideAnimationType: "fade",
-        zoomAnimationDuration: 300,
-        maxZoomLevel: 8,
-        wheelToZoom: true,
-        pswpModule: PhotoSwipe,
-      });
-
-      lightbox.init();
-
-      // Setup data for main image when it loads
-      const mainImage = document.getElementById("main-image");
-      if (mainImage) {
-        mainImage.onload = function () {
-          setupPhotoSwipeData(this);
-        };
-
-        if (mainImage.complete && mainImage.naturalHeight !== 0) {
-          setupPhotoSwipeData(mainImage);
-        }
-      }
-    }
   }
 
   /**
@@ -420,40 +380,6 @@ document.addEventListener("DOMContentLoaded", function () {
       !confidenceHighRadio
     ) {
       console.error("Confidence elements not found in DOM");
-    }
-
-    // Handle image loading and fallback
-    const mainImage = document.getElementById("main-image");
-    const imageFallback = document.getElementById("image-fallback");
-
-    if (mainImage && imageFallback) {
-      mainImage.onload = function () {
-        imageFallback.style.setProperty("display", "none", "important");
-        mainImage.style.display = "block";
-        mainImage.style.visibility = "visible";
-        if (typeof setupPhotoSwipeData === "function") {
-          setupPhotoSwipeData(this);
-        }
-      };
-
-      mainImage.onerror = function () {
-        mainImage.style.display = "none";
-        imageFallback.style.setProperty("display", "flex", "important");
-      };
-
-      if (mainImage.complete) {
-        if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
-          imageFallback.style.setProperty("display", "none", "important");
-          mainImage.style.display = "block";
-          mainImage.style.visibility = "visible";
-          if (typeof setupPhotoSwipeData === "function") {
-            setupPhotoSwipeData(mainImage);
-          }
-        } else {
-          mainImage.style.display = "none";
-          imageFallback.style.setProperty("display", "flex", "important");
-        }
-      }
     }
 
     // Helper functions

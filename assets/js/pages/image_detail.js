@@ -1,43 +1,20 @@
-// Import dependencies
-import PhotoSwipe from "photoswipe";
-import PhotoSwipeLightbox from "photoswipe/lightbox";
-
-// Import vendor CSS
-import "photoswipe/style.css";
-
 // Import our custom styles
 import "../../styles/main.css";
 import "../../styles/components/rating-stars.css";
 import "../../styles/components/timeline.css";
 import "../../styles/pages/image-detail.css";
 import "../../styles/components/markdown.css";
+import "../../styles/components/image-viewer.css";
 
 // Import components
 import { initSubjectEditor } from "../components/subject_editor.js";
+import { initImageViewer } from "../components/image_viewer.js";
 
 // Utility function for difficulty badge colors
 function getBootstrapColor(difficulty) {
   const colors = { easy: "success", medium: "warning", hard: "danger" };
   return colors[difficulty] || "secondary";
 }
-
-// PhotoSwipe setup
-function setupPhotoSwipeData(img) {
-  const link = img.parentElement;
-  link.setAttribute("data-pswp-width", img.naturalWidth);
-  link.setAttribute("data-pswp-height", img.naturalHeight);
-}
-
-const lightbox = new PhotoSwipeLightbox({
-  gallery: "#pswp-gallery",
-  children: "a",
-  showHideAnimationType: "fade",
-  zoomAnimationDuration: 300,
-  maxZoomLevel: 8,
-  wheelToZoom: true,
-  pswpModule: PhotoSwipe,
-});
-lightbox.init();
 
 document.addEventListener("DOMContentLoaded", function () {
   // Get configuration from window object (set by Django template)
@@ -88,36 +65,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Image loading handlers
-  const mainImage = document.getElementById("main-image");
-  const imageFallback = document.getElementById("image-fallback");
-
-  if (mainImage && imageFallback) {
-    mainImage.onload = function () {
-      imageFallback.style.setProperty("display", "none", "important");
-      mainImage.style.display = "block";
-      mainImage.style.visibility = "visible";
-      setupPhotoSwipeData(this);
-    };
-
-    mainImage.onerror = function () {
-      mainImage.style.display = "none";
-      imageFallback.style.setProperty("display", "flex", "important");
-    };
-
-    // Handle already loaded images
-    if (mainImage.complete) {
-      if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
-        imageFallback.style.setProperty("display", "none", "important");
-        mainImage.style.display = "block";
-        mainImage.style.visibility = "visible";
-        setupPhotoSwipeData(mainImage);
-      } else {
-        mainImage.style.display = "none";
-        imageFallback.style.setProperty("display", "flex", "important");
-      }
-    }
-  }
+  initImageViewer();
 
   // Difficulty marking functionality (admin only)
   function handleDifficultyClick() {

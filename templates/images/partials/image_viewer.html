@@ -1,0 +1,36 @@
+<div class="image-container position-relative">
+    <div class="pswp-gallery" id="pswp-gallery">
+        <a href="{{ image.permalink }}" title="Click to view full-size image">
+            <img id="main-image" src="{{ image.permalink }}"
+                 {% if image.thumbnail %}data-thumbnail="{{ image.thumbnail }}"{% endif %}
+                 alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
+                 class="img-fluid w-100"
+                 title="Click to view full-size image"
+                 fetchpriority="high">
+        </a>
+    </div>
+    {% if image.thumbnail %}
+    <script>
+        (function() {
+            var img = document.getElementById('main-image');
+            var fullSrc = img.src;
+            var thumbSrc = img.dataset.thumbnail;
+            img.src = thumbSrc;
+            var full = new Image();
+            full.onload = function() { img.src = fullSrc; };
+            full.src = fullSrc;
+        })();
+    </script>
+    {% endif %}
+
+    <!-- Fallback for broken images -->
+    <div id="image-fallback" class="bg-light align-items-center justify-content-center position-absolute w-100 h-100" style="top: 0; left: 0; min-height: 400px; display: none; z-index: 1;">
+        <div class="text-center">
+            <i class="fas fa-image fa-4x text-muted mb-3"></i>
+            <p class="text-muted mb-3">Image could not be loaded</p>
+            <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-primary">
+                <i class="fas fa-external-link-alt me-1"></i>View Original Image
+            </a>
+        </div>
+    </div>
+</div>

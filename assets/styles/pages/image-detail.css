@@ -19,13 +19,6 @@
     padding: 0.5em 0.75em;
 }
 
-#main-image {
-    object-fit: contain;
-    max-height: 600px;
-    display: block;
-    cursor: zoom-in;
-}
-
 .coordinate-display {
     font-family: monospace;
     font-size: 0.9em;
