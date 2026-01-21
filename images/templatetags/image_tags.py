@@ -6,6 +6,24 @@ register = template.Library()
 
 
 @register.simple_tag
+def georeference_url_for_image(base_url, image_id):
+    """
+    Build a georeference URL for a specific image, using the correct query separator.
+
+    Usage:
+        {% georeference_url_for_image georeference_url image.id %}
+
+    Examples:
+        {% georeference_url_for_image "/georeference/" 123 %} -> "/georeference/?image=123"
+        {% georeference_url_for_image "/georeference/?source=foo" 123 %} -> "/georeference/?source=foo&image=123"
+    """
+    if not base_url:
+        base_url = "/georeference/"
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}image={image_id}"
+
+
+@register.simple_tag
 def get_timeline_items(image):
     """
     Build timeline items for an image, combining georeferences, aerial georeferences,

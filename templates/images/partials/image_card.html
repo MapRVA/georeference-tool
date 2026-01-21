@@ -1,4 +1,5 @@
-<div class="col-lg-3 col-md-4 col-sm-6 mb-4" 
+{% load image_tags %}
+<div class="col-lg-3 col-md-4 col-sm-6 mb-4"
      data-image-id="{{ image.id }}"
      x-init="$dispatch('image-registered', { id: {{ image.id }} })">
     <div class="card h-100 shadow-sm image-card"
@@ -9,7 +10,7 @@
                 <div class="image-selection-overlay"
                      :class="{ 'selected': isSelected({{ image.id }}) }"
                      @click.prevent.stop="toggleSelection({{ image.id }})">
-                    <div class="image-selection-checkbox" 
+                    <div class="image-selection-checkbox"
                          :class="{ 'checked': isSelected({{ image.id }}) }">
                         <i class="fas fa-check" x-show="isSelected({{ image.id }})"></i>
                     </div>
@@ -153,7 +154,8 @@
                                 </a>
                             {% endif %}
                         {% else %}
-                            <a href="{{ georeference_url }}&image={{ image.id }}" class="btn btn-success btn-sm">
+                        {% georeference_url_for_image georeference_url image.id as georeference_link %}
+                            <a href="{{ georeference_link }}" class="btn btn-success btn-sm">
                                 <i class="fas fa-map-marker-alt me-1"></i>Georeference
                             </a>
                         {% endif %}
