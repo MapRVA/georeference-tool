@@ -4,6 +4,8 @@
  * Handles the "Load More" infinite scroll functionality and filtering using Alpine.js.
  */
 
+import "../../styles/components/markdown.css";
+
 // Add x-cloak style to prevent flash of unstyled content
 document.addEventListener("DOMContentLoaded", function () {
   const style = document.createElement("style");

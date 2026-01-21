@@ -23,8 +23,24 @@
                             <i class="fas fa-clock me-1"></i>{{ comment.created_at|timeago }}
                         </small>
 
-                        <div class="mt-2 p-2 bg-body-secondary rounded">
-                            <p class="mb-0 small">{{ comment.text|truncatechars:200 }}</p>
+                        <div class="mt-2 p-2 bg-body-secondary rounded comment-preview small"
+                             x-data="{ expanded: false, overflows: false }"
+                             x-init="$nextTick(() => { overflows = $refs.content.scrollHeight > $refs.content.clientHeight })">
+                            <div class="markdown-content"
+                                 :class="{ 'comment-collapsed': !expanded }"
+                                 x-ref="content">{{ comment.text|markdown }}</div>
+                            <button x-show="overflows && !expanded"
+                                    x-cloak
+                                    @click="expanded = true"
+                                    class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                                <i class="fas fa-chevron-down me-1"></i>Show more
+                            </button>
+                            <button x-show="expanded"
+                                    x-cloak
+                                    @click="expanded = false"
+                                    class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                                <i class="fas fa-chevron-up me-1"></i>Show less
+                            </button>
                         </div>
                     </div>
 

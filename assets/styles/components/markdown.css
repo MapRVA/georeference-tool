@@ -39,3 +39,14 @@
 .markdown-content a:hover {
     text-decoration: underline;
 }
+
+/* Comment preview in activity feed - collapsible long comments */
+.comment-preview .markdown-content {
+    max-height: 50em;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.comment-preview .markdown-content.comment-collapsed {
+    max-height: 6em;
+}

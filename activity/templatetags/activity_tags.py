@@ -1,7 +1,21 @@
 from django import template
 from django.utils import timezone
+from django.utils.safestring import mark_safe
+
+from images.utils import render_markdown_safe
 
 register = template.Library()
+
+
+@register.filter
+def markdown(value):
+    """
+    Render markdown text to safe HTML.
+    Supports #1234 image references which become links.
+    """
+    if not value:
+        return ""
+    return mark_safe(render_markdown_safe(value))
 
 
 @register.filter
