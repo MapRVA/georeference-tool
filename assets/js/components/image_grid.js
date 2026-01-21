@@ -24,6 +24,9 @@ import "../../styles/components/autocomplete.css";
 // Import filter cards component (auto-initializes and exposes global functions)
 import "./filter_cards.js";
 
+// Import notifications for toast messages
+import "./notifications.js";
+
 /**
  * Alpine.js component for image grid state management
  */
@@ -169,8 +172,17 @@ export function imageGrid() {
                 const source = await fetch(
                   `/api/v1/subjects/autocomplete/?q=${query}`,
                 );
+                if (!source.ok) {
+                  window.showError(
+                    "Failed to search subjects. Please try again.",
+                  );
+                  return [];
+                }
                 return await source.json();
               } catch (error) {
+                window.showError(
+                  "Unable to connect to subject search. Check your connection.",
+                );
                 return [];
               }
             },
@@ -539,9 +551,12 @@ export function imageGrid() {
           const data = await response.json();
           this.userAlbums = data.albums || [];
           this.renderAlbumDropdown();
+        } else {
+          window.showError("Failed to load your albums. Please try again.");
         }
       } catch (error) {
         console.error("Error loading albums:", error);
+        window.showError("Unable to load albums. Check your connection.");
       }
     },
 
@@ -734,24 +749,10 @@ export function imageGrid() {
 
     /**
      * Show alert toast notification
+     * Delegates to global showAlert from notifications.js
      */
     showAlert(type, message) {
-      const alertDiv = document.createElement("div");
-      alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-      alertDiv.style.cssText =
-        "top: 20px; right: 20px; z-index: 9999; max-width: 400px;";
-      alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      `;
-      document.body.appendChild(alertDiv);
-
-      setTimeout(() => {
-        if (alertDiv.parentNode) {
-          alertDiv.classList.remove("show");
-          setTimeout(() => alertDiv.remove(), 150);
-        }
-      }, 5000);
+      window.showAlert(type, message);
     },
   };
 }
