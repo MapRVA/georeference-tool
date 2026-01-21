@@ -15,6 +15,9 @@ The images in Yesterdays are from online databases provided by these institution
 Images from each source are organized into collections.
 Collections have their own pages, which show a map of georeferenced images from that collection.
 
+Collections cannot be nested.
+In contrast to the often complex organization schemes of sources, we've decided to present images in a relatively flat hierarchy.
+
 ## What are Images?
 
 While most images in Yesterdays are old photographs, they also include:
