@@ -80,6 +80,26 @@ export function imageGrid() {
       if (!this.selectionMode) {
         this.selectedIds = new Set();
       }
+      // Sync Bootstrap collapse state with Alpine state
+      this.syncToolbarCollapse();
+    },
+
+    /**
+     * Ensure Bootstrap collapse state matches Alpine selectionMode state
+     */
+    syncToolbarCollapse() {
+      const toolbar = document.getElementById("bulkActionsToolbar");
+      if (!toolbar) return;
+
+      const bsCollapse = bootstrap.Collapse.getOrCreateInstance(toolbar, {
+        toggle: false,
+      });
+
+      if (this.selectionMode) {
+        bsCollapse.show();
+      } else {
+        bsCollapse.hide();
+      }
     },
 
     /**

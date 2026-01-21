@@ -19,8 +19,6 @@
     <button class="btn btn-sm ms-2" 
             :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" 
             type="button" 
-            data-bs-toggle="collapse"
-            data-bs-target="#bulkActionsToolbar"
             :disabled="filtersOpen"
             @click="toggleSelectionMode()">
         <i class="fas" :class="selectionMode ? 'fa-circle-xmark' : 'fa-square-check'"></i>
@@ -62,8 +60,6 @@
                         </ul>
                     </div>
                     <button class="btn btn-sm btn-outline-danger" 
-                            data-bs-toggle="collapse"
-                            data-bs-target="#bulkActionsToolbar"
                             @click="toggleSelectionMode()">Cancel</button>
                 </div>
             </div>
