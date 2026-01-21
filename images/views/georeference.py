@@ -27,7 +27,7 @@ def georeference_interface(request):
     collection_slug = request.GET.get("collection")
     subject_slug = request.GET.get("subject")
     difficulty = request.GET.get("difficulty")
-    image_id = request.GET.get("image")
+    image_id = request.GET.get("image") or request.GET.get("current_image")
     album_id = request.GET.get("album")
 
     # If specific image ID is requested, try to load it

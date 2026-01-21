@@ -46,17 +46,48 @@ def login(request):
     ]
     for key in session_keys_to_clear:
         request.session.pop(key, None)
-    # Check if there's an image parameter (for georeference page)
+
+    # Build the post-login redirect URL
+    # If logging in from a georeference page with queue context (source, collection, etc.),
+    # preserve those parameters and use current_image instead of image
+    referrer = request.META.get("HTTP_REFERER")
     image_id = request.GET.get("image")
-    if image_id:
-        # Store the redirect URL for the specific image
-        redirect_url = reverse("images:georeference_interface") + f"?image={image_id}"
-        request.session["login_redirect_url"] = request.build_absolute_uri(redirect_url)
-    else:
-        # Store the referrer URL to redirect back after login
-        referrer = request.META.get("HTTP_REFERER")
-        if referrer:
+    georeference_path = reverse("images:georeference_interface")
+
+    if referrer and image_id:
+        parsed = urlparse(referrer)
+        # Check if referrer is the georeference interface
+        if parsed.path == georeference_path:
+            query_params = parse_qs(parsed.query)
+            # Check if there are queue context params
+            queue_params = {"source", "collection", "album", "subject", "difficulty"}
+            has_queue_context = any(p in query_params for p in queue_params)
+
+            if has_queue_context:
+                # Use current_image to preserve queue context
+                query_params.pop("current_image", None)
+                query_params.pop("image", None)
+                query_params["current_image"] = [image_id]
+                new_query = urlencode(query_params, doseq=True)
+                redirect_url = f"{georeference_path}?{new_query}"
+            else:
+                # No queue context, use standard image= parameter
+                redirect_url = f"{georeference_path}?image={image_id}"
+
+            request.session["login_redirect_url"] = request.build_absolute_uri(
+                redirect_url
+            )
+        else:
+            # Referrer is not georeference page, just go back there
             request.session["login_redirect_url"] = referrer
+    elif image_id:
+        # No referrer but have image_id (direct link to login with image param)
+        redirect_url = f"{georeference_path}?image={image_id}"
+        request.session["login_redirect_url"] = request.build_absolute_uri(redirect_url)
+    elif referrer:
+        # No image_id, just use referrer
+        request.session["login_redirect_url"] = referrer
+
     try:
         osm_auth = get_osm_auth()
         login_data = osm_auth.login()
