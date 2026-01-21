@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
         aerialGeoreference: {% if aerial_georeference %}{{ aerial_georeference.polygon.geojson|safe }}{% else %}null{% endif %},
         zoomToContents: {{ zoom_to_contents|yesno:"true,false,false" }},
         directionImageUrl: '{% static "images/surveillance-direction.png" %}',
-        currentImageDirection: {% if current_image_direction is not None %}{{ current_image_direction }}{% else %}null{% endif %}
+        currentImageDirection: {% if current_image_direction is not None and current_image_direction != "" %}{{ current_image_direction }}{% else %}null{% endif %}
     });
 });
 </script>

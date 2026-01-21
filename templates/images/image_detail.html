@@ -163,7 +163,7 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="map-container">
-                            {% if image.is_georeferenced %}
+                            {% if image.get_georeference %}
                                 {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=polygonal_georeference show_other_images=True current_image_direction=image.get_georeference.direction %}
                             {% elif polygonal_georeference %}
                                 {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference show_other_images=True %}
@@ -173,6 +173,7 @@
                     {% if image.is_georeferenced %}
                     <div class="card-footer">
                         <div class="row g-2 text-center">
+                            {% if image.get_georeference %}
                             <div class="col-md-4">
                                 <small class="text-muted d-block">Coordinates</small>
                                 <span class="coordinate-display">{{ image.get_georeference.point.y|floatformat:6 }}, {{ image.get_georeference.point.x|floatformat:6 }}</span>
@@ -193,6 +194,7 @@
                                     {% endif %}
                                 </span>
                             </div>
+                            {% endif %}
                             {% endif %}
                             <div class="col-md-4">
                                 <small class="text-muted d-block">Map Tools</small>
