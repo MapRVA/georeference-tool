@@ -1,7 +1,7 @@
 /* Image card styles */
 
-.image-placeholder {
-    border-radius: 0.375rem 0.375rem 0 0;
+.image-card {
+    overflow: hidden;
 }
 
 .badge {
