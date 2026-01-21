@@ -677,7 +677,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Scroll to top and reload to get next image
       window.scrollTo(0, 0);
-      location.reload();
+
+      // Remove current_image parameter if present to avoid redirecting back to the same image
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has("current_image")) {
+        urlParams.delete("current_image");
+        const newUrl =
+          window.location.pathname +
+          (urlParams.toString() ? "?" + urlParams.toString() : "");
+        window.location.href = newUrl;
+      } else {
+        location.reload();
+      }
     }
 
     function updateContextImagesDisplay() {
