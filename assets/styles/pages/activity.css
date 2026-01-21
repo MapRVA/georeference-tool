@@ -1,0 +1,15 @@
+/* Activity feed page styles */
+
+/* Square thumbnail for activity card previews (mobile) */
+.activity-thumbnail {
+    width: 5em;
+    height: 5em;
+    object-fit: cover;
+}
+
+/* Larger thumbnail for wider screens */
+.activity-thumbnail-lg {
+    width: 8em;
+    height: 8em;
+    object-fit: cover;
+}

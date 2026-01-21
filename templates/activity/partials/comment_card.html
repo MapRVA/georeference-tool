@@ -8,6 +8,15 @@
                 </span>
             </div>
             <div class="flex-grow-1">
+                {% if comment.image %}
+                    <a href="{% url 'images:image_detail' comment.image.id %}" class="float-sm-end ms-sm-3 mb-2 mb-sm-0 d-none d-sm-block">
+                        <img src="{% if comment.image.thumbnail %}{{ comment.image.thumbnail }}{% else %}{{ comment.image.permalink }}{% endif %}"
+                             alt="{{ comment.image.title|default:'Image' }}"
+                             class="rounded activity-thumbnail-lg"
+                             loading="lazy">
+                    </a>
+                {% endif %}
+
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="mb-1">
@@ -22,39 +31,38 @@
                         <small class="text-muted">
                             <i class="fas fa-clock me-1"></i>{{ comment.created_at|timeago }}
                         </small>
-
-                        <div class="mt-2 p-2 bg-body-secondary rounded comment-preview small"
-                             x-data="{ expanded: false, overflows: false }"
-                             x-init="$nextTick(() => { overflows = $refs.content.scrollHeight > $refs.content.clientHeight })">
-                            <div class="markdown-content"
-                                 :class="{ 'comment-collapsed': !expanded }"
-                                 x-ref="content">{{ comment.text|markdown }}</div>
-                            <button x-show="overflows && !expanded"
-                                    x-cloak
-                                    @click="expanded = true"
-                                    class="btn btn-link btn-sm p-0 mt-1 text-muted">
-                                <i class="fas fa-chevron-down me-1"></i>Show more
-                            </button>
-                            <button x-show="expanded"
-                                    x-cloak
-                                    @click="expanded = false"
-                                    class="btn btn-link btn-sm p-0 mt-1 text-muted">
-                                <i class="fas fa-chevron-up me-1"></i>Show less
-                            </button>
-                        </div>
                     </div>
 
                     {% if comment.image %}
-                        <div class="ms-3 flex-shrink-0 align-self-stretch">
-                            <a href="{% url 'images:image_detail' comment.image.id %}" class="d-block h-100">
+                        <div class="ms-3 flex-shrink-0 d-sm-none">
+                            <a href="{% url 'images:image_detail' comment.image.id %}" class="d-block">
                                 <img src="{% if comment.image.thumbnail %}{{ comment.image.thumbnail }}{% else %}{{ comment.image.permalink }}{% endif %}"
                                      alt="{{ comment.image.title|default:'Image' }}"
-                                     class="rounded h-100"
-                                     style="width: 100px; object-fit: cover;"
+                                     class="rounded activity-thumbnail"
                                      loading="lazy">
                             </a>
                         </div>
                     {% endif %}
+                </div>
+
+                <div class="mt-2 p-2 bg-body-secondary rounded comment-preview small"
+                     x-data="{ expanded: false, overflows: false }"
+                     x-init="$nextTick(() => { overflows = $refs.content.scrollHeight > $refs.content.clientHeight })">
+                    <div class="markdown-content comment-collapsed"
+                         :class="{ 'comment-collapsed': !expanded }"
+                         x-ref="content">{{ comment.text|markdown }}</div>
+                    <button x-show="overflows && !expanded"
+                            x-cloak
+                            @click="expanded = true"
+                            class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                        <i class="fas fa-chevron-down me-1"></i>Show more
+                    </button>
+                    <button x-show="expanded"
+                            x-cloak
+                            @click="expanded = false"
+                            class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                        <i class="fas fa-chevron-up me-1"></i>Show less
+                    </button>
                 </div>
             </div>
         </div>

@@ -41,10 +41,12 @@
 }
 
 /* Comment preview in activity feed - collapsible long comments */
+.comment-preview {
+    overflow: hidden; /* Creates block formatting context to respect floats */
+}
+
 .comment-preview .markdown-content {
-    max-height: 50em;
     overflow: hidden;
-    transition: max-height 0.3s ease;
 }
 
 .comment-preview .markdown-content.comment-collapsed {

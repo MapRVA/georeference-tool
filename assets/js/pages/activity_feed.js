@@ -5,6 +5,7 @@
  */
 
 import "../../styles/components/markdown.css";
+import "../../styles/pages/activity.css";
 
 // Add x-cloak style to prevent flash of unstyled content
 document.addEventListener("DOMContentLoaded", function () {
