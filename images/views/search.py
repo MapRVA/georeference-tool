@@ -579,6 +579,9 @@ def find_similar_images(request, image_id):
     - with_subjects: comma-separated subject IDs (images must have ALL)
     - without_subjects: comma-separated subject IDs (images must not have ANY)
     - no_subjects: if 'true', only images with no subjects
+
+    For AJAX requests (X-Requested-With: XMLHttpRequest), returns just the image
+    cards HTML partial for "Load More" functionality.
     """
     if not CLIP_AVAILABLE:
         messages.error(
@@ -595,6 +598,9 @@ def find_similar_images(request, image_id):
             "The selected image does not have an embedding, so similar images cannot be found.",
         )
         return redirect("images:image_detail", image_id=image_id)
+
+    # Check if this is an AJAX request for "Load More"
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     # Get filter parameters from URL (matching filter_cards.html)
     georeference_status = (
@@ -616,15 +622,14 @@ def find_similar_images(request, image_id):
     )
     no_subjects = request.GET.get("no_subjects") == "true"
 
-    # Pagination parameters - use SQL-level pagination to avoid memory issues
+    # Pagination parameters - use offset-based pagination for "Load More"
     per_page = 24
     try:
-        page_number = int(request.GET.get("page", 1))
-        if page_number < 1:
-            page_number = 1
+        offset = int(request.GET.get("offset", 0))
+        if offset < 0:
+            offset = 0
     except (ValueError, TypeError):
-        page_number = 1
-    offset = (page_number - 1) * per_page
+        offset = 0
 
     try:
         with connection.cursor() as cursor:
@@ -749,71 +754,38 @@ def find_similar_images(request, image_id):
         images_by_id = {img.id: img for img in images_on_page}
 
         # Re-order the fetched image objects based on the result order
-        ordered_images_on_page = [
+        ordered_images = [
             images_by_id[img_id]
             for img_id in current_page_ids
             if img_id in images_by_id
         ]
 
-        # Create a simple page object for template compatibility
-        total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+        # Calculate if there are more images to load
+        next_offset = offset + per_page
+        has_more = next_offset < total_count
 
-        class SimplePaginator:
-            def __init__(self, num_pages, count, per_page):
-                self.num_pages = num_pages
-                self.count = count
-                self.per_page = per_page
+        # For AJAX requests, return just the image cards partial
+        if is_ajax:
+            return render(
+                request,
+                "images/partials/similar_images_items.html",
+                {
+                    "images": ordered_images,
+                    "has_more": has_more,
+                    "georeference_url": "/georeference/",
+                    "show_collection_link": True,
+                    "badges": True,
+                    "buttons": True,
+                },
+            )
 
-            @property
-            def page_range(self):
-                return range(1, self.num_pages + 1)
-
-        class SimplePage:
-            def __init__(self, object_list, number, total_pages, total_count, per_page):
-                self.object_list = object_list
-                self.number = number
-                self._per_page = per_page
-                self._total_count = total_count
-                self.paginator = SimplePaginator(total_pages, total_count, per_page)
-
-            def __iter__(self):
-                return iter(self.object_list)
-
-            def __len__(self):
-                return len(self.object_list)
-
-            def has_previous(self):
-                return self.number > 1
-
-            def has_next(self):
-                return self.number < self.paginator.num_pages
-
-            def previous_page_number(self):
-                return self.number - 1
-
-            def next_page_number(self):
-                return self.number + 1
-
-            @property
-            def start_index(self):
-                if self._total_count == 0:
-                    return 0
-                return (self.number - 1) * self._per_page + 1
-
-            @property
-            def end_index(self):
-                if self._total_count == 0:
-                    return 0
-                return min(self.number * self._per_page, self._total_count)
-
-        page_obj = SimplePage(
-            ordered_images_on_page, page_number, total_pages, total_count, per_page
-        )
-
+        # For regular requests, return the full page
         context = {
             "target_image": target_image,
-            "page_obj": page_obj,
+            "images": ordered_images,
             "total_similar_count": total_count,
+            "has_more": has_more,
+            "per_page": per_page,
         }
 
         return render(request, "images/similar_images.html", context)

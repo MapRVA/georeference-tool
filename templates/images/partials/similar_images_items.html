@@ -1,0 +1,4 @@
+{% for image in images %}
+    {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default:True badges=badges|default:True buttons=buttons|default:True %}
+{% endfor %}
+<template data-has-more="{{ has_more|yesno:'true,false' }}"></template>

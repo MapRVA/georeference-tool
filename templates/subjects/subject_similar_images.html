@@ -14,6 +14,10 @@
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
             bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+        },
+        similarImages: {
+            perPage: {{ per_page }},
+            hasMore: {{ has_more|yesno:'true,false' }}
         }
     };
 </script>
@@ -55,10 +59,41 @@
             </div>
         </div>
 
-        <!-- Image Grid with bulk selection support -->
-        <div class="col-12" x-data="imageGrid()">
-            <!-- Similar Images Grid -->
-            {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True empty_message="Could not find any images with similar content." empty_icon="fa-search" show_toolbar=True %}
+        <!-- Image Grid with bulk selection and Load More support -->
+        <div class="col-12" x-data="similarImagesGrid()">
+            {% if images %}
+                <div class="mb-3">
+                    {% include 'images/partials/grid_toolbar.html' %}
+                    {% include 'images/partials/filter_cards.html' %}
+                </div>
+
+                <div class="row" x-ref="imageGrid">
+                    {% for image in images %}
+                        {% include 'images/partials/image_card.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True %}
+                    {% endfor %}
+                </div>
+
+                <!-- Load More Button -->
+                <div class="text-center my-4">
+                    <button x-show="hasMore && !loading"
+                            x-cloak
+                            @click="loadMore"
+                            class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-down me-2"></i>Load More
+                    </button>
+                    <div x-show="loading" x-cloak>
+                        <div class="spinner-border text-secondary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                {% if user.is_authenticated %}
+                    {% include 'images/partials/bulk_modals.html' %}
+                {% endif %}
+            {% else %}
+                {% include 'images/partials/empty_images.html' with empty_message="Could not find any images with similar content." empty_icon="fa-search" %}
+            {% endif %}
         </div>
     </div>
 </div>
