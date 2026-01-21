@@ -29,11 +29,11 @@
         window.OSM_STYLE_URL = "{{ osm_style_url }}";
     </script>
 
-    <!-- Page-specific JavaScript (load before index.js so they can register Alpine components) -->
-    {% block extra_js %}{% endblock %}
-
-    <!-- Global bundle (Alpine.js + site-wide scripts) -->
+    <!-- Global bundle (Alpine.js + site-wide scripts) - loads first to set up window.Alpine -->
     {% vite_asset 'assets/index.js' %}
+
+    <!-- Page-specific JavaScript (registers Alpine components before Alpine.start()) -->
+    {% block extra_js %}{% endblock %}
 
     <!-- 100% privacy-first analytics -->
     <script async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>

@@ -105,7 +105,8 @@
         </div>
 
         <!-- Main content wrapper with cursor change during filtering -->
-        <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }" x-data="imageGrid()">
+        <div :class="{ 'user-select-none': isFiltering }" :style="{ cursor: isFiltering ? 'wait' : 'default' }">
+        <div x-data="imageGrid()">
 
         <!-- Images Grid -->
         {% if is_filtered %}
@@ -126,6 +127,7 @@
                 {% endif %}
             </div>
         {% endif %}
+        </div>
         </div>
     </div>
 </div>

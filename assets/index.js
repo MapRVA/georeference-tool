@@ -184,20 +184,16 @@ dom.watch();
 // Make Bootstrap globally available
 window.bootstrap = bootstrap;
 
-// Make Alpine globally available
+// Make Alpine globally available for page scripts to register components
 window.Alpine = Alpine;
 
-// Track whether Alpine has been started by page-specific JS
-window.AlpineStarted = false;
-
-// Fallback: Start Alpine on DOMContentLoaded if no page-specific JS has started it.
-// Pages with custom Alpine components should call Alpine.start() explicitly after
-// registering their components. This fallback handles pages without custom components.
+// Start Alpine on DOMContentLoaded after all page scripts have registered their components.
+// This ensures the load order is:
+// 1. index.js loads and sets window.Alpine
+// 2. Page-specific scripts load and call Alpine.data() to register components
+// 3. DOMContentLoaded fires and Alpine.start() initializes all components
 document.addEventListener("DOMContentLoaded", () => {
-  if (!window.AlpineStarted) {
-    Alpine.start();
-    window.AlpineStarted = true;
-  }
+  Alpine.start();
 });
 
 console.log("Vite bundle loaded with Alpine.js, Bootstrap, and Font Awesome");
