@@ -54,11 +54,13 @@ window.activityFilter = function (initialFilters) {
  * Alpine.js component for the activity feed with "Load More" functionality.
  *
  * @param {boolean} initialHasMore - Whether there are more items to load
+ * @param {boolean} initialNoneSelected - Whether no filter types are selected
  */
-window.activityFeed = function (initialHasMore) {
+window.activityFeed = function (initialHasMore, initialNoneSelected = false) {
   return {
     hasMore: initialHasMore,
     loading: false,
+    noneSelected: initialNoneSelected,
 
     get lastTimestamp() {
       const items = this.$refs.items?.querySelectorAll(".activity-item");
@@ -68,7 +70,16 @@ window.activityFeed = function (initialHasMore) {
       return null;
     },
 
-    async reloadFeed() {
+    async reloadFeed(event) {
+      const types = event?.detail?.types ?? [];
+      this.noneSelected = types.length === 0;
+
+      if (this.noneSelected) {
+        this.$refs.items.innerHTML = "";
+        this.hasMore = false;
+        return;
+      }
+
       this.loading = true;
 
       try {

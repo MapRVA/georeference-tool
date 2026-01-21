@@ -22,11 +22,13 @@ def activity_feed(request):
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     # Parse event types filter
+    none_selected = False
     if types_param:
         selected_types = set(types_param.split(",")) & ALL_EVENT_TYPES
-        # Fall back to all types if no valid types provided
         if not selected_types:
-            selected_types = ALL_EVENT_TYPES
+            # Explicit types param with no valid types = none selected
+            none_selected = True
+            selected_types = set()
     else:
         selected_types = ALL_EVENT_TYPES
 
@@ -42,9 +44,12 @@ def activity_feed(request):
                 raise Http404("Invalid timestamp")
             # For non-AJAX, just ignore invalid timestamp
 
-    events = get_activity_events(
-        before=before, limit=ITEMS_PER_PAGE, event_types=selected_types
-    )
+    if none_selected:
+        events = []
+    else:
+        events = get_activity_events(
+            before=before, limit=ITEMS_PER_PAGE, event_types=selected_types
+        )
 
     if is_ajax:
         return render(
@@ -63,6 +68,7 @@ def activity_feed(request):
             "events": events,
             "has_more": len(events) == ITEMS_PER_PAGE,
             "filter_states_json": filter_states,
+            "none_selected": none_selected,
         },
     )
 

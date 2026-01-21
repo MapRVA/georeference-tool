@@ -46,9 +46,9 @@
                 </ul>
             </div>
         </div>
-        {% if events %}
-            <div x-data="activityFeed({{ has_more|yesno:'true,false' }})"
-                 @filter-changed.window="reloadFeed()"
+        {% if events or none_selected %}
+            <div x-data="activityFeed({{ has_more|yesno:'true,false' }}, {{ none_selected|yesno:'true,false' }})"
+                 @filter-changed.window="reloadFeed($event)"
                  x-ref="feed">
                 <div class="activity-feed" x-ref="items">
                     {% for event_type, event, timestamp in events %}
@@ -62,6 +62,14 @@
                             {% endif %}
                         </div>
                     {% endfor %}
+                </div>
+
+                <div class="card" x-show="noneSelected" x-cloak>
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-filter fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No activity types selected</h5>
+                        <p class="text-muted mb-0">Use the filter menu to select activity types to display.</p>
+                    </div>
                 </div>
 
                 <div class="text-center my-4">
