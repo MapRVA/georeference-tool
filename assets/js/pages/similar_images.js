@@ -35,6 +35,11 @@ window.similarImagesGrid = function () {
     // Include all base imageGrid properties and methods
     ...base,
 
+    // Re-declare getter since spread doesn't preserve getters
+    get selectedCount() {
+      return this.selectedIds.size;
+    },
+
     // Load More specific state
     hasMore: initialHasMore,
     loading: false,
