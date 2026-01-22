@@ -145,17 +145,14 @@
             </div>
         {% endif %}
 
-        <!-- Image Grid with bulk selection support -->
-        <div x-data="imageGrid()">
-            <!-- Images Grid -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2>Images featuring {{ subject.title }}</h2>
-            </div>
-
-            {% with geo_url="/georeference/?subject="|add:subject.slug %}
-                {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=True badges=True buttons=True empty_message="No images have been tagged with this subject yet." staff_message="Staff members can add this subject to images from the image detail page." show_toolbar=True %}
-            {% endwith %}
+        <!-- Images Grid -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Images featuring {{ subject.title }}</h2>
         </div>
+
+        {% with geo_url="/georeference/?subject="|add:subject.slug %}
+            {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=True badges=True buttons=True empty_message="No images have been tagged with this subject yet." staff_message="Staff members can add this subject to images from the image detail page." show_toolbar=True %}
+        {% endwith %}
     </div>
 </div>
 {% endblock %}

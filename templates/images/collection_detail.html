@@ -166,13 +166,11 @@
         </div>
 
         <!-- Image Grid with bulk selection support -->
-        <div x-data="imageGrid()">
-            {% with geo_url="/georeference/?source="|add:source.slug|add:"&collection="|add:collection.slug %}
-            {% with staff_url="/admin/images/image/add/?collection="|add:collection.id %}
-                {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=False badges=True buttons=True empty_message="This collection doesn't have any images yet." staff_action_url=staff_url staff_action_text="Add Images" show_toolbar=True %}
-            {% endwith %}
-            {% endwith %}
-        </div>
+        {% with geo_url="/georeference/?source="|add:source.slug|add:"&collection="|add:collection.slug %}
+        {% with staff_url="/admin/images/image/add/?collection="|add:collection.id %}
+            {% include 'images/partials/image_grid.html' with georeference_url=geo_url show_collection_link=False badges=True buttons=True empty_message="This collection doesn't have any images yet." staff_action_url=staff_url staff_action_text="Add Images" show_toolbar=True %}
+        {% endwith %}
+        {% endwith %}
     </div>
 </div>
 

@@ -1,26 +1,28 @@
 {% load django_vite %}
 
-{% if show_toolbar %}
-<div class="mb-3">
-    {% include 'images/partials/grid_toolbar.html' %}
-    {% include 'images/partials/filter_cards.html' %}
-</div>
-{% endif %}
-
-{% if page_obj %}
-    <div class="row" {{ row_attrs }}>
-        {% for image in page_obj %}
-            {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default:True badges=badges|default:True buttons=buttons|default:True %}
-        {% endfor %}
+<div x-data="imageGrid()">
+    {% if show_toolbar %}
+    <div class="mb-3">
+        {% include 'images/partials/grid_toolbar.html' %}
+        {% include 'images/partials/filter_cards.html' %}
     </div>
+    {% endif %}
 
-    <!-- Pagination -->
-    {% include 'images/partials/pagination.html' with url_params=url_params|default:"" hide_count=hide_count|default:False %}
+    {% if page_obj %}
+        <div class="row" {{ row_attrs }}>
+            {% for image in page_obj %}
+                {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default:True badges=badges|default:True buttons=buttons|default:True %}
+            {% endfor %}
+        </div>
 
-{% else %}
-    {% include 'images/partials/empty_images.html' with empty_message=empty_message|default:"No images found." empty_icon=empty_icon|default:"fa-images" staff_message=staff_message staff_action_url=staff_action_url staff_action_text=staff_action_text %}
-{% endif %}
+        <!-- Pagination -->
+        {% include 'images/partials/pagination.html' with url_params=url_params|default:"" hide_count=hide_count|default:False %}
 
-{% if show_toolbar and user.is_authenticated %}
-    {% include 'images/partials/bulk_modals.html' %}
-{% endif %}
+    {% else %}
+        {% include 'images/partials/empty_images.html' with empty_message=empty_message|default:"No images found." empty_icon=empty_icon|default:"fa-images" staff_message=staff_message staff_action_url=staff_action_url staff_action_text=staff_action_text %}
+    {% endif %}
+
+    {% if show_toolbar and user.is_authenticated %}
+        {% include 'images/partials/bulk_modals.html' %}
+    {% endif %}
+</div>
