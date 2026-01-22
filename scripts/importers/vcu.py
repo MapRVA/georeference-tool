@@ -247,6 +247,7 @@ def get_image_details(
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date on Slide</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date of Document</h2>\s*<p>(.*?)</p>\s*</div>",
+        r"<div id='date_of_photograph' class='element'>\s*<h2 class='field-heading'>Date of Photograph</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='pub_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
     ]
 
@@ -323,8 +324,8 @@ def get_image_details(
                 details["edtf_date"] = f"[{first_year},{second_year}]"
             else:
                 details["edtf_date"] = f"[{first_year}..{second_year}]"
-        # Circa YYYY
-        elif circa_match := re.match(r"(?i)(?:c|Circa|c\.)\s+(\d{4})$", date_str):
+        # Circa YYYY (handles "c", "c.", "ca", "ca.", "circa" followed by optional space and year)
+        elif circa_match := re.match(r"(?i)(?:circa|ca\.?|c\.?)\s*(\d{4})$", date_str):
             details["edtf_date"] = circa_match.group(1) + "~"
 
     # If no date found, use fallback ranges if provided
@@ -373,6 +374,16 @@ def get_image_details(
         "Significant Architectural Features \\(transcribed from form\\)",
     )
 
+    # Jackson Ward Historic District (jwh_photos) specific fields
+    extract_field("abstract", "Original Description \\(transcribed from book\\)")
+    extract_field("original_note", "Original Note \\(transcribed from book\\)")
+    extract_field("jw_block", "Area of Jackson Ward Block")
+    extract_field("jw_fullst", "Area of Jackson Ward Full Street")
+    extract_field("date_of_construction", "Date of Construction")
+    extract_field("note", "Image Note")
+    extract_field("type_of_building", "Type of Building")
+    extract_field("architectural_features", "Architectural Features")
+
     if description_parts:
         details["description"] = "\n\n".join(description_parts)
 
@@ -385,10 +396,6 @@ def get_image_details(
         # Full resolution download URL (requires R2 upload, WAF blocks browser hotlinks)
         details["permalink"] = (
             f"https://scholarscompass.vcu.edu/context/{collection_id}/article/{internal_id}/type/native/viewcontent"
-        )
-        # Preview URL works for browser display (no WAF challenge)
-        details["preview_url"] = (
-            f"https://scholarscompass.vcu.edu/{collection_id}/{internal_id}/preview.jpg"
         )
 
     # --- License ---
@@ -587,12 +594,10 @@ def cli(
 
             # Create the appropriate image type based on hotlink option
             if hotlink:
-                # Use preview URL for hotlink mode (WAF blocks full-res URLs in browsers)
-                hotlink_url = details.get("preview_url") or details["permalink"]
                 image = PreImage.objects.create(
                     collection=collection,
                     title=details["title"],
-                    permalink=hotlink_url,
+                    permalink=details["permalink"],
                     ref=details["ref"],
                     description=details.get("description", ""),
                     creator=details.get("creator", ""),
