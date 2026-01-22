@@ -154,15 +154,25 @@ class TimeSliderControl {
       [">=", ["get", "fuzzy_end_decdate"], startYear],
     ];
 
+    const directionFilter = ["all", ["has", "direction"], ...filter.slice(1)];
+
+    // Heatmap style layers
+    if (this._map.getLayer("image-heatmap")) {
+      this._map.setFilter("image-heatmap", filter);
+    }
     if (this._map.getLayer("image-circles")) {
       this._map.setFilter("image-circles", filter);
     }
     if (this._map.getLayer("image-directions")) {
-      this._map.setFilter("image-directions", [
-        "all",
-        ["has", "direction"],
-        ...filter.slice(1),
-      ]);
+      this._map.setFilter("image-directions", directionFilter);
+    }
+
+    // Simple style layers
+    if (this._map.getLayer("image-circles-simple")) {
+      this._map.setFilter("image-circles-simple", filter);
+    }
+    if (this._map.getLayer("image-directions-simple")) {
+      this._map.setFilter("image-directions-simple", directionFilter);
     }
   }
 
@@ -221,11 +231,22 @@ export function initializeMap(config) {
 
     window.toggleOtherImages = function (showAll, onLoadCallback) {
       const visibility = showAll ? "visible" : "none";
+      // Heatmap style layers
+      if (map.getLayer("image-heatmap")) {
+        map.setLayoutProperty("image-heatmap", "visibility", visibility);
+      }
       if (map.getLayer("image-circles")) {
         map.setLayoutProperty("image-circles", "visibility", visibility);
       }
       if (map.getLayer("image-directions")) {
         map.setLayoutProperty("image-directions", "visibility", visibility);
+      }
+      // Simple style layers (keep hidden - they're controlled by LayerControl style toggle)
+      if (map.getLayer("image-circles-simple")) {
+        map.setLayoutProperty("image-circles-simple", "visibility", "none");
+      }
+      if (map.getLayer("image-directions-simple")) {
+        map.setLayoutProperty("image-directions-simple", "visibility", "none");
       }
 
       // Handle loading callback
@@ -249,8 +270,14 @@ export function initializeMap(config) {
   // Add controls
   const layerControl = new LayerControl({
     showImageLayerToggle: true,
-    overlayLayerIds: ["image-circles", "image-directions"],
-    beforeLayerId: "image-directions",
+    overlayLayerIds: [
+      "image-heatmap",
+      "image-circles",
+      "image-directions",
+      "image-circles-simple",
+      "image-directions-simple",
+    ],
+    beforeLayerId: "image-heatmap",
   });
   const navControl = new maplibregl.NavigationControl();
   const fullscreenControl = new maplibregl.FullscreenControl();
@@ -471,10 +498,123 @@ export function initializeMap(config) {
           ? ["!=", ["get", "id"], parseInt(imageId, 10)]
           : null;
 
-      // Add direction markers
+      // Add heatmap layer (visible at lower zoom, fades out as you zoom in)
+      map.addLayer({
+        id: "image-heatmap",
+        type: "heatmap",
+        source: "images",
+        "source-layer": "image_points",
+        filter: excludeCurrentFilter || ["literal", true],
+        layout: {
+          visibility: initialVisibility,
+        },
+        paint: {
+          "heatmap-weight": 0.2,
+          "heatmap-color": [
+            "interpolate",
+            ["linear"],
+            ["heatmap-density"],
+            0,
+            "rgba(255,255,255,0)",
+            0.1,
+            "#0d6efd",
+            1,
+            "white",
+          ],
+          "heatmap-opacity": [
+            "interpolate",
+            ["exponential", 0.6],
+            ["zoom"],
+            12,
+            0.6,
+            16,
+            0,
+          ],
+        },
+      });
+
+      // Add direction markers (fade in at higher zoom, rendered under circles)
       if (map.hasImage("image-direction")) {
         map.addLayer({
           id: "image-directions",
+          type: "symbol",
+          source: "images",
+          "source-layer": "image_points",
+          minzoom: 16,
+          filter: excludeCurrentFilter
+            ? ["all", ["has", "direction"], excludeCurrentFilter]
+            : ["has", "direction"],
+          layout: {
+            "icon-image": "image-direction",
+            "icon-overlap": "always",
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 16, 0, 20, 1],
+            "icon-rotate": ["to-number", ["get", "direction"]],
+            "icon-rotation-alignment": "map",
+            "icon-pitch-alignment": "map",
+            visibility: initialVisibility,
+          },
+        });
+      }
+
+      // Add circle layer (fades in as heatmap fades out, on top of directions)
+      map.addLayer({
+        id: "image-circles",
+        type: "circle",
+        source: "images",
+        "source-layer": "image_points",
+        minzoom: 12.5,
+        filter: excludeCurrentFilter || ["literal", true],
+        layout: {
+          visibility: initialVisibility,
+        },
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["exponential", 1.5],
+            ["zoom"],
+            15,
+            2,
+            20,
+            9.5,
+          ],
+          "circle-color": "#0d6efd",
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            15,
+            1,
+            20,
+            2,
+          ],
+          "circle-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12.5,
+            0,
+            16,
+            1,
+          ],
+          "circle-stroke-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12.5,
+            0,
+            16,
+            1,
+          ],
+        },
+      });
+
+      // === Simple style layers (hidden by default) ===
+
+      // Add simple direction markers (rendered under simple circles)
+      if (map.hasImage("image-direction")) {
+        map.addLayer({
+          id: "image-directions-simple",
           type: "symbol",
           source: "images",
           "source-layer": "image_points",
@@ -488,30 +628,26 @@ export function initializeMap(config) {
             "icon-rotate": ["to-number", ["get", "direction"]],
             "icon-rotation-alignment": "map",
             "icon-pitch-alignment": "map",
-            visibility: initialVisibility,
-          },
-          paint: {
-            "icon-opacity": scaleHelpers.buildDirectionOpacityExpression(),
+            visibility: "none",
           },
         });
       }
 
-      // Add circle layer
+      // Add simple circle layer (always visible at all zooms, on top of simple directions)
       map.addLayer({
-        id: "image-circles",
+        id: "image-circles-simple",
         type: "circle",
         source: "images",
         "source-layer": "image_points",
         filter: excludeCurrentFilter || ["literal", true],
         layout: {
-          visibility: initialVisibility,
+          visibility: "none",
         },
         paint: {
-          "circle-radius": scaleHelpers.buildCircleRadiusExpression(),
-          "circle-color": "green",
+          "circle-radius": 8,
+          "circle-color": "#0d6efd",
           "circle-stroke-color": "#fff",
-          "circle-stroke-width":
-            scaleHelpers.buildCircleStrokeWidthExpression(),
+          "circle-stroke-width": 2,
         },
       });
     }
@@ -729,11 +865,12 @@ export function initializeMap(config) {
 
     // Add click handlers for image markers
     if (!imageId || showOtherImages) {
-      map.on("click", "image-circles", function (e) {
+      // Helper function to handle circle layer click
+      const handleCircleClick = function (e, checkScaleVisibility) {
         if (!e.features.length) return;
         const properties = e.features[0].properties;
 
-        if (enableScaleVisibility) {
+        if (checkScaleVisibility && enableScaleVisibility) {
           const scale =
             !properties.scale || properties.scale === 0 ? 6 : properties.scale;
           const zoom = map.getZoom();
@@ -758,10 +895,11 @@ export function initializeMap(config) {
           .setLngLat(e.features[0].geometry.coordinates)
           .setHTML(popupContent)
           .addTo(map);
-      });
+      };
 
-      map.on("mouseenter", "image-circles", function (e) {
-        if (enableScaleVisibility) {
+      // Helper function to handle circle layer mouseenter
+      const handleCircleMouseenter = function (e, checkScaleVisibility) {
+        if (checkScaleVisibility && enableScaleVisibility) {
           if (!e.features.length) return;
           const properties = e.features[0].properties;
           const scale =
@@ -776,9 +914,25 @@ export function initializeMap(config) {
         } else {
           map.getCanvas().style.cursor = "pointer";
         }
+      };
+
+      // Heatmap style circle layer handlers
+      map.on("click", "image-circles", (e) => handleCircleClick(e, true));
+      map.on("mouseenter", "image-circles", (e) =>
+        handleCircleMouseenter(e, true),
+      );
+      map.on("mouseleave", "image-circles", () => {
+        map.getCanvas().style.cursor = "";
       });
 
-      map.on("mouseleave", "image-circles", function () {
+      // Simple style circle layer handlers (no scale visibility checks)
+      map.on("click", "image-circles-simple", (e) =>
+        handleCircleClick(e, false),
+      );
+      map.on("mouseenter", "image-circles-simple", (e) =>
+        handleCircleMouseenter(e, false),
+      );
+      map.on("mouseleave", "image-circles-simple", () => {
         map.getCanvas().style.cursor = "";
       });
     }

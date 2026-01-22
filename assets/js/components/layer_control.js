@@ -66,6 +66,8 @@ export class LayerControl {
     this.currentBaseLayer = "osm";
     this.currentOverlayLayer = null;
     this.imageLayersVisible = true;
+    this.imageDisplayStyle = "heatmap"; // "heatmap" or "simple"
+    this.simpleCircleRadius = 8; // default radius for simple mode (2-10)
     this.mapLayersLoaded = false;
     this.collectionsData = null;
     this.offcanvas = null;
@@ -342,8 +344,11 @@ export class LayerControl {
 
     // Default overlay patterns
     return (
+      layerId === "image-heatmap" ||
       layerId === "image-circles" ||
       layerId === "image-directions" ||
+      layerId === "image-circles-simple" ||
+      layerId === "image-directions-simple" ||
       layerId === "current-image-circle" ||
       layerId === "current-image-direction" ||
       layerId === "aerial-polygon-fill" ||
@@ -372,7 +377,8 @@ export class LayerControl {
   }
 
   /**
-   * Get the layer ID to insert overlay tile layers before
+   * Get the layer ID to insert overlay tile layers before.
+   * This ensures user-selected overlays render below all image point layers.
    */
   getBeforeLayerId() {
     // Use configured beforeLayerId if specified
@@ -382,10 +388,14 @@ export class LayerControl {
       }
     }
 
-    // Fall back to checking common overlay layers
+    // Fall back to checking common overlay layers, in order from bottom to top.
+    // We want to insert before the first (bottom-most) one that exists.
     const possibleBeforeLayers = [
+      "image-heatmap",
       "image-directions",
       "image-circles",
+      "image-directions-simple",
+      "image-circles-simple",
       "pin-symbol",
       "pin-circle",
       "context-image-directions",
@@ -659,26 +669,171 @@ export class LayerControl {
 
     listGroup.appendChild(imageLayerItem);
     overlayContainer.appendChild(listGroup);
+
+    // Add display style toggle
+    const styleHeader = document.createElement("h6");
+    styleHeader.className = "text-muted small text-uppercase mb-2 mt-3";
+    styleHeader.textContent = "Display Style";
+    overlayContainer.appendChild(styleHeader);
+
+    const styleGroup = document.createElement("div");
+    styleGroup.className = "btn-group w-100";
+    styleGroup.setAttribute("role", "group");
+    styleGroup.setAttribute("aria-label", "Image display style");
+
+    const heatmapBtn = document.createElement("button");
+    heatmapBtn.type = "button";
+    heatmapBtn.className = "btn btn-outline-primary active";
+    heatmapBtn.dataset.style = "heatmap";
+    heatmapBtn.textContent = "Heatmap";
+
+    const simpleBtn = document.createElement("button");
+    simpleBtn.type = "button";
+    simpleBtn.className = "btn btn-outline-primary";
+    simpleBtn.dataset.style = "simple";
+    simpleBtn.textContent = "Simple";
+
+    heatmapBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.setImageDisplayStyle("heatmap");
+      heatmapBtn.classList.add("active");
+      simpleBtn.classList.remove("active");
+    });
+
+    simpleBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.setImageDisplayStyle("simple");
+      simpleBtn.classList.add("active");
+      heatmapBtn.classList.remove("active");
+    });
+
+    styleGroup.appendChild(heatmapBtn);
+    styleGroup.appendChild(simpleBtn);
+    overlayContainer.appendChild(styleGroup);
+
+    // Add radius slider for simple mode (hidden by default)
+    const radiusContainer = document.createElement("div");
+    radiusContainer.className = "mt-3";
+    radiusContainer.style.display = "none";
+    radiusContainer.id = `radius-slider-container-${this.mapId}`;
+
+    const radiusLabel = document.createElement("label");
+    radiusLabel.className = "form-label small text-muted";
+    radiusLabel.textContent = "Point Size";
+
+    const sliderWrapper = document.createElement("div");
+    sliderWrapper.style.position = "relative";
+
+    const radiusSlider = document.createElement("input");
+    radiusSlider.type = "range";
+    radiusSlider.className = "form-range";
+    radiusSlider.min = "2";
+    radiusSlider.max = "10";
+    radiusSlider.value = this.simpleCircleRadius;
+    radiusSlider.id = `radius-slider-${this.mapId}`;
+
+    // Create tooltip with point preview
+    const tooltip = document.createElement("div");
+    tooltip.className = "radius-slider-tooltip";
+    tooltip.style.cssText = `
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    `;
+
+    const tooltipCircle = document.createElement("span");
+    tooltipCircle.style.cssText = `
+      display: inline-block;
+      width: ${this.simpleCircleRadius * 2}px;
+      height: ${this.simpleCircleRadius * 2}px;
+      background: #0d6efd;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-sizing: border-box;
+    `;
+
+    const tooltipText = document.createElement("span");
+    tooltipText.textContent = this.simpleCircleRadius;
+
+    tooltip.appendChild(tooltipCircle);
+    tooltip.appendChild(tooltipText);
+
+    const updateTooltipPosition = () => {
+      const percent =
+        (radiusSlider.value - radiusSlider.min) /
+        (radiusSlider.max - radiusSlider.min);
+      const sliderWidth = radiusSlider.offsetWidth;
+      const thumbWidth = 16;
+      const left = percent * (sliderWidth - thumbWidth) + thumbWidth / 2;
+      tooltip.style.left = `${left}px`;
+      tooltip.style.transform = "translateX(-50%)";
+    };
+
+    const updateTooltipContent = (value) => {
+      tooltipCircle.style.width = `${value * 2}px`;
+      tooltipCircle.style.height = `${value * 2}px`;
+      // Interpolate stroke width: 1 at radius 2, 2 at radius 10
+      const strokeWidth = 1 + ((value - 2) / (10 - 2)) * (2 - 1);
+      tooltipCircle.style.borderWidth = `${strokeWidth}px`;
+      tooltipText.textContent = value;
+    };
+
+    radiusSlider.addEventListener("input", (e) => {
+      const value = parseInt(e.target.value, 10);
+      this.setSimpleCircleRadius(value);
+      updateTooltipContent(value);
+      updateTooltipPosition();
+    });
+
+    radiusSlider.addEventListener("mouseenter", () => {
+      tooltip.style.opacity = "1";
+      updateTooltipPosition();
+    });
+
+    radiusSlider.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = "0";
+    });
+
+    radiusSlider.addEventListener("focus", () => {
+      tooltip.style.opacity = "1";
+      updateTooltipPosition();
+    });
+
+    radiusSlider.addEventListener("blur", () => {
+      tooltip.style.opacity = "0";
+    });
+
+    sliderWrapper.appendChild(tooltip);
+    sliderWrapper.appendChild(radiusSlider);
+    radiusContainer.appendChild(radiusLabel);
+    radiusContainer.appendChild(sliderWrapper);
+    overlayContainer.appendChild(radiusContainer);
+
+    // Store references for later updates
+    this.styleButtons = { heatmap: heatmapBtn, simple: simpleBtn };
+    this.radiusContainer = radiusContainer;
+    this.radiusSlider = radiusSlider;
+    this.styleGroup = styleGroup;
   }
 
   toggleImageLayers() {
     this.imageLayersVisible = !this.imageLayersVisible;
-
-    if (this.map.getLayer("image-circles")) {
-      this.map.setLayoutProperty(
-        "image-circles",
-        "visibility",
-        this.imageLayersVisible ? "visible" : "none",
-      );
-    }
-
-    if (this.map.getLayer("image-directions")) {
-      this.map.setLayoutProperty(
-        "image-directions",
-        "visibility",
-        this.imageLayersVisible ? "visible" : "none",
-      );
-    }
+    this.applyImageLayerVisibility();
+    this.updateStyleControlsState();
 
     const imageLayerItem = this.offcanvas.querySelector(
       '[data-layer="georeferenced-images"]',
@@ -689,6 +844,116 @@ export class LayerControl {
       } else {
         imageLayerItem.classList.remove("active");
       }
+    }
+  }
+
+  updateStyleControlsState() {
+    const disabled = !this.imageLayersVisible;
+
+    // Disable/enable style toggle buttons
+    if (this.styleButtons) {
+      this.styleButtons.heatmap.disabled = disabled;
+      this.styleButtons.simple.disabled = disabled;
+    }
+
+    // Disable/enable radius slider
+    if (this.radiusSlider) {
+      this.radiusSlider.disabled = disabled;
+    }
+
+    // Visually indicate disabled state
+    if (this.styleGroup) {
+      this.styleGroup.style.opacity = disabled ? "0.5" : "1";
+      this.styleGroup.style.pointerEvents = disabled ? "none" : "auto";
+    }
+    if (this.radiusContainer) {
+      this.radiusContainer.style.opacity = disabled ? "0.5" : "1";
+      this.radiusContainer.style.pointerEvents = disabled ? "none" : "auto";
+    }
+  }
+
+  setImageDisplayStyle(style) {
+    if (style !== "heatmap" && style !== "simple") return;
+    this.imageDisplayStyle = style;
+    this.applyImageLayerVisibility();
+
+    // Show/hide radius slider based on style
+    if (this.radiusContainer) {
+      this.radiusContainer.style.display =
+        style === "simple" ? "block" : "none";
+    }
+  }
+
+  setSimpleCircleRadius(radius) {
+    this.simpleCircleRadius = radius;
+    if (this.map.getLayer("image-circles-simple")) {
+      this.map.setPaintProperty(
+        "image-circles-simple",
+        "circle-radius",
+        radius,
+      );
+      // Interpolate stroke width: 1 at radius 2, 2 at radius 10
+      const strokeWidth = 1 + ((radius - 2) / (10 - 2)) * (2 - 1);
+      this.map.setPaintProperty(
+        "image-circles-simple",
+        "circle-stroke-width",
+        strokeWidth,
+      );
+    }
+    if (this.map.getLayer("image-directions-simple")) {
+      // Interpolate icon size: 0.4 at radius 2, 1.2 at radius 10
+      const iconSize = 0.4 + ((radius - 2) / (10 - 2)) * (1.2 - 0.4);
+      this.map.setLayoutProperty(
+        "image-directions-simple",
+        "icon-size",
+        iconSize,
+      );
+    }
+  }
+
+  applyImageLayerVisibility() {
+    const showHeatmap =
+      this.imageLayersVisible && this.imageDisplayStyle === "heatmap";
+    const showSimple =
+      this.imageLayersVisible && this.imageDisplayStyle === "simple";
+
+    // Heatmap style layers
+    if (this.map.getLayer("image-heatmap")) {
+      this.map.setLayoutProperty(
+        "image-heatmap",
+        "visibility",
+        showHeatmap ? "visible" : "none",
+      );
+    }
+    if (this.map.getLayer("image-circles")) {
+      this.map.setLayoutProperty(
+        "image-circles",
+        "visibility",
+        showHeatmap ? "visible" : "none",
+      );
+    }
+    if (this.map.getLayer("image-directions")) {
+      this.map.setLayoutProperty(
+        "image-directions",
+        "visibility",
+        showHeatmap ? "visible" : "none",
+      );
+    }
+
+    // Simple style layers
+    if (this.map.getLayer("image-circles-simple")) {
+      this.map.setLayoutProperty(
+        "image-circles-simple",
+        "visibility",
+        showSimple ? "visible" : "none",
+      );
+    }
+    if (this.map.getLayer("image-directions-simple")) {
+      this.map.setLayoutProperty(
+        "image-directions-simple",
+        "visibility",
+        showSimple ? "visible" : "none",
+      );
     }
   }
 
