@@ -498,10 +498,10 @@ export function initializeMap(config) {
           ? ["!=", ["get", "id"], parseInt(imageId, 10)]
           : null;
 
-      // Add heatmap layer (visible at lower zoom, fades out as you zoom in)
+      // Add blurred background circles (heatmap effect, fades out at higher zoom)
       map.addLayer({
         id: "image-heatmap",
-        type: "heatmap",
+        type: "circle",
         source: "images",
         "source-layer": "image_points",
         filter: excludeCurrentFilter || ["literal", true],
@@ -509,27 +509,26 @@ export function initializeMap(config) {
           visibility: initialVisibility,
         },
         paint: {
-          "heatmap-weight": 0.2,
-          "heatmap-color": [
+          "circle-blur": 3,
+          "circle-opacity": [
             "interpolate",
-            ["linear"],
-            ["heatmap-density"],
-            0,
-            "rgba(255,255,255,0)",
-            0.1,
-            "#0d6efd",
-            1,
-            "white",
-          ],
-          "heatmap-opacity": [
-            "interpolate",
-            ["exponential", 0.6],
+            ["exponential", 2],
             ["zoom"],
-            12,
-            0.6,
-            16,
+            10,
+            1,
+            17,
             0,
           ],
+          "circle-radius": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            10,
+            25,
+            20,
+            100,
+          ],
+          "circle-color": "#0d6efd",
         },
       });
 
@@ -540,14 +539,22 @@ export function initializeMap(config) {
           type: "symbol",
           source: "images",
           "source-layer": "image_points",
-          minzoom: 16,
+          minzoom: 15,
           filter: excludeCurrentFilter
             ? ["all", ["has", "direction"], excludeCurrentFilter]
             : ["has", "direction"],
           layout: {
             "icon-image": "image-direction",
             "icon-overlap": "always",
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 16, 0, 20, 1],
+            "icon-size": [
+              "interpolate",
+              ["exponential", 0.7],
+              ["zoom"],
+              15,
+              0.3,
+              20,
+              1,
+            ],
             "icon-rotate": ["to-number", ["get", "direction"]],
             "icon-rotation-alignment": "map",
             "icon-pitch-alignment": "map",
@@ -556,55 +563,56 @@ export function initializeMap(config) {
         });
       }
 
-      // Add circle layer (fades in as heatmap fades out, on top of directions)
+      // Add detail circles (blur transitions from blurry to sharp, on top of directions)
       map.addLayer({
         id: "image-circles",
         type: "circle",
         source: "images",
         "source-layer": "image_points",
-        minzoom: 12.5,
         filter: excludeCurrentFilter || ["literal", true],
         layout: {
           visibility: initialVisibility,
         },
         paint: {
+          "circle-opacity": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            0.4,
+            3,
+            15,
+            1,
+          ],
+          "circle-blur": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            10,
+            3,
+            15,
+            0,
+          ],
           "circle-radius": [
             "interpolate",
-            ["exponential", 1.5],
+            ["exponential", 0.6],
             ["zoom"],
+            10,
+            0.1,
             15,
-            2,
+            3,
             20,
-            9.5,
+            9,
           ],
           "circle-color": "#0d6efd",
           "circle-stroke-color": "#fff",
           "circle-stroke-width": [
             "interpolate",
-            ["linear"],
+            ["exponential", 10],
             ["zoom"],
-            15,
-            1,
+            10,
+            1.5,
             20,
             2,
-          ],
-          "circle-opacity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            12.5,
-            0,
-            16,
-            1,
-          ],
-          "circle-stroke-opacity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            12.5,
-            0,
-            16,
-            1,
           ],
         },
       });
