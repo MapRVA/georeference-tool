@@ -24,12 +24,9 @@ def handle_georeference_created(sender, instance, created, **kwargs):
     # Always check sitewide milestones, even for anonymous submissions
     transaction.on_commit(lambda: _check_sitewide_milestone(instance.georeferenced_at))
 
-    if not instance.georeferenced_by:
-        return
-
     transaction.on_commit(
         lambda: _process_georeference(
-            user=instance.georeferenced_by,
+            user=instance.georeferenced_by,  # May be None for anonymous
             timestamp=instance.georeferenced_at,
             georeference=instance,
             aerial_georeference=None,
@@ -46,12 +43,9 @@ def handle_aerial_georeference_created(sender, instance, created, **kwargs):
     # Always check sitewide milestones, even for anonymous submissions
     transaction.on_commit(lambda: _check_sitewide_milestone(instance.georeferenced_at))
 
-    if not instance.georeferenced_by:
-        return
-
     transaction.on_commit(
         lambda: _process_georeference(
-            user=instance.georeferenced_by,
+            user=instance.georeferenced_by,  # May be None for anonymous
             timestamp=instance.georeferenced_at,
             georeference=None,
             aerial_georeference=instance,
@@ -63,11 +57,21 @@ def _process_georeference(user, timestamp, georeference, aerial_georeference):
     """
     Process a new georeference: add to existing group or create new one,
     and check for milestones.
+
+    For anonymous submissions (user=None), all anonymous georeferences within
+    the 3-hour window are grouped together.
     """
-    # Find user's most recent group
-    latest_group = (
-        GeoreferenceGroup.objects.filter(user=user).order_by("-ended_at").first()
-    )
+    # Find the most recent group for this user (or anonymous group if user is None)
+    if user:
+        latest_group = (
+            GeoreferenceGroup.objects.filter(user=user).order_by("-ended_at").first()
+        )
+    else:
+        latest_group = (
+            GeoreferenceGroup.objects.filter(user__isnull=True)
+            .order_by("-ended_at")
+            .first()
+        )
 
     # If within 3 hours of last activity, add to existing group
     if latest_group and (timestamp - latest_group.ended_at) < GROUPING_WINDOW:
@@ -92,8 +96,9 @@ def _process_georeference(user, timestamp, georeference, aerial_georeference):
         added_at=timestamp,
     )
 
-    # Check for user milestones (sitewide milestones checked in signal handler)
-    _check_milestone(user, timestamp)
+    # Check for user milestones (only for logged-in users)
+    if user:
+        _check_milestone(user, timestamp)
 
 
 def _check_milestone(user, timestamp):

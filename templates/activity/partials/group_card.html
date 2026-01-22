@@ -11,14 +11,22 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h6 class="mb-1">
-                            <a href="{% url 'user_profile' group.user.get_display_name %}" class="text-decoration-none">
-                                {{ group.user.get_display_name }}
-                            </a>
-                            georeferenced
-                            {% if group.count == 1 %}
-                                an image
+                            {% if group.user %}
+                                <a href="{% url 'user_profile' group.user.get_display_name %}" class="text-decoration-none">
+                                    {{ group.user.get_display_name }}
+                                </a>
+                                georeferenced
+                                {% if group.count == 1 %}
+                                    an image
+                                {% else %}
+                                    <strong>{{ group.count }}</strong> images
+                                {% endif %}
                             {% else %}
-                                <strong>{{ group.count }}</strong> images
+                                {% if group.count == 1 %}
+                                    An anonymous user georeferenced an image
+                                {% else %}
+                                    Anonymous user(s) georeferenced <strong>{{ group.count }}</strong> images
+                                {% endif %}
                             {% endif %}
                         </h6>
                         <small class="text-muted">

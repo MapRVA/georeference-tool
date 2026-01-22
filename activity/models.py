@@ -21,7 +21,12 @@ class GeoreferenceGroup(models.Model):
     """Groups georeferences by a user within a 3-hour window."""
 
     user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="georeference_groups"
+        User,
+        on_delete=models.CASCADE,
+        related_name="georeference_groups",
+        null=True,
+        blank=True,
+        help_text="User who made the georeferences (null for anonymous submissions)",
     )
     started_at = models.DateTimeField(
         help_text="Timestamp of the first georeference in this group"
@@ -33,7 +38,9 @@ class GeoreferenceGroup(models.Model):
     count = models.PositiveIntegerField(default=1)
 
     def __str__(self):
-        return f"{self.user.first_name or self.user.username} georeferenced {self.count} images"
+        if self.user:
+            return f"{self.user.first_name or self.user.username} georeferenced {self.count} images"
+        return f"Anonymous user(s) georeferenced {self.count} images"
 
     class Meta:
         ordering = ["-ended_at"]

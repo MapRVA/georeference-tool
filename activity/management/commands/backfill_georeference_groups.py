@@ -35,11 +35,10 @@ class Command(BaseCommand):
             GeoreferenceGroup.objects.all().delete()
             self.stdout.write(self.style.SUCCESS("Cleared."))
 
-        # Get all georeferences (both types) with user, excluding those already linked
-        # to a group member
+        # Get all georeferences (both types), excluding those already linked
+        # to a group member. Include both logged-in and anonymous submissions.
         point_georefs = (
             Georeference.objects.filter(
-                georeferenced_by__isnull=False,
                 georeferencegroupmember__isnull=True,
             )
             .annotate(georef_type=Value("point", output_field=CharField()))
@@ -48,25 +47,28 @@ class Command(BaseCommand):
 
         aerial_georefs = (
             AerialGeoreference.objects.filter(
-                georeferenced_by__isnull=False,
                 georeferencegroupmember__isnull=True,
             )
             .annotate(georef_type=Value("aerial", output_field=CharField()))
             .values("id", "georeferenced_by_id", "georeferenced_at", "georef_type")
         )
 
-        # Combine and sort by user, then timestamp
+        # Combine and sort by user (with None sorted separately), then timestamp
         all_georefs = list(point_georefs) + list(aerial_georefs)
         all_georefs.sort(
-            key=lambda x: (x["georeferenced_by_id"], x["georeferenced_at"])
+            key=lambda x: (
+                x["georeferenced_by_id"] is None,  # None values sorted last
+                x["georeferenced_by_id"] or 0,
+                x["georeferenced_at"],
+            )
         )
 
         self.stdout.write(f"Found {len(all_georefs)} georeferences to process")
 
-        # Group by user
+        # Group by user (None key for anonymous submissions)
         georefs_by_user = {}
         for georef in all_georefs:
-            user_id = georef["georeferenced_by_id"]
+            user_id = georef["georeferenced_by_id"]  # None for anonymous
             if user_id not in georefs_by_user:
                 georefs_by_user[user_id] = []
             georefs_by_user[user_id].append(georef)
@@ -110,9 +112,18 @@ class Command(BaseCommand):
             if current_group is not None:
                 groups_to_create.append(current_group)
 
+        # Count users (excluding anonymous which has None key)
+        user_count = sum(1 for uid in georefs_by_user if uid is not None)
+        anon_count = len(georefs_by_user.get(None, []))
+        anon_groups = sum(1 for g in groups_to_create if g["user_id"] is None)
+
         self.stdout.write(
-            f"Will create {len(groups_to_create)} groups for {len(georefs_by_user)} users"
+            f"Will create {len(groups_to_create)} groups for {user_count} users"
         )
+        if anon_count:
+            self.stdout.write(
+                f"  Plus {anon_groups} anonymous group(s) with {anon_count} georeferences"
+            )
 
         if dry_run:
             # Show some stats
