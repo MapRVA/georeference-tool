@@ -160,6 +160,28 @@ def georeference_interface(request):
         if not collection_slug:
             collection = current_image.collection
 
+    # Build location hint data for the map
+    # Priority: 1) Previous georeference (for corrections), 2) Source point (from archive metadata)
+    location_hint = None
+    if current_image:
+        existing_georef = current_image.get_georeference()
+        if existing_georef:
+            location_hint = {
+                "type": "georeference",
+                "lat": existing_georef.point.y,
+                "lng": existing_georef.point.x,
+                "direction": existing_georef.direction,
+                "label": "Previous Georeference",
+            }
+        elif current_image.source_point:
+            location_hint = {
+                "type": "source",
+                "lat": current_image.source_point.y,
+                "lng": current_image.source_point.x,
+                "direction": None,
+                "label": "Hint From Source",
+            }
+
     context = {
         "current_image": current_image,
         "source": source,
@@ -172,6 +194,8 @@ def georeference_interface(request):
         "remaining_count": images.count(),
         "next_image": current_image.get_next_image() if current_image else None,
         "previous_image": current_image.get_previous_image() if current_image else None,
+        "location_hint": location_hint,
+        "location_hint_json": json.dumps(location_hint),
     }
 
     # Remove duplicate message - template already shows appropriate message when no image available

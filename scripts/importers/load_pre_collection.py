@@ -228,6 +228,7 @@ def import_pre_images_to_collection(pre_collection, collection, upload_to_r2=Tru
                     ref=pre_image.ref,
                     original_date=pre_image.original_date,
                     edtf_date=pre_image.edtf_date,
+                    source_point=pre_image.source_point,
                     # Set original_url to the pre_image permalink for reference
                     original_url=pre_image.permalink,
                 )

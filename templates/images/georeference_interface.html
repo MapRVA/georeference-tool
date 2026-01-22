@@ -510,6 +510,7 @@
         {% else %}
         currentImage: null,
         {% endif %}
+        locationHint: {{ location_hint_json|safe }},
         isStaff: {{ user.is_staff|yesno:"true,false" }},
         isAuthenticated: {{ request.user.is_authenticated|yesno:"true,false" }},
         difficultyFilters: {{ difficulty_filters_json|safe }},

@@ -306,6 +306,12 @@ class Image(models.Model):
     )
     will_not_georef = models.BooleanField(default=False)
     skip_count = models.PositiveIntegerField(default=0)
+    source_point = gis_models.PointField(
+        null=True,
+        blank=True,
+        spatial_index=False,
+        help_text="Location hint from source metadata (e.g., embedded coordinates from archive)",
+    )
     duplicate_of = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -472,6 +478,12 @@ class PreImage(models.Model):
     )
     edtf_date = models.CharField(
         null=True, max_length=50, help_text="Date parsed as EDTF"
+    )
+    source_point = gis_models.PointField(
+        null=True,
+        blank=True,
+        spatial_index=False,
+        help_text="Location hint from source metadata (e.g., embedded coordinates from archive)",
     )
 
     def clean(self):

@@ -176,12 +176,22 @@ document.addEventListener("DOMContentLoaded", function () {
       maplibregl.addProtocol("pmtiles", protocol.tile);
     }
 
+    // Determine initial map center and zoom based on location hint
+    const locationHint = config.locationHint;
+    let initialCenter = [-77.44, 37.53];
+    let initialZoom = 11.5;
+
+    if (locationHint) {
+      initialCenter = [locationHint.lng, locationHint.lat];
+      initialZoom = 17; // Zoom in closer when we have a hint
+    }
+
     // Initialize map
     var map = new maplibregl.Map({
       container: "mymap",
       style: OSM_STYLE_URL,
-      center: [-77.44, 37.53],
-      zoom: 11.5,
+      center: initialCenter,
+      zoom: initialZoom,
     });
 
     // Try to setup PMTiles protocol
@@ -196,6 +206,69 @@ document.addEventListener("DOMContentLoaded", function () {
         map.addImage("surveillance-direction", image.data);
       } catch (error) {
         console.warn("Could not load direction arrow image:", error);
+      }
+
+      // Add location hint marker if available
+      if (locationHint) {
+        const hintFeatures = [
+          {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [locationHint.lng, locationHint.lat],
+            },
+            properties: {
+              label: locationHint.label,
+              type: locationHint.type,
+              direction: locationHint.direction,
+            },
+          },
+        ];
+
+        map.addSource("location-hint", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: hintFeatures,
+          },
+        });
+
+        // Add a pulsing circle for the hint (larger, semi-transparent)
+        map.addLayer({
+          id: "location-hint-pulse",
+          type: "circle",
+          source: "location-hint",
+          paint: {
+            "circle-radius": 25,
+            "circle-color":
+              locationHint.type === "georeference" ? "#ffc107" : "#17a2b8",
+            "circle-opacity": 0.3,
+            "circle-stroke-color":
+              locationHint.type === "georeference" ? "#ffc107" : "#17a2b8",
+            "circle-stroke-width": 2,
+            "circle-stroke-opacity": 0.6,
+          },
+        });
+
+        // Add label for the hint
+        map.addLayer({
+          id: "location-hint-label",
+          type: "symbol",
+          source: "location-hint",
+          layout: {
+            "text-field": ["get", "label"],
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            "text-size": 12,
+            "text-offset": [0, 2.5],
+            "text-anchor": "top",
+          },
+          paint: {
+            "text-color":
+              locationHint.type === "georeference" ? "#856404" : "#0c5460",
+            "text-halo-color": "#fff",
+            "text-halo-width": 2,
+          },
+        });
       }
 
       map.addSource("pin", {
@@ -335,12 +408,16 @@ document.addEventListener("DOMContentLoaded", function () {
       new LayerControl({
         mapLayersUrl: config.urls.mapLayers,
         overlayLayerIds: [
+          "location-hint-pulse",
+          "location-hint-circle",
+          "location-hint-direction",
+          "location-hint-label",
           "pin-circle",
           "pin-symbol",
           "context-image-circles",
           "context-image-directions",
         ],
-        beforeLayerId: "pin-circle",
+        beforeLayerId: "location-hint-pulse",
       }),
       "top-right",
     );

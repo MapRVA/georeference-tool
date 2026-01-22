@@ -28,6 +28,8 @@ import django
 
 django.setup()
 
+from django.contrib.gis.geos import Point
+
 from images.models import Collection, Image, PreCollection, PreImage, Source
 
 # Import R2 uploader from the same directory
@@ -244,6 +246,7 @@ def get_image_details(
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date on Slide</h2>\s*<p>(.*?)</p>\s*</div>",
+        r"<div id='publication_date' class='element'>\s*<h2 class='field-heading'>Date of Document</h2>\s*<p>(.*?)</p>\s*</div>",
         r"<div id='pub_date' class='element'>\s*<h2 class='field-heading'>Publication Date</h2>\s*<p>(.*?)</p>\s*</div>",
     ]
 
@@ -359,6 +362,17 @@ def get_image_details(
     extract_field("subject_", "Subject")
     extract_field("city_location", "City/Location")
 
+    # RAS (Richmond Architectural Survey) specific fields
+    extract_field("survey_address", "Survey Address")
+    extract_field("area_surveyed", "Area Surveyed")
+    extract_field("date_built_estimated", "Date Built, Estimated")
+    extract_field("architectural_style", "Architectural Style")
+    extract_field("construction_type", "Construction Type")
+    extract_field(
+        "significant_architectural_features",
+        "Significant Architectural Features \\(transcribed from form\\)",
+    )
+
     if description_parts:
         details["description"] = "\n\n".join(description_parts)
 
@@ -368,13 +382,30 @@ def get_image_details(
     )
     if internal_id_match:
         internal_id = internal_id_match.group(1)
+        # Full resolution download URL (requires R2 upload, WAF blocks browser hotlinks)
         details["permalink"] = (
             f"https://scholarscompass.vcu.edu/context/{collection_id}/article/{internal_id}/type/native/viewcontent"
+        )
+        # Preview URL works for browser display (no WAF challenge)
+        details["preview_url"] = (
+            f"https://scholarscompass.vcu.edu/{collection_id}/{internal_id}/preview.jpg"
         )
 
     # --- License ---
     license_info = extract_license_from_rights(html_content)
     details.update(license_info)
+
+    # --- Geolocation ---
+    # Extract embedded coordinates from the page's Google Maps initialization
+    lat_match = re.search(r"mapOptions\.lat\s*=\s*([-\d.]+);", html_content)
+    lng_match = re.search(r"mapOptions\.lng\s*=\s*([-\d.]+);", html_content)
+    if lat_match and lng_match:
+        try:
+            lat = float(lat_match.group(1))
+            lng = float(lng_match.group(1))
+            details["source_point"] = Point(lng, lat, srid=4326)
+        except ValueError:
+            pass  # Invalid coordinates, skip
 
     return details
 
@@ -556,16 +587,19 @@ def cli(
 
             # Create the appropriate image type based on hotlink option
             if hotlink:
+                # Use preview URL for hotlink mode (WAF blocks full-res URLs in browsers)
+                hotlink_url = details.get("preview_url") or details["permalink"]
                 image = PreImage.objects.create(
                     collection=collection,
                     title=details["title"],
-                    permalink=details["permalink"],
+                    permalink=hotlink_url,
                     ref=details["ref"],
                     description=details.get("description", ""),
                     creator=details.get("creator", ""),
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
                     license_title=details.get("license_title"),
+                    source_point=details.get("source_point"),
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
             else:
@@ -580,6 +614,7 @@ def cli(
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
                     license_title=details.get("license_title"),
+                    source_point=details.get("source_point"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
         except Exception as e:
