@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from osm_login_python.core import Auth
 
-from images.models import Album, Georeference
+from images.models import AerialGeoreference, Album, Georeference
 
 
 def get_osm_auth():
@@ -252,7 +252,10 @@ def user_profile(request, username):
     profile_url = user.get_profile_url() if hasattr(user, "get_profile_url") else None
 
     album_count = Album.objects.filter(owner=user).count()
-    georeference_count = Georeference.objects.filter(georeferenced_by=user).count()
+    georeference_count = (
+        Georeference.objects.filter(georeferenced_by=user).count()
+        + AerialGeoreference.objects.filter(georeferenced_by=user).count()
+    )
 
     context = {
         "profile_user": user,
