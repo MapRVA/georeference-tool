@@ -1298,17 +1298,21 @@ document.addEventListener("DOMContentLoaded", function () {
     container.addEventListener("pointerdown", handleModalPointerDown);
   }
 
-  // Cache container bounds at the start of a drag
+  // Cache star positions at the start of a drag
   function cacheDragBounds() {
     const container = document.getElementById("modal-rating-stars");
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
-    dragBounds = {
-      left: rect.left,
-      right: rect.right,
-      width: rect.width,
-    };
+    const wrappers = container.querySelectorAll(".modal-star-wrapper");
+    dragBounds = Array.from(wrappers).map((wrapper) => {
+      const rect = wrapper.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        center: rect.left + rect.width / 2,
+        starNum: parseInt(wrapper.dataset.star),
+      };
+    });
   }
 
   // Pointer event handlers (unified mouse/touch)
@@ -1346,20 +1350,58 @@ document.addEventListener("DOMContentLoaded", function () {
     document.removeEventListener("pointercancel", handleModalPointerUp);
   }
 
-  // Convert X position to rating (1-10) using linear interpolation
+  // Convert X position to rating (1-10) based on star positions
   function updateRatingFromPosition(clientX) {
-    // Get container bounds from cache or DOM
-    let bounds = dragBounds;
-    if (!bounds) {
+    // Get star positions from cache or DOM
+    let stars = dragBounds;
+    if (!stars || stars.length === 0) {
       const container = document.getElementById("modal-rating-stars");
       if (!container) return;
-      const rect = container.getBoundingClientRect();
-      bounds = { left: rect.left, right: rect.right, width: rect.width };
+      const wrappers = container.querySelectorAll(".modal-star-wrapper");
+      stars = Array.from(wrappers).map((wrapper) => {
+        const rect = wrapper.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          center: rect.left + rect.width / 2,
+          starNum: parseInt(wrapper.dataset.star),
+        };
+      });
     }
 
-    // Map X position to 1-10 rating scale
-    const relativeX = clientX - bounds.left;
-    let rating = Math.round((relativeX / bounds.width) * 10);
+    if (stars.length === 0) return;
+
+    let rating;
+
+    // Check if before first star
+    if (clientX < stars[0].left) {
+      rating = 1;
+    }
+    // Check if after last star
+    else if (clientX > stars[stars.length - 1].right) {
+      rating = 10;
+    }
+    // Find which star we're over or between
+    else {
+      for (const star of stars) {
+        if (clientX >= star.left && clientX <= star.right) {
+          // Inside a star - left half = .5, right half = full
+          const isLeftHalf = clientX < star.center;
+          rating = (star.starNum - 1) * 2 + (isLeftHalf ? 1 : 2);
+          break;
+        } else if (clientX < star.left) {
+          // In gap before this star - use previous star's full rating
+          // (but minimum of 1 for first star)
+          rating = Math.max(1, (star.starNum - 1) * 2);
+          break;
+        }
+      }
+      // If we didn't find it, default to max
+      if (rating === undefined || rating === null) {
+        rating = 10;
+      }
+    }
+
     rating = Math.max(1, Math.min(10, rating)); // Clamp to valid range
 
     if (rating !== modalRating) {
