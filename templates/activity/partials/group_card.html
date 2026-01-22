@@ -63,33 +63,49 @@
                         {% endif %}
                         <div class="d-flex flex-column gap-2">
                             {% for member in group.members.all %}
-                                {% with image=member.image %}
+                                {% with image=member.image georeference=member.georeference|default:member.aerial_georeference %}
                                     {% if image %}
-                                        <a href="{% url 'images:image_detail' image.id %}" class="text-decoration-none">
-                                            <div class="card">
-                                                <div class="row g-0">
-                                                    <div class="col-3 col-md-2">
-                                                        <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
-                                                             alt="{{ image.title|default:'Image' }}"
-                                                             class="img-fluid rounded-start h-100"
-                                                             style="object-fit: cover; min-height: 80px;"
-                                                             loading="lazy">
+                                        <div class="card">
+                                            <div class="card-body py-2">
+                                                <a href="{% url 'images:image_detail' image.id %}" class="d-block rounded overflow-hidden float-start me-3" style="aspect-ratio: 1/1; width: min(25%, 10em);">
+                                                    <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
+                                                         alt="{{ image.title|default:'Image' }}"
+                                                         style="width: 100%; height: 100%; object-fit: cover;"
+                                                         loading="lazy">
+                                                </a>
+                                                <h6 class="card-title mb-1">
+                                                    <a href="{% url 'images:image_detail' image.id %}" class="text-decoration-none text-body">
+                                                        {{ image.title|default:"Untitled"|truncatechars:60 }}
+                                                    </a>
+                                                </h6>
+                                                <p class="card-text small text-muted mb-2">
+                                                    {{ image.collection.source.name }} &middot; {{ image.collection.name }}
+                                                </p>
+                                                {% if georeference.confidence_notes %}
+                                                    <div class="p-2 bg-body-secondary rounded comment-preview small"
+                                                         x-data="{ notesExpanded: false, overflows: false, checkOverflow() { this.$nextTick(() => { this.overflows = this.$refs.content.scrollHeight > this.$refs.content.clientHeight }) } }"
+                                                         x-effect="if ($data.expanded) checkOverflow()"
+                                                         x-init="checkOverflow(); setTimeout(() => checkOverflow(), 100)"
+                                                         @resize.window.debounce.100ms="checkOverflow()">
+                                                        <div class="markdown-content comment-collapsed"
+                                                             :class="{ 'comment-collapsed': !notesExpanded }"
+                                                             x-ref="content">{{ georeference.confidence_notes|markdown }}</div>
+                                                        <button x-show="overflows && !notesExpanded"
+                                                                x-cloak
+                                                                @click="notesExpanded = true"
+                                                                class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                                                            <i class="fas fa-chevron-down me-1"></i>Show more
+                                                        </button>
+                                                        <button x-show="notesExpanded"
+                                                                x-cloak
+                                                                @click="notesExpanded = false"
+                                                                class="btn btn-link btn-sm p-0 mt-1 text-muted">
+                                                            <i class="fas fa-chevron-up me-1"></i>Show less
+                                                        </button>
                                                     </div>
-                                                    <div class="col-9 col-md-10">
-                                                        <div class="card-body py-2">
-                                                            <h6 class="card-title mb-1 text-body">
-                                                                {{ image.title|default:"Untitled"|truncatechars:60 }}
-                                                            </h6>
-                                                            {% if image.description %}
-                                                                <p class="card-text small text-muted mb-0">
-                                                                    {{ image.description|truncatechars:100 }}
-                                                                </p>
-                                                            {% endif %}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                {% endif %}
                                             </div>
-                                        </a>
+                                        </div>
                                     {% endif %}
                                 {% endwith %}
                             {% endfor %}

@@ -115,7 +115,8 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
                 Prefetch(
                     "members",
                     queryset=GeoreferenceGroupMember.objects.select_related(
-                        "georeference__image", "aerial_georeference__image"
+                        "georeference__image__collection__source",
+                        "aerial_georeference__image__collection__source",
                     ).order_by("-added_at"),
                 )
             )
