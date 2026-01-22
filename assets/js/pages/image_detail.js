@@ -40,8 +40,6 @@ document.addEventListener("DOMContentLoaded", function () {
   // Rating modal state
   let ratingModal = null;
   let modalRating = null;
-  let isDragging = false;
-  let dragBounds = null; // Cache container bounds during drag
 
   // Extract and display domain from source link
   const sourceLink = document.getElementById("source-link");
@@ -781,33 +779,30 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initialize subject editor component
   initSubjectEditor();
 
-  // Rating functionality - Cleaner implementation
-  let ratingEventsSetup = false;
+  // Rating functionality
 
-  // Convert rating (1-10) to stars (0.5-5.0)
-  function ratingToStars(rating) {
-    return rating / 2;
-  }
+  // Render stars into a container with fractional support
+  // rating: 1-10 scale (converted to 0.5-5 stars)
+  // starClass: CSS class prefix for stars (e.g., "avg-rating-star", "user-rating-star")
+  function renderStars(container, rating, starClass) {
+    if (!container) return;
 
-  // Render average rating stars with fractional support
-  function renderAverageRatingStars() {
-    const starsDiv = document.getElementById("avg-rating-stars");
-    if (!starsDiv || !avgRating) return;
-
-    const starCount = ratingToStars(avgRating);
-    starsDiv.innerHTML = "";
+    container.innerHTML = "";
+    const starValue = rating ? rating / 2 : 0;
 
     for (let i = 1; i <= 5; i++) {
-      if (i <= Math.floor(starCount)) {
+      if (i <= Math.floor(starValue)) {
         // Full star
         const star = document.createElement("i");
-        star.className = "fas fa-star avg-rating-star filled";
-        starsDiv.appendChild(star);
-      } else if (i === Math.ceil(starCount) && starCount % 1 !== 0) {
+        star.className = `fas fa-star ${starClass} filled`;
+        star.setAttribute("data-star", i);
+        container.appendChild(star);
+      } else if (i === Math.ceil(starValue) && starValue % 1 !== 0) {
         // Fractional star
-        const percentage = (starCount - Math.floor(starCount)) * 100;
+        const percentage = (starValue - Math.floor(starValue)) * 100;
         const starWrapper = document.createElement("div");
         starWrapper.className = "star-fractional";
+        starWrapper.setAttribute("data-star", i);
 
         const bgStar = document.createElement("i");
         bgStar.className = "fas fa-star star-bg";
@@ -822,106 +817,42 @@ document.addEventListener("DOMContentLoaded", function () {
 
         starWrapper.appendChild(bgStar);
         starWrapper.appendChild(fillContainer);
-        starsDiv.appendChild(starWrapper);
+        container.appendChild(starWrapper);
       } else {
         // Empty star
         const star = document.createElement("i");
-        star.className = "fas fa-star avg-rating-star empty";
-        starsDiv.appendChild(star);
+        star.className = `fas fa-star ${starClass} empty`;
+        star.setAttribute("data-star", i);
+        container.appendChild(star);
       }
     }
   }
 
-  // Initialize user rating stars - keep static structure
-  function initializeUserRatingStars() {
-    if (!isAuthenticated) return;
-
-    const starsDiv = document.getElementById("user-rating-stars");
-    if (!starsDiv) return;
-
-    // Clear and create fresh star structure
-    starsDiv.innerHTML = "";
-
-    for (let i = 1; i <= 5; i++) {
-      const star = document.createElement("i");
-      star.className = "fas fa-star rating-star";
-      star.setAttribute("data-star", i);
-      starsDiv.appendChild(star);
+  function renderAverageRatingStars() {
+    const container = document.getElementById("avg-rating-stars");
+    if (container && avgRating) {
+      renderStars(container, avgRating, "avg-rating-star");
     }
-
-    updateUserRatingDisplay();
-    updateClearButtonVisibility();
   }
 
-  // Update user rating display without rebuilding DOM
   function updateUserRatingDisplay() {
     if (!isAuthenticated) return;
+    const container = document.getElementById("user-rating-stars");
+    renderStars(container, userRating, "user-rating-star");
 
-    const starsDiv = document.getElementById("user-rating-stars");
-    if (!starsDiv) return;
-
-    const stars = starsDiv.querySelectorAll(".rating-star");
-
-    if (userRating) {
-      const starValue = ratingToStars(userRating);
-
-      // Use exact same approach as average ratings
-      starsDiv.innerHTML = "";
-
-      for (let i = 1; i <= 5; i++) {
-        if (i <= Math.floor(starValue)) {
-          // Full star - same as average ratings
-          const star = document.createElement("i");
-          star.className = "fas fa-star user-rating-star filled";
-          star.setAttribute("data-star", i);
-          starsDiv.appendChild(star);
-        } else if (i === Math.ceil(starValue) && starValue % 1 !== 0) {
-          // Fractional star - identical to average ratings
-          const percentage = (starValue - Math.floor(starValue)) * 100;
-          const starWrapper = document.createElement("div");
-          starWrapper.className = "star-fractional";
-          starWrapper.setAttribute("data-star", i);
-
-          const bgStar = document.createElement("i");
-          bgStar.className = "fas fa-star star-bg";
-
-          const fillContainer = document.createElement("div");
-          fillContainer.className = "star-fill-container";
-          fillContainer.style.width = `${percentage}%`;
-
-          const fillStar = document.createElement("i");
-          fillStar.className = "fas fa-star star-fill";
-          fillContainer.appendChild(fillStar);
-
-          starWrapper.appendChild(bgStar);
-          starWrapper.appendChild(fillContainer);
-          starsDiv.appendChild(starWrapper);
-        } else {
-          // Empty star - same as average ratings
-          const star = document.createElement("i");
-          star.className = "fas fa-star user-rating-star empty";
-          star.setAttribute("data-star", i);
-          starsDiv.appendChild(star);
-        }
-      }
-    } else {
-      // No rating - same approach as average ratings
-      starsDiv.innerHTML = "";
-      for (let i = 1; i <= 5; i++) {
-        const star = document.createElement("i");
-        star.className = "fas fa-star user-rating-star empty";
-        star.setAttribute("data-star", i);
-        starsDiv.appendChild(star);
-      }
+    // Update clear button visibility
+    const clearBtn = document.getElementById("clear-rating-btn");
+    if (clearBtn) {
+      clearBtn.style.display = userRating ? "inline-block" : "none";
     }
   }
 
-  // Setup inline stars as modal trigger (replaces old hover/click behavior)
+  // Setup inline stars as modal trigger
   function setupRatingInput() {
-    if (!isAuthenticated || ratingEventsSetup) return;
+    if (!isAuthenticated) return;
 
     const starsDiv = document.getElementById("user-rating-stars");
-    if (!starsDiv) return;
+    if (!starsDiv || starsDiv.dataset.initialized) return;
 
     // Click opens modal
     starsDiv.addEventListener("click", (e) => {
@@ -947,7 +878,7 @@ document.addEventListener("DOMContentLoaded", function () {
       { passive: false },
     );
 
-    // Clear rating button handler (still works inline)
+    // Clear rating button handler
     const clearBtn = document.getElementById("clear-rating-btn");
     if (clearBtn) {
       clearBtn.addEventListener("click", function (e) {
@@ -956,7 +887,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
 
-    ratingEventsSetup = true;
+    starsDiv.dataset.initialized = "true";
   }
 
   // Submit rating function
@@ -1013,7 +944,6 @@ document.addEventListener("DOMContentLoaded", function () {
           updateRatingCountDisplay();
           renderAverageRatingStars();
           updateUserRatingDisplay();
-          updateClearButtonVisibility();
 
           // Update the preview to show current rating
           const previewEl = document.getElementById("rating-preview");
@@ -1070,18 +1000,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Update clear button visibility
-  function updateClearButtonVisibility() {
-    const clearBtn = document.getElementById("clear-rating-btn");
-    if (clearBtn) {
-      if (userRating) {
-        clearBtn.style.display = "inline-block";
-      } else {
-        clearBtn.style.display = "none";
-      }
-    }
-  }
-
   // Clear user rating
   function clearUserRating() {
     const clearBtn = document.getElementById("clear-rating-btn");
@@ -1131,7 +1049,6 @@ document.addEventListener("DOMContentLoaded", function () {
           updateRatingCountDisplay();
           renderAverageRatingStars();
           updateUserRatingDisplay();
-          updateClearButtonVisibility();
 
           showAlert("success", "Rating cleared successfully!");
         } else {
@@ -1183,23 +1100,67 @@ document.addEventListener("DOMContentLoaded", function () {
 
     ratingModal = new bootstrap.Modal(modalEl);
 
-    renderModalStars();
-    setupModalEvents();
-    setupModalButtons();
+    const container = document.getElementById("modal-rating-stars");
+    if (!container) return;
 
     // Reset state when modal hidden
     modalEl.addEventListener("hidden.bs.modal", () => {
       modalRating = null;
-      isDragging = false;
-      updateModalStarsDisplay();
+      renderModalStars();
     });
 
     // Initialize with current rating when shown
     modalEl.addEventListener("shown.bs.modal", () => {
       modalRating = userRating;
-      updateModalStarsDisplay();
+      renderModalStars();
       updateModalButtons();
     });
+
+    // Pointer events for drag-to-rate
+    let activePointerId = null;
+
+    container.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      activePointerId = e.pointerId;
+      updateRatingFromPosition(e.clientX);
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+      document.addEventListener("pointercancel", onPointerUp);
+    });
+
+    function onPointerMove(e) {
+      if (e.pointerId !== activePointerId) return;
+      e.preventDefault();
+      updateRatingFromPosition(e.clientX);
+    }
+
+    function onPointerUp(e) {
+      if (e.pointerId !== activePointerId) return;
+      activePointerId = null;
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+    }
+
+    // Submit button
+    const submitBtn = document.getElementById("modal-submit-rating");
+    if (submitBtn) {
+      submitBtn.addEventListener("click", () => {
+        if (modalRating) {
+          submitRating(modalRating);
+          ratingModal.hide();
+        }
+      });
+    }
+
+    // Clear button
+    const clearBtn = document.getElementById("modal-clear-rating");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearUserRating();
+        ratingModal.hide();
+      });
+    }
   }
 
   function openRatingModal() {
@@ -1212,29 +1173,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("modal-rating-stars");
     if (!container) return;
 
-    container.innerHTML = "";
-
-    for (let i = 1; i <= 5; i++) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "modal-star-wrapper";
-      wrapper.dataset.star = i;
-
-      const star = document.createElement("i");
-      star.className = "fas fa-star modal-rating-star empty";
-      star.dataset.star = i;
-
-      wrapper.appendChild(star);
-      container.appendChild(wrapper);
-    }
-  }
-
-  function updateModalStarsDisplay() {
-    const container = document.getElementById("modal-rating-stars");
-    if (!container) return;
-
     const starValue = modalRating ? modalRating / 2 : 0;
-
-    // Rebuild stars each time (same approach as average rating display)
     container.innerHTML = "";
 
     for (let i = 1; i <= 5; i++) {
@@ -1246,15 +1185,13 @@ document.addEventListener("DOMContentLoaded", function () {
         // Full filled star
         const star = document.createElement("i");
         star.className = "fas fa-star modal-rating-star filled";
-        star.dataset.star = i;
         wrapper.appendChild(star);
       } else if (i === Math.ceil(starValue) && starValue % 1 !== 0) {
-        // Half star - use overlay approach like average ratings
+        // Half star - use overlay approach
         wrapper.classList.add("modal-star-fractional");
 
         const bgStar = document.createElement("i");
         bgStar.className = "fas fa-star modal-rating-star empty";
-        bgStar.dataset.star = i;
 
         const fillContainer = document.createElement("div");
         fillContainer.className = "modal-star-fill-container";
@@ -1270,7 +1207,6 @@ document.addEventListener("DOMContentLoaded", function () {
         // Empty star
         const star = document.createElement("i");
         star.className = "fas fa-star modal-rating-star empty";
-        star.dataset.star = i;
         wrapper.appendChild(star);
       }
 
@@ -1290,157 +1226,48 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function setupModalEvents() {
-    const container = document.getElementById("modal-rating-stars");
-    if (!container) return;
-
-    // Use pointer events for unified mouse/touch handling
-    container.addEventListener("pointerdown", handleModalPointerDown);
-  }
-
-  // Cache star positions at the start of a drag
-  function cacheDragBounds() {
+  // Convert X position to rating (1-10) based on star positions
+  function updateRatingFromPosition(clientX) {
     const container = document.getElementById("modal-rating-stars");
     if (!container) return;
 
     const wrappers = container.querySelectorAll(".modal-star-wrapper");
-    dragBounds = Array.from(wrappers).map((wrapper) => {
+    if (wrappers.length === 0) return;
+
+    let rating = null;
+
+    for (const wrapper of wrappers) {
       const rect = wrapper.getBoundingClientRect();
-      return {
-        left: rect.left,
-        right: rect.right,
-        center: rect.left + rect.width / 2,
-        starNum: parseInt(wrapper.dataset.star),
-      };
-    });
-  }
+      const starNum = parseInt(wrapper.dataset.star);
 
-  // Pointer event handlers (unified mouse/touch)
-  let activePointerId = null;
-
-  function handleModalPointerDown(e) {
-    e.preventDefault();
-    isDragging = true;
-    activePointerId = e.pointerId;
-    cacheDragBounds();
-    updateRatingFromPosition(e.clientX);
-
-    // Attach move/end listeners to document to capture events anywhere on screen
-    document.addEventListener("pointermove", handleModalPointerMove);
-    document.addEventListener("pointerup", handleModalPointerUp);
-    document.addEventListener("pointercancel", handleModalPointerUp);
-  }
-
-  function handleModalPointerMove(e) {
-    if (!isDragging || e.pointerId !== activePointerId) return;
-    e.preventDefault();
-    updateRatingFromPosition(e.clientX);
-  }
-
-  function handleModalPointerUp(e) {
-    if (e.pointerId !== activePointerId) return;
-
-    isDragging = false;
-    activePointerId = null;
-    dragBounds = null;
-
-    // Remove document listeners
-    document.removeEventListener("pointermove", handleModalPointerMove);
-    document.removeEventListener("pointerup", handleModalPointerUp);
-    document.removeEventListener("pointercancel", handleModalPointerUp);
-  }
-
-  // Convert X position to rating (1-10) based on star positions
-  function updateRatingFromPosition(clientX) {
-    // Get star positions from cache or DOM
-    let stars = dragBounds;
-    if (!stars || stars.length === 0) {
-      const container = document.getElementById("modal-rating-stars");
-      if (!container) return;
-      const wrappers = container.querySelectorAll(".modal-star-wrapper");
-      stars = Array.from(wrappers).map((wrapper) => {
-        const rect = wrapper.getBoundingClientRect();
-        return {
-          left: rect.left,
-          right: rect.right,
-          center: rect.left + rect.width / 2,
-          starNum: parseInt(wrapper.dataset.star),
-        };
-      });
+      if (clientX < rect.left) {
+        // Before this star - use previous star's full value (min 1)
+        rating = Math.max(1, (starNum - 1) * 2);
+        break;
+      } else if (clientX <= rect.right) {
+        // Inside this star - left half = odd, right half = even
+        const center = rect.left + rect.width / 2;
+        rating = (starNum - 1) * 2 + (clientX < center ? 1 : 2);
+        break;
+      }
     }
 
-    if (stars.length === 0) return;
-
-    let rating;
-
-    // Check if before first star
-    if (clientX < stars[0].left) {
-      rating = 1;
-    }
-    // Check if after last star
-    else if (clientX > stars[stars.length - 1].right) {
+    // Past last star
+    if (rating === null) {
       rating = 10;
     }
-    // Find which star we're over or between
-    else {
-      for (const star of stars) {
-        if (clientX >= star.left && clientX <= star.right) {
-          // Inside a star - left half = .5, right half = full
-          const isLeftHalf = clientX < star.center;
-          rating = (star.starNum - 1) * 2 + (isLeftHalf ? 1 : 2);
-          break;
-        } else if (clientX < star.left) {
-          // In gap before this star - use previous star's full rating
-          // (but minimum of 1 for first star)
-          rating = Math.max(1, (star.starNum - 1) * 2);
-          break;
-        }
-      }
-      // If we didn't find it, default to max
-      if (rating === undefined || rating === null) {
-        rating = 10;
-      }
-    }
-
-    rating = Math.max(1, Math.min(10, rating)); // Clamp to valid range
 
     if (rating !== modalRating) {
       modalRating = rating;
-      updateModalStarsDisplay();
+      renderModalStars();
       updateModalButtons();
     }
   }
 
-  function setupModalButtons() {
-    const submitBtn = document.getElementById("modal-submit-rating");
-    const clearBtn = document.getElementById("modal-clear-rating");
-
-    if (submitBtn) {
-      submitBtn.addEventListener("click", () => {
-        if (modalRating) {
-          submitRating(modalRating);
-          if (ratingModal) ratingModal.hide();
-        }
-      });
-    }
-
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        clearUserRating();
-        if (ratingModal) ratingModal.hide();
-      });
-    }
-  }
-
   // Initialize rating system
-  setTimeout(function () {
-    renderAverageRatingStars();
-    initializeUserRatingStars();
-    setupRatingInput();
-    updateRatingCountDisplay();
-    updateClearButtonVisibility();
-
-    // Initialize rating modal
-    initRatingModal();
-  }, 100);
+  renderAverageRatingStars();
+  updateUserRatingDisplay();
+  setupRatingInput();
+  updateRatingCountDisplay();
+  initRatingModal();
 });
