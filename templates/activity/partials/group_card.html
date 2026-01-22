@@ -34,18 +34,17 @@
                             {% for member in group.members.all|slice:":5" %}
                                 {% with image=member.image %}
                                     {% if image %}
-                                        <a href="{% url 'images:image_detail' image.id %}" style="width: 80px; height: 80px;">
+                                        <a href="{% url 'images:image_detail' image.id %}">
                                             <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
                                                  alt="{{ image.title|default:'Image' }}"
-                                                 class="rounded"
-                                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                                 class="rounded georef-preview-thumbnail"
                                                  loading="lazy">
                                         </a>
                                     {% endif %}
                                 {% endwith %}
                             {% endfor %}
                             {% if group.count > 5 %}
-                                <div class="d-flex align-items-center justify-content-center text-muted" style="width: 80px; height: 80px;">
+                                <div class="d-flex align-items-center justify-content-center text-muted georef-preview-more">
                                     +{{ group.count|add:"-5" }} more
                                 </div>
                             {% endif %}
@@ -67,10 +66,9 @@
                                     {% if image %}
                                         <div class="card">
                                             <div class="card-body py-2">
-                                                <a href="{% url 'images:image_detail' image.id %}" class="d-block rounded overflow-hidden float-start me-3" style="aspect-ratio: 1/1; width: min(25%, 10em);">
+                                                <a href="{% url 'images:image_detail' image.id %}" class="d-block rounded overflow-hidden float-start me-3 georef-card-thumbnail">
                                                     <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
                                                          alt="{{ image.title|default:'Image' }}"
-                                                         style="width: 100%; height: 100%; object-fit: cover;"
                                                          loading="lazy">
                                                 </a>
                                                 <h6 class="card-title mb-1">

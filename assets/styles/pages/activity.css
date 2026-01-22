@@ -13,3 +13,27 @@
     height: 8em;
     object-fit: cover;
 }
+
+/* Georeference group collapsed preview thumbnails */
+.georef-preview-thumbnail {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+}
+
+.georef-preview-more {
+    width: 80px;
+    height: 80px;
+}
+
+/* Georeference card expanded view */
+.georef-card-thumbnail {
+    aspect-ratio: 1/1;
+    width: min(25%, 10em);
+}
+
+.georef-card-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
