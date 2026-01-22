@@ -10,6 +10,11 @@ MILESTONE_THRESHOLDS = getattr(
     "ACTIVITY_MILESTONE_THRESHOLDS",
     [5, 15, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
 )
+SITEWIDE_MILESTONE_THRESHOLDS = getattr(
+    settings,
+    "ACTIVITY_SITEWIDE_MILESTONE_THRESHOLDS",
+    [100, 250, 500, 1000, 2500, 5000, 10000, 25000],
+)
 
 
 class GeoreferenceGroup(models.Model):
@@ -91,6 +96,26 @@ class UserMilestone(models.Model):
     class Meta:
         ordering = ["-reached_at"]
         unique_together = [["user", "count"]]
+        indexes = [
+            models.Index(fields=["-reached_at"]),
+        ]
+
+
+class SitewideMilestone(models.Model):
+    """Records when the site reaches a georeferenced images milestone."""
+
+    count = models.PositiveIntegerField(
+        unique=True, help_text="The milestone count reached (100, 250, 500, etc.)"
+    )
+    reached_at = models.DateTimeField(
+        db_index=True, help_text="Timestamp when this milestone was reached"
+    )
+
+    def __str__(self):
+        return f"Site reached {self.count} images georeferenced"
+
+    class Meta:
+        ordering = ["-reached_at"]
         indexes = [
             models.Index(fields=["-reached_at"]),
         ]

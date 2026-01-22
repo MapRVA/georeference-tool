@@ -6,6 +6,8 @@
             {% include 'activity/partials/comment_card.html' with comment=event %}
         {% elif event_type == 'milestone' %}
             {% include 'activity/partials/milestone_card.html' with milestone=event %}
+        {% elif event_type == 'sitewide' %}
+            {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
         {% endif %}
     </div>
 {% endfor %}

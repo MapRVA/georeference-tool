@@ -26,7 +26,7 @@
                         <label class="dropdown-item">
                             <input type="checkbox" class="form-check-input me-2"
                                    x-model="filters.group" @change="applyFilters()">
-                            <i class="fas fa-map-marker-alt me-1"></i>Georefs
+                            <i class="fas fa-map-marker-alt me-1"></i>Georeferences
                         </label>
                     </li>
                     <li>
@@ -40,7 +40,14 @@
                         <label class="dropdown-item">
                             <input type="checkbox" class="form-check-input me-2"
                                    x-model="filters.milestone" @change="applyFilters()">
-                            <i class="fas fa-fire me-1"></i>Milestones
+                            <i class="fas fa-fire me-1"></i>User Milestones
+                        </label>
+                    </li>
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.sitewide" @change="applyFilters()">
+                            <i class="fas fa-rocket me-1"></i>Site Milestones
                         </label>
                     </li>
                 </ul>
@@ -59,6 +66,8 @@
                                 {% include 'activity/partials/comment_card.html' with comment=event %}
                             {% elif event_type == 'milestone' %}
                                 {% include 'activity/partials/milestone_card.html' with milestone=event %}
+                            {% elif event_type == 'sitewide' %}
+                                {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
                             {% endif %}
                         </div>
                     {% endfor %}

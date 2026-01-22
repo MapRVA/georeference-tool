@@ -1,0 +1,25 @@
+{% load activity_tags %}
+<div class="card mb-3 border-primary">
+    <div class="card-body">
+        <div class="d-flex align-items-start">
+            <div class="me-3">
+                <span class="badge bg-primary text-white rounded-circle p-2">
+                    <i class="fas fa-rocket"></i>
+                </span>
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">
+                            <strong>Yesterdays</strong> reached
+                            <strong>{{ milestone.count }}</strong> images georeferenced!
+                        </h6>
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>{{ milestone.reached_at|timeago }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

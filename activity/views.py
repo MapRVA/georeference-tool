@@ -8,11 +8,16 @@ from django.utils import timezone
 
 from images.models import Comment
 
-from .models import GeoreferenceGroup, GeoreferenceGroupMember, UserMilestone
+from .models import (
+    GeoreferenceGroup,
+    GeoreferenceGroupMember,
+    SitewideMilestone,
+    UserMilestone,
+)
 
 ITEMS_PER_PAGE = 20
 FETCH_LIMIT = 50  # Fetch this many of each type to ensure we have enough
-ALL_EVENT_TYPES = {"group", "comment", "milestone"}
+ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide"}
 
 
 def activity_feed(request):
@@ -91,11 +96,13 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     group_filter = {}
     comment_filter = {}
     milestone_filter = {}
+    sitewide_filter = {}
 
     if before:
         group_filter["ended_at__lt"] = before
         comment_filter["created_at__lt"] = before
         milestone_filter["reached_at__lt"] = before
+        sitewide_filter["reached_at__lt"] = before
 
     events = []
 
@@ -131,6 +138,12 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
             .order_by("-reached_at")[:FETCH_LIMIT]
         )
         events.extend(("milestone", m, m.reached_at) for m in milestones)
+
+    if "sitewide" in event_types:
+        sitewide_milestones = SitewideMilestone.objects.filter(
+            **sitewide_filter
+        ).order_by("-reached_at")[:FETCH_LIMIT]
+        events.extend(("sitewide", m, m.reached_at) for m in sitewide_milestones)
 
     # Sort by timestamp descending and take the requested limit
     events.sort(key=lambda e: e[2], reverse=True)

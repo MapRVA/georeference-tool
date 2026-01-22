@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from .models import GeoreferenceGroup, GeoreferenceGroupMember, UserMilestone
+from .models import (
+    GeoreferenceGroup,
+    GeoreferenceGroupMember,
+    SitewideMilestone,
+    UserMilestone,
+)
 
 
 class GeoreferenceGroupMemberInline(admin.TabularInline):
@@ -43,6 +48,17 @@ class UserMilestoneAdmin(admin.ModelAdmin):
     list_filter = ("count", "reached_at")
     search_fields = ("user__username", "user__first_name")
     readonly_fields = ("user", "count", "reached_at")
+    ordering = ("-reached_at",)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SitewideMilestone)
+class SitewideMilestoneAdmin(admin.ModelAdmin):
+    list_display = ("count", "reached_at")
+    list_filter = ("count", "reached_at")
+    readonly_fields = ("count", "reached_at")
     ordering = ("-reached_at",)
 
     def has_add_permission(self, request):

@@ -20,11 +20,14 @@ document.addEventListener("DOMContentLoaded", function () {
  * @param {Object} initialFilters - Initial filter states {group, comment, milestone}
  */
 window.activityFilter = function (initialFilters) {
+  const allTypes = ["group", "comment", "milestone", "sitewide"];
+
   return {
     filters: {
       group: initialFilters?.group ?? true,
       comment: initialFilters?.comment ?? true,
       milestone: initialFilters?.milestone ?? true,
+      sitewide: initialFilters?.sitewide ?? true,
     },
 
     applyFilters() {
@@ -36,7 +39,7 @@ window.activityFilter = function (initialFilters) {
       const url = new URL(window.location.href);
       url.searchParams.delete("before");
 
-      if (selected.length === 0 || selected.length === 3) {
+      if (selected.length === 0 || selected.length === allTypes.length) {
         url.searchParams.delete("types");
       } else {
         url.searchParams.set("types", selected.join(","));
