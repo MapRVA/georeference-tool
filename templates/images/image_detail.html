@@ -217,7 +217,7 @@
                         <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Image Details</h6>
                     </div>
                     <div class="card-body">
-                        <dl class="row">
+                        <dl class="row mb-0">
                             <dt class="col-sm-5">Source:</dt>
                             <dd class="col-sm-7">
                                 <a href="{{ image.collection.source.get_absolute_url }}" class="text-decoration-none">
@@ -266,33 +266,28 @@
                             <dt class="col-sm-12 mt-3 mb-2">Rating:</dt>
                             <dd class="col-sm-12">
                                 <!-- Average Rating Display -->
-                                <div class="mb-3">
-                                    <div class="image-rating-display mb-2" id="rating-display">
-                                        <div class="rating-stars-display mb-2" id="avg-rating-stars" {% if not avg_rating %}style="display: none;"{% endif %}></div>
-                                        <small class="text-muted" id="rating-count" {% if not avg_rating %}style="display: none;"{% endif %}></small>
-                                        <small class="text-muted" id="no-ratings-text" {% if avg_rating %}style="display: none;"{% endif %}>No ratings yet</small>
-                                    </div>
-
-                                    <!-- User Rating Input (authenticated users only) -->
-                                    {% if request.user.is_authenticated %}
-                                        <div class="user-rating-input mt-3 pt-3" style="border-top: 1px solid #e9ecef;">
-                                            <small class="text-muted d-block mb-2">Your Rating:</small>
-                                            <div class="d-flex align-items-center">
-                                                <div class="rating-stars-input" id="user-rating-stars">
-                                                    {% for i in "12345" %}
-                                                        <i class="fas fa-star rating-star empty" data-star="{{ i }}"></i>
-                                                    {% endfor %}
-                                                </div>
-                                                <button class="clear-rating-btn" id="clear-rating-btn" style="display: none;" title="Clear your rating">
-                                                    <i class="fas fa-times"></i> Clear
-                                                </button>
-                                            </div>
-                                            <div class="mt-2">
-                                                <small class="text-muted" id="rating-preview"></small>
-                                            </div>
-                                        </div>
-                                    {% endif %}
+                                <div class="image-rating-display mb-2" id="rating-display">
+                                    <div class="rating-stars-display mb-2" id="avg-rating-stars" {% if not avg_rating %}style="display: none;"{% endif %}></div>
+                                    <small class="text-muted" id="rating-count" {% if not avg_rating %}style="display: none;"{% endif %}></small>
+                                    <small class="text-muted" id="no-ratings-text" {% if avg_rating %}style="display: none;"{% endif %}>No ratings yet</small>
                                 </div>
+
+                                <!-- User Rating Input (authenticated users only) -->
+                                {% if request.user.is_authenticated %}
+                                    <div class="user-rating-input mt-3 pt-3" style="border-top: 1px solid #e9ecef;">
+                                        <small class="text-muted d-block mb-2">Your Rating:</small>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rating-stars-trigger" id="user-rating-stars" role="button" tabindex="0" title="Click to rate">
+                                                {% for i in "12345" %}
+                                                    <i class="fas fa-star rating-star empty" data-star="{{ i }}"></i>
+                                                {% endfor %}
+                                            </div>
+                                            <button class="clear-rating-btn ms-2" id="clear-rating-btn" style="display: none;" title="Clear your rating">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             </dd>
                         </dl>
                     </div>
@@ -856,6 +851,35 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="createAlbumBtn">Create Album</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rating Modal -->
+<div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ratingModalLabel">Rate this Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="modal-rating-stars" id="modal-rating-stars">
+                    <!-- Stars rendered by JavaScript -->
+                </div>
+                <div class="mt-3">
+                    <small class="text-muted">Tap or drag across stars</small>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="modal-clear-rating" style="display: none;">
+                    <i class="fas fa-times me-1"></i>Clear
+                </button>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="modal-submit-rating" disabled>Submit</button>
+                </div>
             </div>
         </div>
     </div>

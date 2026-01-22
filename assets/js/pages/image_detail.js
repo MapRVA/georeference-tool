@@ -37,6 +37,12 @@ document.addEventListener("DOMContentLoaded", function () {
   let userRating = config.userRating;
   window.ratingCount = config.ratingCount;
 
+  // Rating modal state
+  let ratingModal = null;
+  let modalRating = null;
+  let isDragging = false;
+  let dragBounds = null; // Cache container bounds during drag
+
   // Extract and display domain from source link
   const sourceLink = document.getElementById("source-link");
   const sourceDomain = document.getElementById("source-domain");
@@ -910,126 +916,42 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Clean hover preview using same structure as average ratings
-  function showHoverPreview(hoveredStarNum, isLeftHalf) {
-    const starsDiv = document.getElementById("user-rating-stars");
-    if (!starsDiv) return;
-
-    // Use identical approach as average ratings
-    starsDiv.innerHTML = "";
-
-    for (let i = 1; i <= 5; i++) {
-      if (i < hoveredStarNum) {
-        // Full active star - identical to average ratings
-        const star = document.createElement("i");
-        star.className = "fas fa-star user-rating-star hover-active";
-        star.setAttribute("data-star", i);
-        starsDiv.appendChild(star);
-      } else if (i === hoveredStarNum) {
-        if (isLeftHalf) {
-          // Half star - exact same structure as average ratings
-          const starWrapper = document.createElement("div");
-          starWrapper.className = "star-fractional";
-          starWrapper.setAttribute("data-star", i);
-
-          const bgStar = document.createElement("i");
-          bgStar.className = "fas fa-star star-bg";
-
-          const fillContainer = document.createElement("div");
-          fillContainer.className = "star-fill-container";
-          fillContainer.style.width = "50%";
-
-          const fillStar = document.createElement("i");
-          fillStar.className = "fas fa-star star-fill";
-          fillContainer.appendChild(fillStar);
-
-          starWrapper.appendChild(bgStar);
-          starWrapper.appendChild(fillContainer);
-          starsDiv.appendChild(starWrapper);
-        } else {
-          // Full active star - identical to average ratings
-          const star = document.createElement("i");
-          star.className = "fas fa-star user-rating-star hover-active";
-          star.setAttribute("data-star", i);
-          starsDiv.appendChild(star);
-        }
-      } else {
-        // Inactive star - identical to average ratings
-        const star = document.createElement("i");
-        star.className = "fas fa-star user-rating-star hover-inactive";
-        star.setAttribute("data-star", i);
-        starsDiv.appendChild(star);
-      }
-    }
-
-    // Update preview text
-    const previewRating = (hoveredStarNum - 1) * 2 + (isLeftHalf ? 1 : 2);
-    const previewStars = previewRating / 2;
-
-    const previewEl = document.getElementById("rating-preview");
-    if (previewEl) {
-      previewEl.textContent = "";
-      previewEl.style.opacity = "0";
-    }
-  }
-
-  // Clear hover preview and restore original state
-  function clearHoverPreview() {
-    // Simply restore the original user rating display
-    updateUserRatingDisplay();
-
-    const previewEl = document.getElementById("rating-preview");
-    if (previewEl) {
-      previewEl.textContent = "";
-      previewEl.style.opacity = "0";
-    }
-  }
-
-  // Setup rating interactions
+  // Setup inline stars as modal trigger (replaces old hover/click behavior)
   function setupRatingInput() {
     if (!isAuthenticated || ratingEventsSetup) return;
 
     const starsDiv = document.getElementById("user-rating-stars");
     if (!starsDiv) return;
 
-    // Click handler (works for both regular stars and fractional stars)
-    starsDiv.addEventListener("click", function (e) {
-      const star = e.target.closest(".user-rating-star, .star-fractional");
-      if (!star) return;
-
+    // Click opens modal
+    starsDiv.addEventListener("click", (e) => {
       e.preventDefault();
-      e.stopPropagation();
-
-      const starNum = parseInt(star.dataset.star);
-      const rect = star.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const isLeftHalf = clickX < rect.width / 2;
-
-      const ratingToSubmit = (starNum - 1) * 2 + (isLeftHalf ? 1 : 2);
-      submitRating(ratingToSubmit);
+      openRatingModal();
     });
 
-    // Hover handlers (works for both regular stars and fractional stars)
-    starsDiv.addEventListener("mousemove", function (e) {
-      const star = e.target.closest(".user-rating-star, .star-fractional");
-      if (!star) return;
-
-      const starNum = parseInt(star.dataset.star);
-      const rect = star.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const isLeftHalf = mouseX < rect.width / 2;
-
-      showHoverPreview(starNum, isLeftHalf);
+    // Keyboard accessibility
+    starsDiv.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openRatingModal();
+      }
     });
 
-    starsDiv.addEventListener("mouseleave", function () {
-      clearHoverPreview();
-    });
+    // Touch opens modal (prevent any default touch behaviors)
+    starsDiv.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        openRatingModal();
+      },
+      { passive: false },
+    );
 
-    // Clear rating button handler
+    // Clear rating button handler (still works inline)
     const clearBtn = document.getElementById("clear-rating-btn");
     if (clearBtn) {
-      clearBtn.addEventListener("click", function () {
+      clearBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         clearUserRating();
       });
     }
@@ -1251,6 +1173,223 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // =============================================
+  // Rating Modal Functions
+  // =============================================
+
+  function initRatingModal() {
+    const modalEl = document.getElementById("ratingModal");
+    if (!modalEl) return;
+
+    ratingModal = new bootstrap.Modal(modalEl);
+
+    renderModalStars();
+    setupModalEvents();
+    setupModalButtons();
+
+    // Reset state when modal hidden
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      modalRating = null;
+      isDragging = false;
+      updateModalStarsDisplay();
+    });
+
+    // Initialize with current rating when shown
+    modalEl.addEventListener("shown.bs.modal", () => {
+      modalRating = userRating;
+      updateModalStarsDisplay();
+      updateModalButtons();
+    });
+  }
+
+  function openRatingModal() {
+    if (!ratingModal) return;
+    modalRating = userRating;
+    ratingModal.show();
+  }
+
+  function renderModalStars() {
+    const container = document.getElementById("modal-rating-stars");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    for (let i = 1; i <= 5; i++) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "modal-star-wrapper";
+      wrapper.dataset.star = i;
+
+      const star = document.createElement("i");
+      star.className = "fas fa-star modal-rating-star empty";
+      star.dataset.star = i;
+
+      wrapper.appendChild(star);
+      container.appendChild(wrapper);
+    }
+  }
+
+  function updateModalStarsDisplay() {
+    const container = document.getElementById("modal-rating-stars");
+    if (!container) return;
+
+    const starValue = modalRating ? modalRating / 2 : 0;
+
+    // Rebuild stars each time (same approach as average rating display)
+    container.innerHTML = "";
+
+    for (let i = 1; i <= 5; i++) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "modal-star-wrapper";
+      wrapper.dataset.star = i;
+
+      if (i <= Math.floor(starValue)) {
+        // Full filled star
+        const star = document.createElement("i");
+        star.className = "fas fa-star modal-rating-star filled";
+        star.dataset.star = i;
+        wrapper.appendChild(star);
+      } else if (i === Math.ceil(starValue) && starValue % 1 !== 0) {
+        // Half star - use overlay approach like average ratings
+        wrapper.classList.add("modal-star-fractional");
+
+        const bgStar = document.createElement("i");
+        bgStar.className = "fas fa-star modal-rating-star empty";
+        bgStar.dataset.star = i;
+
+        const fillContainer = document.createElement("div");
+        fillContainer.className = "modal-star-fill-container";
+        fillContainer.style.width = "50%";
+
+        const fillStar = document.createElement("i");
+        fillStar.className = "fas fa-star modal-rating-star filled";
+        fillContainer.appendChild(fillStar);
+
+        wrapper.appendChild(bgStar);
+        wrapper.appendChild(fillContainer);
+      } else {
+        // Empty star
+        const star = document.createElement("i");
+        star.className = "fas fa-star modal-rating-star empty";
+        star.dataset.star = i;
+        wrapper.appendChild(star);
+      }
+
+      container.appendChild(wrapper);
+    }
+  }
+
+  function updateModalButtons() {
+    const submitBtn = document.getElementById("modal-submit-rating");
+    const clearBtn = document.getElementById("modal-clear-rating");
+
+    if (submitBtn) {
+      submitBtn.disabled = !modalRating;
+    }
+    if (clearBtn) {
+      clearBtn.style.display = userRating ? "inline-block" : "none";
+    }
+  }
+
+  function setupModalEvents() {
+    const container = document.getElementById("modal-rating-stars");
+    if (!container) return;
+
+    // Use pointer events for unified mouse/touch handling
+    container.addEventListener("pointerdown", handleModalPointerDown);
+  }
+
+  // Cache container bounds at the start of a drag
+  function cacheDragBounds() {
+    const container = document.getElementById("modal-rating-stars");
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    dragBounds = {
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+    };
+  }
+
+  // Pointer event handlers (unified mouse/touch)
+  let activePointerId = null;
+
+  function handleModalPointerDown(e) {
+    e.preventDefault();
+    isDragging = true;
+    activePointerId = e.pointerId;
+    cacheDragBounds();
+    updateRatingFromPosition(e.clientX);
+
+    // Attach move/end listeners to document to capture events anywhere on screen
+    document.addEventListener("pointermove", handleModalPointerMove);
+    document.addEventListener("pointerup", handleModalPointerUp);
+    document.addEventListener("pointercancel", handleModalPointerUp);
+  }
+
+  function handleModalPointerMove(e) {
+    if (!isDragging || e.pointerId !== activePointerId) return;
+    e.preventDefault();
+    updateRatingFromPosition(e.clientX);
+  }
+
+  function handleModalPointerUp(e) {
+    if (e.pointerId !== activePointerId) return;
+
+    isDragging = false;
+    activePointerId = null;
+    dragBounds = null;
+
+    // Remove document listeners
+    document.removeEventListener("pointermove", handleModalPointerMove);
+    document.removeEventListener("pointerup", handleModalPointerUp);
+    document.removeEventListener("pointercancel", handleModalPointerUp);
+  }
+
+  // Convert X position to rating (1-10) using linear interpolation
+  function updateRatingFromPosition(clientX) {
+    // Get container bounds from cache or DOM
+    let bounds = dragBounds;
+    if (!bounds) {
+      const container = document.getElementById("modal-rating-stars");
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      bounds = { left: rect.left, right: rect.right, width: rect.width };
+    }
+
+    // Map X position to 1-10 rating scale
+    const relativeX = clientX - bounds.left;
+    let rating = Math.round((relativeX / bounds.width) * 10);
+    rating = Math.max(1, Math.min(10, rating)); // Clamp to valid range
+
+    if (rating !== modalRating) {
+      modalRating = rating;
+      updateModalStarsDisplay();
+      updateModalButtons();
+    }
+  }
+
+  function setupModalButtons() {
+    const submitBtn = document.getElementById("modal-submit-rating");
+    const clearBtn = document.getElementById("modal-clear-rating");
+
+    if (submitBtn) {
+      submitBtn.addEventListener("click", () => {
+        if (modalRating) {
+          submitRating(modalRating);
+          if (ratingModal) ratingModal.hide();
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearUserRating();
+        if (ratingModal) ratingModal.hide();
+      });
+    }
+  }
+
   // Initialize rating system
   setTimeout(function () {
     renderAverageRatingStars();
@@ -1258,5 +1397,8 @@ document.addEventListener("DOMContentLoaded", function () {
     setupRatingInput();
     updateRatingCountDisplay();
     updateClearButtonVisibility();
+
+    // Initialize rating modal
+    initRatingModal();
   }, 100);
 });

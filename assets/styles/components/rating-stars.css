@@ -138,3 +138,85 @@
     background: #dc3545;
     color: white;
 }
+
+/* ===========================================
+   Inline Rating Trigger (clickable to open modal)
+   =========================================== */
+
+.rating-stars-trigger {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s ease;
+}
+
+.rating-stars-trigger:hover,
+.rating-stars-trigger:focus {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.rating-stars-trigger:focus {
+    outline: 2px solid #ffc107;
+    outline-offset: 2px;
+}
+
+/* Reuse existing star styles in trigger */
+.rating-stars-trigger .rating-star {
+    cursor: pointer;
+}
+
+/* ===========================================
+   Rating Modal - Large Touch-Friendly Stars
+   =========================================== */
+
+.modal-rating-stars {
+    display: flex;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 1rem 0;
+    touch-action: none; /* Prevent scrolling during drag */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.modal-star-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-rating-star {
+    font-size: 2.75rem;
+    cursor: pointer;
+    transition:
+        transform 0.1s ease,
+        color 0.15s ease;
+    color: #ddd;
+    padding: 0.5rem;
+    margin: 0;
+}
+
+.modal-rating-star.filled {
+    color: #ffc107;
+}
+
+.modal-rating-star.empty {
+    color: #ddd;
+}
+
+/* Half-star using overlay approach (same as average ratings) */
+.modal-star-wrapper.modal-star-fractional {
+    position: relative;
+}
+
+.modal-star-fill-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+}
