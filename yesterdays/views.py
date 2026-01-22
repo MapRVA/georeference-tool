@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from images.models import (
+    AerialGeoreference,
     Collection,
     Georeference,
     GeoreferenceValidation,
@@ -39,21 +40,34 @@ def home(request):
 
 def stats(request):
     """Stats page view"""
-    # Daily georeferences (cumulative)
-    daily_georeferences = (
+    # Daily georeferences (cumulative) - include both point and aerial georeferences
+    point_daily = (
         Georeference.objects.annotate(day=TruncDate("georeferenced_at"))
         .values("day")
         .annotate(count=Count("id"))
-        .order_by("day")
     )
+
+    aerial_daily = (
+        AerialGeoreference.objects.annotate(day=TruncDate("georeferenced_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+    )
+
+    # Merge daily counts from both types
+    daily_counts_by_date = {}
+    for entry in point_daily:
+        daily_counts_by_date[entry["day"]] = entry["count"]
+    for entry in aerial_daily:
+        if entry["day"] in daily_counts_by_date:
+            daily_counts_by_date[entry["day"]] += entry["count"]
+        else:
+            daily_counts_by_date[entry["day"]] = entry["count"]
 
     cumulative_data = []
     cumulative_count = 0
-    for entry in daily_georeferences:
-        cumulative_count += entry["count"]
-        cumulative_data.append(
-            {"date": entry["day"].isoformat(), "count": cumulative_count}
-        )
+    for day in sorted(daily_counts_by_date.keys()):
+        cumulative_count += daily_counts_by_date[day]
+        cumulative_data.append({"date": day.isoformat(), "count": cumulative_count})
 
     daily_labels = [entry["date"] for entry in cumulative_data]
     daily_counts = [entry["count"] for entry in cumulative_data]
@@ -129,8 +143,17 @@ def stats(request):
     ]
 
     # Top contributors - aggregate georeferences and validations by username
-    georeference_contributors = (
+    # Include both point georeferences and aerial georeferences
+    point_georeference_contributors = (
         Georeference.objects.values(username=F("georeferenced_by__first_name"))
+        .annotate(
+            georeference_count=Count("id"), last_georeference=Max("georeferenced_at")
+        )
+        .order_by("-georeference_count", "last_georeference")
+    )
+
+    aerial_georeference_contributors = (
+        AerialGeoreference.objects.values(username=F("georeferenced_by__first_name"))
         .annotate(
             georeference_count=Count("id"), last_georeference=Max("georeferenced_at")
         )
@@ -145,13 +168,31 @@ def stats(request):
 
     # Merge results with proper handling of anonymous users
     contributors = {}
-    for entry in georeference_contributors:
+    for entry in point_georeference_contributors:
         username = entry["username"] if entry["username"] else "Anonymous"
         contributors[username] = {
             "georeferences": entry["georeference_count"],
             "validations": 0,
             "last_georeference": entry["last_georeference"],
         }
+
+    for entry in aerial_georeference_contributors:
+        username = entry["username"] if entry["username"] else "Anonymous"
+        if username in contributors:
+            contributors[username]["georeferences"] += entry["georeference_count"]
+            # Update last_georeference if aerial is more recent
+            if entry["last_georeference"]:
+                existing = contributors[username]["last_georeference"]
+                if not existing or entry["last_georeference"] > existing:
+                    contributors[username]["last_georeference"] = entry[
+                        "last_georeference"
+                    ]
+        else:
+            contributors[username] = {
+                "georeferences": entry["georeference_count"],
+                "validations": 0,
+                "last_georeference": entry["last_georeference"],
+            }
 
     for entry in validation_contributors:
         username = entry["username"] if entry["username"] else "Anonymous"
