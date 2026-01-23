@@ -388,6 +388,15 @@ export class LayerControl {
       }
     }
 
+    // Check for Geoman layers (dynamically created with "gm_" prefix)
+    // These need to stay on top of secondary tile layers
+    const layers = this.map.getStyle().layers;
+    for (const layer of layers) {
+      if (layer.id.startsWith("gm_")) {
+        return layer.id;
+      }
+    }
+
     // Fall back to checking common overlay layers, in order from bottom to top.
     // We want to insert before the first (bottom-most) one that exists.
     const possibleBeforeLayers = [

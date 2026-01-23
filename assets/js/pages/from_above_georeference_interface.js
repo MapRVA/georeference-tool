@@ -83,11 +83,12 @@ document.addEventListener("DOMContentLoaded", function () {
   window.setupPMTilesProtocol();
 
   // Add LayerControl to map
+  // Note: Geoman creates layers dynamically with "gm_" prefix. The LayerControl's isOverlayLayer()
+  // already recognizes these. We don't set beforeLayerId since Geoman layers are created after
+  // map load, so we rely on the fallback logic and moveLayer() to reposition overlays correctly.
   map.addControl(
     new LayerControl({
       mapLayersUrl: config.urls.mapLayers,
-      overlayLayerIds: ["polygon-fill", "polygon-outline"],
-      beforeLayerId: "polygon-fill",
     }),
     "top-right",
   );
