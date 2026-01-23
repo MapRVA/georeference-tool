@@ -27,11 +27,22 @@ import maplibregl from "maplibre-gl";
 /**
  * Default Nominatim geocoder API for Richmond area
  */
-const defaultGeocoderApi = {
+const createDefaultGeocoderApi = (email) => ({
   forwardGeocode: async (config) => {
     const features = [];
     try {
-      const request = `https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&polygon_geojson=1&addressdetails=1&layer=address&viewbox=-77.61976,37.60954,-77.36673,37.44393&bounded=1`;
+      const params = new URLSearchParams({
+        q: config.query,
+        format: "geojson",
+        polygon_geojson: 1,
+        addressdetails: 1,
+        layer: "address",
+        viewbox: "-77.61976,37.60954,-77.36673,37.44393",
+        bounded: 1,
+        email: email,
+      });
+
+      const request = `https://nominatim.openstreetmap.org/search?${params}`;
       const response = await fetch(request);
       const geojson = await response.json();
       for (const feature of geojson.features) {
@@ -55,7 +66,7 @@ const defaultGeocoderApi = {
     }
     return { features };
   },
-};
+});
 
 /**
  * Add a responsive geocoder control to a map
@@ -70,7 +81,7 @@ const defaultGeocoderApi = {
  */
 export function addResponsiveGeocoder(map, options = {}) {
   const {
-    geocoderApi = defaultGeocoderApi,
+    geocoderApi = createDefaultGeocoderApi(window.ADMIN_EMAIL),
     breakpoint = 1000,
     placeholder = "Search places",
     position = "top-left",

@@ -14,4 +14,5 @@ def site_settings(request):
         "footer_content": site_settings_model.footer_content,
         "protomaps_api_key": settings.PROTOMAPS_API_KEY,
         "osm_style_url": settings.OSM_STYLE_URL,
+        "admin_email": site_settings_model.admin_email,
     }

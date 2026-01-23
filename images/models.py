@@ -43,6 +43,11 @@ class SiteSettings(models.Model):
         default='Yesterdays is proudly built by <a href="https://maprva.org" target="_blank" class="text-decoration-none">MapRVA</a>',
         help_text="HTML content for the site footer",
     )
+    admin_email = models.EmailField(
+        blank=True,
+        null=True,
+        help_text="Admin contact email, used for external API requests (e.g., Nominatim geocoder)",
+    )
 
     class Meta:
         verbose_name = "Site Settings"
