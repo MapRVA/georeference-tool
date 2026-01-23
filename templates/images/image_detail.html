@@ -469,7 +469,7 @@
                                     </a>
                                 {% else %}
                                     <!-- Aerial image has no georeference yet - show georeference button -->
-                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-success w-100 mb-3 action-button">
+                                    <a href="{% url 'images:aerial_georeference_interface' image.id %}" class="btn btn-primary w-100 mb-3 action-button">
                                         <i class="fas fa-map-marker-alt me-1"></i>Georeference This Image
                                     </a>
                                 {% endif %}
@@ -481,7 +481,7 @@
                             {% endif %}
                         {% elif not image.is_georeferenced and not image.will_not_georef %}
                             <a href="{% url 'images:georeference_interface' %}?image={{ image.id }}"
-                               class="btn btn-success w-100 mb-3 action-button">
+                               class="btn btn-primary w-100 mb-3 action-button">
                                 <i class="fas fa-map-marker-alt me-2"></i>Georeference This Image
                             </a>
                         {% elif image.is_georeferenced %}
@@ -526,7 +526,7 @@
                         <!-- Album dropdown (for authenticated users) -->
                         {% if request.user.is_authenticated %}
                             <div class="dropdown w-100 mb-3">
-                                <button class="btn btn-outline-primary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" id="imageAlbumDropdownBtn">
+                                <button class="btn btn-outline-secondary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" id="imageAlbumDropdownBtn">
                                     <i class="fas fa-photo-video me-2"></i>Add to Album
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end album-dropdown w-100" style="width: 100% !important;">
@@ -540,14 +540,14 @@
                             <a href="{{ image.collection.get_absolute_url }}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left me-1"></i>Collection
                             </a>
-                            <a href="{% url 'images:random_image' %}" class="btn btn-outline-primary">
+                            <a href="{% url 'images:random_image' %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-random me-1"></i>Random
                             </a>
                         </div>
 
                         <!-- External links -->
                         <div class="d-grid gap-2">
-                            <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-info btn-sm">
+                            <a href="{{ image.original_url }}" target="_blank" class="btn btn-outline-success btn-sm">
                                 <i class="fas fa-external-link-alt me-1"></i>View Original Source
                             </a>
                             {% if image.embedding %}

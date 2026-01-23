@@ -852,7 +852,7 @@ document.addEventListener("DOMContentLoaded", function () {
           map.setPaintProperty(
             "context-image-circles",
             "circle-color",
-            "green",
+            "#0d6efd",
           );
           map.setPaintProperty("context-image-circles", "circle-opacity", 1.0);
           map.setPaintProperty(
