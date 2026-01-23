@@ -672,6 +672,13 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 "description": "HTML content displayed in the site footer",
             },
         ),
+        (
+            "Contact",
+            {
+                "fields": ("admin_email",),
+                "description": "Admin contact email for external API requests",
+            },
+        ),
     )
 
 

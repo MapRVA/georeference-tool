@@ -39,8 +39,10 @@ const createDefaultGeocoderApi = (email) => ({
         layer: "address",
         viewbox: "-77.61976,37.60954,-77.36673,37.44393",
         bounded: 1,
-        email: email,
       });
+      if (email) {
+        params.set("email", email);
+      }
 
       const request = `https://nominatim.openstreetmap.org/search?${params}`;
       const response = await fetch(request);
