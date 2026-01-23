@@ -391,15 +391,17 @@ export class LayerControl {
     // Fall back to checking common overlay layers, in order from bottom to top.
     // We want to insert before the first (bottom-most) one that exists.
     const possibleBeforeLayers = [
-      "image-heatmap",
-      "image-directions",
-      "image-circles",
-      "image-directions-simple",
-      "image-circles-simple",
-      "pin-symbol",
+      "location-hint-pulse",
+      "location-hint-label",
       "pin-circle",
-      "context-image-directions",
+      "pin-symbol",
       "context-image-circles",
+      "context-image-directions",
+      "image-heatmap",
+      "image-circles",
+      "image-directions",
+      "image-circles-simple",
+      "image-directions-simple",
     ];
 
     for (const layerId of possibleBeforeLayers) {

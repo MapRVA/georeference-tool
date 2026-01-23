@@ -404,20 +404,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Add LayerControl to map
+    // Note: overlayLayerIds lists all layers that should stay on top of secondary tile layers
+    // (like Sanborn maps). The LayerControl's fallback logic will automatically find the
+    // bottommost overlay layer to insert secondary layers below. This ensures hints and pins
+    // always render above secondary layers.
     map.addControl(
       new LayerControl({
         mapLayersUrl: config.urls.mapLayers,
         overlayLayerIds: [
           "location-hint-pulse",
-          "location-hint-circle",
-          "location-hint-direction",
           "location-hint-label",
           "pin-circle",
           "pin-symbol",
           "context-image-circles",
           "context-image-directions",
         ],
-        beforeLayerId: "location-hint-pulse",
       }),
       "top-right",
     );
