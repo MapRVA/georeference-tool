@@ -1,9 +1,9 @@
 {% load activity_tags %}
-<div class="card mb-3 border-warning">
+<div class="card mb-3 bg-warning text-dark">
     <div class="card-body">
         <div class="d-flex align-items-start">
             <div class="me-3">
-                <span class="badge bg-warning text-dark rounded-circle p-2">
+                <span class="badge bg-body text-body rounded-circle p-2">
                     <i class="fas fa-fire"></i>
                 </span>
             </div>
@@ -11,12 +11,10 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h6 class="mb-1">
-                            <a href="{% url 'user_profile' milestone.user.get_display_name %}" class="text-decoration-none">
-                                {{ milestone.user.get_display_name }}
-                            </a>
+                            <a href="{% url 'user_profile' milestone.user.get_display_name %}" class="link-dark link-underline-opacity-50">{{ milestone.user.get_display_name }}</a>
                             reached <strong>{{ milestone.count }}</strong> georeferences!
                         </h6>
-                        <small class="text-muted">
+                        <small class="text-dark opacity-75">
                             <i class="fas fa-clock me-1"></i>{{ milestone.reached_at|timeago }}
                         </small>
                     </div>
