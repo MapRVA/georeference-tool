@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Function to detect if dark mode is enabled
   function isDarkMode() {
-    return document.documentElement.getAttribute("data-bs-theme") === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   }
 
   // Function to get the appropriate map style URL
@@ -353,20 +353,13 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Watch for theme changes and update map style
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.attributeName === "data-bs-theme") {
-        // When style changes, we need to re-add custom layers after the new style loads
-        map.once("styledata", () => {
-          addCustomLayers();
-        });
-        map.setStyle(getMapStyle());
-      }
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      // When style changes, we need to re-add custom layers after the new style loads
+      map.once("styledata", () => {
+        addCustomLayers();
+      });
+      map.setStyle(getMapStyle());
     });
-  });
-
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-bs-theme"],
-  });
 });

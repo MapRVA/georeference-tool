@@ -13,21 +13,23 @@
 }
 
 /* Dark mode support for MapLibre popups using Bootstrap CSS variables */
-[data-bs-theme="dark"] .maplibregl-popup-content {
-    background-color: var(--bs-body-bg);
-    color: var(--bs-body-color);
-}
+@media (prefers-color-scheme: dark) {
+    .maplibregl-popup-content {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
 
-[data-bs-theme="dark"] .maplibregl-popup-tip {
-    border-top-color: var(--bs-body-bg);
-}
+    .maplibregl-popup-tip {
+        border-top-color: var(--bs-body-bg);
+    }
 
-[data-bs-theme="dark"] .maplibregl-popup-close-button {
-    color: var(--bs-body-color);
-}
+    .maplibregl-popup-close-button {
+        color: var(--bs-body-color);
+    }
 
-[data-bs-theme="dark"] .maplibregl-popup-close-button:hover {
-    background-color: var(--bs-secondary-bg);
+    .maplibregl-popup-close-button:hover {
+        background-color: var(--bs-secondary-bg);
+    }
 }
 
 /* Time Slider Control */
