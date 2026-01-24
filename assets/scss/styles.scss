@@ -1,7 +1,34 @@
 // Bootstrap variable overrides (add customizations here before importing Bootstrap)
-// Example:
-// $primary: #0d6efd;
-// $border-radius: 0.5rem;
+
+// Use media-query for automatic OS-based dark mode switching
+$color-mode-type: media-query;
+
+$primary: #286071;
+
+$secondary: #747375;
+
+$success: #527448;
+$warning: #dc8434;
+$danger: #d52e1c;
+$info: #c07684;
+
+$gray-200: #d7d5d7;
+$gray-300: #c3c1c3;
+$gray-400: #afacaf;
+$gray-500: #9b979b;
+$gray-600: #878287;
+$gray-700: #686468;
+$gray-800: #494649;
+$gray-900: #2a282a;
+
+$dark: #0b1722;
+$light: #f4ecd6;
+
+$body-color: #0b1722;
+$body-bg: #f8f2e3;
+
+$body-color-dark: #f4ecd6;
+$body-bg-dark: #0b1722;
 
 // Import all of Bootstrap's CSS
 @import "bootstrap/scss/bootstrap";
