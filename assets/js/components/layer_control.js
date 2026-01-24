@@ -399,13 +399,17 @@ export class LayerControl {
 
     // Fall back to checking common overlay layers, in order from bottom to top.
     // We want to insert before the first (bottom-most) one that exists.
+    // This order must match the actual layer stacking in the map:
+    // 1. location hints (bottom of overlays)
+    // 2. context images (other georeferenced images)
+    // 3. pin layers (user's placement marker - always on top)
     const possibleBeforeLayers = [
       "location-hint-pulse",
       "location-hint-label",
-      "pin-circle",
-      "pin-symbol",
       "context-image-circles",
       "context-image-directions",
+      "pin-circle",
+      "pin-symbol",
       "image-heatmap",
       "image-circles",
       "image-directions",

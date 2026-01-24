@@ -277,49 +277,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
       }
 
-      map.addSource("pin", {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [],
-        },
-      });
-
-      map.addLayer({
-        id: "pin-circle",
-        type: "circle",
-        source: "pin",
-        paint: {
-          "circle-radius": 8,
-          "circle-color": dangerColor,
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 2,
-        },
-      });
-
-      if (map.hasImage("surveillance-direction")) {
-        map.addLayer({
-          id: "pin-symbol",
-          type: "symbol",
-          source: "pin",
-          layout: {
-            "icon-image": "surveillance-direction",
-            "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
-            },
-            "icon-rotate": ["to-number", ["get", "direction"]],
-            "icon-rotation-alignment": "map",
-            "icon-pitch-alignment": "map",
-          },
-          filter: ["has", "direction"],
-        });
-      }
-
       // Add all existing georeferenced images for context using vector tiles
+      // These are added BEFORE the pin layers so the user's pin always renders on top
       try {
         // Build vector tiles URL for all context images
         let contextVectorTilesUrl =
@@ -380,6 +339,49 @@ document.addEventListener("DOMContentLoaded", function () {
         updateContextImagesDisplay();
       } catch (error) {
         console.warn("Could not load context images:", error);
+      }
+
+      // Add the user's pin source and layers LAST so they render above all else
+      map.addSource("pin", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
+      map.addLayer({
+        id: "pin-circle",
+        type: "circle",
+        source: "pin",
+        paint: {
+          "circle-radius": 8,
+          "circle-color": dangerColor,
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 2,
+        },
+      });
+
+      if (map.hasImage("surveillance-direction")) {
+        map.addLayer({
+          id: "pin-symbol",
+          type: "symbol",
+          source: "pin",
+          layout: {
+            "icon-image": "surveillance-direction",
+            "icon-overlap": "always",
+            "icon-size": {
+              stops: [
+                [5, 0.3],
+                [15, 1],
+              ],
+            },
+            "icon-rotate": ["to-number", ["get", "direction"]],
+            "icon-rotation-alignment": "map",
+            "icon-pitch-alignment": "map",
+          },
+          filter: ["has", "direction"],
+        });
       }
 
       // Restore any existing pin if there was one
