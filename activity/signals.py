@@ -1,8 +1,8 @@
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from images.models import AerialGeoreference, Georeference, Image
+from images.models import AerialGeoreference, Georeference
 
 from .models import (
     GROUPING_WINDOW,
@@ -119,22 +119,22 @@ def _check_milestone(user, timestamp):
 
 def _check_sitewide_milestone(timestamp):
     """Check if the site has crossed a sitewide milestone threshold and record it."""
-    # Count distinct georeferenced images (not georeference submissions)
-    point_count = Image.objects.filter(
-        aerial=False,
-        duplicate_of__isnull=True,
-        will_not_georef=False,
-        georeferences__isnull=False,
-    ).count()
-
-    aerial_count = Image.objects.filter(
-        aerial=True,
-        duplicate_of__isnull=True,
-        will_not_georef=False,
-        aerial_georeferences__isnull=False,
-    ).count()
-
-    total = point_count + aerial_count
+    query = """
+        SELECT COUNT(*) FROM (
+            SELECT g.image_id
+            FROM images_georeference g
+            JOIN images_image i ON g.image_id = i.id
+            WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+            UNION
+            SELECT ag.image_id
+            FROM images_aerialgeoreference ag
+            JOIN images_image i ON ag.image_id = i.id
+            WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+        ) AS all_georeferenced
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        total = cursor.fetchone()[0]
 
     for milestone in SITEWIDE_MILESTONE_THRESHOLDS:
         if total >= milestone:

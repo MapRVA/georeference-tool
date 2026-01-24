@@ -1,8 +1,7 @@
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import connection, transaction
 
 from activity.models import SITEWIDE_MILESTONE_THRESHOLDS, SitewideMilestone
-from images.models import AerialGeoreference, Georeference, Image
 
 
 class Command(BaseCommand):
@@ -34,33 +33,26 @@ class Command(BaseCommand):
             SitewideMilestone.objects.values_list("count", flat=True)
         )
 
-        # Get all first georeferences per image (the one that initially georeferenced it)
-        # For point georeferences (non-aerial images)
-        point_first_georefs = (
-            Georeference.objects.filter(
-                image__aerial=False,
-                image__duplicate_of__isnull=True,
-                image__will_not_georef=False,
-            )
-            .order_by("image_id", "georeferenced_at")
-            .distinct("image_id")
-            .values_list("georeferenced_at", flat=True)
-        )
-
-        # For aerial georeferences (aerial images)
-        aerial_first_georefs = (
-            AerialGeoreference.objects.filter(
-                image__aerial=True,
-                image__duplicate_of__isnull=True,
-                image__will_not_georef=False,
-            )
-            .order_by("image_id", "georeferenced_at")
-            .distinct("image_id")
-            .values_list("georeferenced_at", flat=True)
-        )
-
-        # Merge and sort all timestamps
-        all_timestamps = sorted(list(point_first_georefs) + list(aerial_first_georefs))
+        # Get the first georeference timestamp for each image across both tables
+        query = """
+            SELECT image_id, MIN(georeferenced_at) AS first_georeferenced_at
+            FROM (
+                SELECT g.image_id, g.georeferenced_at
+                FROM images_georeference g
+                JOIN images_image i ON g.image_id = i.id
+                WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+                UNION ALL
+                SELECT ag.image_id, ag.georeferenced_at
+                FROM images_aerialgeoreference ag
+                JOIN images_image i ON ag.image_id = i.id
+                WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+            ) AS all_georefs
+            GROUP BY image_id
+            ORDER BY first_georeferenced_at
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            all_timestamps = [row[1] for row in cursor.fetchall()]
 
         self.stdout.write(f"Found {len(all_timestamps)} georeferenced images")
 
