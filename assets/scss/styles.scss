@@ -1,7 +1,7 @@
 // Bootstrap variable overrides (add customizations here before importing Bootstrap)
-// Example:
-// $primary: #0d6efd;
-// $border-radius: 0.5rem;
+
+// Use media-query for automatic OS-based dark mode switching
+$color-mode-type: media-query;
 
 // Import all of Bootstrap's CSS
 @import "bootstrap/scss/bootstrap";
