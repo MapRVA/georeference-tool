@@ -17,6 +17,12 @@ import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
 
+// Get the danger color from Bootstrap's CSS custom properties
+const dangerColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-danger")
+    .trim() || "#d52e1c";
+
 document.addEventListener("DOMContentLoaded", function () {
   // Check if configuration is available
   if (!window.georeferenceConfig) {
@@ -285,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
         source: "pin",
         paint: {
           "circle-radius": 8,
-          "circle-color": "#dc3545",
+          "circle-color": dangerColor,
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
         },

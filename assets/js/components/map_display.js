@@ -9,6 +9,17 @@ import "../../styles/components/map-display.css";
 import { LayerControl } from "./layer_control.js";
 import { addResponsiveGeocoder } from "./responsive_geocoder.js";
 
+// Get colors from Bootstrap's CSS custom properties
+const primaryColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-primary")
+    .trim() || "#286071";
+
+const dangerColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-danger")
+    .trim() || "#d52e1c";
+
 // Make libraries globally available
 window.maplibregl = maplibregl;
 window.pmtiles = pmtiles;
@@ -537,7 +548,7 @@ export function initializeMap(config) {
             20,
             100,
           ],
-          "circle-color": "#0d6efd",
+          "circle-color": primaryColor,
         },
       });
 
@@ -622,7 +633,7 @@ export function initializeMap(config) {
             14,
             "#fff",
             15,
-            "#0d6efd",
+            primaryColor,
           ],
           "circle-stroke-color": "#fff",
           "circle-stroke-width": [
@@ -675,7 +686,7 @@ export function initializeMap(config) {
         },
         paint: {
           "circle-radius": 8,
-          "circle-color": "#0d6efd",
+          "circle-color": primaryColor,
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
         },
@@ -726,7 +737,7 @@ export function initializeMap(config) {
         source: "current-image",
         paint: {
           "circle-radius": 8,
-          "circle-color": "#dc3545",
+          "circle-color": dangerColor,
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
         },
@@ -748,7 +759,7 @@ export function initializeMap(config) {
         type: "fill",
         source: "aerial-polygon",
         paint: {
-          "fill-color": "#0d6efd",
+          "fill-color": primaryColor,
           "fill-opacity": 0.2,
         },
       });
@@ -758,7 +769,7 @@ export function initializeMap(config) {
         type: "line",
         source: "aerial-polygon",
         paint: {
-          "line-color": "#0d6efd",
+          "line-color": primaryColor,
           "line-width": 2.5,
         },
       });
