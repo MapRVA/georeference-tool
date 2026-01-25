@@ -4,7 +4,7 @@
  */
 
 // CSS imports
-import "../../styles/pages/from-above-georeference-interface.css";
+import "../../styles/pages/georeference-interface.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.css";
 import "../../styles/components/image-viewer.css";

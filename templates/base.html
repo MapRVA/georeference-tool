@@ -122,7 +122,7 @@
     {% endif %}
 
     <!-- Main Content -->
-    <main class="container my-4">
+    <main class="{% block main_container_class %}container{% endblock %} my-4">
         {% block content %}{% endblock %}
     </main>
 
