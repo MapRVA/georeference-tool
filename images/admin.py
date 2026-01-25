@@ -518,7 +518,7 @@ class GeoreferenceAdmin(admin.ModelAdmin):
         "image",
         "point",
         "direction",
-        "georeferenced_by",
+        "georeferenced_by_display",
         "georeferenced_at",
         "validation_count",
     )
@@ -527,7 +527,16 @@ class GeoreferenceAdmin(admin.ModelAdmin):
         "image__title",
         "image__collection__name",
         "georeferenced_by__username",
+        "georeferenced_by__first_name",
     )
+
+    def georeferenced_by_display(self, obj):
+        if obj.georeferenced_by:
+            return obj.georeferenced_by.get_display_name()
+        return None
+
+    georeferenced_by_display.short_description = "Georeferenced By"
+    georeferenced_by_display.admin_order_field = "georeferenced_by__first_name"
     readonly_fields = ("georeferenced_at", "updated_at", "validation_count")
     autocomplete_fields = ["image"]
 
@@ -567,10 +576,28 @@ class GeoreferenceAdmin(admin.ModelAdmin):
 
 @admin.register(GeoreferenceValidation)
 class GeoreferenceValidationAdmin(admin.ModelAdmin):
-    list_display = ("georeference", "validation", "validated_by", "validated_at")
+    list_display = (
+        "georeference",
+        "validation",
+        "validated_by_display",
+        "validated_at",
+    )
     list_filter = ("validation", "validated_by", "validated_at")
-    search_fields = ("georeference__image__title", "validated_by__username", "notes")
+    search_fields = (
+        "georeference__image__title",
+        "validated_by__username",
+        "validated_by__first_name",
+        "notes",
+    )
     readonly_fields = ("validated_at",)
+
+    def validated_by_display(self, obj):
+        if obj.validated_by:
+            return obj.validated_by.get_display_name()
+        return None
+
+    validated_by_display.short_description = "Validated By"
+    validated_by_display.admin_order_field = "validated_by__first_name"
 
     def get_queryset(self, request):
         return (
@@ -582,10 +609,18 @@ class GeoreferenceValidationAdmin(admin.ModelAdmin):
 
 @admin.register(ImageSkip)
 class ImageSkipAdmin(admin.ModelAdmin):
-    list_display = ("image", "user", "reason", "skipped_at")
+    list_display = ("image", "user_display", "reason", "skipped_at")
     list_filter = ("user", "skipped_at", "reason")
-    search_fields = ("image__title", "user__username", "reason")
+    search_fields = ("image__title", "user__username", "user__first_name", "reason")
     readonly_fields = ("skipped_at",)
+
+    def user_display(self, obj):
+        if obj.user:
+            return obj.user.get_display_name()
+        return None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("image", "user")
