@@ -1,3 +1,5 @@
+/* This stylesheet is for both georeference interfaces, "point" and "from above" */
+
 /* Card layout */
 #primary-georeference-cards {
     padding-left: calc(var(--bs-gutter-x) * 0.5);
