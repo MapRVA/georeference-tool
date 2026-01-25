@@ -1,3 +1,20 @@
+/* Card layout */
+#primary-georeference-cards {
+    padding-left: calc(var(--bs-gutter-x) * 0.5);
+    padding-right: calc(var(--bs-gutter-x) * 0.5);
+}
+
+#image-preview-card {
+    flex: 0 1 auto;
+    max-width: 50em;
+}
+
+#georeference-card {
+    flex: 1 1 0;
+    min-width: min(100%, 50em);
+    max-width: 100em;
+}
+
 .advanced-toggle .fa-chevron-down {
     transition: transform 0.3s ease;
 }
