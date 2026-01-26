@@ -8,6 +8,33 @@ from .models import (
 )
 
 
+class UserDisplayNameFilter(admin.SimpleListFilter):
+    """
+    Custom filter that displays user display names instead of raw usernames.
+    """
+
+    title = "user"
+    parameter_name = "user"
+    field_name = "user"
+
+    def lookups(self, request, model_admin):
+        from django.contrib.auth.models import User
+
+        user_ids = (
+            model_admin.get_queryset(request)
+            .exclude(user=None)
+            .values_list("user", flat=True)
+            .distinct()
+        )
+        users = User.objects.filter(id__in=user_ids).order_by("first_name", "username")
+        return [(user.id, user.get_display_name()) for user in users]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(user=self.value())
+        return queryset
+
+
 class GeoreferenceGroupMemberInline(admin.TabularInline):
     model = GeoreferenceGroupMember
     extra = 0
@@ -20,12 +47,21 @@ class GeoreferenceGroupMemberInline(admin.TabularInline):
 
 @admin.register(GeoreferenceGroup)
 class GeoreferenceGroupAdmin(admin.ModelAdmin):
-    list_display = ("user", "count", "started_at", "ended_at")
-    list_filter = ("started_at", "ended_at")
+    list_display = ("user_display", "count", "started_at", "ended_at")
+    list_filter = (UserDisplayNameFilter, "started_at", "ended_at")
     search_fields = ("user__username", "user__first_name")
-    readonly_fields = ("user", "started_at", "ended_at", "count")
+    readonly_fields = ("user_display", "started_at", "ended_at", "count")
     ordering = ("-ended_at",)
     inlines = [GeoreferenceGroupMemberInline]
+    fields = ("user_display", "count", "started_at", "ended_at")
+
+    def user_display(self, obj):
+        if obj.user:
+            return obj.user.get_display_name()
+        return None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
 
     def has_add_permission(self, request):
         return False
@@ -44,11 +80,20 @@ class GeoreferenceGroupMemberAdmin(admin.ModelAdmin):
 
 @admin.register(UserMilestone)
 class UserMilestoneAdmin(admin.ModelAdmin):
-    list_display = ("user", "count", "reached_at")
-    list_filter = ("count", "reached_at")
+    list_display = ("user_display", "count", "reached_at")
+    list_filter = (UserDisplayNameFilter, "count", "reached_at")
     search_fields = ("user__username", "user__first_name")
-    readonly_fields = ("user", "count", "reached_at")
+    readonly_fields = ("user_display", "count", "reached_at")
     ordering = ("-reached_at",)
+    fields = ("user_display", "count", "reached_at")
+
+    def user_display(self, obj):
+        if obj.user:
+            return obj.user.get_display_name()
+        return None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
 
     def has_add_permission(self, request):
         return False

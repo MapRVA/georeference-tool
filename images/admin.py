@@ -1,6 +1,8 @@
 import json
 
+from django import forms
 from django.contrib import admin
+from django.contrib.auth.models import User
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
@@ -18,6 +20,101 @@ from .models import (
     Source,
     SubjectMapping,
 )
+
+
+class UserDisplayNameChoiceField(forms.ModelChoiceField):
+    """ModelChoiceField that displays user display names instead of usernames."""
+
+    def label_from_instance(self, obj):
+        return obj.get_display_name()
+
+
+class GeoreferenceAdminForm(forms.ModelForm):
+    georeferenced_by = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=False,
+    )
+
+    class Meta:
+        model = Georeference
+        fields = "__all__"
+
+
+class GeoreferenceValidationAdminForm(forms.ModelForm):
+    validated_by = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=False,
+    )
+
+    class Meta:
+        model = GeoreferenceValidation
+        fields = "__all__"
+
+
+class ImageSkipAdminForm(forms.ModelForm):
+    user = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=False,
+    )
+
+    class Meta:
+        model = ImageSkip
+        fields = "__all__"
+
+
+class UserDisplayNameFilter(admin.SimpleListFilter):
+    """
+    Custom filter that displays user display names instead of raw usernames.
+    """
+
+    title = "user"
+    parameter_name = "user_id"
+
+    def __init__(self, request, params, model, model_admin):
+        self.field_name = getattr(self, "field_name", "georeferenced_by")
+        super().__init__(request, params, model, model_admin)
+
+    def lookups(self, request, model_admin):
+        from django.contrib.auth.models import User
+
+        field_name = self.field_name
+        user_ids = (
+            model_admin.get_queryset(request)
+            .exclude(**{field_name: None})
+            .values_list(field_name, flat=True)
+            .distinct()
+        )
+        users = User.objects.filter(id__in=user_ids).order_by("first_name", "username")
+        return [(user.id, user.get_display_name()) for user in users]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(**{self.field_name: self.value()})
+        return queryset
+
+
+class GeoreferencedByFilter(UserDisplayNameFilter):
+    """Filter for the georeferenced_by field."""
+
+    title = "georeferenced by"
+    parameter_name = "georeferenced_by"
+    field_name = "georeferenced_by"
+
+
+class ValidatedByFilter(UserDisplayNameFilter):
+    """Filter for the validated_by field."""
+
+    title = "validated by"
+    parameter_name = "validated_by"
+    field_name = "validated_by"
+
+
+class SkippedByFilter(UserDisplayNameFilter):
+    """Filter for the user field on ImageSkip."""
+
+    title = "user"
+    parameter_name = "user"
+    field_name = "user"
 
 
 @admin.register(Source)
@@ -514,6 +611,7 @@ class ImageAdmin(admin.ModelAdmin):
 
 @admin.register(Georeference)
 class GeoreferenceAdmin(admin.ModelAdmin):
+    form = GeoreferenceAdminForm
     list_display = (
         "image",
         "point",
@@ -522,7 +620,7 @@ class GeoreferenceAdmin(admin.ModelAdmin):
         "georeferenced_at",
         "validation_count",
     )
-    list_filter = ("georeferenced_by", "georeferenced_at")
+    list_filter = (GeoreferencedByFilter, "georeferenced_at")
     search_fields = (
         "image__title",
         "image__collection__name",
@@ -549,10 +647,6 @@ class GeoreferenceAdmin(admin.ModelAdmin):
             form.base_fields["image"].widget.can_change_related = False
             form.base_fields["image"].widget.can_delete_related = False
 
-        # Make georeferenced_by not required to allow anonymous submissions
-        if "georeferenced_by" in form.base_fields:
-            form.base_fields["georeferenced_by"].required = False
-
         return form
 
     fieldsets = (
@@ -576,13 +670,14 @@ class GeoreferenceAdmin(admin.ModelAdmin):
 
 @admin.register(GeoreferenceValidation)
 class GeoreferenceValidationAdmin(admin.ModelAdmin):
+    form = GeoreferenceValidationAdminForm
     list_display = (
         "georeference",
         "validation",
         "validated_by_display",
         "validated_at",
     )
-    list_filter = ("validation", "validated_by", "validated_at")
+    list_filter = ("validation", ValidatedByFilter, "validated_at")
     search_fields = (
         "georeference__image__title",
         "validated_by__username",
@@ -609,8 +704,9 @@ class GeoreferenceValidationAdmin(admin.ModelAdmin):
 
 @admin.register(ImageSkip)
 class ImageSkipAdmin(admin.ModelAdmin):
+    form = ImageSkipAdminForm
     list_display = ("image", "user_display", "reason", "skipped_at")
-    list_filter = ("user", "skipped_at", "reason")
+    list_filter = (SkippedByFilter, "skipped_at", "reason")
     search_fields = ("image__title", "user__username", "user__first_name", "reason")
     readonly_fields = ("skipped_at",)
 
