@@ -4,6 +4,12 @@ import "../../styles/components/autocomplete.css";
 // Import image grid component (includes bulk selection and modal functionality)
 import { imageGrid } from "../components/image_grid.js";
 
+// Import album dropdown component for individual image cards
+import {
+  initAlbumDropdowns,
+  initCreateAlbumButton,
+} from "../components/album_dropdown.js";
+
 // Add x-cloak style to prevent flash of unstyled content
 const style = document.createElement("style");
 style.textContent = "[x-cloak] { display: none !important; }";
@@ -230,6 +236,18 @@ function getCsrfToken() {
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
+  // Initialize album dropdown functionality (uses event delegation for dynamic content)
+  if (window.filterConfig?.isAuthenticated && window.filterConfig?.urls) {
+    const albumConfig = {
+      userAlbumsApi: window.filterConfig.urls.userAlbumsApi,
+      addToAlbum: window.filterConfig.urls.addToAlbum,
+      removeFromAlbum: window.filterConfig.urls.removeFromAlbum,
+      createAlbum: window.filterConfig.urls.createAlbum,
+    };
+    initAlbumDropdowns(albumConfig, "#searchResultsWrapper");
+    initCreateAlbumButton(albumConfig);
+  }
+
   // Fetch all subjects from the API
   let allSubjects = [];
   let subjectMap = new Map();

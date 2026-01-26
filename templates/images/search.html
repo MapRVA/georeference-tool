@@ -19,7 +19,7 @@
 {% block extra_js %}
 {% if clip_available %}
 <script>
-    // Configuration object for bulk operations
+    // Configuration object for bulk operations and album dropdown
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
@@ -27,7 +27,11 @@
             bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}',
+            // Single-image album operations
+            addToAlbum: '{% url "images:add_image_to_album" %}',
+            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
+            createAlbum: '{% url "images:create_and_add_to_album" %}'
         }
     };
 </script>
@@ -273,6 +277,39 @@
                 <!-- Bulk Modals -->
                 {% if user.is_authenticated %}
                     {% include 'images/partials/bulk_modals.html' %}
+
+                    <!-- Create Album Modal (for individual image card dropdowns) -->
+                    <div class="modal fade" id="createAlbumModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Create New Album</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <input type="hidden" id="modalImageId" value="">
+                                    <div class="mb-3">
+                                        <label for="newAlbumTitle" class="form-label">Album Title</label>
+                                        <input type="text" class="form-control" id="newAlbumTitle" placeholder="Enter album title">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="newAlbumDescription" class="form-label">Description (optional)</label>
+                                        <textarea class="form-control" id="newAlbumDescription" rows="2" placeholder="Enter album description"></textarea>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="newAlbumPublic">
+                                        <label class="form-check-label" for="newAlbumPublic">
+                                            Make this album public
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="createAlbumBtn">Create Album</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
 
