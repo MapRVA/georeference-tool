@@ -586,7 +586,9 @@ class Georeference(models.Model):
 
     def __str__(self):
         by_user = (
-            self.georeferenced_by.username if self.georeferenced_by else "Anonymous"
+            self.georeferenced_by.get_display_name()
+            if self.georeferenced_by
+            else "Anonymous"
         )
         return f"Georeference for {self.image} by {by_user}"
 
@@ -659,7 +661,9 @@ class AerialGeoreference(models.Model):
 
     def __str__(self):
         by_user = (
-            self.georeferenced_by.username if self.georeferenced_by else "Anonymous"
+            self.georeferenced_by.get_display_name()
+            if self.georeferenced_by
+            else "Anonymous"
         )
         return f"Aerial Georeference for {self.image} by {by_user}"
 

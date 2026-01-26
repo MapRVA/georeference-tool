@@ -34,10 +34,31 @@ class GeoreferenceAdminForm(forms.ModelForm):
         queryset=User.objects.all().order_by("first_name", "username"),
         required=False,
     )
+    latitude = forms.FloatField(required=True)
+    longitude = forms.FloatField(required=True)
 
     class Meta:
         model = Georeference
         fields = "__all__"
+        exclude = ["point"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.point:
+            self.fields["latitude"].initial = self.instance.point.y
+            self.fields["longitude"].initial = self.instance.point.x
+
+    def save(self, commit=True):
+        from django.contrib.gis.geos import Point
+
+        instance = super().save(commit=False)
+        lat = self.cleaned_data.get("latitude")
+        lng = self.cleaned_data.get("longitude")
+        if lat is not None and lng is not None:
+            instance.point = Point(lng, lat, srid=4326)
+        if commit:
+            instance.save()
+        return instance
 
 
 class GeoreferenceValidationAdminForm(forms.ModelForm):
@@ -651,7 +672,7 @@ class GeoreferenceAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Image Information", {"fields": ("image",)}),
-        ("Coordinates", {"fields": ("point", "direction")}),
+        ("Coordinates", {"fields": ("latitude", "longitude", "direction")}),
         ("Attribution", {"fields": ("georeferenced_by", "confidence_notes")}),
         (
             "System Information",
