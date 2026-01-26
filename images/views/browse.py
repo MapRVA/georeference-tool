@@ -238,6 +238,11 @@ def source_detail(request, slug):
             id=top_rated_entry.image_id
         )
 
+    # Render markdown description
+    rendered_description = None
+    if source.description:
+        rendered_description = render_markdown_safe(source.description)
+
     context = {
         "source": source,
         "collections": collections,
@@ -255,6 +260,7 @@ def source_detail(request, slug):
         if total_images > 0
         else 0,
         "top_rated_image": top_rated_image,
+        "rendered_description": rendered_description,
     }
     return render(request, "images/source_detail.html", context)
 
@@ -397,6 +403,11 @@ def collection_detail(request, source_slug, collection_slug):
             id=top_rated_entry.image_id
         )
 
+    # Render markdown description
+    rendered_description = None
+    if collection.description:
+        rendered_description = render_markdown_safe(collection.description)
+
     context = {
         "source": source,
         "collection": collection,
@@ -408,6 +419,7 @@ def collection_detail(request, source_slug, collection_slug):
         if total_images > 0
         else 0,
         "top_rated_image": top_rated_image,
+        "rendered_description": rendered_description,
     }
     return render(request, "images/collection_detail.html", context)
 

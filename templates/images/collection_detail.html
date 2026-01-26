@@ -80,8 +80,8 @@
                             <i class="fas fa-archive me-1"></i>
                             from <a href="{{ source.get_absolute_url }}" class="text-decoration-none">{{ source.name }}</a>
                         </p>
-                        {% if collection.description %}
-                            <p class="card-text text-muted">{{ collection.description }}</p>
+                        {% if rendered_description %}
+                            <div class="card-text text-muted markdown-content">{{ rendered_description|safe }}</div>
                         {% endif %}
                         <a href="{{ collection.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-external-link-alt me-1"></i>Visit Original Collection
