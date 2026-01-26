@@ -38,12 +38,13 @@
 }
 
 .autoComplete_wrapper > ul > li:hover {
-    background-color: var(--bs-tertiary-bg);
+    /* Use !important to override library defaults regardless of CSS load order */
+    background-color: var(--bs-tertiary-bg) !important;
 }
 
 .autoComplete_wrapper > ul > li[aria-selected="true"] {
-    background-color: var(--bs-primary);
-    color: white;
+    background-color: var(--bs-primary) !important;
+    color: white !important;
 }
 
 /* Highlight matched text */
