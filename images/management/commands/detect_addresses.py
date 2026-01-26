@@ -161,6 +161,10 @@ class Command(BaseCommand):
         no_match_count = 0
         geocoded_count = 0
         geocode_failed_count = 0
+        cache_hit_count = 0
+
+        # Cache for parsed addresses -> (latitude, longitude) or None for failed geocodes
+        address_cache = {}
 
         # Use tqdm for progress bar
         progress_bar = tqdm(
@@ -181,24 +185,53 @@ class Command(BaseCommand):
                 )
 
                 if not dry_run:
-                    # Geocode the address
-                    location = self.geocode_address(geocode, address, progress_bar)
-
-                    if location:
-                        # Save to database
-                        point = Point(location.longitude, location.latitude, srid=4326)
-                        image.detected_address = point
-                        image.save(update_fields=["detected_address"])
-                        geocoded_count += 1
-                        progress_bar.write(
-                            f"    -> {self.style.SUCCESS('GEOCODED')}: "
-                            f"({location.latitude:.6f}, {location.longitude:.6f})"
-                        )
+                    # Check cache first
+                    if address in address_cache:
+                        cached_coords = address_cache[address]
+                        if cached_coords:
+                            lat, lon = cached_coords
+                            point = Point(lon, lat, srid=4326)
+                            image.detected_address = point
+                            image.save(update_fields=["detected_address"])
+                            cache_hit_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.SUCCESS('CACHED')}: "
+                                f"({lat:.6f}, {lon:.6f})"
+                            )
+                        else:
+                            # Cached as failed
+                            geocode_failed_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.WARNING('GEOCODE FAILED')} (cached)"
+                            )
                     else:
-                        geocode_failed_count += 1
-                        progress_bar.write(
-                            f"    -> {self.style.WARNING('GEOCODE FAILED')}"
-                        )
+                        # Geocode the address
+                        location = self.geocode_address(geocode, address, progress_bar)
+
+                        if location:
+                            # Cache the result
+                            address_cache[address] = (
+                                location.latitude,
+                                location.longitude,
+                            )
+                            # Save to database
+                            point = Point(
+                                location.longitude, location.latitude, srid=4326
+                            )
+                            image.detected_address = point
+                            image.save(update_fields=["detected_address"])
+                            geocoded_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.SUCCESS('GEOCODED')}: "
+                                f"({location.latitude:.6f}, {location.longitude:.6f})"
+                            )
+                        else:
+                            # Cache the failure
+                            address_cache[address] = None
+                            geocode_failed_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.WARNING('GEOCODE FAILED')}"
+                            )
             else:
                 no_match_count += 1
                 if options["verbosity"] >= 2:
@@ -212,6 +245,7 @@ class Command(BaseCommand):
         self.stdout.write(f"No address found: {no_match_count}")
         if not dry_run:
             self.stdout.write(f"Successfully geocoded: {geocoded_count}")
+            self.stdout.write(f"From cache: {cache_hit_count}")
             self.stdout.write(f"Geocoding failed: {geocode_failed_count}")
         self.stdout.write(f"Total images: {image_count}")
 
