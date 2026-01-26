@@ -161,7 +161,8 @@ def georeference_interface(request):
             collection = current_image.collection
 
     # Build location hint data for the map
-    # Priority: 1) Previous georeference (for corrections), 2) Source point (from archive metadata)
+    # Priority: 1) Previous georeference (for corrections), 2) Source point (from archive metadata),
+    # 3) Detected address (from address parsing)
     location_hint = None
     if current_image:
         existing_georef = current_image.get_georeference()
@@ -180,6 +181,14 @@ def georeference_interface(request):
                 "lng": current_image.source_point.x,
                 "direction": None,
                 "label": "Hint From Source",
+            }
+        elif current_image.detected_address:
+            location_hint = {
+                "type": "detected",
+                "lat": current_image.detected_address.y,
+                "lng": current_image.detected_address.x,
+                "direction": None,
+                "label": "Detected Address",
             }
 
     context = {

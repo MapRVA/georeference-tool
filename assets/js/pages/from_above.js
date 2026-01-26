@@ -84,6 +84,10 @@ function aerialsPage() {
           return;
         }
 
+        // Get Bootstrap CSS variable colors for polygon styling
+        const styles = getComputedStyle(document.documentElement);
+        const primaryColor = styles.getPropertyValue("--bs-primary").trim();
+
         // Add GeoJSON source to map
         this.map.addSource("aerial-georeferences", {
           type: "geojson",
@@ -96,7 +100,7 @@ function aerialsPage() {
           type: "fill",
           source: "aerial-georeferences",
           paint: {
-            "fill-color": "#0d6efd",
+            "fill-color": primaryColor,
             "fill-opacity": 0.2,
           },
         });
@@ -107,7 +111,7 @@ function aerialsPage() {
           type: "line",
           source: "aerial-georeferences",
           paint: {
-            "line-color": "#0d6efd",
+            "line-color": primaryColor,
             "line-width": 2,
           },
         });
@@ -315,12 +319,18 @@ function aerialsPage() {
         this.filterMarker.remove();
       }
 
+      // Get Bootstrap primary color for the marker
+      const styles = getComputedStyle(document.documentElement);
+      const primaryColor =
+        styles.getPropertyValue("--bs-primary").trim() || "#0d6efd";
+      // Encode the color for use in SVG data URI
+      const encodedColor = encodeURIComponent(primaryColor);
+
       // Create marker element
       const el = document.createElement("div");
       el.style.width = "20px";
       el.style.height = "20px";
-      el.style.backgroundImage =
-        'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiMwZDZlZmQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+")';
+      el.style.backgroundImage = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='${encodedColor}' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E")`;
       el.style.backgroundSize = "contain";
       el.style.cursor = "pointer";
 

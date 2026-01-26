@@ -431,33 +431,33 @@ def browse_subjects(request):
     subjects = (
         Subject.objects.all()
         .select_related("wikidata_item")
-        .prefetch_related("image_mappings__image")
+        .annotate(
+            total_images=models.Count(
+                "image_mappings",
+                filter=Q(
+                    image_mappings__image__duplicate_of__isnull=True,
+                    image_mappings__image__collection__public=True,
+                    image_mappings__image__collection__source__public=True,
+                ),
+            ),
+            georeferenced_images=models.Count(
+                "image_mappings",
+                filter=Q(
+                    image_mappings__image__duplicate_of__isnull=True,
+                    image_mappings__image__collection__public=True,
+                    image_mappings__image__collection__source__public=True,
+                    image_mappings__image__georeferences__isnull=False,
+                ),
+                distinct=True,
+            ),
+        )
+        .filter(total_images__gt=0)
+        .order_by("-total_images", "title")
     )
 
-    # Add statistics for each subject
+    # Calculate pending_images for each subject (needed by template)
     for subject in subjects:
-        # Count images associated with this subject (excluding duplicates)
-        subject.total_images = subject.image_mappings.filter(
-            image__duplicate_of__isnull=True,
-            image__collection__public=True,
-            image__collection__source__public=True,
-        ).count()
-        subject.georeferenced_images = (
-            subject.image_mappings.filter(
-                image__duplicate_of__isnull=True,
-                image__collection__public=True,
-                image__collection__source__public=True,
-                image__georeferences__isnull=False,
-            )
-            .distinct()
-            .count()
-        )
-
         subject.pending_images = subject.total_images - subject.georeferenced_images
-
-    # Filter out subjects with no images and sort by total_images in descending order, then by title
-    subjects = [s for s in subjects if s.total_images > 0]
-    subjects = sorted(subjects, key=lambda s: (-s.total_images, s.title))
 
     # Calculate overall statistics
     total_subjects = len(subjects)

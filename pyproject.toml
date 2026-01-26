@@ -15,6 +15,7 @@ dependencies = [
     "django-ratelimit>=4.1.0",
     "django-vite>=3.1.0",
     "edtf>=5.0.0",
+    "geopy>=2.4.1",
     "markdown>=3.10",
     "nh3>=0.3.2",
     "osm-login-python>=2.1.0",
