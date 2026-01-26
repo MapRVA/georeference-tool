@@ -825,6 +825,6 @@ admin.site.register(Image, ImageAdminUpdated)
 
 
 # Custom admin site configuration
-admin.site.site_header = "Image Georeferencing Admin"
-admin.site.site_title = "Georef Admin"
-admin.site.index_title = "Georeferencing Administration"
+admin.site.site_header = "Yesterdays Admin"
+admin.site.site_title = "Yesterdays Admin"
+admin.site.index_title = "Yesterdays Administration"
