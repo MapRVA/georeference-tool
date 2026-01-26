@@ -245,7 +245,7 @@
             </div>
 
             <!-- Search results with bulk selection support -->
-            <div x-data="imageGrid()" id="searchResultsWrapper">
+            <div x-data="searchGrid()" id="searchResultsWrapper">
                 <!-- Bulk Actions Toolbar (shows after search results) -->
                 <div id="bulkActionsContainer" style="display: none;">
                     {% include 'images/partials/grid_toolbar_no_filters.html' %}
@@ -253,6 +253,22 @@
 
                 <!-- Search results -->
                 <div id="searchResults"></div>
+
+                <!-- Load More Button -->
+                <div class="text-center my-4">
+                    <button x-show="hasMore && !loading"
+                            x-cloak
+                            @mousedown="prefetchMore"
+                            @click="loadMore"
+                            class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-down me-2"></i>Load More
+                    </button>
+                    <div x-show="loading" x-cloak>
+                        <div class="spinner-border text-secondary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Bulk Modals -->
                 {% if user.is_authenticated %}

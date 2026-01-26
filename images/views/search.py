@@ -207,7 +207,10 @@ def _get_image_embedding(image):
 @ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 @require_http_methods(["GET", "POST"])
 def semantic_search(request):
-    """API endpoint for semantic search using CLIP embeddings"""
+    """API endpoint for semantic search using CLIP embeddings.
+
+    Supports format=html parameter to return rendered HTML cards instead of JSON.
+    """
     if not CLIP_AVAILABLE:
         return JsonResponse(
             {
@@ -216,6 +219,9 @@ def semantic_search(request):
             },
             status=503,
         )
+
+    # Check if HTML format is requested
+    return_html = request.GET.get("format") == "html"
 
     # Get search query
     if request.method == "POST":
@@ -507,40 +513,71 @@ def semantic_search(request):
                 # Skip if image was deleted between query and retrieval
                 continue
 
-            result = {
-                "id": image_id,
-                "title": title,
-                "permalink": permalink,
-                "thumbnail": image.thumbnail if image.thumbnail else permalink,
-                "original_date": str(original_date) if original_date else None,
-                "edtf_date": str(edtf_date) if edtf_date else None,
-                "distance": float(distance),
-                "similarity": 1.0 - float(distance),  # Convert distance to similarity
-                "collection": {
-                    "name": image.collection.name,
-                    "slug": image.collection.slug,
-                },
-                "source": {
-                    "name": image.collection.source.name,
-                    "slug": image.collection.source.slug,
-                },
-                "detail_url": f"/{image_id}/",
-                "georeferenced": image.is_georeferenced,
-                "will_not_georef": image.will_not_georef,
-            }
+            similarity = 1.0 - float(distance)
+            similarity_score = round(similarity * 100)
 
-            # Add georeference data if available
-            if image.is_georeferenced:
-                georeference = image.get_georeference()
-                if georeference:
-                    result["georeference"] = {
-                        "latitude": georeference.point.y,
-                        "longitude": georeference.point.x,
-                        "direction": georeference.direction,
-                        "confidence": georeference.confidence,
+            if return_html:
+                # For HTML format, store image object and similarity score
+                search_results.append(
+                    {
+                        "image": image,
+                        "similarity_score": similarity_score,
                     }
+                )
+            else:
+                # For JSON format, build full result dict
+                result = {
+                    "id": image_id,
+                    "title": title,
+                    "permalink": permalink,
+                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                    "original_date": str(original_date) if original_date else None,
+                    "edtf_date": str(edtf_date) if edtf_date else None,
+                    "distance": float(distance),
+                    "similarity": similarity,
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image_id}/",
+                    "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
+                }
 
-            search_results.append(result)
+                # Add georeference data if available
+                if image.is_georeferenced:
+                    georeference = image.get_georeference()
+                    if georeference:
+                        result["georeference"] = {
+                            "latitude": georeference.point.y,
+                            "longitude": georeference.point.x,
+                            "direction": georeference.direction,
+                            "confidence": georeference.confidence,
+                        }
+
+                search_results.append(result)
+
+        # Calculate if there are more results
+        # Use both total_count check AND actual results length to be safe
+        # (handles edge cases where items are filtered out)
+        has_more = (page * limit) < total_count and len(search_results) >= limit
+
+        if return_html:
+            # Return rendered HTML partial
+            return render(
+                request,
+                "images/partials/search_results_items.html",
+                {
+                    "results": search_results,
+                    "has_more": has_more,
+                    "total_count": total_count,
+                    "page": page,
+                },
+            )
 
         return JsonResponse(
             {
@@ -849,7 +886,10 @@ def _generate_highlighted_snippet(text, query, max_length=200):
 @ratelimit(key="ip", rate="100/5m", method=["GET", "POST"])  # 20/min burst
 @require_http_methods(["GET", "POST"])
 def text_search(request):
-    """API endpoint for text search using PostgreSQL trigram word similarity."""
+    """API endpoint for text search using PostgreSQL trigram word similarity.
+
+    Supports format=html parameter to return rendered HTML cards instead of JSON.
+    """
     if not HAS_POSTGRES_SEARCH:
         return JsonResponse(
             {
@@ -858,6 +898,9 @@ def text_search(request):
             },
             status=503,
         )
+
+    # Check if HTML format is requested
+    return_html = request.GET.get("format") == "html"
 
     # Get search query
     if request.method == "POST":
@@ -1115,28 +1158,58 @@ def text_search(request):
             if not image:
                 continue
 
-            result = {
-                "id": image_id,
-                "title": title,
-                "permalink": permalink,
-                "thumbnail": image.thumbnail if image.thumbnail else permalink,
-                "original_date": str(original_date) if original_date else None,
-                "edtf_date": str(edtf_date) if edtf_date else None,
-                "similarity": 1.0
-                - float(distance),  # Convert distance back to similarity
-                "collection": {
-                    "name": image.collection.name,
-                    "slug": image.collection.slug,
+            similarity = 1.0 - float(distance)
+            similarity_score = round(similarity * 100)
+
+            if return_html:
+                # For HTML format, store image object and similarity score
+                search_results.append(
+                    {
+                        "image": image,
+                        "similarity_score": similarity_score,
+                    }
+                )
+            else:
+                # For JSON format, build full result dict
+                result = {
+                    "id": image_id,
+                    "title": title,
+                    "permalink": permalink,
+                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                    "original_date": str(original_date) if original_date else None,
+                    "edtf_date": str(edtf_date) if edtf_date else None,
+                    "similarity": similarity,
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image.id}/",
+                    "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
+                }
+                search_results.append(result)
+
+        # Calculate if there are more results
+        # Use both total_count check AND actual results length to be safe
+        # (handles edge cases where items are filtered out)
+        has_more = (page * limit) < total_count and len(search_results) >= limit
+
+        if return_html:
+            # Return rendered HTML partial
+            return render(
+                request,
+                "images/partials/search_results_items.html",
+                {
+                    "results": search_results,
+                    "has_more": has_more,
+                    "total_count": total_count,
+                    "page": page,
                 },
-                "source": {
-                    "name": image.collection.source.name,
-                    "slug": image.collection.source.slug,
-                },
-                "detail_url": f"/{image.id}/",
-                "georeferenced": image.is_georeferenced,
-                "will_not_georef": image.will_not_georef,
-            }
-            search_results.append(result)
+            )
 
         return JsonResponse(
             {
@@ -1168,8 +1241,16 @@ def text_search(request):
 @login_required
 @require_http_methods(["POST"])
 def reverse_image_search(request):
-    """API endpoint for reverse image search using CLIP embeddings - requires authentication"""
+    """API endpoint for reverse image search using CLIP embeddings - requires authentication.
+
+    Supports format=html parameter to return rendered HTML cards instead of JSON.
+    """
     MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
+    # Check if HTML format is requested (check both GET and POST for multipart forms)
+    return_html = (
+        request.GET.get("format") == "html" or request.POST.get("format") == "html"
+    )
 
     if not CLIP_AVAILABLE:
         return JsonResponse(
@@ -1469,40 +1550,71 @@ def reverse_image_search(request):
                 # Skip if image was deleted between query and retrieval
                 continue
 
-            result = {
-                "id": image_id,
-                "title": title,
-                "permalink": permalink,
-                "thumbnail": image.thumbnail if image.thumbnail else permalink,
-                "original_date": str(original_date) if original_date else None,
-                "edtf_date": str(edtf_date) if edtf_date else None,
-                "distance": float(distance),
-                "similarity": 1.0 - float(distance),  # Convert distance to similarity
-                "collection": {
-                    "name": image.collection.name,
-                    "slug": image.collection.slug,
-                },
-                "source": {
-                    "name": image.collection.source.name,
-                    "slug": image.collection.source.slug,
-                },
-                "detail_url": f"/{image_id}/",
-                "georeferenced": image.is_georeferenced,
-                "will_not_georef": image.will_not_georef,
-            }
+            similarity = 1.0 - float(distance)
+            similarity_score = round(similarity * 100)
 
-            # Add georeference data if available
-            if image.is_georeferenced:
-                georeference = image.get_georeference()
-                if georeference:
-                    result["georeference"] = {
-                        "latitude": georeference.point.y,
-                        "longitude": georeference.point.x,
-                        "direction": georeference.direction,
-                        "confidence": georeference.confidence,
+            if return_html:
+                # For HTML format, store image object and similarity score
+                search_results.append(
+                    {
+                        "image": image,
+                        "similarity_score": similarity_score,
                     }
+                )
+            else:
+                # For JSON format, build full result dict
+                result = {
+                    "id": image_id,
+                    "title": title,
+                    "permalink": permalink,
+                    "thumbnail": image.thumbnail if image.thumbnail else permalink,
+                    "original_date": str(original_date) if original_date else None,
+                    "edtf_date": str(edtf_date) if edtf_date else None,
+                    "distance": float(distance),
+                    "similarity": similarity,
+                    "collection": {
+                        "name": image.collection.name,
+                        "slug": image.collection.slug,
+                    },
+                    "source": {
+                        "name": image.collection.source.name,
+                        "slug": image.collection.source.slug,
+                    },
+                    "detail_url": f"/{image_id}/",
+                    "georeferenced": image.is_georeferenced,
+                    "will_not_georef": image.will_not_georef,
+                }
 
-            search_results.append(result)
+                # Add georeference data if available
+                if image.is_georeferenced:
+                    georeference = image.get_georeference()
+                    if georeference:
+                        result["georeference"] = {
+                            "latitude": georeference.point.y,
+                            "longitude": georeference.point.x,
+                            "direction": georeference.direction,
+                            "confidence": georeference.confidence,
+                        }
+
+                search_results.append(result)
+
+        # Calculate if there are more results
+        # Use both total_count check AND actual results length to be safe
+        # (handles edge cases where items are filtered out)
+        has_more = (page * limit) < total_count and len(search_results) >= limit
+
+        if return_html:
+            # Return rendered HTML partial
+            return render(
+                request,
+                "images/partials/search_results_items.html",
+                {
+                    "results": search_results,
+                    "has_more": has_more,
+                    "total_count": total_count,
+                    "page": page,
+                },
+            )
 
         return JsonResponse(
             {

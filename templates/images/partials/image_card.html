@@ -1,5 +1,5 @@
 {% load image_tags %}
-<div class="col-lg-3 col-md-4 col-sm-6 mb-4"
+<div class="col-lg-3 col-md-4 col-sm-6 mb-4 image-card-wrapper"
      data-image-id="{{ image.id }}"
      x-init="$dispatch('image-registered', { id: {{ image.id }} })">
     <div class="card h-100 shadow-sm image-card"
@@ -20,42 +20,64 @@
             {% if badges %}
             <template x-if="!selectionMode">
                 <div>
-                    {% if image.will_not_georef %}
-                        <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-ban"></i> Skip
-                        </span>
-                    {% elif image.aerial and image.get_aerial_georeference %}
-                        <span class="badge bg-success position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-map-marker-alt"></i> Georeferenced
-                        </span>
-                    {% elif not image.aerial and image.is_georeferenced %}
-                        <span class="badge bg-success position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-map-marker-alt"></i> Georeferenced
-                        </span>
-                    {% elif image.duplicate_of %}
-                        <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-copy"></i> Duplicate
+                    <!-- Similarity Score Badge (for search results) -->
+                    {% if similarity_score is not None %}
+                        <span class="badge position-absolute top-0 end-0 m-2 {% if similarity_score > 80 %}bg-success{% elif similarity_score > 60 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="z-index: 10;">
+                            {{ similarity_score }}% match
                         </span>
                     {% else %}
-                        <span class="badge bg-warning position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-clock"></i> Available
-                        </span>
+                        {% if image.will_not_georef %}
+                            <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
+                                <i class="fas fa-ban"></i> Skip
+                            </span>
+                        {% elif image.aerial and image.get_aerial_georeference %}
+                            <span class="badge bg-success position-absolute top-0 end-0 m-2">
+                                <i class="fas fa-map-marker-alt"></i> Georeferenced
+                            </span>
+                        {% elif not image.aerial and image.is_georeferenced %}
+                            <span class="badge bg-success position-absolute top-0 end-0 m-2">
+                                <i class="fas fa-map-marker-alt"></i> Georeferenced
+                            </span>
+                        {% elif image.duplicate_of %}
+                            <span class="badge bg-secondary position-absolute top-0 end-0 m-2">
+                                <i class="fas fa-copy"></i> Duplicate
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning position-absolute top-0 end-0 m-2">
+                                <i class="fas fa-clock"></i> Available
+                            </span>
+                        {% endif %}
                     {% endif %}
 
-                    <!-- Aerial Indicator and Difficulty Badge -->
-                    {% if image.difficulty or image.aerial %}
-                        <div class="position-absolute top-0 start-0 m-2 d-flex gap-1">
-                            {% if image.aerial %}
-                                <span class="badge bg-success" title="Aerial image">
-                                    <i class="fas fa-plane"></i>
+                    <!-- Georeferenced indicator (top-left when similarity shown, otherwise part of aerial/difficulty badges) -->
+                    {% if similarity_score is not None %}
+                        <div class="position-absolute top-0 start-0 m-2 d-flex gap-1" style="z-index: 10;">
+                            {% if image.is_georeferenced %}
+                                <span class="badge bg-success" title="Georeferenced">
+                                    <i class="fas fa-map-marker-alt"></i>
                                 </span>
-                            {% endif %}
-                            {% if image.difficulty %}
-                                <span class="badge {% if image.difficulty == 'easy' %}bg-success{% elif image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
-                                    {{ image.difficulty|capfirst }}
+                            {% elif image.will_not_georef %}
+                                <span class="badge bg-secondary" title="Will not georeference">
+                                    <i class="fas fa-ban"></i>
                                 </span>
                             {% endif %}
                         </div>
+                    {% else %}
+                        <!-- Aerial Indicator and Difficulty Badge -->
+                        {% if image.difficulty or image.aerial %}
+                            <div class="position-absolute top-0 start-0 m-2 d-flex gap-1">
+                                {% if image.aerial %}
+                                    <span class="badge bg-success" title="Aerial image">
+                                        <i class="fas fa-plane"></i>
+                                    </span>
+                                {% endif %}
+                                {% if image.difficulty %}
+                                    <span class="badge {% if image.difficulty == 'easy' %}bg-success{% elif image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ image.difficulty|capfirst }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     {% endif %}
                 </div>
             </template>
