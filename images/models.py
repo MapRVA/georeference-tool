@@ -317,6 +317,12 @@ class Image(models.Model):
         spatial_index=False,
         help_text="Location hint from source metadata (e.g., embedded coordinates from archive)",
     )
+    detected_address = gis_models.PointField(
+        null=True,
+        blank=True,
+        spatial_index=False,
+        help_text="Location detected from address parsing in image metadata",
+    )
     duplicate_of = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,

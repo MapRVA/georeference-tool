@@ -239,6 +239,15 @@ document.addEventListener("DOMContentLoaded", function () {
           },
         });
 
+        // Determine hint colors based on type
+        // georeference = yellow, source = teal, detected = purple
+        const hintColors = {
+          georeference: { circle: "#ffc107", text: "#856404" },
+          source: { circle: "#17a2b8", text: "#0c5460" },
+          detected: { circle: "#9b59b6", text: "#6c3483" },
+        };
+        const hintColor = hintColors[locationHint.type] || hintColors.source;
+
         // Add a pulsing circle for the hint (larger, semi-transparent)
         map.addLayer({
           id: "location-hint-pulse",
@@ -246,11 +255,9 @@ document.addEventListener("DOMContentLoaded", function () {
           source: "location-hint",
           paint: {
             "circle-radius": 25,
-            "circle-color":
-              locationHint.type === "georeference" ? "#ffc107" : "#17a2b8",
+            "circle-color": hintColor.circle,
             "circle-opacity": 0.3,
-            "circle-stroke-color":
-              locationHint.type === "georeference" ? "#ffc107" : "#17a2b8",
+            "circle-stroke-color": hintColor.circle,
             "circle-stroke-width": 2,
             "circle-stroke-opacity": 0.6,
           },
@@ -269,8 +276,7 @@ document.addEventListener("DOMContentLoaded", function () {
             "text-anchor": "top",
           },
           paint: {
-            "text-color":
-              locationHint.type === "georeference" ? "#856404" : "#0c5460",
+            "text-color": hintColor.text,
             "text-halo-color": "#fff",
             "text-halo-width": 2,
           },
