@@ -27,6 +27,10 @@ import "./filter_cards.js";
 // Import notifications for toast messages
 import "./notifications.js";
 
+// Import album dropdown component - it auto-initializes on DOMContentLoaded
+// with hardcoded API URLs, so no configuration needed
+import "./album_dropdown.js";
+
 /**
  * Alpine.js component for image grid state management
  */

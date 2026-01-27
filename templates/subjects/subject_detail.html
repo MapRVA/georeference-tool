@@ -18,7 +18,7 @@
 {% block extra_js %}
 {% load static %}
 <script>
-    // Configuration object for filter_cards.html bulk operations
+    // Configuration object for filter_cards.html bulk operations and album dropdown
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
@@ -26,7 +26,11 @@
             bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}',
+            // Single-image album operations
+            addToAlbum: '{% url "images:add_image_to_album" %}',
+            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
+            createAlbum: '{% url "images:create_and_add_to_album" %}'
         }
     };
 </script>

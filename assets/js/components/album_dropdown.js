@@ -3,25 +3,33 @@
  *
  * Handles the album add/remove dropdown functionality for image cards.
  * Uses event delegation so it works with dynamically loaded content.
+ *
+ * This component is fully self-contained - it auto-initializes on DOMContentLoaded
+ * and uses hardcoded API URLs that match the Django backend.
  */
+
+// Hardcoded API URLs - these are stable endpoints in the Django backend
+const ALBUM_URLS = {
+  userAlbumsApi: "/api/v1/user-albums/",
+  addToAlbum: "/api/v1/add-to-album/",
+  removeFromAlbum: "/api/v1/remove-from-album/",
+  createAlbum: "/api/v1/create-and-add-to-album/",
+};
+
+// Track whether we've initialized (only need to do once)
+let initialized = false;
 
 /**
  * Initialize album dropdown handlers using event delegation.
- * Call this once on page load - it will handle all current and future dropdowns.
- *
- * @param {Object} config - Configuration object with URLs
- * @param {string} config.userAlbumsApi - URL to fetch user's albums
- * @param {string} config.addToAlbum - URL to add image to album
- * @param {string} config.removeFromAlbum - URL to remove image from album
- * @param {string} config.createAlbum - URL to create new album and add image
- * @param {string} [containerSelector='body'] - Selector for the container to attach delegation to
+ * Called automatically on DOMContentLoaded.
+ * Uses event delegation on document.body so it works with dynamically loaded content.
  */
-export function initAlbumDropdowns(config, containerSelector = "body") {
-  const container = document.querySelector(containerSelector);
-  if (!container) return;
+function initAlbumDropdowns() {
+  if (initialized) return;
+  initialized = true;
 
   // Use event delegation for dropdown toggles
-  container.addEventListener("click", function (e) {
+  document.body.addEventListener("click", function (e) {
     // Check if click is on a dropdown toggle inside an image card
     const toggleButton = e.target.closest(
       ".image-card .dropdown-toggle[data-image-id]",
@@ -36,11 +44,11 @@ export function initAlbumDropdowns(config, containerSelector = "body") {
     if (!imageId) return;
 
     // Fetch user's albums and populate dropdown
-    fetchAndPopulateAlbums(dropdownMenu, imageId, config);
+    fetchAndPopulateAlbums(dropdownMenu, imageId);
   });
 
   // Use event delegation for album option clicks
-  container.addEventListener("click", function (e) {
+  document.body.addEventListener("click", function (e) {
     const albumOption = e.target.closest(".album-dropdown .album-option");
     if (!albumOption) return;
 
@@ -50,14 +58,14 @@ export function initAlbumDropdowns(config, containerSelector = "body") {
     const isInAlbum = albumOption.dataset.inAlbum === "true";
 
     if (isInAlbum) {
-      removeImageFromAlbum(imageId, albumId, config);
+      removeImageFromAlbum(imageId, albumId);
     } else {
-      addImageToAlbum(imageId, albumId, config);
+      addImageToAlbum(imageId, albumId);
     }
   });
 
   // Use event delegation for create album modal trigger
-  container.addEventListener("click", function (e) {
+  document.body.addEventListener("click", function (e) {
     const createLink = e.target.closest(
       '.album-dropdown [data-bs-target="#createAlbumModal"]',
     );
@@ -82,17 +90,19 @@ export function initAlbumDropdowns(config, containerSelector = "body") {
       modal.show();
     }
   });
+
+  // Set up the create album button handler
+  initCreateAlbumButton();
 }
 
 /**
  * Set up the create album button handler
- *
- * @param {Object} config - Configuration object with URLs
  */
-export function initCreateAlbumButton(config) {
+function initCreateAlbumButton() {
   const createAlbumBtn = document.getElementById("createAlbumBtn");
-  if (!createAlbumBtn) return;
+  if (!createAlbumBtn || createAlbumBtn._hasClickHandler) return;
 
+  createAlbumBtn._hasClickHandler = true;
   createAlbumBtn.addEventListener("click", function () {
     const modalImageId = document.getElementById("modalImageId");
     const newAlbumTitle = document.getElementById("newAlbumTitle");
@@ -117,7 +127,7 @@ export function initCreateAlbumButton(config) {
 
     const csrfToken = getCsrfToken();
 
-    fetch(config.createAlbum, {
+    fetch(ALBUM_URLS.createAlbum, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -149,10 +159,8 @@ export function initCreateAlbumButton(config) {
 /**
  * Fetch albums and populate the dropdown menu
  */
-function fetchAndPopulateAlbums(dropdownMenu, imageId, config) {
-  const apiUrl = config.userAlbumsApi || "/api/v1/albums/user/";
-
-  fetch(`${apiUrl}?image_id=${imageId}`)
+function fetchAndPopulateAlbums(dropdownMenu, imageId) {
+  fetch(`${ALBUM_URLS.userAlbumsApi}?image_id=${imageId}`)
     .then((response) => response.json())
     .then((data) => {
       let html = "";
@@ -185,11 +193,10 @@ function fetchAndPopulateAlbums(dropdownMenu, imageId, config) {
 /**
  * Add an image to an album
  */
-function addImageToAlbum(imageId, albumId, config) {
-  const apiUrl = config.addToAlbum || "/api/v1/albums/add/";
+function addImageToAlbum(imageId, albumId) {
   const csrfToken = getCsrfToken();
 
-  fetch(apiUrl, {
+  fetch(ALBUM_URLS.addToAlbum, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -220,11 +227,10 @@ function addImageToAlbum(imageId, albumId, config) {
 /**
  * Remove an image from an album
  */
-function removeImageFromAlbum(imageId, albumId, config) {
-  const apiUrl = config.removeFromAlbum || "/api/v1/albums/remove/";
+function removeImageFromAlbum(imageId, albumId) {
   const csrfToken = getCsrfToken();
 
-  fetch(apiUrl, {
+  fetch(ALBUM_URLS.removeFromAlbum, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -253,16 +259,20 @@ function removeImageFromAlbum(imageId, albumId, config) {
 }
 
 /**
- * Get CSRF token from form input or cookie
+ * Get CSRF token - uses global utility from index.js if available
  */
 function getCsrfToken() {
-  // First try to get from a form input
+  // Use global getCsrfToken if available
+  if (typeof window.getCsrfToken === "function") {
+    return window.getCsrfToken();
+  }
+
+  // Fallback: try form input first, then cookie
   const inputToken = document.querySelector(
     "[name=csrfmiddlewaretoken]",
   )?.value;
   if (inputToken) return inputToken;
 
-  // Fall back to reading from cookie
   const name = "csrftoken";
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -313,3 +323,14 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// Auto-initialize on DOMContentLoaded
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAlbumDropdowns);
+} else {
+  // DOM already loaded, initialize immediately
+  initAlbumDropdowns();
+}
+
+// Also export for manual initialization if needed
+export { initAlbumDropdowns };

@@ -191,6 +191,32 @@ window.bootstrap = bootstrap;
 // Make Alpine globally available for page scripts to register components
 window.Alpine = Alpine;
 
+/**
+ * Global CSRF token utility - available throughout the app
+ */
+window.getCsrfToken = function () {
+  // First try to get from a form input
+  const inputToken = document.querySelector(
+    "[name=csrfmiddlewaretoken]",
+  )?.value;
+  if (inputToken) return inputToken;
+
+  // Fall back to reading from cookie
+  const name = "csrftoken";
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== "") {
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === name + "=") {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
 // Start Alpine on DOMContentLoaded after all page scripts have registered their components.
 // This ensures the load order is:
 // 1. index.js loads and sets window.Alpine

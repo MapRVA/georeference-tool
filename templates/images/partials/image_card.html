@@ -140,7 +140,7 @@
                     <!-- Album Dropdown (always shown if user is authenticated) -->
                     {% if user.is_authenticated %}
                         <div class="dropdown">
-                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-image-id="{{ image.id }}" data-image-title="{% if image.title %}{{ image.title|escapejs }}{% else %}Image #{{ image.id }}{% endif %}">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-image-id="{{ image.id }}" data-image-title="{% if image.title %}{{ image.title|escapejs }}{% else %}Image #{{ image.id }}{% endif %}">
                                 <i class="fas fa-plus"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end album-dropdown">
