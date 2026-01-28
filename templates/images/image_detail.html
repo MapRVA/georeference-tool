@@ -356,6 +356,15 @@
                                         {% endif %}
                                     {% endwith %}
                                 </dd>
+
+                                {% if rendered_polygonal_notes %}
+                                    <dt class="col-sm-12 mt-2">Notes:</dt>
+                                    <dd class="col-sm-12">
+                                        <div class="p-2 bg-body-secondary rounded markdown-content">
+                                            {{ rendered_polygonal_notes|safe }}
+                                        </div>
+                                    </dd>
+                                {% endif %}
                             </dl>
                         </div>
                     </div>
@@ -435,7 +444,7 @@
                                 {% if rendered_notes %}
                                     <dt class="col-sm-12 mt-2">Notes:</dt>
                                     <dd class="col-sm-12">
-                                        <div class="p-2 rounded markdown-content">
+                                        <div class="p-2 bg-body-secondary rounded markdown-content">
                                             {{ rendered_notes|safe }}
                                         </div>
                                     </dd>

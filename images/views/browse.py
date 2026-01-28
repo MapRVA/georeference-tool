@@ -476,6 +476,14 @@ def image_detail(request, image_id):
     if georeference and georeference.confidence_notes:
         rendered_notes = render_markdown_safe(georeference.confidence_notes)
 
+    # Render confidence notes for the polygonal georeference
+    polygonal_georeference = image.get_aerial_georeference() if image.aerial else None
+    rendered_polygonal_notes = None
+    if polygonal_georeference and polygonal_georeference.confidence_notes:
+        rendered_polygonal_notes = render_markdown_safe(
+            polygonal_georeference.confidence_notes
+        )
+
     # Render notes for all georeferences in the timeline
     georeferences_with_notes = []
     for geo in image.georeferences.all():
@@ -513,9 +521,8 @@ def image_detail(request, image_id):
         "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
         "georeferences_with_notes": georeferences_with_notes,
-        "polygonal_georeference": image.get_aerial_georeference()
-        if image.aerial
-        else None,
+        "polygonal_georeference": polygonal_georeference,
+        "rendered_polygonal_notes": rendered_polygonal_notes,
         "next_image": image.get_next_image(),
         "previous_image": image.get_previous_image(),
         "total_images_in_collection": total_images_in_collection,

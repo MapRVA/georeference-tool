@@ -71,7 +71,7 @@
                                     </div>
                                 </div>
                                 {% if rendered_geo_notes %}
-                                    <div class="timeline-notes markdown-content">
+                                    <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
                                         {{ rendered_geo_notes|safe }}
                                     </div>
                                 {% endif %}
@@ -170,7 +170,7 @@
                                     </div>
                                 </div>
                                 {% if rendered_aerial_notes %}
-                                    <div class="timeline-notes markdown-content">
+                                    <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
                                         {{ rendered_aerial_notes|safe }}
                                     </div>
                                 {% endif %}
@@ -251,11 +251,11 @@
                                 </small>
                             </div>
                             {% if rendered_text %}
-                                <div class="timeline-notes markdown-content">
+                                <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
                                     {{ rendered_text|safe }}
                                 </div>
                             {% else %}
-                                <div class="timeline-notes markdown-content">
+                                <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
                                     {{ comment.text }}
                                 </div>
                             {% endif %}
