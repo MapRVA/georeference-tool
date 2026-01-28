@@ -674,7 +674,10 @@ class GeoreferenceAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Image Information", {"fields": ("image",)}),
         ("Coordinates", {"fields": ("latitude", "longitude", "direction")}),
-        ("Attribution", {"fields": ("georeferenced_by", "confidence_notes")}),
+        (
+            "Attribution",
+            {"fields": ("georeferenced_by", "confidence", "confidence_notes")},
+        ),
         (
             "System Information",
             {
