@@ -19,7 +19,7 @@ from django.utils import timezone
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .models import OsmElement, WikidataItem
+from .models import OsmElement, Subject, WikidataItem
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,67 @@ def get_postpass_bbox():
         "METADATA_REFRESH_POSTPASS_BBOX",
         "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
     )
+
+
+def _do_populate_osm_for_subject(subject):
+    """
+    Populate OSM element for a subject that has a Wikidata item but no OSM element.
+    """
+    wikidata_id = subject.wikidata_item.wikidata_id
+    logger.info(f"Populating OSM element for {subject.title} ({wikidata_id})")
+
+    session = create_request_session()
+    try:
+        features = fetch_osm_features(session, wikidata_id)
+
+        if not features:
+            # Mark as checked so we don't retry immediately
+            subject.osm_last_checked = timezone.now()
+            subject.save(update_fields=["osm_last_checked"])
+            logger.info(f"No OSM features found for {subject.title} ({wikidata_id})")
+            return {"status": "no_data", "subject": subject.title}
+
+        # Use the first (best match) feature
+        feature = features[0]
+        osm_id = feature["properties"]["osm_id"]
+        geometry = feature["geometry"]
+
+        # Create or get existing OsmElement and link to subject
+        osm_element, created = OsmElement.objects.get_or_create(
+            osm_id=osm_id,
+            defaults={
+                "geometry": GEOSGeometry(json.dumps(geometry)),
+                "metadata_last_fetched": timezone.now(),
+                "metadata_fetch_failures": 0,
+            },
+        )
+
+        if not created:
+            # Update geometry if element already exists
+            osm_element.geometry = GEOSGeometry(json.dumps(geometry))
+            osm_element.metadata_last_fetched = timezone.now()
+            osm_element.metadata_fetch_failures = 0
+            osm_element.save()
+            logger.info(f"Updated existing OSM element {osm_id} for {subject.title}")
+        else:
+            logger.info(f"Created OSM element {osm_id} for {subject.title}")
+
+        # Link to subject and mark as checked
+        subject.osm_element = osm_element
+        subject.osm_last_checked = timezone.now()
+        subject.save(update_fields=["osm_element", "osm_last_checked"])
+        logger.info(f"Linked OSM element {osm_id} to {subject.title}")
+
+        return {"status": "success", "subject": subject.title, "osm_id": osm_id}
+
+    except Exception as e:
+        # Mark as checked even on error so we don't retry immediately
+        Subject.objects.filter(pk=subject.pk).update(osm_last_checked=timezone.now())
+        logger.error(f"Error populating OSM for {subject.title}: {e}")
+        return {"status": "error", "subject": subject.title, "message": str(e)}
+
+    finally:
+        session.close()
 
 
 def _do_refresh_osm_element(element):
@@ -237,6 +298,27 @@ def get_next_stale_wikidata_item():
     )
 
 
+def get_next_subject_needing_osm():
+    """Find the next Subject that has a Wikidata item but no OSM element yet.
+
+    Excludes subjects that have been checked recently (within stale threshold).
+    """
+    stale_hours = get_stale_threshold_hours()
+    stale_threshold = timezone.now() - timedelta(hours=stale_hours)
+
+    return (
+        Subject.objects.filter(
+            wikidata_item__isnull=False,
+            osm_element__isnull=True,
+        )
+        .filter(
+            Q(osm_last_checked__isnull=True) | Q(osm_last_checked__lt=stale_threshold)
+        )
+        .order_by("osm_last_checked", "created_at")
+        .first()
+    )
+
+
 def get_next_stale_osm_element():
     """Find the next OsmElement that needs refreshing."""
 
@@ -275,15 +357,24 @@ def refresh_next_wikidata_item():
 @shared_task(ignore_result=True)
 def refresh_next_osm_element():
     """
-    Refresh a single stale OsmElement.
+    Populate or refresh OSM element data.
 
     Called periodically by Celery Beat at the configured rate limit interval.
     This approach ensures global rate limiting regardless of worker count.
-    """
-    element = get_next_stale_osm_element()
-    if element is None:
-        logger.debug("No stale OsmElements to refresh")
-        return {"status": "idle", "message": "No stale elements"}
 
-    # Perform the refresh inline (not queued) since Beat controls the rate
-    return _do_refresh_osm_element(element)
+    Priority:
+    1. First, populate OSM elements for subjects that have Wikidata items but no OSM element
+    2. Then, refresh stale existing OsmElements
+    """
+    # Priority 1: Subjects needing initial OSM population
+    subject = get_next_subject_needing_osm()
+    if subject is not None:
+        return _do_populate_osm_for_subject(subject)
+
+    # Priority 2: Stale existing OSM elements needing refresh
+    element = get_next_stale_osm_element()
+    if element is not None:
+        return _do_refresh_osm_element(element)
+
+    logger.debug("No OSM elements to populate or refresh")
+    return {"status": "idle", "message": "No elements to process"}

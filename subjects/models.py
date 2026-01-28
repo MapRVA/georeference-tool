@@ -253,6 +253,13 @@ class Subject(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # OSM population tracking (for subjects without an osm_element yet)
+    osm_last_checked = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When we last attempted to find an OSM element for this subject",
+    )
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.title[:50])
