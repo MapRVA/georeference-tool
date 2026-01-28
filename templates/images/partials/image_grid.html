@@ -11,7 +11,7 @@
     {% if page_obj %}
         <div class="row" {{ row_attrs }}>
             {% for image in page_obj %}
-                {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default:True badges=badges|default:True buttons=buttons|default:True %}
+                {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default_if_none:True badges=badges|default:True buttons=buttons|default:True %}
             {% endfor %}
         </div>
 
