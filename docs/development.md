@@ -96,6 +96,16 @@ Yesterdays uses Celery with RabbitMQ to manage background processing tasks.
         rabbitmq:3-management
     ```
 
+To run background tasks, you'll also need to start a Celery worker and (optionally) the beat scheduler for periodic tasks:
+
+```sh
+# Run the background worker in one terminal
+uv run celery -A yesterdays worker --loglevel=info -Q background
+
+# Run the beat scheduler (for queuing periodic tasks) in another terminal
+uv run celery -A yesterdays beat --loglevel=info
+```
+
 ### Set up environment variables
 
 Setup the following environment variables:
