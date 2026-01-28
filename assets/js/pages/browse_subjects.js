@@ -59,43 +59,6 @@ document.addEventListener("DOMContentLoaded", function () {
       maxzoom: 18,
     });
 
-    // Load direction arrow image asynchronously
-    (async () => {
-      try {
-        const image = await map.loadImage(
-          "https://maprva.org/img/surveillance-direction.png",
-        );
-        map.addImage("image-direction", image.data);
-
-        // Add direction markers for image georeferences
-        map.addLayer({
-          id: "image-directions",
-          type: "symbol",
-          source: "images",
-          "source-layer": "image_points",
-          filter: ["has", "direction"],
-          layout: {
-            "icon-image": "image-direction",
-            "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
-            },
-            "icon-rotate": ["to-number", ["get", "direction"]],
-            "icon-rotation-alignment": "map",
-            "icon-pitch-alignment": "map",
-          },
-          paint: {
-            "icon-opacity": 0, // Hidden by default, will show on hover
-          },
-        });
-      } catch (error) {
-        console.warn("Could not load direction arrow image:", error);
-      }
-    })();
-
     // Add circle layer for image georeferences
     map.addLayer({
       id: "image-circles",
@@ -111,6 +74,46 @@ document.addEventListener("DOMContentLoaded", function () {
         "circle-stroke-opacity": 0, // Hide stroke initially too
       },
     });
+
+    // Load direction arrow image asynchronously
+    (async () => {
+      try {
+        const image = await map.loadImage(
+          "https://maprva.org/img/surveillance-direction.png",
+        );
+        map.addImage("image-direction", image.data);
+
+        // Add direction markers for image georeferences (underneath circles)
+        map.addLayer(
+          {
+            id: "image-directions",
+            type: "symbol",
+            source: "images",
+            "source-layer": "image_points",
+            filter: ["has", "direction"],
+            layout: {
+              "icon-image": "image-direction",
+              "icon-overlap": "always",
+              "icon-size": {
+                stops: [
+                  [5, 0.3],
+                  [15, 1],
+                ],
+              },
+              "icon-rotate": ["to-number", ["get", "direction"]],
+              "icon-rotation-alignment": "map",
+              "icon-pitch-alignment": "map",
+            },
+            paint: {
+              "icon-opacity": 0, // Hidden by default, will show on hover
+            },
+          },
+          "image-circles",
+        ); // Insert below image-circles
+      } catch (error) {
+        console.warn("Could not load direction arrow image:", error);
+      }
+    })();
 
     console.log("Image circles layer added");
 
