@@ -9,6 +9,8 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import (
+    AerialGeoreference,
+    AerialGeoreferenceValidation,
     Collection,
     Comment,
     Georeference,
@@ -703,6 +705,141 @@ class GeoreferenceValidationAdmin(admin.ModelAdmin):
         "validated_at",
     )
     list_filter = ("validation", ValidatedByFilter, "validated_at")
+    search_fields = (
+        "georeference__image__title",
+        "validated_by__username",
+        "validated_by__first_name",
+        "notes",
+    )
+    readonly_fields = ("validated_at",)
+
+    def validated_by_display(self, obj):
+        if obj.validated_by:
+            return obj.validated_by.get_display_name()
+        return None
+
+    validated_by_display.short_description = "Validated By"
+    validated_by_display.admin_order_field = "validated_by__first_name"
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("georeference__image", "validated_by")
+        )
+
+
+class AerialGeoreferenceAdminForm(forms.ModelForm):
+    georeferenced_by = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=False,
+    )
+
+    class Meta:
+        model = AerialGeoreference
+        fields = "__all__"
+
+
+class AerialGeoreferencedByFilter(UserDisplayNameFilter):
+    """Filter for the georeferenced_by field on AerialGeoreference."""
+
+    title = "georeferenced by"
+    parameter_name = "georeferenced_by"
+    field_name = "georeferenced_by"
+
+
+@admin.register(AerialGeoreference)
+class AerialGeoreferenceAdmin(admin.ModelAdmin):
+    form = AerialGeoreferenceAdminForm
+    list_display = (
+        "image",
+        "georeferenced_by_display",
+        "confidence",
+        "georeferenced_at",
+        "validation_count",
+    )
+    list_filter = (AerialGeoreferencedByFilter, "confidence", "georeferenced_at")
+    search_fields = (
+        "image__title",
+        "image__collection__name",
+        "georeferenced_by__username",
+        "georeferenced_by__first_name",
+    )
+    readonly_fields = ("georeferenced_at", "updated_at", "validation_count")
+    autocomplete_fields = ["image"]
+
+    def georeferenced_by_display(self, obj):
+        if obj.georeferenced_by:
+            return obj.georeferenced_by.get_display_name()
+        return None
+
+    georeferenced_by_display.short_description = "Georeferenced By"
+    georeferenced_by_display.admin_order_field = "georeferenced_by__first_name"
+
+    def validation_count(self, obj):
+        return obj.validations.count()
+
+    validation_count.short_description = "Validations"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("image", "georeferenced_by")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+
+        if "image" in form.base_fields:
+            form.base_fields["image"].widget.can_add_related = False
+            form.base_fields["image"].widget.can_change_related = False
+            form.base_fields["image"].widget.can_delete_related = False
+
+        return form
+
+    fieldsets = (
+        ("Image Information", {"fields": ("image",)}),
+        ("Polygon", {"fields": ("polygon",)}),
+        (
+            "Attribution",
+            {"fields": ("georeferenced_by", "confidence", "confidence_notes")},
+        ),
+        (
+            "System Information",
+            {
+                "fields": ("georeferenced_at", "updated_at", "validation_count"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+
+class AerialGeoreferenceValidationAdminForm(forms.ModelForm):
+    validated_by = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=False,
+    )
+
+    class Meta:
+        model = AerialGeoreferenceValidation
+        fields = "__all__"
+
+
+class AerialValidatedByFilter(UserDisplayNameFilter):
+    """Filter for the validated_by field on AerialGeoreferenceValidation."""
+
+    title = "validated by"
+    parameter_name = "validated_by"
+    field_name = "validated_by"
+
+
+@admin.register(AerialGeoreferenceValidation)
+class AerialGeoreferenceValidationAdmin(admin.ModelAdmin):
+    form = AerialGeoreferenceValidationAdminForm
+    list_display = (
+        "georeference",
+        "validation",
+        "validated_by_display",
+        "validated_at",
+    )
+    list_filter = ("validation", AerialValidatedByFilter, "validated_at")
     search_fields = (
         "georeference__image__title",
         "validated_by__username",
