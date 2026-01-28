@@ -1,6 +1,7 @@
 my.env
 models
 /static
+celerybeat-schedule.db
 
 ## Claude-specific
 .claude
