@@ -191,6 +191,14 @@ class OsmElement(models.Model):
     """OpenStreetMap element with cached geometry"""
 
     osm_id = models.BigIntegerField(unique=True, help_text="OpenStreetMap element ID")
+    subject = models.ForeignKey(
+        "Subject",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="osm_elements",
+        help_text="Subject this OSM element belongs to",
+    )
     geometry = gis_models.GeometryField(
         spatial_index=True,
         help_text="Geometry of the OSM element (point, polygon, multipolygon, etc.)",
@@ -209,17 +217,6 @@ class OsmElement(models.Model):
         auto_now=True, help_text="When this row was last updated"
     )
     created_at = models.DateTimeField(auto_now_add=True)
-
-    # Metadata refresh tracking
-    metadata_last_fetched = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When we last attempted to fetch geometry from OSM",
-    )
-    metadata_fetch_failures = models.PositiveIntegerField(
-        default=0,
-        help_text="Consecutive fetch failures (resets on success)",
-    )
 
     def __str__(self):
         return f"OSM Element {self.osm_id}"
@@ -248,14 +245,6 @@ class Subject(models.Model):
         blank=True,
         related_name="subjects",
         help_text="Optional linked Wikidata item",
-    )
-    osm_element = models.ForeignKey(
-        OsmElement,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="subjects",
-        help_text="Optional linked OpenStreetMap element",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

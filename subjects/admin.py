@@ -186,12 +186,25 @@ class WikidataItemAdmin(admin.ModelAdmin):
     refresh_button.short_description = "Actions"
 
 
+class OsmElementInline(admin.TabularInline):
+    model = OsmElement
+    extra = 0
+    fields = ("osm_id", "geometry_area", "updated_at")
+    readonly_fields = ("osm_id", "geometry_area", "updated_at")
+    can_delete = False
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(OsmElement)
 class OsmElementAdmin(admin.ModelAdmin):
-    list_display = ("osm_id", "geometry_area", "updated_at", "created_at")
+    list_display = ("osm_id", "subject", "geometry_area", "updated_at", "created_at")
     list_filter = ("updated_at", "created_at")
-    search_fields = ("osm_id",)
+    search_fields = ("osm_id", "subject__title")
     readonly_fields = ("created_at", "updated_at", "geometry_area")
+    autocomplete_fields = ["subject"]
 
 
 @admin.register(Subject)
@@ -200,6 +213,7 @@ class SubjectAdmin(admin.ModelAdmin):
         "title",
         "description_truncated",
         "wikidata_item_link",
+        "osm_element_count",
         "image_count",
         "created_at",
     )
@@ -212,6 +226,7 @@ class SubjectAdmin(admin.ModelAdmin):
     )
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ["wikidata_item"]
+    inlines = [OsmElementInline]
 
     fieldsets = (
         (
@@ -221,8 +236,8 @@ class SubjectAdmin(admin.ModelAdmin):
         (
             "Linked Data",
             {
-                "fields": ("wikidata_item", "osm_element"),
-                "description": "Optional links to Wikidata and OpenStreetMap",
+                "fields": ("wikidata_item",),
+                "description": "Optional link to Wikidata. OSM elements are shown below.",
             },
         ),
         (
@@ -255,6 +270,11 @@ class SubjectAdmin(admin.ModelAdmin):
         return "None"
 
     wikidata_item_link.short_description = "Wikidata"
+
+    def osm_element_count(self, obj):
+        return obj.osm_elements.count()
+
+    osm_element_count.short_description = "OSM Elements"
 
     def image_count(self, obj):
         return obj.image_mappings.count()

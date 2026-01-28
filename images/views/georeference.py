@@ -195,16 +195,18 @@ def georeference_interface(request):
     # These come from subjects linked to the image that have OSM elements with centroids
     subject_hints = []
     if current_image:
-        subject_mappings = current_image.subject_mappings.select_related(
-            "subject__osm_element"
+        subject_mappings = current_image.subject_mappings.prefetch_related(
+            "subject__osm_elements"
         ).order_by("order")
         for mapping in subject_mappings:
             subject = mapping.subject
-            if subject.osm_element and subject.osm_element.centroid:
+            # Use the first OSM element with a centroid
+            osm_element = subject.osm_elements.filter(centroid__isnull=False).first()
+            if osm_element:
                 subject_hints.append(
                     {
-                        "lat": subject.osm_element.centroid.y,
-                        "lng": subject.osm_element.centroid.x,
+                        "lat": osm_element.centroid.y,
+                        "lng": osm_element.centroid.x,
                         "label": subject.title,
                     }
                 )

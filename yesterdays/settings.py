@@ -245,14 +245,17 @@ CELERY_TASK_QUEUES = {
 
 # Celery Beat schedule for periodic tasks
 # Rate limiting is achieved by Beat's schedule interval, not per-worker limits
+# Tasks expire shortly before the next one is scheduled to prevent backlog buildup
 CELERY_BEAT_SCHEDULE = {
     "refresh-next-wikidata-item": {
         "task": "subjects.tasks.refresh_next_wikidata_item",
         "schedule": float(METADATA_REFRESH_WIKIDATA_INTERVAL),
+        "options": {"expires": METADATA_REFRESH_WIKIDATA_INTERVAL - 5},
     },
     "refresh-next-osm-element": {
         "task": "subjects.tasks.refresh_next_osm_element",
         "schedule": float(METADATA_REFRESH_OSM_INTERVAL),
+        "options": {"expires": METADATA_REFRESH_OSM_INTERVAL - 5},
     },
 }
 
