@@ -13,7 +13,11 @@ import "../../styles/components/image-viewer.css";
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
 import { Geoman } from "@geoman-io/maplibre-geoman-free";
-import { OSM_STYLE_URL } from "../constants/map.js";
+import {
+  OSM_STYLE_URL,
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+} from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { initSubjectEditor } from "../components/subject_editor.js";
 import { initImageViewer } from "../components/image_viewer.js";
@@ -75,8 +79,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var map = new maplibregl.Map({
     container: "mymap",
     style: OSM_STYLE_URL,
-    center: [-77.44, 37.53],
-    zoom: 11.5,
+    center: DEFAULT_MAP_CENTER,
+    zoom: DEFAULT_MAP_ZOOM,
   });
 
   // Try to setup PMTiles protocol

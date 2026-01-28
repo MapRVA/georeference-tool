@@ -831,6 +831,17 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 "description": "Admin contact email for external API requests",
             },
         ),
+        (
+            "Default Map View",
+            {
+                "fields": (
+                    "default_map_longitude",
+                    "default_map_latitude",
+                    "default_map_zoom",
+                ),
+                "description": "Default center and zoom level for maps across the site",
+            },
+        ),
     )
 
 

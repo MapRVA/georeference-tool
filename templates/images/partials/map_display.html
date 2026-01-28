@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the map using the global function from the bundled module
     window.initializeMap({
         mapId: mapId,
-        center: [{{ center_lng|default:'-77.43916' }}, {{ center_lat|default:'37.54376' }}],
-        zoom: {{ zoom_level|default:'10' }},
+        center: [{{ center_lng|default:default_map_center.0 }}, {{ center_lat|default:default_map_center.1 }}],
+        zoom: {{ zoom_level|default:default_map_zoom }},
         hash: {{ hash|yesno:"true,false,false" }},
         vectorTilesUrl: vectorTilesUrl,
         singleImageUrl: singleImageUrl,

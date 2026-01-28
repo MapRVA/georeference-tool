@@ -12,6 +12,8 @@
     <script>
         // Global map configuration
         window.OSM_STYLE_URL = "{{ osm_style_url }}";
+        window.DEFAULT_MAP_CENTER = {{ default_map_center }};
+        window.DEFAULT_MAP_ZOOM = {{ default_map_zoom }};
         window.ADMIN_EMAIL = {% if admin_email %}"{{ admin_email }}"{% else %}null{% endif %};
     </script>
 

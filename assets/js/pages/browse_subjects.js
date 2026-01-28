@@ -2,6 +2,7 @@ import "../../styles/pages/browse-subjects.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import maplibregl from "maplibre-gl";
+import { DEFAULT_MAP_CENTER } from "../constants/map.js";
 
 document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
@@ -22,7 +23,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const map = new maplibregl.Map({
     container: "subjects-map",
     style: getMapStyle(),
-    center: [-77.43916, 37.54376],
+    center: DEFAULT_MAP_CENTER,
     zoom: 13,
   });
 

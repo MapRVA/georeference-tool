@@ -2,6 +2,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
+import { DEFAULT_MAP_CENTER } from "../constants/map.js";
 
 document.addEventListener("DOMContentLoaded", async function () {
   // Extract and display domain from source link
@@ -122,7 +123,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const map = new maplibregl.Map({
     container: "layer-map",
     style: getMapStyle(),
-    center: [-77.43916, 37.54376],
+    center: DEFAULT_MAP_CENTER,
     zoom: 13,
   });
 

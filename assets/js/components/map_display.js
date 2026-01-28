@@ -1,6 +1,10 @@
 // Map display module for shared map functionality
 import maplibregl from "maplibre-gl";
-import { OSM_STYLE_URL } from "../constants/map.js";
+import {
+  OSM_STYLE_URL,
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+} from "../constants/map.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import MaplibreGeocoder from "@maplibre/maplibre-gl-geocoder";
@@ -205,8 +209,8 @@ export function initializeMap(config) {
   const {
     mapId,
     styleUrl = OSM_STYLE_URL,
-    center = [-77.43916, 37.54376],
-    zoom = 10,
+    center = DEFAULT_MAP_CENTER,
+    zoom = DEFAULT_MAP_ZOOM,
     hash = false,
     vectorTilesUrl,
     singleImageUrl,
@@ -885,22 +889,16 @@ export function initializeMap(config) {
         }
       }
 
-      // Handle zoom to contents
-      if (zoomToContents) {
-        if (center && center.length === 2 && zoom) {
-          map.flyTo({ center: center, zoom: zoom });
-        } else {
-          if (features.length > 0) {
-            const bounds = new maplibregl.LngLatBounds();
-            features.forEach(function (feature) {
-              bounds.extend(feature.geometry.coordinates);
-            });
-            map.fitBounds(bounds, {
-              padding: 50,
-              maxZoom: 15,
-            });
-          }
-        }
+      // Handle zoom to contents - fit map to all feature bounds
+      if (zoomToContents && features.length > 0) {
+        const bounds = new maplibregl.LngLatBounds();
+        features.forEach(function (feature) {
+          bounds.extend(feature.geometry.coordinates);
+        });
+        map.fitBounds(bounds, {
+          padding: 50,
+          maxZoom: 15,
+        });
       }
     }
 
