@@ -56,9 +56,9 @@ class SiteSettings(models.Model):
         default=37.54376,
         help_text="Default map center latitude",
     )
-    default_map_zoom = models.IntegerField(
-        default=10,
-        help_text="Default map zoom level (0-22)",
+    default_map_zoom = models.FloatField(
+        default=10.0,
+        help_text="Default map zoom level (0-22, supports decimals like 11.5)",
     )
 
     class Meta:
