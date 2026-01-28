@@ -29,6 +29,12 @@ document.addEventListener("DOMContentLoaded", function () {
   // Add fullscreen control
   map.addControl(new maplibregl.FullscreenControl());
 
+  // Get Bootstrap's primary color from CSS variable
+  const primaryColor =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--bs-primary")
+      .trim() || "#0d6efd";
+
   // Function to add all custom sources and layers
   function addCustomLayers() {
     console.log("Adding OSM elements source");
@@ -98,7 +104,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "source-layer": "image_points",
       paint: {
         "circle-radius": 8,
-        "circle-color": "green",
+        "circle-color": primaryColor,
         "circle-stroke-color": "#fff",
         "circle-stroke-width": 2,
         "circle-opacity": 0, // Hidden by default, will show on hover
