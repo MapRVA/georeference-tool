@@ -369,25 +369,28 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       if (map.hasImage("surveillance-direction")) {
-        map.addLayer({
-          id: "pin-symbol",
-          type: "symbol",
-          source: "pin",
-          layout: {
-            "icon-image": "surveillance-direction",
-            "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
+        map.addLayer(
+          {
+            id: "pin-symbol",
+            type: "symbol",
+            source: "pin",
+            layout: {
+              "icon-image": "surveillance-direction",
+              "icon-overlap": "always",
+              "icon-size": {
+                stops: [
+                  [5, 0.3],
+                  [15, 1],
+                ],
+              },
+              "icon-rotate": ["to-number", ["get", "direction"]],
+              "icon-rotation-alignment": "map",
+              "icon-pitch-alignment": "map",
             },
-            "icon-rotate": ["to-number", ["get", "direction"]],
-            "icon-rotation-alignment": "map",
-            "icon-pitch-alignment": "map",
+            filter: ["has", "direction"],
           },
-          filter: ["has", "direction"],
-        });
+          "pin-circle",
+        ); // Insert below pin-circle
       }
 
       // Restore any existing pin if there was one
