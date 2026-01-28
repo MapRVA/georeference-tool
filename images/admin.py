@@ -10,6 +10,7 @@ from django.utils.html import format_html
 
 from .models import (
     Collection,
+    Comment,
     Georeference,
     GeoreferenceValidation,
     Image,
@@ -795,6 +796,67 @@ class SubjectMappingAdmin(admin.ModelAdmin):
         return "None"
 
     subject_wikidata.short_description = "Wikidata"
+
+
+class CommentAdminForm(forms.ModelForm):
+    commented_by = UserDisplayNameChoiceField(
+        queryset=User.objects.all().order_by("first_name", "username"),
+        required=True,
+    )
+
+    class Meta:
+        model = Comment
+        fields = "__all__"
+
+
+class CommentedByFilter(UserDisplayNameFilter):
+    """Filter for the commented_by field."""
+
+    title = "commented by"
+    parameter_name = "commented_by"
+    field_name = "commented_by"
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    form = CommentAdminForm
+    list_display = ("image", "commented_by_display", "text_preview", "created_at")
+    list_filter = (CommentedByFilter, "created_at")
+    search_fields = (
+        "image__title",
+        "commented_by__username",
+        "commented_by__first_name",
+        "text",
+    )
+    readonly_fields = ("created_at",)
+    autocomplete_fields = ["image"]
+
+    def commented_by_display(self, obj):
+        if obj.commented_by:
+            return obj.commented_by.get_display_name()
+        return None
+
+    commented_by_display.short_description = "Commented By"
+    commented_by_display.admin_order_field = "commented_by__first_name"
+
+    def text_preview(self, obj):
+        return obj.text[:75] + "..." if len(obj.text) > 75 else obj.text
+
+    text_preview.short_description = "Text"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("image", "commented_by")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+
+        # Remove add, change, delete buttons for image field
+        if "image" in form.base_fields:
+            form.base_fields["image"].widget.can_add_related = False
+            form.base_fields["image"].widget.can_change_related = False
+            form.base_fields["image"].widget.can_delete_related = False
+
+        return form
 
 
 @admin.register(SiteSettings)
