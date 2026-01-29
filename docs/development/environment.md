@@ -1,18 +1,6 @@
-# Developing Yesterdays
+# Development Environment
 
-First of all, thank you for your interest in contributing to Yesterdays!
-
-If you would like to contribute to the development of Yesterdays, but aren't quite ready to dive into coding, please feel free to [file feature requests and bug reports here](https://github.com/MapRVA/yesterdays/issues/new/choose).
-Your feedback is greatly appreciated!
-
-## Contribution Guidelines
-
-In general, we welcome any pull requests to our GitHub repository.
-If you'd like to make a big change, please engage with us in a GitHub Issue or via Slack first so that we can coordinate our efforts.
-
-## Setting Up Your Development Environment
-
-To run Yesterdays locally, you need:
+Here's what you need to run Yesterdays locally:
 
 - [`uv`](https://docs.astral.sh/uv/),
 - [`bun`](https://bun.com/),
@@ -21,7 +9,7 @@ To run Yesterdays locally, you need:
 
 Please follow the instructions below to set these up in your development environment.
 
-### Run Database
+## Run Database
 
 The recommended way to run your database is using podman and
 [MapRVA/cnpg-postgis-pgvector](https://github.com/MapRVA/cnpg-postgis-pgvector).
@@ -74,7 +62,7 @@ If you'd like, you can use a volume to persist the database between container re
         ghcr.io/maprva/postgis-pgvector-local:latest
     ```
 
-### (Optional) Run Task Queue
+## (Optional) Run Task Queue
 
 Yesterdays uses Celery with RabbitMQ to manage background processing tasks.
 
@@ -106,7 +94,7 @@ uv run celery -A yesterdays worker --loglevel=info -Q background
 uv run celery -A yesterdays beat --loglevel=info
 ```
 
-### Set up environment variables
+## Set up environment variables
 
 Setup the following environment variables:
 
@@ -146,18 +134,18 @@ Save those to `my.env` in the root of this repository, and then apply them by ru
 source my.env
 ```
 
-### Install dependencies
+## Install dependencies
 ```
 uv sync
 ```
 
-### Apply database migrations
+## Apply database migrations
 
 ```
 uv run manage.py migrate
 ```
 
-### Run Vite
+## Run Vite
 
 Vite bundles JavaScript and CSS assets for Yesterdays.
 It is important to run Vite in the background during development:
@@ -167,7 +155,7 @@ bun install
 bun run dev
 ```
 
-### Run the dev server!
+## Run the dev server!
 
 In a separate terminal (keep Vite running):
 
@@ -177,12 +165,12 @@ uv run manage.py runserver
 
 The site should now be live at http://localhost:8000
 
-### Load a collection
+## Load a collection
 
 ```
 uv run scripts/importers/library_of_virginia.py --area A
 ```
 
-### Admin creds
+## Admin creds
 
 You can login to `/admin` with the username & password: `admin`

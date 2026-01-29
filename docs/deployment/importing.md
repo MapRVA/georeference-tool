@@ -1,12 +1,3 @@
-# Run Your Own Yesterdays
-
-## Deploying Yesterdays
-
-We maintain [a helm chart](https://github.com/MapRVA/helm-charts/tree/main/charts/yesterdays) for deploying Yesterdays on Kubernetes clusters.
-
-If you would like to run your own instance of Yesterdays, we encourage you to get in touch.
-We'd be glad to support your efforts!
-
 ## Importing Images
 
 !!! warning

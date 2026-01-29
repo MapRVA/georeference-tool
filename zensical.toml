@@ -56,8 +56,12 @@ nav = [
      "usage/search.md"
   ]},
   {"Development" = [
-     "development.md",
-     "deployment.md"
+     "development/contributing.md",
+     "development/environment.md",
+  ]},
+  {"Run Your Own Yesterdays" = [
+     "deployment/deployment.md",
+     "deployment/importing.md",
   ]}
 ]
 
