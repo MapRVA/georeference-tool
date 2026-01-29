@@ -9,7 +9,7 @@
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="{% if subject.wikidata_item.description %}{{ subject.wikidata_item.description }}{% else %}Browse {{ total_images }} image{{ total_images|pluralize }} featuring {{ subject.title }}.{% endif %}">
 	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
