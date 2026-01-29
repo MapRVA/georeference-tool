@@ -6,7 +6,7 @@
 {% block opengraph %}
 	<meta property="og:title" content="{% if image.title %}{{ image.title }}{% else %}Image from {{ image.collection.source.name }}{% endif %} – Yesterdays">
 	<meta property="og:type" content="website">
-	<meta property="og:image" content="{{ image.permalink }}">
+	<meta property="og:image" content="{{ image.thumbnail }}">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Image from {{ image.collection.source.name }}, {{ image.collection.name }}.">
 {% endblock %}
