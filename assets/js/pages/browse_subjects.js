@@ -53,9 +53,10 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("Source added, adding layers");
 
     // Add vector tiles source for regular image georeferences
+    // URL with version is provided by the template via window.VECTOR_TILES_URL
     map.addSource("images", {
       type: "vector",
-      tiles: [window.location.origin + "/api/v1/tiles/{z}/{x}/{y}.mvt"],
+      tiles: [window.location.origin + window.VECTOR_TILES_URL],
       minzoom: 0,
       maxzoom: 18,
     });

@@ -46,41 +46,53 @@ def refresh_tile_view(using_concurrent=True):
 @receiver(post_save, sender=Georeference)
 def refresh_view_on_georeference_save(sender, instance, created, **kwargs):
     """
-    Refresh materialized view when a georeference is created or updated.
+    Refresh materialized view and invalidate tile cache when a georeference
+    is created or updated.
     """
+    from .views.api import bump_tile_version
+
     transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
+    transaction.on_commit(bump_tile_version)
 
 
 @receiver(post_delete, sender=Georeference)
 def refresh_view_on_georeference_delete(sender, instance, **kwargs):
     """
-    Refresh materialized view when a georeference is deleted.
+    Refresh materialized view and invalidate tile cache when a georeference
+    is deleted.
     """
+    from .views.api import bump_tile_version
+
     transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
+    transaction.on_commit(bump_tile_version)
 
 
 @receiver(post_save, sender=Collection)
 def refresh_view_on_collection_save(sender, instance, **kwargs):
     """
-    Refresh materialized view when a collection's public status changes.
+    Refresh materialized view and invalidate tile cache when a collection's
+    public status changes.
     """
-    # Check if the public field was updated
-    # If update_fields is None, all fields were potentially updated
+    from .views.api import bump_tile_version
+
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
         transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
+        transaction.on_commit(bump_tile_version)
 
 
 @receiver(post_save, sender=Source)
 def refresh_view_on_source_save(sender, instance, **kwargs):
     """
-    Refresh materialized view when a source's public status changes.
+    Refresh materialized view and invalidate tile cache when a source's
+    public status changes.
     """
-    # Check if the public field was updated
-    # If update_fields is None, all fields were potentially updated
+    from .views.api import bump_tile_version
+
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
         transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
+        transaction.on_commit(bump_tile_version)
 
 
 @receiver(post_save, sender=Image)

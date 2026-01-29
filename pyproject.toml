@@ -26,7 +26,7 @@ dependencies = [
     "torchvision>=0.25.0",
     "tqdm>=4.67.1",
     "uvicorn[standard]>=0.40.0",
-    "whitenoise>=6.11.0",
+    "whitenoise[brotli]>=6.11.0",
     "zensical>=0.0.19",
 ]
 

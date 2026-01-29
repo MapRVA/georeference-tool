@@ -1,6 +1,7 @@
 from django.conf import settings
 
 from .models import SiteSettings
+from .views import get_tile_version
 
 
 def site_settings(request):
@@ -20,4 +21,5 @@ def site_settings(request):
         ],
         "default_map_zoom": site_settings_model.default_map_zoom,
         "admin_email": site_settings_model.admin_email,
+        "tile_version": get_tile_version(),
     }

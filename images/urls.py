@@ -89,7 +89,7 @@ urlpatterns = [
         name="osm_elements_tiles",
     ),
     path(
-        "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
+        "api/v1/tiles/v<int:v>/<int:z>/<int:x>/<int:y>.mvt",
         views.vector_tiles_endpoint,
         name="vector_tiles",
     ),

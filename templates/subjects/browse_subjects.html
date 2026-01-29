@@ -18,6 +18,7 @@
 {% block extra_js %}
 <script>
     window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
+    window.VECTOR_TILES_URL = "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}".replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 </script>
 {% vite_asset 'assets/js/pages/browse_subjects.js' %}
 {% endblock %}

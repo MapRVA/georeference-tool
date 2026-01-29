@@ -1,12 +1,16 @@
+import hashlib
 import json
 
 from django.contrib.gis.geos import Point
+from django.core.cache import caches
 from django.db import connection
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 
-from ..models import Image
+from ..models import Image, TileVersion
 from .core import get_min_scale_for_zoom
+
+tile_cache = caches["tiles"]
 
 
 def geojson_endpoint(request):
@@ -279,21 +283,97 @@ def polygonal_georeferences_at_point(request):
     return JsonResponse(geojson)
 
 
-def vector_tiles_endpoint(request, z, x, y):
-    """Return MVT vector tiles of georeferenced images (using materialized view for performance)"""
+def get_tile_version() -> str:
+    """Get current tile data version from the database."""
+    return str(TileVersion.get_version())
 
+
+def bump_tile_version():
+    """Increment tile version, invalidating all cached tiles."""
+    return str(TileVersion.bump())
+
+
+def vector_tiles_endpoint(request, v, z, x, y):
+    """Return MVT vector tiles of georeferenced images.
+
+    The version (v) is included in the URL for cache-busting. When the version
+    changes, all tile URLs change, invalidating browser and CDN caches.
+    """
+
+    # Collect filter parameters
     enable_scale_filter = (
         request.GET.get("enable_scale_filter", "false").lower() == "true"
     )
-
-    # Apply the same filters as GeoJSON endpoint
     image_id = request.GET.get("image")
     collection_id = request.GET.get("collection")
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
     album_id = request.GET.get("album")
 
-    # Build WHERE conditions for filtering on pre-filtered materialized view
+    is_filtered = any([image_id, collection_id, source_id, subject_id, album_id])
+
+    # Only use cache for unfiltered tiles
+    if not is_filtered:
+        version = get_tile_version()
+        cache_key = f"tile:{version}:{z}:{x}:{y}:{enable_scale_filter}"
+
+        cached = tile_cache.get(cache_key)
+        if cached is not None:
+            return _make_tile_response(cached, z, is_filtered=False, hit=True)
+
+    # Generate tile (cache miss or filtered request)
+    mvt_data = _generate_tile(
+        z,
+        x,
+        y,
+        enable_scale_filter,
+        image_id,
+        collection_id,
+        source_id,
+        subject_id,
+        album_id,
+    )
+
+    # Cache unfiltered tiles only
+    if not is_filtered:
+        tile_cache.set(cache_key, mvt_data, timeout=86400)
+
+    return _make_tile_response(mvt_data, z, is_filtered, hit=False)
+
+
+def _make_tile_response(
+    mvt_data: bytes, z: int, is_filtered: bool, hit: bool
+) -> HttpResponse:
+    """Create response with appropriate cache headers."""
+    response = HttpResponse(mvt_data, content_type="application/x-protobuf")
+
+    if is_filtered:
+        # Don't cache filtered tiles in browser, short edge cache
+        response["Cache-Control"] = "public, max-age=0, s-maxage=300"
+    else:
+        # Versioned URLs mean stale tiles are never requested again, so cache aggressively
+        response["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
+
+    response["ETag"] = f'"{hashlib.md5(mvt_data).hexdigest()}"'
+    response["X-Tile-Cache"] = "HIT" if hit else "MISS"
+
+    return response
+
+
+def _generate_tile(
+    z,
+    x,
+    y,
+    enable_scale_filter,
+    image_id,
+    collection_id,
+    source_id,
+    subject_id,
+    album_id,
+) -> bytes:
+    """Generate MVT tile from database."""
+
+    # Build WHERE conditions for filtering
     where_conditions = []
     where_params = []
 
@@ -329,7 +409,6 @@ def vector_tiles_endpoint(request, z, x, y):
 
     where_clause = " AND ".join(where_conditions)
 
-    # Build WHERE clause - add filter conditions if any exist
     if where_clause:
         where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
     else:
@@ -355,7 +434,6 @@ def vector_tiles_endpoint(request, z, x, y):
         ) mvtgeoms
     """
 
-    # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters
     query_params = [z, x, y] + where_params + [z, x, y]
 
     with connection.cursor() as cursor:
@@ -363,11 +441,9 @@ def vector_tiles_endpoint(request, z, x, y):
         result = cursor.fetchone()
 
         if result and result[0]:
-            mvt_data = bytes(result[0])
-            response = HttpResponse(mvt_data, content_type="application/x-protobuf")
-            return response
+            return bytes(result[0])
         else:
-            return HttpResponse(b"", content_type="application/x-protobuf")
+            return b""
 
 
 def osm_elements_vector_tiles_endpoint(request, z, x, y):

@@ -7,7 +7,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 
 # Conditionally import SearchVectorField only if using PostgreSQL
 try:
@@ -22,6 +22,37 @@ from django.urls import reverse
 from django.utils.text import slugify
 from edtf import parse_edtf
 from edtf.parser.edtf_exceptions import EDTFParseException
+
+
+class TileVersion(models.Model):
+    """
+    Singleton model for tracking the tile cache version.
+    When georeferences change, the version is bumped to invalidate cached tiles.
+    Stored in the database to persist across deployments and cache clears.
+    """
+
+    version = models.PositiveIntegerField(default=1)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_version(cls):
+        """Get the current tile version, creating the row if needed."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj.version
+
+    @classmethod
+    def bump(cls):
+        """Increment the tile version atomically."""
+        cls.objects.get_or_create(pk=1)
+        cls.objects.filter(pk=1).update(version=F("version") + 1)
+        return cls.objects.get(pk=1).version
+
+    class Meta:
+        verbose_name = "tile version"
+        verbose_name_plural = "tile version"
 
 
 class SiteSettings(models.Model):

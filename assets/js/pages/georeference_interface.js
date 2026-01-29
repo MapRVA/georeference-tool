@@ -367,8 +367,8 @@ document.addEventListener("DOMContentLoaded", function () {
       // Add all existing georeferenced images for context using vector tiles
       // These are added BEFORE the pin layers so the user's pin always renders on top
       try {
-        // Build vector tiles URL for all context images
-        let contextVectorTilesUrl =
+        // Build vector tiles URL (version is already included from template)
+        const contextVectorTilesUrl =
           window.location.origin +
           config.urls.vectorTiles.replace("/0/0/0.mvt", "/{z}/{x}/{y}.mvt");
 
