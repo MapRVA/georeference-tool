@@ -31,7 +31,12 @@ if not SECRET_KEY:
         raise ValueError("DJANGO_SECRET_KEY or DEBUG environment variable must be set")
 
 # Allow hosts from environment variable or use defaults
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# localhost is always included for Kubernetes health probes
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + [
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
 
 # Proxy settings for Cloudflare tunnel
 # Tell Django to trust the X-Forwarded-Proto header from the proxy
