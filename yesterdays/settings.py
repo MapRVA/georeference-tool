@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
+    "yesterdays",
 ]
 
 if PROMETHEUS_ENABLED:
@@ -92,8 +93,6 @@ MIDDLEWARE = [
 if PROMETHEUS_ENABLED:
     MIDDLEWARE.insert(0, "django_prometheus.middleware.PrometheusBeforeMiddleware")
     MIDDLEWARE.append("django_prometheus.middleware.PrometheusAfterMiddleware")
-    PROMETHEUS_METRICS_EXPORT_PORT = 9090
-    PROMETHEUS_METRICS_EXPORT_ADDRESS = ""  # bind to all interfaces
 
 ROOT_URLCONF = "yesterdays.urls"
 
