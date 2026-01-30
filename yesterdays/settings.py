@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
+    "yesterdays",
 ]
 
 if PROMETHEUS_ENABLED:
