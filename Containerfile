@@ -78,8 +78,7 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     libgdal32 \
     libproj25 \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/python3.13 /usr/bin/python3
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
