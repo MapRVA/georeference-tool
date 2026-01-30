@@ -14,6 +14,14 @@ class YesterdaysConfig(AppConfig):
         if getattr(settings, "PROMETHEUS_ENABLED", False):
             self._start_metrics_server()
 
+        if getattr(settings, "CLIP_WARMUP_ENABLED", False):
+            self._warmup_clip_model()
+
+    def _warmup_clip_model(self):
+        from images.views.search import warmup_clip_model
+
+        warmup_clip_model()
+
     def _start_metrics_server(self, port=9090, addr="0.0.0.0"):
         from prometheus_client import start_http_server
 

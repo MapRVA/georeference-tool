@@ -102,6 +102,30 @@ def _load_clip_model():
         return _clip_model, _clip_preprocess, _clip_device
 
 
+def warmup_clip_model():
+    """
+    Pre-load the CLIP model into memory.
+    Returns True if successful, False otherwise.
+    """
+    if not CLIP_AVAILABLE:
+        logger.warning("CLIP dependencies not available, skipping warmup")
+        return False
+
+    try:
+        logger.info("Warming up CLIP model...")
+        _load_clip_model()
+        logger.info(f"CLIP model loaded successfully (device: {_clip_device})")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load CLIP model: {e}")
+        return False
+
+
+def is_clip_ready():
+    """Check if CLIP model is loaded and ready."""
+    return _clip_model is not None
+
+
 def _get_text_embedding(text):
     """Generate embedding for text query"""
     model, preprocess, device = _load_clip_model()

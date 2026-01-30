@@ -53,6 +53,13 @@ PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
     "yes",
 )
 
+# CLIP model warmup on startup (disabled by default)
+CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # Application definition
 
 INSTALLED_APPS = [

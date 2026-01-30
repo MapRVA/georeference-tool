@@ -1,8 +1,9 @@
 import json
 
+from django.db import connection
 from django.db.models import Count, F, Max
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
@@ -259,3 +260,35 @@ def robots_txt(request):
         "Disallow: */polygonal-georeference/*",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+@require_GET
+def health_ready(request):
+    """
+    Kubernetes readiness probe endpoint.
+    Returns 200 if the app is ready to serve traffic.
+    """
+    from images.views.search import CLIP_AVAILABLE, is_clip_ready
+
+    checks = {
+        "database": False,
+        "clip_model": False,
+    }
+
+    # Check database connectivity
+    try:
+        connection.ensure_connection()
+        checks["database"] = True
+    except Exception:
+        pass
+
+    # Check CLIP model (only required if CLIP is available)
+    if CLIP_AVAILABLE:
+        checks["clip_model"] = is_clip_ready()
+    else:
+        checks["clip_model"] = True  # Not required if CLIP unavailable
+
+    all_ready = all(checks.values())
+    status = 200 if all_ready else 503
+
+    return JsonResponse({"ready": all_ready, "checks": checks}, status=status)
