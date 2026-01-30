@@ -46,6 +46,13 @@ CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS", "True").lower() in 
     "yes",
 )
 
+# Prometheus metrics (disabled by default)
+PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -66,6 +73,9 @@ INSTALLED_APPS = [
     "activity",
 ]
 
+if PROMETHEUS_ENABLED:
+    INSTALLED_APPS.insert(0, "django_prometheus")
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -78,6 +88,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+if PROMETHEUS_ENABLED:
+    MIDDLEWARE.insert(0, "django_prometheus.middleware.PrometheusBeforeMiddleware")
+    MIDDLEWARE.append("django_prometheus.middleware.PrometheusAfterMiddleware")
 
 ROOT_URLCONF = "yesterdays.urls"
 

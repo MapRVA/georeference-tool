@@ -67,6 +67,10 @@ urlpatterns = [
     path("auth/", include("osm_auth.urls")),
 ]
 
+# Prometheus metrics endpoint
+if settings.PROMETHEUS_ENABLED:
+    urlpatterns.append(path("", include("django_prometheus.urls")))
+
 # Serve static files during development
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
