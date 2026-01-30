@@ -71,7 +71,6 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
-    "yesterdays",
 ]
 
 if PROMETHEUS_ENABLED:
@@ -119,7 +118,9 @@ WSGI_APPLICATION = "yesterdays.wsgi.application"
 # Use PostgreSQL
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "django_prometheus.db.backends.postgis"
+        if PROMETHEUS_ENABLED
+        else "django.contrib.gis.db.backends.postgis",
         "NAME": os.getenv("PG_DBNAME", "georef"),
         "USER": os.getenv("PG_USER", "django_user"),
         "PASSWORD": os.getenv("PG_PASSWORD", ""),
