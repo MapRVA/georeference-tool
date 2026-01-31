@@ -10,13 +10,12 @@ from django.views.decorators.http import require_GET
 
 from images.models import (
     AerialGeoreference,
-    Collection,
     Georeference,
     GeoreferenceValidation,
     Image,
-    Source,
     TopRatedImageView,
 )
+from images.utils import get_overall_stats
 
 
 def get_top_rated_image():
@@ -225,26 +224,8 @@ def stats(request):
         ),
     )
 
-    # Overall statistics
-    total_sources = Source.objects.filter(public=True).count()
-    total_collections = Collection.objects.filter(
-        public=True, source__public=True
-    ).count()
-    # Georeferenced count is the sum of all confidence levels (excluding not georeferenced)
-    georeferenced_count = (
-        low_confidence_count + medium_confidence_count + high_confidence_count
-    )
-    georeferenced_percentage = (
-        round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
-    )
-
-    overall_stats = {
-        "total_sources": total_sources,
-        "total_collections": total_collections,
-        "total_images": total_images,
-        "total_georeferenced": georeferenced_count,
-        "georeferenced_percentage": georeferenced_percentage,
-    }
+    # Get overall statistics using shared utility function
+    overall_stats = get_overall_stats()
 
     context = {
         "page_title": "Stats",

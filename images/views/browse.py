@@ -10,7 +10,7 @@ from ..models import (
     Source,
     TopRatedImageView,
 )
-from ..utils import render_markdown_safe
+from ..utils import get_overall_stats, render_markdown_safe
 
 
 def apply_image_filters(request, queryset):
@@ -120,46 +120,36 @@ def browse_sources(request):
     )
 
     # Add statistics for each source (only from public collections)
-    total_collections = 0
-    total_images = 0
-    total_georeferenced = 0
-
     for source in sources:
         # Count only public collections for this source
         source.public_collections_count = source.collections.filter(public=True).count()
-        total_collections += source.public_collections_count
 
         source.total_images = Image.objects.filter(
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
+            will_not_georef=False,
         ).count()
+        # Count images as georeferenced if they have point georeferences
+        # OR aerials with polygon georeferences
         source.georeferenced_images = (
             Image.objects.filter(
                 collection__source=source,
                 collection__public=True,
                 duplicate_of__isnull=True,
-                georeferences__isnull=False,
+                will_not_georef=False,
+            )
+            .filter(
+                Q(georeferences__isnull=False)
+                | Q(aerial=True, aerial_georeferences__isnull=False)
             )
             .distinct()
             .count()
         )
         source.pending_images = source.total_images - source.georeferenced_images
 
-        # Add to overall totals
-        total_images += source.total_images
-        total_georeferenced += source.georeferenced_images
-
-    # Calculate overall statistics
-    overall_stats = {
-        "total_sources": sources.count(),
-        "total_collections": total_collections,
-        "total_images": total_images,
-        "total_georeferenced": total_georeferenced,
-        "georeferenced_percentage": round((total_georeferenced / total_images * 100), 1)
-        if total_images > 0
-        else 0,
-    }
+    # Get overall statistics using shared utility function
+    overall_stats = get_overall_stats()
 
     # Get top-rated image from entire site for Open Graph metadata
     top_rated_entry = (
