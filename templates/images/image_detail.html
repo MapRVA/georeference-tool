@@ -357,11 +357,11 @@
                                     {% endwith %}
                                 </dd>
 
-                                {% if rendered_polygonal_notes %}
+                                {% if polygonal_georeference.confidence_notes_html %}
                                     <dt class="col-sm-12 mt-2">Notes:</dt>
                                     <dd class="col-sm-12">
                                         <div class="p-2 bg-body-secondary rounded markdown-content">
-                                            {{ rendered_polygonal_notes|safe }}
+                                            {{ polygonal_georeference.confidence_notes_html|safe }}
                                         </div>
                                     </dd>
                                 {% endif %}
@@ -441,11 +441,11 @@
                                     {% endwith %}
                                 </dd>
 
-                                {% if rendered_notes %}
+                                {% if georeference.confidence_notes_html %}
                                     <dt class="col-sm-12 mt-2">Notes:</dt>
                                     <dd class="col-sm-12">
                                         <div class="p-2 bg-body-secondary rounded markdown-content">
-                                            {{ rendered_notes|safe }}
+                                            {{ georeference.confidence_notes_html|safe }}
                                         </div>
                                     </dd>
                                 {% endif %}

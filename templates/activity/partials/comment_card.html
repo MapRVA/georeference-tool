@@ -50,7 +50,7 @@
                      x-init="$nextTick(() => { overflows = $refs.content.scrollHeight > $refs.content.clientHeight })">
                     <div class="markdown-content comment-collapsed"
                          :class="{ 'comment-collapsed': !expanded }"
-                         x-ref="content">{{ comment.text|markdown }}</div>
+                         x-ref="content">{{ comment.text_html|safe }}</div>
                     <button x-show="overflows && !expanded"
                             x-cloak
                             @click="expanded = true"

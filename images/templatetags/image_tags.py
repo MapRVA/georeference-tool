@@ -1,7 +1,5 @@
 from django import template
 
-from ..utils import render_markdown_safe
-
 register = template.Library()
 
 
@@ -37,43 +35,31 @@ def get_timeline_items(image):
 
     # Add georeferences
     for geo in image.georeferences.all():
-        rendered_geo_notes = None
-        if geo.confidence_notes:
-            rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
         timeline_items.append(
             {
                 "type": "georeference",
                 "timestamp": geo.georeferenced_at,
                 "georeference": geo,
-                "rendered_notes": rendered_geo_notes,
             }
         )
 
     # Add aerial georeferences
     for aerial_geo in image.aerial_georeferences.all():
-        rendered_aerial_notes = None
-        if aerial_geo.confidence_notes:
-            rendered_aerial_notes = render_markdown_safe(aerial_geo.confidence_notes)
         timeline_items.append(
             {
                 "type": "aerial_georeference",
                 "timestamp": aerial_geo.georeferenced_at,
                 "aerial_georeference": aerial_geo,
-                "rendered_notes": rendered_aerial_notes,
             }
         )
 
     # Add comments
     for comment in image.comments.all():
-        rendered_comment_text = None
-        if comment.text:
-            rendered_comment_text = render_markdown_safe(comment.text)
         timeline_items.append(
             {
                 "type": "comment",
                 "timestamp": comment.created_at,
                 "comment": comment,
-                "rendered_text": rendered_comment_text,
             }
         )
 

@@ -643,6 +643,11 @@ class Georeference(models.Model):
         blank=True,
         help_text="Optional notes about the georeferencing confidence or methodology",
     )
+    confidence_notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of confidence_notes",
+    )
 
     def __str__(self):
         by_user = (
@@ -651,6 +656,12 @@ class Georeference(models.Model):
             else "Anonymous"
         )
         return f"Georeference for {self.image} by {by_user}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
+        super().save(*args, **kwargs)
 
     @property
     def validation_count(self):
@@ -718,6 +729,11 @@ class AerialGeoreference(models.Model):
         blank=True,
         help_text="Optional notes about the georeferencing confidence or methodology",
     )
+    confidence_notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of confidence_notes",
+    )
 
     def __str__(self):
         by_user = (
@@ -726,6 +742,12 @@ class AerialGeoreference(models.Model):
             else "Anonymous"
         )
         return f"Aerial Georeference for {self.image} by {by_user}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
+        super().save(*args, **kwargs)
 
     @property
     def validation_count(self):
@@ -860,6 +882,11 @@ class Comment(models.Model):
 
     # Content
     text = models.TextField(help_text="Comment text content")
+    text_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of text",
+    )
 
     # Tracking information
     commented_by = models.ForeignKey(
@@ -874,12 +901,18 @@ class Comment(models.Model):
         preview = self.text[:50]
         return f"Comment by {self.commented_by.username}: {preview}..."
 
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.text_html = render_markdown_safe(self.text)
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["image", "-created_at"]
         indexes = [
             models.Index(fields=["image"]),
             models.Index(fields=["commented_by"]),
-            models.Index(fields=["created_at"]),
+            models.Index(fields=["-created_at"]),
         ]
 
 

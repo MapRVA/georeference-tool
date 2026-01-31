@@ -470,32 +470,9 @@ def image_detail(request, image_id):
     """Display detailed view of an image for georeferencing"""
     image = get_object_or_404(Image, id=image_id)
 
-    # Render confidence notes as markdown for the current georeference
+    # Get current georeferences (cached HTML is used directly in templates)
     georeference = image.get_georeference()
-    rendered_notes = None
-    if georeference and georeference.confidence_notes:
-        rendered_notes = render_markdown_safe(georeference.confidence_notes)
-
-    # Render confidence notes for the polygonal georeference
     polygonal_georeference = image.get_aerial_georeference() if image.aerial else None
-    rendered_polygonal_notes = None
-    if polygonal_georeference and polygonal_georeference.confidence_notes:
-        rendered_polygonal_notes = render_markdown_safe(
-            polygonal_georeference.confidence_notes
-        )
-
-    # Render notes for all georeferences in the timeline
-    georeferences_with_notes = []
-    for geo in image.georeferences.all():
-        rendered_geo_notes = None
-        if geo.confidence_notes:
-            rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
-        georeferences_with_notes.append(
-            {
-                "georeference": geo,
-                "rendered_notes": rendered_geo_notes,
-            }
-        )
 
     # Get total count of images in this collection
     total_images_in_collection = image.collection.images.count()
@@ -518,11 +495,8 @@ def image_detail(request, image_id):
         "image": image,
         "has_georeference": image.georeferences.exists(),
         "georeference": georeference,
-        "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
-        "georeferences_with_notes": georeferences_with_notes,
         "polygonal_georeference": polygonal_georeference,
-        "rendered_polygonal_notes": rendered_polygonal_notes,
         "next_image": image.get_next_image(),
         "previous_image": image.get_previous_image(),
         "total_images_in_collection": total_images_in_collection,
