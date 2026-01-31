@@ -21,16 +21,11 @@
                                 <h6 class="timeline-title">
                                     Georeferenced by
                                     {% if georeference.georeferenced_by %}
-                                        {% if georeference.georeferenced_by.get_profile_url %}
-                                            <strong>
-                                                <a href="{{ georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                    {{ georeference.georeferenced_by.get_display_name }}
-                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                </a>
-                                            </strong>
-                                        {% else %}
-                                            <strong>{{ georeference.georeferenced_by.get_display_name }}</strong>
-                                        {% endif %}
+                                        <strong>
+                                            <a href="{% url 'user_profile' georeference.georeferenced_by.get_display_name %}" class="text-decoration-none text-body">
+                                                {{ georeference.georeferenced_by.get_display_name }}
+                                            </a>
+                                        </strong>
                                     {% else %}
                                         <strong>Anonymous</strong>
                                     {% endif %}
@@ -98,16 +93,11 @@
                                                 <div class="validation-content flex-grow-1">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span class="validation-user">
-                                                            {% if validation.validated_by.get_profile_url %}
-                                                                <strong>
-                                                                    <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                                        {{ validation.validated_by.get_display_name }}
-                                                                        <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                                    </a>
-                                                                </strong>
-                                                            {% else %}
-                                                                <strong>{{ validation.validated_by.get_display_name }}</strong>
-                                                            {% endif %}
+                                                            <strong>
+                                                                <a href="{% url 'user_profile' validation.validated_by.get_display_name %}" class="text-decoration-none text-body">
+                                                                    {{ validation.validated_by.get_display_name }}
+                                                                </a>
+                                                            </strong>
                                                             <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
                                                                 {{ validation.validation|capfirst }}
                                                             </span>
@@ -137,16 +127,11 @@
                                 <h6 class="timeline-title">
                                     Aerial Georeference submitted by
                                     {% if aerial_georeference.georeferenced_by %}
-                                        {% if aerial_georeference.georeferenced_by.get_profile_url %}
-                                            <strong>
-                                                <a href="{{ aerial_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                    {{ aerial_georeference.georeferenced_by.get_display_name }}
-                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                </a>
-                                            </strong>
-                                        {% else %}
-                                            <strong>{{ aerial_georeference.georeferenced_by.get_display_name }}</strong>
-                                        {% endif %}
+                                        <strong>
+                                            <a href="{% url 'user_profile' aerial_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none text-body">
+                                                {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                            </a>
+                                        </strong>
                                     {% else %}
                                         <strong>Anonymous</strong>
                                     {% endif %}
@@ -197,16 +182,11 @@
                                                 <div class="validation-content flex-grow-1">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span class="validation-user">
-                                                            {% if validation.validated_by.get_profile_url %}
-                                                                <strong>
-                                                                    <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
-                                                                        {{ validation.validated_by.get_display_name }}
-                                                                        <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                                    </a>
-                                                                </strong>
-                                                            {% else %}
-                                                                <strong>{{ validation.validated_by.get_display_name }}</strong>
-                                                            {% endif %}
+                                                            <strong>
+                                                                <a href="{% url 'user_profile' validation.validated_by.get_display_name %}" class="text-decoration-none text-body">
+                                                                    {{ validation.validated_by.get_display_name }}
+                                                                </a>
+                                                            </strong>
                                                             <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
                                                                 {{ validation.validation|capfirst }}
                                                             </span>
@@ -235,16 +215,11 @@
                             <div class="timeline-header">
                                 <h6 class="timeline-title">
                                     Comment by
-                                    {% if comment.commented_by.get_profile_url %}
-                                        <strong>
-                                            <a href="{{ comment.commented_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                {{ comment.commented_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        </strong>
-                                    {% else %}
-                                        <strong>{{ comment.commented_by.get_display_name }}</strong>
-                                    {% endif %}
+                                    <strong>
+                                        <a href="{% url 'user_profile' comment.commented_by.get_display_name %}" class="text-decoration-none text-body">
+                                            {{ comment.commented_by.get_display_name }}
+                                        </a>
+                                    </strong>
                                 </h6>
                                 <small class="text-muted">
                                     <i class="fas fa-calendar me-1"></i>{{ comment.created_at|date:"M j, Y g:i A" }}

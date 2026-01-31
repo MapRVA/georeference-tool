@@ -305,14 +305,9 @@
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
                                     {% if polygonal_georeference.georeferenced_by %}
-                                        {% if polygonal_georeference.georeferenced_by.get_profile_url %}
-                                            <a href="{{ polygonal_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
-                                                {{ polygonal_georeference.georeferenced_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        {% else %}
+                                        <a href="{% url 'user_profile' polygonal_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none">
                                             {{ polygonal_georeference.georeferenced_by.get_display_name }}
-                                        {% endif %}
+                                        </a>
                                     {% else %}
                                         Anonymous
                                     {% endif %}
@@ -382,14 +377,9 @@
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
                                     {% if image.get_georeference.georeferenced_by %}
-                                        {% if image.get_georeference.georeferenced_by.get_profile_url %}
-                                            <a href="{{ image.get_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
-                                                {{ image.get_georeference.georeferenced_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        {% else %}
+                                        <a href="{% url 'user_profile' image.get_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none">
                                             {{ image.get_georeference.georeferenced_by.get_display_name }}
-                                        {% endif %}
+                                        </a>
                                     {% else %}
                                         Anonymous
                                     {% endif %}
