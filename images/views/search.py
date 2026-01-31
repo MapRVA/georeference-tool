@@ -371,14 +371,7 @@ def semantic_search(request):
             cursor.execute("""
                 SELECT embedding
                 FROM images_image
-                WHERE embedding IS NOT NULL
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true
-                )
+                WHERE embedding IS NOT NULL AND is_searchable = true
                 LIMIT 1
             """)
             result = cursor.fetchone()
@@ -462,16 +455,10 @@ def semantic_search(request):
 
             # Get total count for pagination
             count_sql = sql.SQL("""
-                SELECT COUNT(images_image.id)
+                SELECT COUNT(id)
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
+                AND is_searchable = true
             """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
@@ -489,14 +476,8 @@ def semantic_search(request):
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
-                ORDER BY embedding::vector <=> %s::vector, id ASC  -- ← ADD ", id ASC"
+                AND is_searchable = true
+                ORDER BY embedding::vector <=> %s::vector, id ASC
                 LIMIT %s
                 OFFSET %s
             """).format(where_clause=sql.SQL(where_clause))
@@ -769,13 +750,7 @@ def find_similar_images(request, image_id):
                 SELECT COUNT(id)
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
+                AND is_searchable = true
             """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
@@ -787,13 +762,7 @@ def find_similar_images(request, image_id):
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
+                AND is_searchable = true
                 ORDER BY distance, id ASC
                 LIMIT %s OFFSET %s
             """).format(where_clause=sql.SQL(where_clause))
@@ -1019,11 +988,8 @@ def text_search(request):
     # --- Start of Query Logic ---
     try:
         # Build SQL WHERE conditions for all filters
-        # This is much more efficient than loading IDs into memory
         sql_where_conditions = [
-            "c.public = true",
-            "s.public = true",
-            "i.duplicate_of_id IS NULL",
+            "i.is_searchable = true",
         ]
         sql_params = {
             "query": query,
@@ -1080,13 +1046,9 @@ def text_search(request):
         # 2. Use Raw SQL for the complex trigram query for performance and control
         with connection.cursor() as cursor:
             # First, get total count of results that meet the threshold
-            where_clause = " AND ".join(sql_where_conditions)
-
             count_sql = sql.SQL("""
                 SELECT COUNT(i.id)
                 FROM images_image i
-                JOIN images_collection c ON i.collection_id = c.id
-                JOIN images_source s ON c.source_id = s.id
                 LEFT JOIN LATERAL (
                     SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
                     FROM images_comment c
@@ -1130,8 +1092,6 @@ def text_search(request):
                         COALESCE(aerial_match.best_aerial_distance, 1.0)
                     ) as distance
                 FROM images_image i
-                JOIN images_collection c ON i.collection_id = c.id
-                JOIN images_source s ON c.source_id = s.id
                 LEFT JOIN LATERAL (
                     SELECT MIN(%(query)s <<-> c.text) as best_comment_distance
                     FROM images_comment c
@@ -1421,14 +1381,7 @@ def reverse_image_search(request):
             cursor.execute("""
                 SELECT embedding
                 FROM images_image
-                WHERE embedding IS NOT NULL
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true
-                )
+                WHERE embedding IS NOT NULL AND is_searchable = true
                 LIMIT 1
             """)
             result = cursor.fetchone()
@@ -1499,16 +1452,10 @@ def reverse_image_search(request):
 
             # Get total count for pagination
             count_sql = sql.SQL("""
-                SELECT COUNT(images_image.id)
+                SELECT COUNT(id)
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
+                AND is_searchable = true
             """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
@@ -1526,14 +1473,8 @@ def reverse_image_search(request):
                     (embedding::vector <=> %s::vector) as distance
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
-                ORDER BY embedding::vector <=> %s::vector, id ASC  -- ← ADD ", id ASC"
+                AND is_searchable = true
+                ORDER BY embedding::vector <=> %s::vector, id ASC
                 LIMIT %s
                 OFFSET %s
             """).format(where_clause=sql.SQL(where_clause))

@@ -375,6 +375,15 @@ class Image(models.Model):
         help_text="ID of another Image if this is a duplicate",
     )
 
+    # Denormalized visibility field for search performance
+    # Computed from: collection.public AND collection.source.public AND duplicate_of IS NULL
+    # Kept in sync via Django signals on Source, Collection, and Image changes
+    is_searchable = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this image appears in search results (auto-computed from collection/source visibility and duplicate status)",
+    )
+
     # Image embedding for CLIP similarity search
     embedding = ArrayField(
         models.FloatField(),
@@ -896,6 +905,71 @@ def update_skip_count(sender, instance, **kwargs):
     """Update the skip_count on Image when ImageSkip is created/deleted"""
     instance.image.skip_count = instance.image.skips.count()
     instance.image.save(update_fields=["skip_count"])
+
+
+# =============================================================================
+# Signals to keep Image.is_searchable synchronized
+# =============================================================================
+
+
+def _compute_is_searchable(image):
+    """Compute whether an image should be searchable."""
+    return (
+        image.collection.public
+        and image.collection.source.public
+        and image.duplicate_of_id is None
+    )
+
+
+@receiver(post_save, sender=Source)
+def update_searchable_on_source_change(sender, instance, **kwargs):
+    """When a Source's public status changes, update all images in its collections."""
+    from django.db import connection
+
+    # Use raw SQL because Django's update() doesn't allow joined field references
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE images_image
+            SET is_searchable = (
+                %s = true
+                AND EXISTS (
+                    SELECT 1 FROM images_collection c
+                    WHERE c.id = images_image.collection_id AND c.public = true
+                )
+                AND images_image.duplicate_of_id IS NULL
+            )
+            WHERE collection_id IN (
+                SELECT id FROM images_collection WHERE source_id = %s
+            )
+            """,
+            [instance.public, instance.id],
+        )
+
+
+@receiver(post_save, sender=Collection)
+def update_searchable_on_collection_change(sender, instance, **kwargs):
+    """When a Collection's public status changes, update all its images."""
+    is_public = instance.public and instance.source.public
+    # This works because we're not referencing joined fields in the update value
+    Image.objects.filter(collection=instance, duplicate_of__isnull=True).update(
+        is_searchable=is_public
+    )
+    Image.objects.filter(collection=instance, duplicate_of__isnull=False).update(
+        is_searchable=False
+    )
+
+
+@receiver(post_save, sender=Image)
+def update_searchable_on_image_save(sender, instance, created, **kwargs):
+    """Update is_searchable on every Image save to reflect current collection/source visibility."""
+    # Compute the correct value
+    should_be_searchable = _compute_is_searchable(instance)
+
+    # Only update if the value has changed (avoid infinite recursion)
+    if instance.is_searchable != should_be_searchable:
+        # Use update() to avoid triggering another signal
+        Image.objects.filter(pk=instance.pk).update(is_searchable=should_be_searchable)
 
 
 class Album(models.Model):
