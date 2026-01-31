@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+{% if show_cache_warning %}
+<div style="background-color: #ffc107; color: #212529; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+    <strong>Note:</strong> Changes to site settings are cached and may take up to 5 minutes to appear across all servers.
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}

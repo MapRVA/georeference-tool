@@ -1011,6 +1011,13 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         # Prevent deletion of the settings instance
         return False
 
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["show_cache_warning"] = True
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    change_form_template = "admin/images/sitesettings/change_form.html"
+
     fieldsets = (
         (
             "Homepage Content",

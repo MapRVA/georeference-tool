@@ -1,5 +1,6 @@
 import json
 
+from django.core.cache import cache
 from django.db import connection
 from django.db.models import Count, F, Max
 from django.db.models.functions import TruncDate
@@ -18,9 +19,12 @@ from images.models import (
 )
 
 
-def home(request):
-    """Home page view"""
-    # Get top-rated image from entire site for Open Graph metadata
+def get_top_rated_image():
+    """Get the top-rated image for Open Graph metadata, with caching."""
+    cached = cache.get("top_rated_image")
+    if cached is not None:
+        return cached
+
     top_rated_entry = (
         TopRatedImageView.objects.all()
         .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
@@ -32,9 +36,15 @@ def home(request):
             id=top_rated_entry.image_id
         )
 
+    cache.set("top_rated_image", top_rated_image, timeout=900)  # 15 minutes
+    return top_rated_image
+
+
+def home(request):
+    """Home page view"""
     context = {
         "page_title": "Home",
-        "top_rated_image": top_rated_image,
+        "top_rated_image": get_top_rated_image(),
     }
     return render(request, "home.html", context)
 

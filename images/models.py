@@ -4,6 +4,7 @@ from django.contrib.admin.utils import quote
 from django.contrib.auth.models import User
 from django.contrib.gis.db import models as gis_models
 from django.contrib.postgres.fields import ArrayField
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -103,11 +104,18 @@ class SiteSettings(models.Model):
         # Ensure only one instance can exist
         self.pk = 1
         super().save(*args, **kwargs)
+        # Invalidate cache so all processes pick up the new settings
+        cache.delete("site_settings")
 
     @classmethod
     def load(cls):
         """Get the singleton instance, creating it if it doesn't exist"""
+
+        cached = cache.get("site_settings")
+        if cached is not None:
+            return cached
         obj, created = cls.objects.get_or_create(pk=1)
+        cache.set("site_settings", obj, timeout=300)  # 5 minutes
         return obj
 
 
