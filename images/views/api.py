@@ -410,9 +410,11 @@ def _generate_tile(
     where_clause = " AND ".join(where_conditions)
 
     if where_clause:
-        where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+        where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point_3857, ST_TileEnvelope(%s, %s, %s))"
     else:
-        where_clause_sql = "WHERE ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+        where_clause_sql = (
+            "WHERE ST_Intersects(point_3857, ST_TileEnvelope(%s, %s, %s))"
+        )
 
     sql = f"""
         SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM (
