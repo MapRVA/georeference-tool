@@ -500,7 +500,7 @@ export function initializeMap(config) {
         type: "vector",
         tiles: [tilesUrl],
         minzoom: 0,
-        maxzoom: 18,
+        maxzoom: 14,
       });
 
       // Start hidden if in showOtherImages mode (toggle controls visibility)

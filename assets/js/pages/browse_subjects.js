@@ -58,7 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
       type: "vector",
       tiles: [window.location.origin + window.VECTOR_TILES_URL],
       minzoom: 0,
-      maxzoom: 18,
+      maxzoom: 14,
     });
 
     // Add circle layer for image georeferences
