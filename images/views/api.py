@@ -293,11 +293,11 @@ def bump_tile_version():
     return str(TileVersion.bump())
 
 
-def vector_tiles_endpoint(request, v, z, x, y):
+def vector_tiles_endpoint(request, z, x, y, v=None):
     """Return MVT vector tiles of georeferenced images.
 
-    The version (v) is included in the URL for cache-busting. When the version
-    changes, all tile URLs change, invalidating browser and CDN caches.
+    URLs may include a version (v) for cache-busting, but it's not used server-side.
+    When the version changes, all tile URLs change, invalidating browser and CDN caches.
     """
 
     # Collect filter parameters
