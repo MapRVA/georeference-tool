@@ -10,15 +10,49 @@
         </a>
     </div>
     {% if image.thumbnail %}
+    <div id="image-loading-bar" class="position-absolute bottom-0 start-0 w-100" style="z-index: 2;">
+        <div class="progress" style="height: 4px; border-radius: 0; background-color: rgba(0,0,0,0.2);">
+            <div id="image-loading-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+        </div>
+    </div>
     <script>
         (function() {
             var img = document.getElementById('main-image');
             var fullSrc = img.src;
             var thumbSrc = img.dataset.thumbnail;
+            var loadingBar = document.getElementById('image-loading-bar');
+            var progressBar = document.getElementById('image-loading-progress');
+
             img.src = thumbSrc;
-            var full = new Image();
-            full.onload = function() { img.src = fullSrc; };
-            full.src = fullSrc;
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', fullSrc, true);
+            xhr.responseType = 'blob';
+
+            xhr.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    var percent = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percent + '%';
+                } else {
+                    progressBar.style.width = '100%';
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    var blob = xhr.response;
+                    var objectUrl = URL.createObjectURL(blob);
+                    img.onload = function() { URL.revokeObjectURL(objectUrl); };
+                    img.src = objectUrl;
+                }
+                loadingBar.style.display = 'none';
+            };
+
+            xhr.onerror = function() {
+                loadingBar.style.display = 'none';
+            };
+
+            xhr.send();
         })();
     </script>
     {% endif %}
