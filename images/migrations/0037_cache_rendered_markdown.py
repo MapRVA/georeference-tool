@@ -5,34 +5,45 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0036_add_search_settings'),
+        ("images", "0036_add_search_settings"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.RemoveIndex(
-            model_name='comment',
-            name='images_comm_created_8e4733_idx',
+            model_name="comment",
+            name="images_comm_created_8e4733_idx",
         ),
         migrations.AddField(
-            model_name='aerialgeoreference',
-            name='confidence_notes_html',
-            field=models.TextField(blank=True, editable=False, help_text='Cached rendered HTML of confidence_notes'),
+            model_name="aerialgeoreference",
+            name="confidence_notes_html",
+            field=models.TextField(
+                blank=True,
+                editable=False,
+                help_text="Cached rendered HTML of confidence_notes",
+            ),
         ),
         migrations.AddField(
-            model_name='comment',
-            name='text_html',
-            field=models.TextField(blank=True, editable=False, help_text='Cached rendered HTML of text'),
+            model_name="comment",
+            name="text_html",
+            field=models.TextField(
+                blank=True, editable=False, help_text="Cached rendered HTML of text"
+            ),
         ),
         migrations.AddField(
-            model_name='georeference',
-            name='confidence_notes_html',
-            field=models.TextField(blank=True, editable=False, help_text='Cached rendered HTML of confidence_notes'),
+            model_name="georeference",
+            name="confidence_notes_html",
+            field=models.TextField(
+                blank=True,
+                editable=False,
+                help_text="Cached rendered HTML of confidence_notes",
+            ),
         ),
         migrations.AddIndex(
-            model_name='comment',
-            index=models.Index(fields=['-created_at'], name='images_comm_created_39a08c_idx'),
+            model_name="comment",
+            index=models.Index(
+                fields=["-created_at"], name="images_comm_created_39a08c_idx"
+            ),
         ),
     ]

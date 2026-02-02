@@ -5,15 +5,20 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0030_sitesettings_admin_email'),
+        ("images", "0030_sitesettings_admin_email"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='detected_address',
-            field=django.contrib.gis.db.models.fields.PointField(blank=True, help_text='Location detected from address parsing in image metadata', null=True, spatial_index=False, srid=4326),
+            model_name="image",
+            name="detected_address",
+            field=django.contrib.gis.db.models.fields.PointField(
+                blank=True,
+                help_text="Location detected from address parsing in image metadata",
+                null=True,
+                spatial_index=False,
+                srid=4326,
+            ),
         ),
     ]

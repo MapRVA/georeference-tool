@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0032_sitesettings_default_map_latitude_and_more'),
+        ("images", "0032_sitesettings_default_map_latitude_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='sitesettings',
-            name='default_map_zoom',
-            field=models.FloatField(default=10.0, help_text='Default map zoom level (0-22, supports decimals like 11.5)'),
+            model_name="sitesettings",
+            name="default_map_zoom",
+            field=models.FloatField(
+                default=10.0,
+                help_text="Default map zoom level (0-22, supports decimals like 11.5)",
+            ),
         ),
     ]

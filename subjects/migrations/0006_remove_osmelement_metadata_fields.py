@@ -4,18 +4,17 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('subjects', '0005_move_osm_element_fk_to_osmelement'),
+        ("subjects", "0005_move_osm_element_fk_to_osmelement"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='osmelement',
-            name='metadata_fetch_failures',
+            model_name="osmelement",
+            name="metadata_fetch_failures",
         ),
         migrations.RemoveField(
-            model_name='osmelement',
-            name='metadata_last_fetched',
+            model_name="osmelement",
+            name="metadata_last_fetched",
         ),
     ]

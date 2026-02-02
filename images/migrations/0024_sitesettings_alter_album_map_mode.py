@@ -4,28 +4,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0023_album_map_mode'),
+        ("images", "0023_album_map_mode"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SiteSettings',
+            name="SiteSettings",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('site_title', models.CharField(default='Yesterdays', help_text='Main title displayed on the homepage', max_length=200)),
-                ('site_subtitle', models.TextField(default='Place historical images on the map!', help_text='Subtitle/description displayed on the homepage')),
-                ('footer_content', models.TextField(default='Yesterdays is proudly built by <a href="https://maprva.org" target="_blank" class="text-decoration-none">MapRVA</a>', help_text='HTML content for the site footer')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "site_title",
+                    models.CharField(
+                        default="Yesterdays",
+                        help_text="Main title displayed on the homepage",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "site_subtitle",
+                    models.TextField(
+                        default="Place historical images on the map!",
+                        help_text="Subtitle/description displayed on the homepage",
+                    ),
+                ),
+                (
+                    "footer_content",
+                    models.TextField(
+                        default='Yesterdays is proudly built by <a href="https://maprva.org" target="_blank" class="text-decoration-none">MapRVA</a>',
+                        help_text="HTML content for the site footer",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Site Settings',
-                'verbose_name_plural': 'Site Settings',
+                "verbose_name": "Site Settings",
+                "verbose_name_plural": "Site Settings",
             },
         ),
         migrations.AlterField(
-            model_name='album',
-            name='map_mode',
-            field=models.BooleanField(default=False, help_text='Whether to display map, georeferencing buttons'),
+            model_name="album",
+            name="map_mode",
+            field=models.BooleanField(
+                default=False,
+                help_text="Whether to display map, georeferencing buttons",
+            ),
         ),
     ]

@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0021_osmelement_subject_osm_element'),
+        ("images", "0021_osmelement_subject_osm_element"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='osmelement',
-            name='geometry_area',
-            field=models.FloatField(default=0, help_text='Cached area of the geometry in square degrees (used for render ordering)'),
+            model_name="osmelement",
+            name="geometry_area",
+            field=models.FloatField(
+                default=0,
+                help_text="Cached area of the geometry in square degrees (used for render ordering)",
+            ),
         ),
     ]

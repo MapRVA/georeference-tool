@@ -4,21 +4,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0033_alter_sitesettings_default_map_zoom'),
+        ("images", "0033_alter_sitesettings_default_map_zoom"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='TileVersion',
+            name="TileVersion",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('version', models.PositiveIntegerField(default=1)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("version", models.PositiveIntegerField(default=1)),
             ],
             options={
-                'verbose_name': 'tile version',
-                'verbose_name_plural': 'tile version',
+                "verbose_name": "tile version",
+                "verbose_name_plural": "tile version",
             },
         ),
     ]

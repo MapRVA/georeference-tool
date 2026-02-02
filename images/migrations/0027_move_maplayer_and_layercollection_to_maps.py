@@ -2,9 +2,8 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0026_update_public_georeferences_mvt_thumbnail'),
+        ("images", "0026_update_public_georeferences_mvt_thumbnail"),
     ]
 
     operations = [
@@ -13,30 +12,30 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             database_operations=[
                 migrations.AlterModelTable(
-                    name='layercollection',
-                    table='maps_layercollection',
+                    name="layercollection",
+                    table="maps_layercollection",
                 ),
             ],
             state_operations=[
                 migrations.DeleteModel(
-                    name='LayerCollection',
+                    name="LayerCollection",
                 ),
             ],
         ),
         migrations.SeparateDatabaseAndState(
             database_operations=[
                 migrations.AlterModelTable(
-                    name='maplayer',
-                    table='maps_maplayer',
+                    name="maplayer",
+                    table="maps_maplayer",
                 ),
             ],
             state_operations=[
                 migrations.RemoveField(
-                    model_name='maplayer',
-                    name='collection',
+                    model_name="maplayer",
+                    name="collection",
                 ),
                 migrations.DeleteModel(
-                    name='MapLayer',
+                    name="MapLayer",
                 ),
             ],
         ),

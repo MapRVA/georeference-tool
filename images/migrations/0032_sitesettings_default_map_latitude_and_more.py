@@ -4,25 +4,30 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0031_image_detected_address'),
+        ("images", "0031_image_detected_address"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='sitesettings',
-            name='default_map_latitude',
-            field=models.FloatField(default=37.54376, help_text='Default map center latitude'),
+            model_name="sitesettings",
+            name="default_map_latitude",
+            field=models.FloatField(
+                default=37.54376, help_text="Default map center latitude"
+            ),
         ),
         migrations.AddField(
-            model_name='sitesettings',
-            name='default_map_longitude',
-            field=models.FloatField(default=-77.43916, help_text='Default map center longitude'),
+            model_name="sitesettings",
+            name="default_map_longitude",
+            field=models.FloatField(
+                default=-77.43916, help_text="Default map center longitude"
+            ),
         ),
         migrations.AddField(
-            model_name='sitesettings',
-            name='default_map_zoom',
-            field=models.IntegerField(default=10, help_text='Default map zoom level (0-22)'),
+            model_name="sitesettings",
+            name="default_map_zoom",
+            field=models.IntegerField(
+                default=10, help_text="Default map zoom level (0-22)"
+            ),
         ),
     ]

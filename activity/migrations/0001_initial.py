@@ -6,67 +6,160 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('images', '0028_move_subjects_to_subjects_app'),
+        ("images", "0028_move_subjects_to_subjects_app"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='GeoreferenceGroup',
+            name="GeoreferenceGroup",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('started_at', models.DateTimeField(help_text='Timestamp of the first georeference in this group')),
-                ('ended_at', models.DateTimeField(db_index=True, help_text='Timestamp of the most recent georeference in this group')),
-                ('count', models.PositiveIntegerField(default=1)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='georeference_groups', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "started_at",
+                    models.DateTimeField(
+                        help_text="Timestamp of the first georeference in this group"
+                    ),
+                ),
+                (
+                    "ended_at",
+                    models.DateTimeField(
+                        db_index=True,
+                        help_text="Timestamp of the most recent georeference in this group",
+                    ),
+                ),
+                ("count", models.PositiveIntegerField(default=1)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="georeference_groups",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-ended_at'],
+                "ordering": ["-ended_at"],
             },
         ),
         migrations.CreateModel(
-            name='GeoreferenceGroupMember',
+            name="GeoreferenceGroupMember",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('added_at', models.DateTimeField(help_text='Timestamp when this georeference was made')),
-                ('aerial_georeference', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='images.aerialgeoreference')),
-                ('georeference', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='images.georeference')),
-                ('group', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='members', to='activity.georeferencegroup')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "added_at",
+                    models.DateTimeField(
+                        help_text="Timestamp when this georeference was made"
+                    ),
+                ),
+                (
+                    "aerial_georeference",
+                    models.OneToOneField(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="images.aerialgeoreference",
+                    ),
+                ),
+                (
+                    "georeference",
+                    models.OneToOneField(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="images.georeference",
+                    ),
+                ),
+                (
+                    "group",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="members",
+                        to="activity.georeferencegroup",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-added_at'],
+                "ordering": ["-added_at"],
             },
         ),
         migrations.CreateModel(
-            name='UserMilestone',
+            name="UserMilestone",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('count', models.PositiveIntegerField(help_text='The milestone count reached (5, 15, 50, etc.)')),
-                ('reached_at', models.DateTimeField(db_index=True, help_text='Timestamp when this milestone was reached')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='milestones', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "count",
+                    models.PositiveIntegerField(
+                        help_text="The milestone count reached (5, 15, 50, etc.)"
+                    ),
+                ),
+                (
+                    "reached_at",
+                    models.DateTimeField(
+                        db_index=True,
+                        help_text="Timestamp when this milestone was reached",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="milestones",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-reached_at'],
+                "ordering": ["-reached_at"],
             },
         ),
         migrations.AddIndex(
-            model_name='georeferencegroup',
-            index=models.Index(fields=['-ended_at'], name='activity_ge_ended_a_a47ba8_idx'),
+            model_name="georeferencegroup",
+            index=models.Index(
+                fields=["-ended_at"], name="activity_ge_ended_a_a47ba8_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='georeferencegroup',
-            index=models.Index(fields=['user', '-ended_at'], name='activity_ge_user_id_567280_idx'),
+            model_name="georeferencegroup",
+            index=models.Index(
+                fields=["user", "-ended_at"], name="activity_ge_user_id_567280_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='usermilestone',
-            index=models.Index(fields=['-reached_at'], name='activity_us_reached_217c9d_idx'),
+            model_name="usermilestone",
+            index=models.Index(
+                fields=["-reached_at"], name="activity_us_reached_217c9d_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='usermilestone',
-            unique_together={('user', 'count')},
+            name="usermilestone",
+            unique_together={("user", "count")},
         ),
     ]
