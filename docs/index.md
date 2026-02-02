@@ -12,3 +12,7 @@ If you are interested in Yesterdays, or other MapRVA projects, we hope you'll jo
 
 Join the [OpenStreetMap US Slack](https://openstreetmap.us/slack/), where we collaborate on development and contributions to Yesterdays in the `#yesterdays` channel.
 Anyone is welcome to participate.
+
+## Contact Us
+
+Please see our [contact page](/contact).
