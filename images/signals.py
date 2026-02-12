@@ -17,6 +17,7 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from .models import Collection, Georeference, Image, Source
+from .views.api import bump_tile_version
 
 logger = logging.getLogger(__name__)
 
@@ -43,16 +44,25 @@ def refresh_tile_view(using_concurrent=True):
         logger.warning(f"Failed to refresh tile view: {str(e)}")
 
 
+def refresh_tiles(using_concurrent=True):
+    """
+    Refresh the materialized view, then bump the tile version.
+
+    The version must be bumped AFTER the view refresh completes, otherwise
+    the new version's tiles may be served (and cached) with stale data.
+    """
+
+    refresh_tile_view(using_concurrent)
+    bump_tile_version()
+
+
 @receiver(post_save, sender=Georeference)
 def refresh_view_on_georeference_save(sender, instance, created, **kwargs):
     """
     Refresh materialized view and invalidate tile cache when a georeference
     is created or updated.
     """
-    from .views.api import bump_tile_version
-
-    transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
-    transaction.on_commit(bump_tile_version)
+    transaction.on_commit(refresh_tiles)
 
 
 @receiver(post_delete, sender=Georeference)
@@ -61,10 +71,7 @@ def refresh_view_on_georeference_delete(sender, instance, **kwargs):
     Refresh materialized view and invalidate tile cache when a georeference
     is deleted.
     """
-    from .views.api import bump_tile_version
-
-    transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
-    transaction.on_commit(bump_tile_version)
+    transaction.on_commit(refresh_tiles)
 
 
 @receiver(post_save, sender=Collection)
@@ -73,12 +80,9 @@ def refresh_view_on_collection_save(sender, instance, **kwargs):
     Refresh materialized view and invalidate tile cache when a collection's
     public status changes.
     """
-    from .views.api import bump_tile_version
-
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
-        transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
-        transaction.on_commit(bump_tile_version)
+        transaction.on_commit(refresh_tiles)
 
 
 @receiver(post_save, sender=Source)
@@ -87,12 +91,9 @@ def refresh_view_on_source_save(sender, instance, **kwargs):
     Refresh materialized view and invalidate tile cache when a source's
     public status changes.
     """
-    from .views.api import bump_tile_version
-
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
-        transaction.on_commit(lambda: refresh_tile_view(using_concurrent=True))
-        transaction.on_commit(bump_tile_version)
+        transaction.on_commit(refresh_tiles)
 
 
 @receiver(post_save, sender=Image)
