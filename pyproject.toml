@@ -36,6 +36,9 @@ required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
 
+[tool.uv.extra-build-dependencies]
+clip = ["setuptools"]
+
 [tool.uv.sources]
 clip = { git = "https://github.com/openai/CLIP.git" }
 torch = [
