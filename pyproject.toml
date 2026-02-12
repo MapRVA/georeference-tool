@@ -37,7 +37,7 @@ required-environments = [
 ]
 
 [tool.uv.extra-build-dependencies]
-clip = ["setuptools"]
+clip = ["setuptools<81"]
 
 [tool.uv.sources]
 clip = { git = "https://github.com/openai/CLIP.git" }
