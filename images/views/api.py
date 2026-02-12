@@ -14,18 +14,11 @@ tile_cache = caches["tiles"]
 
 
 def geojson_endpoint(request):
-    """Return GeoJSON FeatureCollection of georeferenced images"""
+    """Return GeoJSON FeatureCollection of georeferenced images.
 
-    # Start with all georeferenced images from public collections/sources
-    images = (
-        Image.objects.select_related("collection__source")
-        .prefetch_related("georeferences", "subject_mappings__subject__wikidata_item")
-        .filter(
-            georeferences__isnull=False,  # Must be georeferenced
-            collection__public=True,  # Collection must be public
-            collection__source__public=True,  # Source must be public
-        )
-    )
+    Reads from the public_georeferences_mvt materialized view for performance,
+    joining to live tables only for permalink and subject data.
+    """
 
     # Apply filters based on GET parameters
     image_id = request.GET.get("image")
@@ -33,67 +26,99 @@ def geojson_endpoint(request):
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
 
+    where_conditions = []
+    where_params = []
+
     if image_id:
-        images = images.filter(id=image_id)
+        where_conditions.append("mv.image_id = %s")
+        where_params.append(image_id)
     if collection_id:
-        images = images.filter(collection_id=collection_id)
+        where_conditions.append("i.collection_id = %s")
+        where_params.append(collection_id)
     if source_id:
-        images = images.filter(collection__source_id=source_id)
-    if subject_id:
-        images = images.filter(subject_mappings__subject_id=subject_id)
-
-    # Build GeoJSON features
-    features = []
-    for image in images:
-        georeference = image.get_georeference()
-        if not georeference:  # Skip if no georeference found
-            continue
-
-        # Build the image entry URL (absolute URL to image detail page)
-        img_entry = request.build_absolute_uri(
-            reverse("images:image_detail", kwargs={"image_id": image.id})
+        where_conditions.append(
+            "i.collection_id IN (SELECT id FROM images_collection WHERE source_id = %s)"
         )
+        where_params.append(source_id)
+    if subject_id:
+        where_conditions.append(
+            "mv.image_id IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = %s)"
+        )
+        where_params.append(subject_id)
 
-        # Build properties
-        properties = {
-            "img_url": image.permalink,
-            "img_entry": img_entry,
-            "original_date": str(image.original_date) if image.original_date else None,
-            "edtf_date": str(image.edtf_date) if image.edtf_date else None,
-            "start_decdate": image.start_decdate,
-            "fuzzy_start_decdate": image.fuzzy_start_decdate,
-            "end_decdate": image.end_decdate,
-            "fuzzy_end_decdate": image.fuzzy_end_decdate,
-        }
+    where_clause = " AND ".join(where_conditions)
+    if where_clause:
+        where_clause = f"WHERE {where_clause}"
 
-        # Only include direction if it's not None
-        if georeference.direction is not None:
-            properties["direction"] = georeference.direction
+    sql = f"""
+        SELECT
+            mv.image_id,
+            ST_X(mv.point) as lon,
+            ST_Y(mv.point) as lat,
+            i.permalink,
+            mv.original_date,
+            mv.edtf_date,
+            mv.start_decdate,
+            mv.fuzzy_start_decdate,
+            mv.end_decdate,
+            mv.fuzzy_end_decdate,
+            mv.scale,
+            mv.direction,
+            (
+                SELECT array_agg(wi.wikidata_id)
+                FROM images_subjectmapping sm
+                JOIN subjects_subject ss ON sm.subject_id = ss.id
+                JOIN subjects_wikidataitem wi ON ss.wikidata_item_id = wi.id
+                WHERE sm.image_id = mv.image_id
+            ) as subjects
+        FROM public_georeferences_mvt mv
+        JOIN images_image i ON mv.image_id = i.id
+        {where_clause}
+    """
 
-        # Only include scale if it's not None
-        if image.scale is not None:
-            properties["scale"] = image.scale
+    features = []
+    with connection.cursor() as cursor:
+        cursor.execute(sql, where_params)
+        columns = [col.name for col in cursor.description]
 
-        # Add subjects as Wikidata IDs if they exist
-        subject_wikidata_ids = [
-            mapping.subject.wikidata_item.wikidata_id
-            for mapping in image.subject_mappings.all()
-            if mapping.subject.wikidata_item
-        ]
-        if subject_wikidata_ids:
-            properties["subjects"] = subject_wikidata_ids
+        for row in cursor.fetchall():
+            data = dict(zip(columns, row))
 
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [georeference.point.x, georeference.point.y],
-            },
-            "properties": properties,
-        }
-        features.append(feature)
+            img_entry = request.build_absolute_uri(
+                reverse("images:image_detail", kwargs={"image_id": data["image_id"]})
+            )
 
-    # Build final GeoJSON
+            properties = {
+                "img_url": data["permalink"],
+                "img_entry": img_entry,
+                "original_date": data["original_date"] or None,
+                "edtf_date": data["edtf_date"] or None,
+                "start_decdate": data["start_decdate"],
+                "fuzzy_start_decdate": data["fuzzy_start_decdate"],
+                "end_decdate": data["end_decdate"],
+                "fuzzy_end_decdate": data["fuzzy_end_decdate"],
+            }
+
+            if data["direction"] is not None:
+                properties["direction"] = data["direction"]
+
+            if data["scale"] and data["scale"] != 0:
+                properties["scale"] = data["scale"]
+
+            if data["subjects"]:
+                properties["subjects"] = data["subjects"]
+
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [data["lon"], data["lat"]],
+                    },
+                    "properties": properties,
+                }
+            )
+
     geojson = {"type": "FeatureCollection", "features": features}
 
     return JsonResponse(geojson)
