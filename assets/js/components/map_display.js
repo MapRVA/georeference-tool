@@ -553,6 +553,8 @@ export function initializeMap(config) {
             100,
           ],
           "circle-color": primaryColor,
+          "circle-pitch-alignment": "map",
+          "circle-pitch-scale": "map",
         },
       });
 
@@ -651,6 +653,8 @@ export function initializeMap(config) {
             20,
             2,
           ],
+          "circle-pitch-alignment": "map",
+          "circle-pitch-scale": "map",
         },
       });
 
@@ -693,6 +697,8 @@ export function initializeMap(config) {
           "circle-color": primaryColor,
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
+          "circle-pitch-alignment": "map",
+          "circle-pitch-scale": "map",
         },
       });
     }
@@ -744,6 +750,8 @@ export function initializeMap(config) {
           "circle-color": dangerColor,
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
+          "circle-pitch-alignment": "map",
+          "circle-pitch-scale": "map",
         },
       });
     }
