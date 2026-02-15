@@ -38,6 +38,9 @@ RUN bun install --frozen-lockfile
 # Copy Python version file so uv knows which Python to install
 COPY .python-version ./
 
+# Install Python to a path that will also work in the release image
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+
 # Install Python dependencies (uv will download and manage Python)
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock,relabel=shared \
@@ -71,6 +74,10 @@ RUN bun run build
 
 # Final runtime image - minimal Debian
 FROM debian:bookworm-slim AS release
+
+# Create non-root user
+RUN groupadd --gid 1000 app && useradd --uid 1000 --gid 1000 --create-home app
+
 WORKDIR /app
 
 # Install only essential runtime dependencies
@@ -84,23 +91,26 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy Python (managed by uv) and virtual environment from build stage
-COPY --from=build /root/.local/share/uv/python /root/.local/share/uv/python
-COPY --from=build /app/.venv /app/.venv
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+COPY --from=build /opt/uv/python /opt/uv/python
+COPY --from=build --chown=app:app /app/.venv /app/.venv
 
 # Copy only runtime-necessary files from build stage
-COPY --from=build /app/manage.py /app/
-COPY --from=build /app/pyproject.toml /app/
-COPY --from=build /app/uv.lock /app/
-COPY --from=build /app/.python-version /app/
-COPY --from=build /app/images /app/images
-COPY --from=build /app/maps /app/maps
-COPY --from=build /app/subjects /app/subjects
-COPY --from=build /app/activity /app/activity
-COPY --from=build /app/osm_auth /app/osm_auth
-COPY --from=build /app/scripts /app/scripts
-COPY --from=build /app/templates /app/templates
-COPY --from=build /app/yesterdays /app/yesterdays
-COPY --from=build /app/static /app/static
+COPY --from=build --chown=app:app /app/manage.py /app/
+COPY --from=build --chown=app:app /app/pyproject.toml /app/
+COPY --from=build --chown=app:app /app/uv.lock /app/
+COPY --from=build --chown=app:app /app/.python-version /app/
+COPY --from=build --chown=app:app /app/images /app/images
+COPY --from=build --chown=app:app /app/maps /app/maps
+COPY --from=build --chown=app:app /app/subjects /app/subjects
+COPY --from=build --chown=app:app /app/activity /app/activity
+COPY --from=build --chown=app:app /app/osm_auth /app/osm_auth
+COPY --from=build --chown=app:app /app/scripts /app/scripts
+COPY --from=build --chown=app:app /app/templates /app/templates
+COPY --from=build --chown=app:app /app/yesterdays /app/yesterdays
+COPY --from=build --chown=app:app /app/static /app/static
+
+USER app
 
 # Run the application
 CMD [ \
