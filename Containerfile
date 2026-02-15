@@ -79,11 +79,7 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
 # Copy Python (managed by uv) and virtual environment from build stage
-ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 COPY --from=build /opt/uv/python /opt/uv/python
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 
@@ -105,7 +101,4 @@ COPY --from=build --chown=app:app /app/static /app/static
 USER app
 
 # Run the application
-CMD [ \
-    "sh", "-c", \
-    "uv run uvicorn yesterdays.asgi:application --host 0.0.0.0 --port 8000" \
-    ]
+CMD ["/app/.venv/bin/uvicorn", "yesterdays.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
