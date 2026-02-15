@@ -1,39 +1,22 @@
-#!/usr/bin/env python3
 """
 LVA Primo Collection Scraper (by Collection ID) - SIMPLIFIED VERSION
 
 Usage:
-    uv run scripts/importers/lva_primo_collection_by_id.py "Collection Name" --collection-id 81106146120005756 --vid 01LVA_INST:01LVA
+    uv run manage.py import lva_primo_collection_by_id
 """
-
-import os
-import re
-import sys
-from time import sleep
-
-import click
-from tqdm import tqdm
-
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-
-django.setup()
 
 import csv
 import json
+import os
+import re
 import time
+from time import sleep
 
 import requests
+from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.utils import R2Uploader
 
 
 class PrimoAPIClient:
@@ -955,14 +938,6 @@ echo "Total files: $(ls lva_collection_images/ | wc -l)"
         return script_name
 
 
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader
-except ImportError:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
-
 POLITE_WAIT_SECS = 1
 
 
@@ -1007,7 +982,7 @@ def create_collection_if_not_exist(
     if use_precollection:
         print("  Type: Pre-collection (for review)")
 
-    if click.confirm(f"\n  Create this {collection_type}?"):
+    if input(f"\n  Create this {collection_type}? [y/N] ").strip().lower() == "y":
         collection = Model.objects.create(
             source=source,
             name=collection_name,
@@ -1189,52 +1164,69 @@ def parse_date(date_str, default_edtf=None, min_year=None, max_year=None):
     raise ValueError(f"Unable to parse date: '{date_str}'")
 
 
-@click.command()
-@click.argument("collection_name")
-@click.option(
-    "--collection-id", required=True, help="Collection ID (e.g., '81106146120005756')"
-)
-@click.option("--vid", required=True, help="View ID (e.g., '01LVA_INST:01LVA')")
-@click.option(
-    "--min-year",
-    type=int,
-    required=True,
-    help="Minimum year for incomplete dates (e.g., 1900)",
-)
-@click.option(
-    "--max-year",
-    type=int,
-    required=True,
-    help="Maximum year for incomplete dates (e.g., 1950)",
-)
-@click.option("--max-records", type=int, default=2000, help="Maximum records to fetch")
-@click.option(
-    "--hotlink", is_flag=True, help="Hotlink images instead of uploading to R2"
-)
-@click.option("--default-edtf", help="EDTF date to use when 'no date' is found.")
-@click.option("--debug", is_flag=True, help="Enable additional debugging output")
-@click.option(
-    "--skip-missing-images",
-    is_flag=True,
-    help="Skip records without image URLs (otherwise fail)",
-)
-@click.option(
-    "--save-json", is_flag=True, help="Save all records to JSON file for debugging"
-)
-def main(
-    collection_name,
-    collection_id,
-    vid,
-    min_year,
-    max_year,
-    max_records,
-    hotlink,
-    default_edtf,
-    debug,
-    skip_missing_images,
-    save_json,
-):
-    """Scrape records from LVA Primo collection by ID and import into Django."""
+def add_arguments(parser):
+    """Add lva_primo_collection_by_id-specific arguments to the parser."""
+    parser.add_argument("collection_name", type=str)
+    parser.add_argument(
+        "--collection-id",
+        required=True,
+        help="Collection ID (e.g., '81106146120005756')",
+    )
+    parser.add_argument(
+        "--vid", required=True, help="View ID (e.g., '01LVA_INST:01LVA')"
+    )
+    parser.add_argument(
+        "--min-year",
+        type=int,
+        required=True,
+        help="Minimum year for incomplete dates (e.g., 1900)",
+    )
+    parser.add_argument(
+        "--max-year",
+        type=int,
+        required=True,
+        help="Maximum year for incomplete dates (e.g., 1950)",
+    )
+    parser.add_argument(
+        "--max-records", type=int, default=2000, help="Maximum records to fetch"
+    )
+    parser.add_argument(
+        "--hotlink",
+        action="store_true",
+        help="Hotlink images instead of uploading to R2",
+    )
+    parser.add_argument(
+        "--default-edtf", help="EDTF date to use when 'no date' is found."
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable additional debugging output"
+    )
+    parser.add_argument(
+        "--skip-missing-images",
+        action="store_true",
+        help="Skip records without image URLs (otherwise fail)",
+    )
+    parser.add_argument(
+        "--save-json",
+        action="store_true",
+        help="Save all records to JSON file for debugging",
+    )
+
+
+def handle(options):
+    """Run the LVA Primo collection-by-ID import."""
+    collection_name = options["collection_name"]
+    collection_id = options["collection_id"]
+    vid = options["vid"]
+    min_year = options["min_year"]
+    max_year = options["max_year"]
+    max_records = options["max_records"]
+    hotlink = options["hotlink"]
+    default_edtf = options["default_edtf"]
+    debug = options["debug"]
+    skip_missing_images = options["skip_missing_images"]
+    save_json = options["save_json"]
+
     source = create_source_if_not_exist()
 
     # Display collection URL for reference
@@ -1452,7 +1444,3 @@ def main(
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(records, f, indent=2)
         print(f"Saved all records to {json_file} for analysis")
-
-
-if __name__ == "__main__":
-    main()

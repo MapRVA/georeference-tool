@@ -1,50 +1,17 @@
-#!/usr/bin/env python3
-
 """
-Valentine Museum Collection Scraper
+Valentine Museum importer.
 
-Usage:
-    uv run scripts/importers/valentine.py <COLLECTION ID>
+Scrapes archival records from The Valentine Museum's Rediscovery Software API.
 """
 
-import os
 import re
-import sys
 from time import sleep
 
-import click
 import requests
 from tqdm import tqdm
 
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-# Disable heavy startup tasks — import scripts only need the ORM
-os.environ["CLIP_WARMUP_ENABLED"] = "false"
-os.environ["PROMETHEUS_ENABLED"] = "false"
-
-import django
-
-django.setup()
-
 from images.models import Collection, Image, PreCollection, PreImage, Source
-
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader, R2UploaderError
-except ImportError:
-    # since we aren't inside a package, relative imports might not work
-    import os
-    import sys
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
+from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 0.75
 
@@ -135,7 +102,7 @@ def create_collection_if_not_exist(
     if use_precollection:
         print("  Type: Pre-collection (for review)")
 
-    if click.confirm(f"\n  Create this {collection_type}?"):
+    if input(f"\n  Create this {collection_type}? [y/N] ").strip().lower() == "y":
         if use_precollection:
             collection = PreCollection.objects.create(
                 source=source,
@@ -410,153 +377,153 @@ def get_record_details(
     return result
 
 
-@click.command()
-@click.argument("archive_id")
-@click.argument("search_table", default="GROUP")
-@click.option(
-    "--hotlink",
-    is_flag=True,
-    help="Hotlink images instead of uploading to R2",
-)
-@click.option(
-    "--last-possible-year",
-    type=int,
-    help='Last possible year for date ranges like "Post YYYY-YYYY"',
-)
-@click.option(
-    "--first-possible-year",
-    type=int,
-    help='First possible year for date ranges like "Pre YYYY" or "Pre YYYY-YYYY"',
-)
-def main(
-    archive_id,
-    search_table,
-    hotlink=False,
-    last_possible_year=None,
-    first_possible_year=None,
-):
-    """Scrape archival records from The Valentine Museum's digital archives."""
+def add_arguments(parser):
+    """Add valentine-specific arguments to the parser."""
+    parser.add_argument("archive_id", type=str)
+    parser.add_argument("search_table", nargs="?", default="GROUP")
+    parser.add_argument(
+        "--hotlink",
+        action="store_true",
+        help="Hotlink images instead of uploading to R2",
+    )
+    parser.add_argument(
+        "--last-possible-year",
+        type=int,
+        help='Last possible year for date ranges like "Post YYYY-YYYY"',
+    )
+    parser.add_argument(
+        "--first-possible-year",
+        type=int,
+        help='First possible year for date ranges like "Pre YYYY" or "Pre YYYY-YYYY"',
+    )
+
+
+def handle(options):
+    """Run the Valentine Museum import."""
+    archive_id = options["archive_id"]
+    search_table = options["search_table"]
+    hotlink = options["hotlink"]
+    last_possible_year = options["last_possible_year"]
+    first_possible_year = options["first_possible_year"]
 
     source = create_source_if_not_exist()
     collection = create_collection_if_not_exist(
         source, archive_id, use_precollection=hotlink
     )
 
-    if collection:
-        archival_children = get_archival_children(archive_id, table=search_table)
+    if not collection:
+        return
 
-        items_resolved = {"archival_number": [], "table_name": []}
-        items_unresolved = {"archival_number": [], "table_name": []}
+    archival_children = get_archival_children(archive_id, table=search_table)
 
-        for i, table in enumerate(archival_children["table_name"]):
-            if table == "BIBLIO":
-                items_resolved["archival_number"].append(
-                    archival_children["archival_number"][i]
-                )
-                items_resolved["table_name"].append(table)
-            if table != "BIBLIO":
-                items_unresolved["archival_number"].append(
-                    archival_children["archival_number"][i]
-                )
-                items_unresolved["table_name"].append(table)
+    items_resolved = {"archival_number": [], "table_name": []}
+    items_unresolved = {"archival_number": [], "table_name": []}
 
-        # Recurse down the archival hierarchy until we have all BIBLIO items
-        while len(items_unresolved["table_name"]) != 0:
-            hold = {"archival_number": [], "table_name": []}
+    for i, table in enumerate(archival_children["table_name"]):
+        if table == "BIBLIO":
+            items_resolved["archival_number"].append(
+                archival_children["archival_number"][i]
+            )
+            items_resolved["table_name"].append(table)
+        if table != "BIBLIO":
+            items_unresolved["archival_number"].append(
+                archival_children["archival_number"][i]
+            )
+            items_unresolved["table_name"].append(table)
 
-            for i in range(len(items_unresolved["archival_number"])):
-                archival_children = get_archival_children(
-                    items_unresolved["archival_number"][i],
-                    items_unresolved["table_name"][i],
-                )
-                for i, table in enumerate(archival_children["table_name"]):
-                    if table == "BIBLIO":
-                        items_resolved["archival_number"].append(
-                            archival_children["archival_number"][i]
-                        )
-                        items_resolved["table_name"].append(table)
-                    if table != "BIBLIO":
-                        hold["archival_number"].append(
-                            archival_children["archival_number"][i]
-                        )
-                        hold["table_name"].append(table)
+    # Recurse down the archival hierarchy until we have all BIBLIO items
+    while len(items_unresolved["table_name"]) != 0:
+        hold = {"archival_number": [], "table_name": []}
 
-            items_unresolved = hold
-            sleep(POLITE_WAIT_SECS)
+        for i in range(len(items_unresolved["archival_number"])):
+            archival_children = get_archival_children(
+                items_unresolved["archival_number"][i],
+                items_unresolved["table_name"][i],
+            )
+            for i, table in enumerate(archival_children["table_name"]):
+                if table == "BIBLIO":
+                    items_resolved["archival_number"].append(
+                        archival_children["archival_number"][i]
+                    )
+                    items_resolved["table_name"].append(table)
+                if table != "BIBLIO":
+                    hold["archival_number"].append(
+                        archival_children["archival_number"][i]
+                    )
+                    hold["table_name"].append(table)
 
-        r2_uploader = None if hotlink else R2Uploader()
+        items_unresolved = hold
+        sleep(POLITE_WAIT_SECS)
 
-        skip_count = 0
-        for child in tqdm(items_resolved["archival_number"]):
-            # Check for existing images in the appropriate model
-            if hotlink:
-                existing_by_ref = PreImage.objects.filter(ref=child).exists()
-            else:
-                existing_by_ref = Image.objects.filter(ref=child).exists()
-            if existing_by_ref:
-                skip_count += 1
-                continue
-            elif skip_count > 0:
-                tqdm.write(f"Skipped {skip_count} images that already exist")
-                skip_count = 0
+    r2_uploader = None if hotlink else R2Uploader()
 
-            sleep(POLITE_WAIT_SECS)
-            record = get_record_details(
-                child,
-                last_possible_year=last_possible_year,
-                first_possible_year=first_possible_year,
+    skip_count = 0
+    for child in tqdm(items_resolved["archival_number"]):
+        # Check for existing images in the appropriate model
+        if hotlink:
+            existing_by_ref = PreImage.objects.filter(ref=child).exists()
+        else:
+            existing_by_ref = Image.objects.filter(ref=child).exists()
+        if existing_by_ref:
+            skip_count += 1
+            continue
+        elif skip_count > 0:
+            tqdm.write(f"Skipped {skip_count} images that already exist")
+            skip_count = 0
+
+        sleep(POLITE_WAIT_SECS)
+        record = get_record_details(
+            child,
+            last_possible_year=last_possible_year,
+            first_possible_year=first_possible_year,
+        )
+
+        # Do we have an image URL to try and download?
+        if "permalink" not in record:
+            tqdm.write("      ✗ No image URL found for record, skipping")
+            continue
+
+        # Try downloading the image (and uploading it to R2)
+        if not hotlink:
+            record["permalink"] = r2_uploader.upload_url(
+                record["permalink"],
+                in_tqdm=True,
+                raise_on_err=False,
             )
 
-            # Do we have an image URL to try and download?
-            if "permalink" not in record:
-                tqdm.write("      ✗ No image URL found for record, skipping")
-                continue
+        # Were we successful in downloading the image?
+        if record["permalink"] is None:
+            tqdm.write("      ✗ Unable to download image, skipping")
+            continue
 
-            # Try downloading the image (and uploading it to R2)
-            if not hotlink:
-                record["permalink"] = r2_uploader.upload_url(
-                    record["permalink"],
-                    in_tqdm=True,
-                    raise_on_err=False,
+        try:
+            tqdm.write("      → Inserting image {}".format(record["original_url"]))
+
+            # Create the appropriate image type based on hotlink option
+            if hotlink:
+                image = PreImage.objects.create(
+                    collection=collection,
+                    title=record["title"],
+                    permalink=record["permalink"],
+                    ref=record["ref"],
+                    description=record.get("description", ""),
+                    creator=record.get("creator", ""),
+                    original_date=record.get("original_date"),
+                    edtf_date=record.get("edtf_date"),
                 )
-
-            # Were we successful in downloading the image?
-            if record["permalink"] is None:
-                tqdm.write("      ✗ Unable to download image, skipping")
-                continue
-
-            try:
-                tqdm.write("      → Inserting image {}".format(record["original_url"]))
-
-                # Create the appropriate image type based on hotlink option
-                if hotlink:
-                    image = PreImage.objects.create(
-                        collection=collection,
-                        title=record["title"],
-                        permalink=record["permalink"],
-                        ref=record["ref"],
-                        description=record.get("description", ""),
-                        creator=record.get("creator", ""),
-                        original_date=record.get("original_date"),
-                        edtf_date=record.get("edtf_date"),
-                    )
-                    tqdm.write(f"      → Created pre-image ID: {image.id}")
-                else:
-                    image = Image.objects.create(
-                        collection=collection,
-                        title=record["title"],
-                        permalink=record["permalink"],
-                        ref=record["ref"],
-                        original_url=record["original_url"],
-                        description=record.get("description", ""),
-                        creator=record.get("creator", ""),
-                        original_date=record.get("original_date"),
-                        edtf_date=record.get("edtf_date"),
-                    )
-                    tqdm.write(f"      → Created image ID: {image.id}")
-            except Exception as e:
-                tqdm.write(f"      ✗ Error creating image: {e}")
-
-
-if __name__ == "__main__":
-    main()
+                tqdm.write(f"      → Created pre-image ID: {image.id}")
+            else:
+                image = Image.objects.create(
+                    collection=collection,
+                    title=record["title"],
+                    permalink=record["permalink"],
+                    ref=record["ref"],
+                    original_url=record["original_url"],
+                    description=record.get("description", ""),
+                    creator=record.get("creator", ""),
+                    original_date=record.get("original_date"),
+                    edtf_date=record.get("edtf_date"),
+                )
+                tqdm.write(f"      → Created image ID: {image.id}")
+        except Exception as e:
+            tqdm.write(f"      ✗ Error creating image: {e}")

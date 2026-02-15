@@ -1,48 +1,20 @@
-#!/usr/bin/env python3
 """
 VCU Collection Scraper
 
 Usage:
-    uv run scripts/importers/vcu.py <COLLECTION ID>
+    uv run manage.py import vcu
 """
 
-import os
 import re
 import sys
 from time import sleep
 
-import click
 import requests
+from django.contrib.gis.geos import Point
 from tqdm import tqdm
 
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-
-django.setup()
-
-from django.contrib.gis.geos import Point
-
 from images.models import Collection, Image, PreCollection, PreImage, Source
-
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader, R2UploaderError
-except ImportError:
-    # since we aren't inside a package, relative imports might not work
-    import os
-    import sys
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
+from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 0.75
 
@@ -125,7 +97,7 @@ def create_collection_if_not_exist(source, collection_id, use_precollection=Fals
     if use_precollection:
         print("  Type: Pre-collection (for review)")
 
-    if click.confirm(f"\n  Create this {collection_type}?"):
+    if input(f"\n  Create this {collection_type}? [y/N] ").strip().lower() == "y":
         if use_precollection:
             collection = PreCollection.objects.create(
                 source=source,
@@ -417,42 +389,45 @@ def get_image_details(
     return details
 
 
-@click.command()
-@click.argument("collection_id")
-@click.option(
-    "--max-pages", type=int, help="Maximum number of pages to scrape for image IDs."
-)
-@click.option(
-    "--max-images", type=int, help="Maximum number of images to fetch details for."
-)
-@click.option(
-    "--hotlink",
-    is_flag=True,
-    help="Hotlink images instead of uploading to R2 (creates pre-collection/pre-images)",
-)
-@click.option(
-    "--first-possible-year",
-    type=int,
-    help="First possible year for images without dates (e.g., 1900)",
-)
-@click.option(
-    "--last-possible-year",
-    type=int,
-    help="Last possible year for images without dates (e.g., 1930)",
-)
-def cli(
-    collection_id,
-    max_pages,
-    max_images,
-    hotlink,
-    first_possible_year,
-    last_possible_year,
-):
-    """
-    Scrapes VCU collection and imports images into Django.
+def add_arguments(parser):
+    """Add vcu-specific arguments to the parser."""
+    parser.add_argument(
+        "collection_id",
+        type=str,
+        help="The collection identifier (e.g., 'postcard', 'rca')",
+    )
+    parser.add_argument(
+        "--max-pages", type=int, help="Maximum number of pages to scrape for image IDs."
+    )
+    parser.add_argument(
+        "--max-images", type=int, help="Maximum number of images to fetch details for."
+    )
+    parser.add_argument(
+        "--hotlink",
+        action="store_true",
+        help="Hotlink images instead of uploading to R2 (creates pre-collection/pre-images)",
+    )
+    parser.add_argument(
+        "--first-possible-year",
+        type=int,
+        help="First possible year for images without dates (e.g., 1900)",
+    )
+    parser.add_argument(
+        "--last-possible-year",
+        type=int,
+        help="Last possible year for images without dates (e.g., 1930)",
+    )
 
-    COLLECTION_ID: The collection identifier (e.g., 'postcard', 'rca')
-    """
+
+def handle(options):
+    """Run the VCU collection import."""
+    collection_id = options["collection_id"]
+    max_pages = options["max_pages"]
+    max_images = options["max_images"]
+    hotlink = options["hotlink"]
+    first_possible_year = options["first_possible_year"]
+    last_possible_year = options["last_possible_year"]
+
     # Create source and collection
     source = create_source_if_not_exist()
     collection = create_collection_if_not_exist(
@@ -632,7 +607,3 @@ def cli(
         print(f"Skipped {non_public_domain_count} images that were not public domain")
 
     print("\n✓ Import complete!")
-
-
-if __name__ == "__main__":
-    cli()

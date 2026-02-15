@@ -1,39 +1,22 @@
-#!/usr/bin/env python3
 """
 LVA Primo Collection Scraper
 
 Usage:
-    uv run scripts/importers/lva_primo.py "Collection Name" --vid 01LVA_INST:01LVA
+    uv run manage.py import lva_primo_search
 """
-
-import os
-import re
-import sys
-from time import sleep
-
-import click
-from tqdm import tqdm
-
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-
-django.setup()
 
 import csv
 import json
+import os
+import re
 import time
+from time import sleep
 
 import requests
+from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.utils import R2Uploader
 
 
 class PrimoAPIClient:
@@ -588,14 +571,6 @@ echo "Total files: $(ls carneal_johnston_images/ | wc -l)"
         return script_name
 
 
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader
-except ImportError:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
-
 POLITE_WAIT_SECS = 1
 
 
@@ -638,7 +613,7 @@ def create_collection_if_not_exist(source, collection_name, use_precollection=Fa
     if use_precollection:
         print("  Type: Pre-collection (for review)")
 
-    if click.confirm(f"\n  Create this {collection_type}?"):
+    if input(f"\n  Create this {collection_type}? [y/N] ").strip().lower() == "y":
         collection = Model.objects.create(
             source=source,
             name=collection_name,
@@ -803,16 +778,33 @@ def parse_date(date_str, default_edtf=None):
     breakpoint()
 
 
-@click.command()
-@click.argument("collection_name")
-@click.option("--vid", required=True, help="View ID (e.g., '01LVA_INST:01LVA')")
-@click.option("--max-records", type=int, default=2000, help="Maximum records to fetch")
-@click.option(
-    "--hotlink", is_flag=True, help="Hotlink images instead of uploading to R2"
-)
-@click.option("--default-edtf", help="EDTF date to use when 'no date' is found.")
-def main(collection_name, vid, max_records, hotlink, default_edtf):
-    """Scrape records from LVA Primo and import into Django."""
+def add_arguments(parser):
+    """Add lva_primo_search-specific arguments to the parser."""
+    parser.add_argument("collection_name", type=str)
+    parser.add_argument(
+        "--vid", required=True, help="View ID (e.g., '01LVA_INST:01LVA')"
+    )
+    parser.add_argument(
+        "--max-records", type=int, default=2000, help="Maximum records to fetch"
+    )
+    parser.add_argument(
+        "--hotlink",
+        action="store_true",
+        help="Hotlink images instead of uploading to R2",
+    )
+    parser.add_argument(
+        "--default-edtf", help="EDTF date to use when 'no date' is found."
+    )
+
+
+def handle(options):
+    """Run the LVA Primo search import."""
+    collection_name = options["collection_name"]
+    vid = options["vid"]
+    max_records = options["max_records"]
+    hotlink = options["hotlink"]
+    default_edtf = options["default_edtf"]
+
     source = create_source_if_not_exist()
     collection = create_collection_if_not_exist(
         source, collection_name, use_precollection=hotlink
@@ -891,7 +883,3 @@ def main(collection_name, vid, max_records, hotlink, default_edtf):
             tqdm.write(f"      \u2717 Error creating image: {e}")
 
         sleep(POLITE_WAIT_SECS)
-
-
-if __name__ == "__main__":
-    main()

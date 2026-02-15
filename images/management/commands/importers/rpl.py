@@ -1,40 +1,17 @@
-import os
+"""Import images from Richmond Public Library ContentDM.
+
+Usage: uv run manage.py import rpl
+"""
+
 import re
-import sys
 from time import sleep
 
-import click
 import requests
+from django.utils.text import slugify
 from tqdm import tqdm
 
-## SETUP
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-from django.utils.text import slugify
-
-django.setup()
-
 from images.models import Collection, Image, Source
-
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader, R2UploaderError
-except ImportError:
-    # since we aren't inside a package, relative imports might not work
-    import os
-    import sys
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
+from images.utils import R2Uploader, R2UploaderError
 
 POLITE_WAIT_SECS = 0.75  # Be nice to the API
 MAX_RETRIES = 2  # Retry twice (3 total attempts)
@@ -56,9 +33,9 @@ def get_or_create_source():
         },
     )
     if created:
-        click.echo(f"✓ Created source: {source.name}")
+        print(f"✓ Created source: {source.name}")
     else:
-        click.echo(f"✓ Using existing source: {source.name}")
+        print(f"✓ Using existing source: {source.name}")
     return source
 
 
@@ -73,7 +50,7 @@ def get_or_create_collection(source, collection_code):
         data = response.json()
 
     except requests.RequestException as e:
-        click.echo(f"  ✗ Error fetching {collection_code}: {e}", err=True)
+        print(f"  ✗ Error fetching {collection_code}: {e}")
 
     name = data.get("name")
     collection_url = f"{BASE_VIEWER_URL}/{collection_code}"
@@ -96,9 +73,9 @@ def get_or_create_collection(source, collection_code):
         },
     )
     if created:
-        click.echo(f"  ✓ Created collection: {collection.name}")
+        print(f"  ✓ Created collection: {collection.name}")
     else:
-        click.echo(f"  ✓ Using existing collection: {collection.name}")
+        print(f"  ✓ Using existing collection: {collection.name}")
     return collection
 
 
@@ -136,7 +113,7 @@ def fetch_items(collection_code, start=1, max_items=None):
                 sleep(POLITE_WAIT_SECS)
 
             except requests.RequestException as e:
-                click.echo(f"  ✗ Error fetching page {page}: {e}", err=True)
+                print(f"  ✗ Error fetching page {page}: {e}")
                 break
 
     return items
@@ -153,7 +130,7 @@ def process_items(
             # Get required fields
             contentdm_id = item.get("itemId")
             if not contentdm_id:
-                click.echo("    ✗ No itemId found, skipping", err=True)
+                print("    ✗ No itemId found, skipping")
                 pbar.update(1)
                 continue
 
@@ -177,15 +154,14 @@ def process_items(
 
                 except requests.RequestException as e:
                     if attempt < MAX_RETRIES:
-                        click.echo(
+                        print(
                             f"    ⚠ Error fetching metadata for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
                         )
-                        click.echo("    → Retrying...")
+                        print("    → Retrying...")
                         sleep(POLITE_WAIT_SECS * 2)  # Wait a bit longer before retry
                     else:
-                        click.echo(
-                            f"    ✗ Error fetching metadata for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}",
-                            err=True,
+                        print(
+                            f"    ✗ Error fetching metadata for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}"
                         )
                         pbar.update(1)
                         continue  # Skip to next item
@@ -202,7 +178,7 @@ def process_items(
 
             # Check if image already exists by ref
             if Image.objects.filter(ref=image_data["Identifier"]).exists():
-                click.echo(
+                print(
                     "    → Item {} already exists, skipping".format(
                         image_data["Identifier"]
                     )
@@ -220,17 +196,16 @@ def process_items(
 
                     except R2UploaderError as e:
                         if attempt < MAX_RETRIES:
-                            click.echo(
+                            print(
                                 f"    ⚠ Download failed for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
                             )
-                            click.echo("    → Retrying...")
+                            print("    → Retrying...")
                             sleep(
                                 POLITE_WAIT_SECS * 2
                             )  # Wait a bit longer before retry
                         else:
-                            click.echo(
-                                f"    ✗ Download failed for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}",
-                                err=True,
+                            print(
+                                f"    ✗ Download failed for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}"
                             )
                             pbar.update(1)
                             continue  # Skip to next item
@@ -278,12 +253,12 @@ def process_items(
             if not dry_run:
                 try:
                     image = Image.objects.create(**image_data)
-                    click.echo(f"    ✓ Created image ID: {image.id}")
+                    print(f"    ✓ Created image ID: {image.id}")
                     imported_count += 1
                 except Exception as e:
-                    click.echo(f"    ✗ Error creating image: {e}", err=True)
+                    print(f"    ✗ Error creating image: {e}")
             else:
-                click.echo(f"    → Would create image: {image_data['title']} (dry run)")
+                print(f"    → Would create image: {image_data['title']} (dry run)")
                 imported_count += 1
 
             pbar.update(1)
@@ -295,30 +270,38 @@ def process_items(
         return [imported_count]
 
 
-@click.command()
-@click.option(
-    "--collection-code",
-    default="RPLTHC",
-    help="ContentDM collection code (default: RPLTHC)",
-)
-@click.option(
-    "--max-images",
-    type=int,
-    help="Maximum number of images to import (for testing)",
-)
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Show what would be imported without actually importing",
-)
-@click.option(
-    "--debug",
-    default=None,
-    help='Print metadata ("meta") or image data ("image") for debugging',
-)
-def main(collection_code, max_images, dry_run, debug):
-    """Import images from Richmond Public Library ContentDM"""
-    click.echo(f"\n=== Importing Collection: {collection_code} ===")
+def add_arguments(parser):
+    """Add rpl-specific arguments to the parser."""
+    parser.add_argument(
+        "--collection-code",
+        default="RPLTHC",
+        help="ContentDM collection code (default: RPLTHC)",
+    )
+    parser.add_argument(
+        "--max-images",
+        type=int,
+        help="Maximum number of images to import (for testing)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be imported without actually importing",
+    )
+    parser.add_argument(
+        "--debug",
+        default=None,
+        help='Print metadata ("meta") or image data ("image") for debugging',
+    )
+
+
+def handle(options):
+    """Run the Richmond Public Library import."""
+    collection_code = options["collection_code"]
+    max_images = options["max_images"]
+    dry_run = options["dry_run"]
+    debug = options["debug"]
+
+    print(f"\n=== Importing Collection: {collection_code} ===")
 
     # Initialize R2 uploader
     r2_uploader = R2Uploader()
@@ -330,10 +313,10 @@ def main(collection_code, max_images, dry_run, debug):
     # Fetch items from API
     items = fetch_items(collection_code, max_items=max_images)
     if not items:
-        click.echo("✗ No items found")
+        print("✗ No items found")
         return
 
-    click.echo(f"\nFound {len(items)} items to process")
+    print(f"\nFound {len(items)} items to process")
 
     # Process items
     imported_count = process_items(
@@ -341,19 +324,13 @@ def main(collection_code, max_images, dry_run, debug):
     )
 
     if debug == "meta":
-        click.echo(f"\n=== Debug: {debug} ===")
-        click.echo(f"{items}")
+        print(f"\n=== Debug: {debug} ===")
+        print(f"{items}")
     if debug == "image":
-        click.echo(f"\n=== Debug: {debug} ===")
-        click.echo(f"{imported_count[1]}")
+        print(f"\n=== Debug: {debug} ===")
+        print(f"{imported_count[1]}")
 
     # Print summary
-    click.echo("\n=== Import Complete ===")
-    click.echo(
-        f"{'Would import' if dry_run else 'Imported'}: {imported_count[0]} images"
-    )
-    click.echo(f"Collection: {collection_code}")
-
-
-if __name__ == "__main__":
-    main()
+    print("\n=== Import Complete ===")
+    print(f"{'Would import' if dry_run else 'Imported'}: {imported_count[0]} images")
+    print(f"Collection: {collection_code}")

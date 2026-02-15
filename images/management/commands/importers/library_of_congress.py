@@ -1,50 +1,23 @@
-#!/usr/bin/env python3
 """
 Library of Congress Collection Scraper
 
 New collections are PRIVATE, must be made public using admin interface.
 
 Usage:
-    uv run scripts/importers/library_of_congress.py
+    uv run manage.py import library_of_congress
 
 The script will interactively prompt for collection details.
 """
 
-import os
-import sys
 import re
-import requests
 from time import sleep
+
+import requests
 from tqdm import tqdm
-import click
-from urllib.parse import quote
 
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
+from images.models import Collection, Image, Source
 
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-
-django.setup()
-
-from images.models import Source, Collection, Image
-
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader, R2UploaderError
-except ImportError:
-    # since we aren't inside a package, relative imports might not work
-    import os
-    import sys
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
+from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 3.0  # 3 seconds as requested for LoC rate limiting
 
@@ -71,9 +44,8 @@ def get_collection_info():
     print("\n=== Library of Congress Collection Import ===")
     print("Please provide the following collection information:")
 
-    collection_slug = click.prompt(
-        "Collection URL slug (e.g., 'detroit-publishing-company', 'sanborn-maps')",
-        type=str,
+    collection_slug = input(
+        "Collection URL slug (e.g., 'detroit-publishing-company', 'sanborn-maps'): "
     )
 
     # Check if a collection with this slug already exists in our database
@@ -92,14 +64,14 @@ def get_collection_info():
                 break
 
         if matching_collection:
-            print(f"\n⚠️  Found existing collection that may match this slug:")
+            print("\n⚠️  Found existing collection that may match this slug:")
             print(f"  Name: {matching_collection.name}")
             print(f"  URL: {matching_collection.url}")
             print(f"  Description: {matching_collection.description}")
             print(f"  Public: {'Yes' if matching_collection.public else 'No'}")
             print(f"  Images: {matching_collection.images.count()}")
 
-            if click.confirm(f"\nUse this existing collection?"):
+            if input("\nUse this existing collection? [y/N] ").strip().lower() == "y":
                 return {
                     "slug": collection_slug,
                     "name": matching_collection.name,
@@ -107,14 +79,15 @@ def get_collection_info():
                     "existing_collection": matching_collection,
                 }
 
-    collection_name = click.prompt(
-        "Collection display name (e.g., 'Detroit Publishing Company')", type=str
+    collection_name = input(
+        "Collection display name (e.g., 'Detroit Publishing Company'): "
     )
 
-    collection_description = click.prompt(
-        "Collection description",
-        type=str,
-        default=f"Images from the {collection_name} collection at the Library of Congress, filtered for Richmond, Virginia.",
+    default_description = f"Images from the {collection_name} collection at the Library of Congress, filtered for Richmond, Virginia."
+    collection_description = input(
+    collection_description = (
+        input(f"Collection description [{default_description}]: ")
+        or default_description
     )
 
     return {
@@ -151,7 +124,7 @@ def create_collection_if_not_exist(source, collection_info):
     print(f"  URL: {collection_url}")
     print(f"  Description: {collection_info['description']}")
 
-    if click.confirm("\n  Create this collection?"):
+    if input("\n  Create this collection? [y/N] ").strip().lower() == "y":
         collection = Collection.objects.create(
             source=source,
             name=collection_name,
@@ -614,12 +587,15 @@ def get_highest_quality_image_url(record):
     return best_url
 
 
-@click.command()
-@click.option(
-    "--max-items", default=None, type=int, help="Maximum number of items to process"
-)
-def main(max_items):
-    """Scrape images from Library of Congress collections for Richmond, Virginia."""
+def add_arguments(parser):
+    """Add library_of_congress-specific arguments to the parser."""
+    parser.add_argument(
+        "--max-items", type=int, default=None, help="Maximum number of items to process"
+    )
+
+def handle(options):
+    """Run the Library of Congress import."""
+    max_items = options["max_items"]
 
     source = create_source_if_not_exist()
     collection_info = get_collection_info()
@@ -737,7 +713,3 @@ def main(max_items):
     print(f"\nProcessing complete. Processed {processed_count} images.")
     if skip_count > 0:
         print(f"Skipped {skip_count} existing images.")
-
-
-if __name__ == "__main__":
-    main()

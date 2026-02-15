@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Library of Virginia Richmond Esthetic Survey (RES) Scraper
 
@@ -8,16 +7,14 @@ Scrapes the 3-level RES structure:
 3. Parse neighborhood pages for image data
 
 Usage:
-    python library_of_virginia.py --area A --dry-run
-    python library_of_virginia.py --area ALL --max-neighborhoods 2 --dry-run
+    uv run manage.py import library_of_virginia --area A --dry-run
+    uv run manage.py import library_of_virginia --area ALL --max-neighborhoods 2 --dry-run
 """
 
 # All images from the Library of Virginia RES are from 1965
 SOURCE_YEAR = "1965"
 
-import argparse
 import os
-import sys
 import time
 from urllib.parse import urljoin
 
@@ -26,32 +23,8 @@ from bs4 import BeautifulSoup
 
 LOCAL_DEV = os.getenv("LOCAL_DEV", "False").lower() in ("true", "1", "yes")
 
-# Add the Django project to Python path
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(script_dir, "..", "..")
-sys.path.insert(0, project_root)
-
-# Change to project directory for Django
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
-
-import django
-
-django.setup()
-
 from images.models import Collection, Image, Source
-
-# Import R2 uploader from the same directory
-try:
-    from r2_uploader import R2Uploader, R2UploaderError
-except ImportError:
-    # since we aren't inside a package, relative imports might not work
-    import os
-    import sys
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, script_dir)
-    from r2_uploader import R2Uploader
+from images.utils import R2Uploader
 
 
 class LibraryOfVirginiaScraper:
@@ -328,10 +301,8 @@ class LibraryOfVirginiaScraper:
             time.sleep(2)  # Longer delay between areas
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Scrape Richmond Esthetic Survey from Library of Virginia"
-    )
+def add_arguments(parser):
+    """Add library_of_virginia-specific arguments to the parser."""
     parser.add_argument(
         "--area",
         required=True,
@@ -354,24 +325,20 @@ def main():
         help="Show what would be imported without actually importing",
     )
 
-    args = parser.parse_args()
 
+def handle(options):
+    """Run the Library of Virginia RES import."""
     scraper = LibraryOfVirginiaScraper()
-
-    if args.area == "ALL":
+    if options["area"] == "ALL":
         scraper.scrape_all_areas(
-            max_neighborhoods=args.max_neighborhoods,
-            max_images=args.max_images,
-            dry_run=args.dry_run,
+            max_neighborhoods=options["max_neighborhoods"],
+            max_images=options["max_images"],
+            dry_run=options["dry_run"],
         )
     else:
         scraper.scrape_area(
-            area_code=args.area,
-            max_neighborhoods=args.max_neighborhoods,
-            max_images=args.max_images,
-            dry_run=args.dry_run,
+            area_code=options["area"],
+            max_neighborhoods=options["max_neighborhoods"],
+            max_images=options["max_images"],
+            dry_run=options["dry_run"],
         )
-
-
-if __name__ == "__main__":
-    main()
