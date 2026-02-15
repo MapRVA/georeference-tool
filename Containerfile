@@ -1,8 +1,8 @@
-# Use Debian slim as the base
-FROM debian:bookworm-slim AS base
+# Build stage - install dependencies and build static files
+FROM debian:bookworm-slim AS build
 WORKDIR /app
 
-# Install system dependencies needed for Django/GeoDjango
+# Install system and build dependencies
 RUN apt-get -y update && apt-get install -y --no-install-recommends \
     git \
     binutils \
@@ -11,6 +11,10 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     gdal-bin \
     curl \
     ca-certificates \
+    gcc \
+    g++ \
+    make \
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -18,18 +22,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install Bun from official image
 COPY --from=oven/bun:1.3.5 /usr/local/bin/bun /usr/local/bin/bun
-
-# Build stage - install dependencies and build static files
-FROM base AS build
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get -y update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    make \
-    file \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install Bun dependencies (including devDependencies for vite build)
 COPY package.json bun.lock ./
