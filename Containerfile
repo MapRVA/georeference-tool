@@ -98,6 +98,9 @@ COPY --from=build --chown=app:app /app/templates /app/templates
 COPY --from=build --chown=app:app /app/yesterdays /app/yesterdays
 COPY --from=build --chown=app:app /app/static /app/static
 
+# Create writable tmp directory for PyTorch cache (needed with readOnlyRootFilesystem)
+RUN mkdir -p /tmp && chown app:app /tmp
+
 USER app
 
 # Run the application
