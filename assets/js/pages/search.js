@@ -4,8 +4,230 @@ import "../../styles/components/autocomplete.css";
 // Import image grid component (includes bulk selection and modal functionality)
 import { imageGrid } from "../components/image_grid.js";
 
-// Register the image grid component with Alpine (Alpine.start() is called by index.js on DOMContentLoaded)
+// Add x-cloak style to prevent flash of unstyled content
+const style = document.createElement("style");
+style.textContent = "[x-cloak] { display: none !important; }";
+document.head.appendChild(style);
+
+// Store for current search state (used by searchGrid for load more)
+window.searchState = {
+  query: "",
+  mode: "semantic", // "semantic", "text", or "reverse"
+  params: new URLSearchParams(),
+  uploadedImageFile: null,
+  hasMore: false,
+  offset: 0,
+  limit: 20,
+  totalCount: 0,
+};
+
+/**
+ * Alpine.js component for search results grid with "Load More" functionality.
+ * Extends the base imageGrid component.
+ */
+window.searchGrid = function () {
+  const base = imageGrid();
+
+  return {
+    ...base,
+
+    // Re-declare getter since spread doesn't preserve getters
+    get selectedCount() {
+      return this.selectedIds.size;
+    },
+
+    // Load More specific state - must be reactive Alpine state
+    hasMore: false,
+    loading: false, // Controls spinner visibility (debounced)
+
+    // Pending fetch promise from prefetch (mousedown)
+    _pendingFetch: null,
+    // Timer for debounced loading indicator
+    _loadingTimer: null,
+    // Flag to prevent concurrent requests (separate from loading indicator)
+    _isLoadingMore: false,
+
+    init() {
+      base.init.call(this);
+
+      // Listen for search state updates from displayHtmlResults
+      document.addEventListener("searchStateUpdated", (e) => {
+        this.hasMore = e.detail.hasMore;
+        // Clear any pending fetch when new search results arrive
+        this._pendingFetch = null;
+      });
+    },
+
+    /**
+     * Build fetch request for loading more results.
+     * Used by both prefetchMore and loadMore.
+     */
+    _buildLoadMoreFetch() {
+      const state = window.searchState;
+      const nextPage = Math.floor(state.offset / state.limit) + 1;
+
+      if (state.mode === "reverse" && state.uploadedImageFile) {
+        // Reverse image search uses POST with FormData
+        const formData = new FormData();
+        formData.append("image", state.uploadedImageFile);
+        formData.append("page", nextPage);
+        formData.append("pagelimit", state.limit);
+
+        // Copy filter params to formData
+        for (const [key, value] of state.params.entries()) {
+          if (
+            !["q", "mode", "page", "format", "pagelimit"].includes(key) &&
+            value
+          ) {
+            formData.append(key, value);
+          }
+        }
+
+        return fetch("/api/v1/search/reverse/?format=html", {
+          method: "POST",
+          body: formData,
+          headers: {
+            "X-CSRFToken": getCsrfToken(),
+          },
+        });
+      } else {
+        // Semantic and text search use GET
+        const apiEndpoint =
+          state.mode === "semantic"
+            ? "/api/v1/search/"
+            : "/api/v1/search/text/";
+        const params = new URLSearchParams(state.params);
+        params.set("page", nextPage);
+        params.set("format", "html");
+
+        return fetch(`${apiEndpoint}?${params.toString()}`);
+      }
+    },
+
+    /**
+     * Prefetch next page on mousedown for faster perceived loading.
+     * Called via @mousedown on the Load More button.
+     */
+    prefetchMore() {
+      if (this._isLoadingMore || !this.hasMore || this._pendingFetch) return;
+      this._pendingFetch = this._buildLoadMoreFetch();
+    },
+
+    /**
+     * Load more search results via AJAX.
+     * Uses prefetched response if available.
+     */
+    async loadMore() {
+      if (this._isLoadingMore || !this.hasMore) return;
+      this._isLoadingMore = true;
+
+      // Debounce the loading indicator - only show after 200ms
+      this._loadingTimer = setTimeout(() => {
+        this.loading = true;
+      }, 200);
+
+      const state = window.searchState;
+
+      try {
+        let response;
+
+        if (this._pendingFetch) {
+          // Use the prefetched request
+          response = await this._pendingFetch;
+          this._pendingFetch = null;
+        } else {
+          // No prefetch, make the request now
+          response = await this._buildLoadMoreFetch();
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to load more results");
+        }
+
+        const html = await response.text();
+
+        if (html.trim()) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const newItems = doc.querySelectorAll(".image-card-wrapper");
+          const metaEl = doc.querySelector("template[data-has-more]");
+
+          if (newItems.length > 0) {
+            // Remove the template element from HTML before inserting
+            const cleanHtml = html.replace(
+              /<template[^>]*data-has-more[^>]*>.*?<\/template>/gi,
+              "",
+            );
+
+            // Append to the grid
+            const gridEl = document.querySelector("#searchResults .row");
+            if (gridEl) {
+              gridEl.insertAdjacentHTML("beforeend", cleanHtml);
+
+              // Re-initialize Alpine on new content
+              if (window.Alpine) {
+                // Only init the newly added elements
+                newItems.forEach((item) => {
+                  const addedItem = gridEl.querySelector(
+                    `[data-image-id="${item.dataset.imageId}"]`,
+                  );
+                  if (addedItem) {
+                    window.Alpine.initTree(addedItem);
+                  }
+                });
+              }
+            }
+
+            // Update state
+            state.offset += newItems.length;
+
+            if (metaEl) {
+              this.hasMore = metaEl.dataset.hasMore === "true";
+            } else {
+              this.hasMore = newItems.length >= state.limit;
+            }
+          } else {
+            this.hasMore = false;
+          }
+        } else {
+          this.hasMore = false;
+        }
+      } catch (error) {
+        console.error("Error loading more results:", error);
+        this._pendingFetch = null;
+        // Don't set hasMore to false on error - let user retry
+      } finally {
+        clearTimeout(this._loadingTimer);
+        this.loading = false;
+        this._isLoadingMore = false;
+      }
+    },
+  };
+};
+
+// Register the search grid component with Alpine
+window.Alpine.data("searchGrid", window.searchGrid);
+
+// Also register the base imageGrid for backwards compatibility
 window.Alpine.data("imageGrid", imageGrid);
+
+// Helper function to get CSRF token (defined here for use by searchGrid)
+function getCsrfToken() {
+  const name = "csrftoken";
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== "") {
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === name + "=") {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
 
 document.addEventListener("DOMContentLoaded", async function () {
   // Fetch all subjects from the API
@@ -77,9 +299,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   function initializeFromURL() {
     const urlParams = new URLSearchParams(window.location.search);
-    const page = urlParams.has("page")
-      ? parseInt(urlParams.get("page"), 10)
-      : 1;
 
     if (urlParams.has("mode") && urlParams.get("mode") === "text") {
       textMode.checked = true;
@@ -151,23 +370,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         const advancedOptions = document.getElementById("advancedOptions");
         new bootstrap.Collapse(advancedOptions, { toggle: false }).show();
       }
-      performSearch(page);
+      performSearch();
     }
   }
 
   searchForm.addEventListener("submit", function (e) {
     e.preventDefault();
-    performSearch(); // Defaults to page 1
-  });
-
-  searchResults.addEventListener("click", function (e) {
-    if (e.target.matches("a.page-link")) {
-      e.preventDefault();
-      const page = e.target.dataset.page;
-      if (page) {
-        performSearch(parseInt(page, 10));
-      }
-    }
+    performSearch();
   });
 
   document
@@ -324,25 +533,31 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
-  function performReverseImageSearch(page = 1) {
+  function performReverseImageSearch() {
     if (!uploadedImageFile) {
       alert("Please upload an image first");
       return;
     }
 
-    const apiEndpoint = "/api/v1/search/reverse/";
+    const limit = parseInt(pagelimitSelect.value, 10) || 20;
+
+    const apiEndpoint = "/api/v1/search/reverse/?format=html";
     const formData = new FormData();
     formData.append("image", uploadedImageFile);
-    formData.append("page", page);
+    formData.append("page", 1);
+    formData.append("pagelimit", limit);
 
-    if (pagelimitSelect.value) {
-      formData.append("pagelimit", pagelimitSelect.value);
-    }
+    // Build params for state storage
+    const stateParams = new URLSearchParams();
+    stateParams.set("pagelimit", limit);
+
     if (startYear.value) {
       formData.append("start_year", startYear.value);
+      stateParams.set("start_year", startYear.value);
     }
     if (endYear.value) {
       formData.append("end_year", endYear.value);
+      stateParams.set("end_year", endYear.value);
     }
 
     const georeferencedOption = document.querySelector(
@@ -350,8 +565,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     ).value;
     if (georeferencedOption === "georeferenced") {
       formData.append("georeferenced_only", "true");
+      stateParams.set("georeferenced_only", "true");
     } else if (georeferencedOption === "not_georeferenced") {
       formData.append("non_georeferenced_only", "true");
+      stateParams.set("non_georeferenced_only", "true");
     }
 
     // Add subject params
@@ -362,13 +579,25 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     if (subjectOption === "none") {
       formData.append("no_subjects", "true");
+      stateParams.set("no_subjects", "true");
     } else if (subjectIds) {
       if (subjectOption === "with") {
         formData.append("with_subjects", subjectIds);
+        stateParams.set("with_subjects", subjectIds);
       } else if (subjectOption === "without") {
         formData.append("without_subjects", subjectIds);
+        stateParams.set("without_subjects", subjectIds);
       }
     }
+
+    // Update search state for load more
+    window.searchState.mode = "reverse";
+    window.searchState.query = "";
+    window.searchState.params = stateParams;
+    window.searchState.uploadedImageFile = uploadedImageFile;
+    window.searchState.limit = limit;
+    window.searchState.offset = 0;
+    window.searchState.hasMore = false;
 
     searchResults.innerHTML = renderLoadingPlaceholder();
 
@@ -379,13 +608,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         "X-CSRFToken": getCsrfToken(),
       },
     })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) {
-          displayResults(data);
-        } else {
-          displayError(data.error);
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((data) => {
+            throw new Error(data.error || "Search failed");
+          });
         }
+        return response.text();
+      })
+      .then((html) => {
+        displayHtmlResults(html, null, "reverse image search");
       })
       .catch((error) => {
         displayError("Search failed: " + error.message);
@@ -403,23 +635,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     `;
   }
 
-  function getCsrfToken() {
-    const name = "csrftoken";
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === name + "=") {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
-
-  function performSearch(page = 1) {
+  function performSearch() {
     const query = searchQuery.value.trim();
     const subjectOption = document.querySelector(
       'input[name="subjectOptions"]:checked',
@@ -433,7 +649,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         alert("Please upload an image first");
         return;
       }
-      performReverseImageSearch(page);
+      performReverseImageSearch();
       return;
     }
 
@@ -447,17 +663,18 @@ document.addEventListener("DOMContentLoaded", async function () {
       searchMode = "text";
     }
 
+    const limit = parseInt(pagelimitSelect.value, 10) || 20;
+
     const apiEndpoint =
       searchMode === "semantic" ? "/api/v1/search/" : "/api/v1/search/text/";
 
     const params = new URLSearchParams();
     params.set("q", query);
     params.set("mode", searchMode);
-    params.set("page", page);
+    params.set("page", 1);
+    params.set("pagelimit", limit);
+    params.set("format", "html"); // Request HTML format
 
-    if (pagelimitSelect.value) {
-      params.set("pagelimit", pagelimitSelect.value);
-    }
     if (startYear.value) {
       params.set("start_year", startYear.value);
     }
@@ -487,106 +704,66 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     }
 
+    // Update search state for load more
+    window.searchState.mode = searchMode;
+    window.searchState.query = query;
+    window.searchState.params = new URLSearchParams(params);
+    window.searchState.uploadedImageFile = null;
+    window.searchState.limit = limit;
+    window.searchState.offset = 0;
+    window.searchState.hasMore = false;
+
+    // Update URL without the format param (for cleaner URLs)
+    const urlParams = new URLSearchParams(params);
+    urlParams.delete("format");
+    urlParams.delete("page");
     history.pushState(
       null,
       "",
-      `${window.location.pathname}?${params.toString()}`,
+      `${window.location.pathname}?${urlParams.toString()}`,
     );
 
     searchResults.innerHTML = renderLoadingPlaceholder();
 
+    const searchModeLabel =
+      searchMode === "semantic" ? "semantic search" : "text search";
+
     fetch(`${apiEndpoint}?${params.toString()}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) {
-          displayResults(data);
-        } else {
-          displayError(data.error);
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((data) => {
+            throw new Error(data.error || "Search failed");
+          });
         }
+        return response.text();
+      })
+      .then((html) => {
+        displayHtmlResults(html, query, searchModeLabel);
       })
       .catch((error) => {
         displayError("Search failed: " + error.message);
       });
   }
 
-  function renderPagination(data) {
-    const { count, limit, page } = data;
-    const totalPages = Math.ceil(count / limit);
-    const currentPage = page;
+  function displayHtmlResults(html, query, searchModeLabel) {
+    // Parse the HTML to extract metadata from the template element
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const metaEl = doc.querySelector("template[data-has-more]");
+    const imageCards = doc.querySelectorAll(".image-card-wrapper");
 
-    if (totalPages <= 1) {
-      if (count > 0) {
-        const startIndex = (currentPage - 1) * limit + 1;
-        const endIndex = Math.min(currentPage * limit, count);
-        return `<div class="text-center text-muted mt-4">Showing ${startIndex}-${endIndex} of ${count} results</div>`;
-      }
-      return "";
-    }
-
-    let html = `<nav aria-label="Search results pagination" class="mt-4"><ul class="pagination justify-content-center">`;
-
-    // Previous link
-    if (currentPage > 1) {
-      html += `<li class="page-item">
-                <a class="page-link" href="#" data-page="${currentPage - 1}">
-                    <i class="fas fa-chevron-left"></i> Previous
-                </a>
-            </li>`;
-    } else {
-      html += `<li class="page-item disabled">
-                <span class="page-link"><i class="fas fa-chevron-left"></i> Previous</span>
-            </li>`;
-    }
-
-    // Page number links
-    for (let num = 1; num <= totalPages; num++) {
-      if (num === currentPage) {
-        html += `<li class="page-item active" aria-current="page">
-                    <span class="page-link">${num}</span>
-                </li>`;
-      } else if (num >= currentPage - 2 && num <= currentPage + 2) {
-        html += `<li class="page-item">
-                    <a class="page-link" href="#" data-page="${num}">${num}</a>
-                </li>`;
-      }
-    }
-
-    // Next link
-    if (currentPage < totalPages) {
-      html += `<li class="page-item">
-                <a class="page-link" href="#" data-page="${currentPage + 1}">
-                    Next <i class="fas fa-chevron-right"></i>
-                </a>
-            </li>`;
-    } else {
-      html += `<li class="page-item disabled">
-                <span class="page-link">Next <i class="fas fa-chevron-right"></i></span>
-            </li>`;
-    }
-
-    html += `</ul></nav>`;
-
-    // "Showing X-Y of Z" text
-    const startIndex = (currentPage - 1) * limit + 1;
-    const endIndex = Math.min(currentPage * limit, count);
-    html += `<div class="text-center text-muted mt-2">Showing ${startIndex}-${endIndex} of ${count} results</div>`;
-
-    return html;
-  }
-
-  function displayResults(data) {
-    if (data.results.length === 0) {
-      let message = `No results found for "<strong>${escapeHtml(data.query)}</strong>".`;
-      if (!data.query) {
-        message = "No results found for the selected filters.";
-      }
+    // Check if there are no results
+    if (imageCards.length === 0) {
+      let message = query
+        ? `No results found for "<strong>${escapeHtml(query)}</strong>".`
+        : "No results found for the selected filters.";
       searchResults.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    ${message}
-                    Try a different search term or filter.
-                </div>
-            `;
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          ${message}
+          Try a different search term or filter.
+        </div>
+      `;
       // Hide bulk actions when no results
       const bulkActionsContainer = document.getElementById(
         "bulkActionsContainer",
@@ -594,6 +771,14 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (bulkActionsContainer) {
         bulkActionsContainer.style.display = "none";
       }
+      // Reset search state
+      window.searchState.hasMore = false;
+      window.searchState.offset = 0;
+      window.searchState.totalCount = 0;
+      // Dispatch event to notify Alpine component
+      document.dispatchEvent(
+        new CustomEvent("searchStateUpdated", { detail: { hasMore: false } }),
+      );
       return;
     }
 
@@ -604,6 +789,21 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (bulkActionsContainer) {
       bulkActionsContainer.style.display = "block";
     }
+
+    // Extract pagination data from the template element
+    const hasMore = metaEl ? metaEl.dataset.hasMore === "true" : false;
+    const totalCount = metaEl ? parseInt(metaEl.dataset.totalCount, 10) : 0;
+    const limit = window.searchState.limit || 20;
+
+    // Update search state for load more functionality
+    window.searchState.hasMore = hasMore;
+    window.searchState.offset = imageCards.length;
+    window.searchState.totalCount = totalCount;
+
+    // Dispatch event to notify Alpine component of state change
+    document.dispatchEvent(
+      new CustomEvent("searchStateUpdated", { detail: { hasMore } }),
+    );
 
     // Build filter summary
     let filterSummary = "";
@@ -630,163 +830,42 @@ document.addEventListener("DOMContentLoaded", async function () {
       filterSummary = ` (filtered: ${filters.join(", ")})`;
     }
 
-    // Get current search mode for display
-    let searchModeLabel;
-    if (data.search_type === "reverse_image") {
-      searchModeLabel = "reverse image search";
-    } else if (data.search_type === "filter_only") {
-      searchModeLabel = "filters";
-    } else if (semanticMode.checked) {
-      searchModeLabel = "semantic search";
-    } else {
-      searchModeLabel = "text search";
-    }
-    const forQuery =
-      data.query && data.search_type !== "reverse_image"
-        ? ` for "<strong>${escapeHtml(data.query)}</strong>"`
-        : "";
+    const forQuery = query
+      ? ` for "<strong>${escapeHtml(query)}</strong>"`
+      : "";
 
     // For semantic/reverse image search, don't show count (all images are returned ranked by similarity)
-    const statsMessage =
-      semanticMode.checked || data.search_type === "reverse_image"
-        ? `Showing results${forQuery} using ${searchModeLabel}${filterSummary}`
-        : `Found ${data.count} results${forQuery} using ${searchModeLabel}${filterSummary}`;
-
-    let html = `
-            <div class="search-stats mb-3">
-                ${statsMessage}
-            </div>
-            <div class="row">
-        `;
+    const isSemanticOrReverse =
+      searchModeLabel === "semantic search" ||
+      searchModeLabel === "reverse image search";
+    const statsMessage = isSemanticOrReverse
+      ? `Showing results${forQuery} using ${searchModeLabel}${filterSummary}`
+      : `Found ${totalCount} results${forQuery} using ${searchModeLabel}${filterSummary}`;
 
     // Clear previously registered IDs since we're loading new results
     if (window.imageGridInstance) {
       window.imageGridInstance.clearRegisteredIds();
     }
 
-    data.results.forEach((result) => {
-      let similarityBadge = "";
-      if (typeof result.similarity !== "undefined") {
-        const similarity = Math.round(result.similarity * 100);
-        const similarityClass =
-          similarity > 80
-            ? "bg-success"
-            : similarity > 60
-              ? "bg-warning"
-              : "bg-secondary";
-        similarityBadge = `<span class="badge ${similarityClass} position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                    ${similarity}% match
-                </span>`;
-      }
+    // Remove the template element from the HTML before inserting
+    const cleanHtml = html.replace(
+      /<template[^>]*data-has-more[^>]*>.*?<\/template>/gi,
+      "",
+    );
 
-      // Build badges HTML (hidden in selection mode via template)
-      const badgesHtml = `
-        <template x-if="!selectionMode">
-          <div>
-            ${similarityBadge}
-            ${
-              result.georeferenced
-                ? `<span class="badge bg-success position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Georeferenced">
-                    <i class="fas fa-map-marker-alt"></i>
-                  </span>`
-                : result.will_not_georef
-                  ? `<span class="badge bg-secondary position-absolute top-0 start-0 m-2" style="z-index: 10;" title="Will not georeference">
-                    <i class="fas fa-ban"></i>
-                  </span>`
-                  : ""
-            }
-          </div>
-        </template>
-      `;
+    // Build the full results HTML with Load More button instead of pagination
+    let resultsHtml = `
+      <div class="search-stats mb-3">
+        ${statsMessage}
+      </div>
+      <div class="row">
+        ${cleanHtml}
+      </div>
+    `;
 
-      // Selection overlay HTML
-      const selectionOverlayHtml = `
-        <template x-if="selectionMode">
-          <div class="image-selection-overlay"
-               :class="{ 'selected': isSelected(${result.id}) }"
-               @click.prevent.stop="toggleSelection(${result.id})">
-            <div class="image-selection-checkbox"
-                 :class="{ 'checked': isSelected(${result.id}) }">
-              <i class="fas fa-check" x-show="isSelected(${result.id})"></i>
-            </div>
-          </div>
-        </template>
-      `;
-
-      html += `
-                <div class="col-lg-3 col-md-4 col-sm-6 mb-4"
-                     data-image-id="${result.id}"
-                     x-init="$dispatch('image-registered', { id: ${result.id} })">
-                    <div class="card h-100 shadow-sm image-card"
-                         :class="{ 'selected': selectionMode && isSelected(${result.id}) }">
-                        <div class="position-relative">
-                            ${selectionOverlayHtml}
-                            ${badgesHtml}
-
-                            <!-- Image Thumbnail -->
-                            <a href="${escapeHtml(result.detail_url)}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
-                                <img src="${escapeHtml(result.thumbnail)}"
-                                     alt="${escapeHtml(result.title)}"
-                                     class="img-fluid w-100 h-100"
-                                     style="object-fit: cover;"
-                                     loading="lazy"
-                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="image-placeholder bg-light d-flex align-items-center justify-content-center h-100" style="display: none;">
-                                    <div class="text-center">
-                                        <i class="fas fa-image fa-2x text-muted mb-2"></i>
-                                        <p class="text-muted small mb-0">Image unavailable</p>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-
-                        <div class="card-body p-3">
-                            <h6 class="card-title">
-                                <a href="${escapeHtml(result.detail_url)}" class="text-body text-decoration-none">
-                                    ${
-                                      escapeHtml(result.title).length > 50
-                                        ? escapeHtml(result.title).substring(
-                                            0,
-                                            47,
-                                          ) + "..."
-                                        : escapeHtml(result.title)
-                                    }
-                                </a>
-                            </h6>
-
-                            <p class="card-text text-muted small mb-2">
-                                <i class="fas fa-archive me-1"></i>${escapeHtml(result.source.name)} → ${escapeHtml(result.collection.name)}
-                            </p>
-
-                            ${
-                              result.original_date
-                                ? `
-                                <p class="card-text small text-muted mb-2">
-                                    <i class="fas fa-calendar me-1"></i>${escapeHtml(result.original_date)}
-                                </p>
-                            `
-                                : ""
-                            }
-                        </div>
-
-                        <div class="card-footer bg-body border-top-0 p-3">
-                            <div class="d-flex justify-content-end">
-                                <a href="${escapeHtml(result.detail_url)}" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-    });
-
-    html += "</div>";
-    html += renderPagination(data);
-    searchResults.innerHTML = html;
+    searchResults.innerHTML = resultsHtml;
 
     // Re-initialize Alpine on the new content
-    // The x-init directives will dispatch image-registered events
     if (window.Alpine) {
       window.Alpine.initTree(searchResults);
     }

@@ -9,7 +9,7 @@
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="{% if subject.wikidata_item.description %}{{ subject.wikidata_item.description }}{% else %}Browse {{ total_images }} image{{ total_images|pluralize }} featuring {{ subject.title }}.{% endif %}">
 	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
@@ -18,7 +18,7 @@
 {% block extra_js %}
 {% load static %}
 <script>
-    // Configuration object for filter_cards.html bulk operations
+    // Configuration object for filter_cards.html bulk operations and album dropdown
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
         urls: {
@@ -26,7 +26,11 @@
             bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
             userAlbumsApi: '{% url "images:user_albums_api" %}',
             bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
-            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}'
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}',
+            // Single-image album operations
+            addToAlbum: '{% url "images:add_image_to_album" %}',
+            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
+            createAlbum: '{% url "images:create_and_add_to_album" %}'
         }
     };
 </script>
@@ -147,7 +151,7 @@
 
         <!-- Images Grid -->
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2>Images featuring {{ subject.title }}</h2>
+            <h2>{{ total_images }} image{{ total_images|pluralize }} featuring {{ subject.title }}</h2>
         </div>
 
         {% with geo_url="/georeference/?subject="|add:subject.slug %}

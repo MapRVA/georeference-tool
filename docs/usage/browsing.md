@@ -22,9 +22,9 @@ In contrast to the often complex organization schemes of sources, we've decided 
 
 While most images in Yesterdays are old photographs, they also include:
 
-- drawings
-- postcards
-- architectural sketches
+- [drawings](https://yesterdays.maprva.org/10875/)
+- [postcards](https://yesterdays.maprva.org/17088/)
+- [architectural sketches](https://yesterdays.maprva.org/14250/)
 
 These can often be georeferenced, too, _even if they do not represent reality._
 For example, we can place an architectural sketch on the map even if the building was never built.

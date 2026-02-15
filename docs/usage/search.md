@@ -6,9 +6,9 @@ Yesterdays provides a "semantic search" feature on [the search page](https://yes
 
 Try out searches like:
 
-- firefighters responding to the scene
-- stained-glass windows
-- truck on a highway
+- [firefighters responding to the scene](https://yesterdays.maprva.org/search/?q=firefighters+responding+to+the+scene&mode=semantic)
+- [stained-glass windows](https://yesterdays.maprva.org/search/?q=stained-glass+windows&mode=semantic)
+- [truck on a highway](https://yesterdays.maprva.org/search/?q=truck+on+a+highway&mode=semantic)
 - etc.
 
 ### Find Similar Images

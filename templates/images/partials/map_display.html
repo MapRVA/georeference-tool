@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
     baseUrlParams.append('enable_scale_filter', 'true');
     {% endif %}
 
-    const baseVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+    const baseVectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" v=tile_version z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 
     // URL for all images (used when "show other images" is enabled)
     const allImagesUrl = baseUrlParams.toString() ?
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
     urlParams.append('album', '{{ album_id }}');
     {% endif %}
 
-    let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+    let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" v=tile_version z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 
     if (urlParams.toString()) {
         vectorTilesUrl += '?' + urlParams.toString();
@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the map using the global function from the bundled module
     window.initializeMap({
         mapId: mapId,
-        center: [{{ center_lng|default:'-77.43916' }}, {{ center_lat|default:'37.54376' }}],
-        zoom: {{ zoom_level|default:'10' }},
+        center: [{{ center_lng|default:default_map_center.0 }}, {{ center_lat|default:default_map_center.1 }}],
+        zoom: {{ zoom_level|default:default_map_zoom }},
         hash: {{ hash|yesno:"true,false,false" }},
         vectorTilesUrl: vectorTilesUrl,
         singleImageUrl: singleImageUrl,

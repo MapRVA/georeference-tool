@@ -4,10 +4,11 @@ from django.contrib.admin.utils import quote
 from django.contrib.auth.models import User
 from django.contrib.gis.db import models as gis_models
 from django.contrib.postgres.fields import ArrayField
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 
 # Conditionally import SearchVectorField only if using PostgreSQL
 try:
@@ -22,6 +23,37 @@ from django.urls import reverse
 from django.utils.text import slugify
 from edtf import parse_edtf
 from edtf.parser.edtf_exceptions import EDTFParseException
+
+
+class TileVersion(models.Model):
+    """
+    Singleton model for tracking the tile cache version.
+    When georeferences change, the version is bumped to invalidate cached tiles.
+    Stored in the database to persist across deployments and cache clears.
+    """
+
+    version = models.PositiveIntegerField(default=1)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_version(cls):
+        """Get the current tile version, creating the row if needed."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj.version
+
+    @classmethod
+    def bump(cls):
+        """Increment the tile version atomically."""
+        cls.objects.get_or_create(pk=1)
+        cls.objects.filter(pk=1).update(version=F("version") + 1)
+        return cls.objects.get(pk=1).version
+
+    class Meta:
+        verbose_name = "tile version"
+        verbose_name_plural = "tile version"
 
 
 class SiteSettings(models.Model):
@@ -48,6 +80,18 @@ class SiteSettings(models.Model):
         null=True,
         help_text="Admin contact email, used for external API requests (e.g., Nominatim geocoder)",
     )
+    default_map_longitude = models.FloatField(
+        default=-77.43916,
+        help_text="Default map center longitude",
+    )
+    default_map_latitude = models.FloatField(
+        default=37.54376,
+        help_text="Default map center latitude",
+    )
+    default_map_zoom = models.FloatField(
+        default=10.0,
+        help_text="Default map zoom level (0-22, supports decimals like 11.5)",
+    )
 
     class Meta:
         verbose_name = "Site Settings"
@@ -60,11 +104,18 @@ class SiteSettings(models.Model):
         # Ensure only one instance can exist
         self.pk = 1
         super().save(*args, **kwargs)
+        # Invalidate cache so all processes pick up the new settings
+        cache.delete("site_settings")
 
     @classmethod
     def load(cls):
         """Get the singleton instance, creating it if it doesn't exist"""
+
+        cached = cache.get("site_settings")
+        if cached is not None:
+            return cached
         obj, created = cls.objects.get_or_create(pk=1)
+        cache.set("site_settings", obj, timeout=300)  # 5 minutes
         return obj
 
 
@@ -332,6 +383,15 @@ class Image(models.Model):
         help_text="ID of another Image if this is a duplicate",
     )
 
+    # Denormalized visibility field for search performance
+    # Computed from: collection.public AND collection.source.public AND duplicate_of IS NULL
+    # Kept in sync via Django signals on Source, Collection, and Image changes
+    is_searchable = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this image appears in search results (auto-computed from collection/source visibility and duplicate status)",
+    )
+
     # Image embedding for CLIP similarity search
     embedding = ArrayField(
         models.FloatField(),
@@ -583,12 +643,25 @@ class Georeference(models.Model):
         blank=True,
         help_text="Optional notes about the georeferencing confidence or methodology",
     )
+    confidence_notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of confidence_notes",
+    )
 
     def __str__(self):
         by_user = (
-            self.georeferenced_by.username if self.georeferenced_by else "Anonymous"
+            self.georeferenced_by.get_display_name()
+            if self.georeferenced_by
+            else "Anonymous"
         )
         return f"Georeference for {self.image} by {by_user}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
+        super().save(*args, **kwargs)
 
     @property
     def validation_count(self):
@@ -656,12 +729,25 @@ class AerialGeoreference(models.Model):
         blank=True,
         help_text="Optional notes about the georeferencing confidence or methodology",
     )
+    confidence_notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of confidence_notes",
+    )
 
     def __str__(self):
         by_user = (
-            self.georeferenced_by.username if self.georeferenced_by else "Anonymous"
+            self.georeferenced_by.get_display_name()
+            if self.georeferenced_by
+            else "Anonymous"
         )
         return f"Aerial Georeference for {self.image} by {by_user}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
+        super().save(*args, **kwargs)
 
     @property
     def validation_count(self):
@@ -796,6 +882,11 @@ class Comment(models.Model):
 
     # Content
     text = models.TextField(help_text="Comment text content")
+    text_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of text",
+    )
 
     # Tracking information
     commented_by = models.ForeignKey(
@@ -810,12 +901,18 @@ class Comment(models.Model):
         preview = self.text[:50]
         return f"Comment by {self.commented_by.username}: {preview}..."
 
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.text_html = render_markdown_safe(self.text)
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["image", "-created_at"]
         indexes = [
             models.Index(fields=["image"]),
             models.Index(fields=["commented_by"]),
-            models.Index(fields=["created_at"]),
+            models.Index(fields=["-created_at"]),
         ]
 
 
@@ -849,6 +946,71 @@ def update_skip_count(sender, instance, **kwargs):
     """Update the skip_count on Image when ImageSkip is created/deleted"""
     instance.image.skip_count = instance.image.skips.count()
     instance.image.save(update_fields=["skip_count"])
+
+
+# =============================================================================
+# Signals to keep Image.is_searchable synchronized
+# =============================================================================
+
+
+def _compute_is_searchable(image):
+    """Compute whether an image should be searchable."""
+    return (
+        image.collection.public
+        and image.collection.source.public
+        and image.duplicate_of_id is None
+    )
+
+
+@receiver(post_save, sender=Source)
+def update_searchable_on_source_change(sender, instance, **kwargs):
+    """When a Source's public status changes, update all images in its collections."""
+    from django.db import connection
+
+    # Use raw SQL because Django's update() doesn't allow joined field references
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE images_image
+            SET is_searchable = (
+                %s = true
+                AND EXISTS (
+                    SELECT 1 FROM images_collection c
+                    WHERE c.id = images_image.collection_id AND c.public = true
+                )
+                AND images_image.duplicate_of_id IS NULL
+            )
+            WHERE collection_id IN (
+                SELECT id FROM images_collection WHERE source_id = %s
+            )
+            """,
+            [instance.public, instance.id],
+        )
+
+
+@receiver(post_save, sender=Collection)
+def update_searchable_on_collection_change(sender, instance, **kwargs):
+    """When a Collection's public status changes, update all its images."""
+    is_public = instance.public and instance.source.public
+    # This works because we're not referencing joined fields in the update value
+    Image.objects.filter(collection=instance, duplicate_of__isnull=True).update(
+        is_searchable=is_public
+    )
+    Image.objects.filter(collection=instance, duplicate_of__isnull=False).update(
+        is_searchable=False
+    )
+
+
+@receiver(post_save, sender=Image)
+def update_searchable_on_image_save(sender, instance, created, **kwargs):
+    """Update is_searchable on every Image save to reflect current collection/source visibility."""
+    # Compute the correct value
+    should_be_searchable = _compute_is_searchable(instance)
+
+    # Only update if the value has changed (avoid infinite recursion)
+    if instance.is_searchable != should_be_searchable:
+        # Use update() to avoid triggering another signal
+        Image.objects.filter(pk=instance.pk).update(is_searchable=should_be_searchable)
 
 
 class Album(models.Model):

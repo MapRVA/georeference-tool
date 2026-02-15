@@ -14,6 +14,7 @@ import markdown
 import nh3
 import requests
 from botocore.exceptions import ClientError
+from django.db import connection
 from django.urls import reverse
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
@@ -157,6 +158,92 @@ def render_markdown_safe(text):
     sanitized = sanitize_html(html)
 
     return sanitized
+
+
+def get_overall_stats():
+    """
+    Get overall site statistics for images.
+
+    Calculates totals for sources, collections, images, and georeferenced images.
+    Excludes duplicates and images marked as will_not_georef from totals.
+    Includes both point georeferences and aerial georeferences.
+
+    Returns:
+        dict: Statistics containing:
+            - total_sources: Count of public sources
+            - total_collections: Count of public collections
+            - total_images: Count of eligible images
+            - total_georeferenced: Count of georeferenced images
+            - georeferenced_percentage: Percentage georeferenced
+    """
+    from .models import Collection, Source
+
+    # Use raw SQL query for accurate image counts (same logic as stats view)
+    query = """
+    WITH point_georefs AS (
+        SELECT
+            g.image_id,
+            g.confidence,
+            ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
+        FROM images_georeference g
+    ),
+    aerial_georefs AS (
+        SELECT
+            ag.image_id,
+            ag.confidence,
+            ROW_NUMBER() OVER (PARTITION BY ag.image_id ORDER BY ag.georeferenced_at DESC) as rn
+        FROM images_aerialgeoreference ag
+    )
+    SELECT
+        COALESCE(
+            CASE
+                WHEN img.aerial = TRUE AND ag.confidence IS NOT NULL THEN ag.confidence
+                WHEN img.aerial = FALSE AND pg.confidence IS NOT NULL THEN pg.confidence
+                ELSE 'not_georeferenced'
+            END
+        ) as confidence_level,
+        COUNT(DISTINCT img.id) as count
+    FROM images_image img
+    INNER JOIN images_collection col ON img.collection_id = col.id
+    INNER JOIN images_source src ON col.source_id = src.id
+    LEFT JOIN aerial_georefs ag ON img.id = ag.image_id AND ag.rn = 1
+    LEFT JOIN point_georefs pg ON img.id = pg.image_id AND pg.rn = 1
+    WHERE img.duplicate_of_id IS NULL
+      AND img.will_not_georef = FALSE
+      AND col.public = TRUE
+      AND src.public = TRUE
+    GROUP BY confidence_level
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        confidence_results = cursor.fetchall()
+
+    # Parse query results
+    total_images = 0
+    georeferenced_count = 0
+
+    for confidence_level, count in confidence_results:
+        total_images += count
+        if confidence_level in ("low", "medium", "high"):
+            georeferenced_count += count
+
+    total_sources = Source.objects.filter(public=True).count()
+    total_collections = Collection.objects.filter(
+        public=True, source__public=True
+    ).count()
+
+    georeferenced_percentage = (
+        round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
+    )
+
+    return {
+        "total_sources": total_sources,
+        "total_collections": total_collections,
+        "total_images": total_images,
+        "total_georeferenced": georeferenced_count,
+        "georeferenced_percentage": georeferenced_percentage,
+    }
 
 
 class R2UploaderError(Exception):

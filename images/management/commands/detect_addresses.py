@@ -24,7 +24,8 @@ RICHMOND_VIEWBOX = ((37.44393, -77.61976), (37.60954, -77.36673))
 # Regex pattern for street addresses with house numbers
 # Handles patterns like:
 #   "314 N. 36th St."
-#   "103 - 105 - 107 N. 18th St." (extracts last number: 107)
+#   "103 - 105 - 107 N. 18th St." (extracts first number: 103)
+#   "115-17-19 N. Lombary St." (extracts first complete number: 115)
 #   "2013 Monument Ave."
 #   "1708 Pump House Dr."
 #   "428 N. Boulevard" (Boulevard as street name, no suffix)
@@ -50,11 +51,11 @@ STREET_TYPES = (
 # Pattern for standard addresses with street type suffix
 ADDRESS_WITH_SUFFIX_PATTERN = re.compile(
     r"""
-    (?:[\d]+(?:\s*1/2)?\s*-\s*)*      # Optional preceding house numbers (e.g., "202 - 204 - ")
-    (\d+(?:\s*1/2)?)                  # House number with optional fraction (captured - last in sequence)
+    (\d+(?:\s*1/2)?)                  # House number with optional fraction (captured - first in sequence)
+    (?:\s*-\s*[\d]+(?:\s*1/2)?)*      # Optional following house numbers (e.g., " - 204 - 206")
     \s+
-    ([NSEW]\.?\s+)?                   # Optional cardinal direction (N. S. E. W.)
-    ([\w]+(?:\s+[\w]+)*?)             # Street name: at least one word, optionally more (non-greedy)
+    ((?:No|So|[NSEW])(?=\.|\s|$)\.?\s*)?  # Optional cardinal direction (N. S. E. W. or No. So.) - must be followed by dot, space, or end
+    ((?![Bb][Ll][Oo][Cc][Kk]\s)(?:St\.?\s+)?[\w]+(?:\s+[\w]+)*?) # Street name: not "Block" alone (case-insensitive), optional "St." prefix, then words (non-greedy)
     \s+
     (                                 # Street type suffix
         """
@@ -70,10 +71,10 @@ ADDRESS_WITH_SUFFIX_PATTERN = re.compile(
 # or street names without standard suffixes (e.g., "St. James", "St. Paul")
 ADDRESS_STREET_AS_NAME_PATTERN = re.compile(
     r"""
-    (?:[\d]+(?:\s*1/2)?\s*-\s*)*      # Optional preceding house numbers
-    (\d+(?:\s*1/2)?)                  # House number with optional fraction (captured)
+    (\d+(?:\s*1/2)?)                  # House number with optional fraction (captured - first in sequence)
+    (?:\s*-\s*[\d]+(?:\s*1/2)?)*      # Optional following house numbers
     \s+
-    ([NSEW]\.?\s+)?                   # Optional cardinal direction
+    ((?:No|So|[NSEW])(?=\.|\s|$)\.?\s*)?  # Optional cardinal direction (N. S. E. W. or No. So.) - must be followed by dot, space, or end
     (Boulevard|Plaza|Circle|Park|St\.?\s+\w+)  # Street name: type/place OR "St. [Name]" pattern
     (?:\s|$|[.,])                     # Must be followed by whitespace, end, or punctuation
     """,
@@ -161,6 +162,10 @@ class Command(BaseCommand):
         no_match_count = 0
         geocoded_count = 0
         geocode_failed_count = 0
+        cache_hit_count = 0
+
+        # Cache for parsed addresses -> (latitude, longitude) or None for failed geocodes
+        address_cache = {}
 
         # Use tqdm for progress bar
         progress_bar = tqdm(
@@ -181,24 +186,53 @@ class Command(BaseCommand):
                 )
 
                 if not dry_run:
-                    # Geocode the address
-                    location = self.geocode_address(geocode, address, progress_bar)
-
-                    if location:
-                        # Save to database
-                        point = Point(location.longitude, location.latitude, srid=4326)
-                        image.detected_address = point
-                        image.save(update_fields=["detected_address"])
-                        geocoded_count += 1
-                        progress_bar.write(
-                            f"    -> {self.style.SUCCESS('GEOCODED')}: "
-                            f"({location.latitude:.6f}, {location.longitude:.6f})"
-                        )
+                    # Check cache first
+                    if address in address_cache:
+                        cached_coords = address_cache[address]
+                        if cached_coords:
+                            lat, lon = cached_coords
+                            point = Point(lon, lat, srid=4326)
+                            image.detected_address = point
+                            image.save(update_fields=["detected_address"])
+                            cache_hit_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.SUCCESS('CACHED')}: "
+                                f"({lat:.6f}, {lon:.6f})"
+                            )
+                        else:
+                            # Cached as failed
+                            geocode_failed_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.WARNING('GEOCODE FAILED')} (cached)"
+                            )
                     else:
-                        geocode_failed_count += 1
-                        progress_bar.write(
-                            f"    -> {self.style.WARNING('GEOCODE FAILED')}"
-                        )
+                        # Geocode the address
+                        location = self.geocode_address(geocode, address, progress_bar)
+
+                        if location:
+                            # Cache the result
+                            address_cache[address] = (
+                                location.latitude,
+                                location.longitude,
+                            )
+                            # Save to database
+                            point = Point(
+                                location.longitude, location.latitude, srid=4326
+                            )
+                            image.detected_address = point
+                            image.save(update_fields=["detected_address"])
+                            geocoded_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.SUCCESS('GEOCODED')}: "
+                                f"({location.latitude:.6f}, {location.longitude:.6f})"
+                            )
+                        else:
+                            # Cache the failure
+                            address_cache[address] = None
+                            geocode_failed_count += 1
+                            progress_bar.write(
+                                f"    -> {self.style.WARNING('GEOCODE FAILED')}"
+                            )
             else:
                 no_match_count += 1
                 if options["verbosity"] >= 2:
@@ -212,6 +246,7 @@ class Command(BaseCommand):
         self.stdout.write(f"No address found: {no_match_count}")
         if not dry_run:
             self.stdout.write(f"Successfully geocoded: {geocoded_count}")
+            self.stdout.write(f"From cache: {cache_hit_count}")
             self.stdout.write(f"Geocoding failed: {geocode_failed_count}")
         self.stdout.write(f"Total images: {image_count}")
 
@@ -311,8 +346,13 @@ class Command(BaseCommand):
             # Build the address string
             parts = [house_number]
             if direction:
-                # Normalize direction (e.g., "N." -> "N")
-                parts.append(direction.strip().rstrip("."))
+                # Normalize direction (e.g., "N." -> "N", "No." -> "N", "So." -> "S")
+                dir_normalized = direction.strip().rstrip(".")
+                if dir_normalized.lower() == "no":
+                    dir_normalized = "N"
+                elif dir_normalized.lower() == "so":
+                    dir_normalized = "S"
+                parts.append(dir_normalized)
             parts.append(street_name)
             parts.append(street_type.rstrip("."))
 
@@ -328,7 +368,13 @@ class Command(BaseCommand):
             # Build the address string
             parts = [house_number]
             if direction:
-                parts.append(direction.strip().rstrip("."))
+                # Normalize direction (e.g., "N." -> "N", "No." -> "N", "So." -> "S")
+                dir_normalized = direction.strip().rstrip(".")
+                if dir_normalized.lower() == "no":
+                    dir_normalized = "N"
+                elif dir_normalized.lower() == "so":
+                    dir_normalized = "S"
+                parts.append(dir_normalized)
             parts.append(street_name)
 
             return " ".join(parts)

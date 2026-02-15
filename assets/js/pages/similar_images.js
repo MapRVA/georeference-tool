@@ -42,8 +42,15 @@ window.similarImagesGrid = function () {
 
     // Load More specific state
     hasMore: initialHasMore,
-    loading: false,
+    loading: false, // Controls spinner visibility (debounced)
     offset: perPage, // Start at perPage since first batch is already loaded
+
+    // Pending fetch promise from prefetch (mousedown)
+    _pendingFetch: null,
+    // Timer for debounced loading indicator
+    _loadingTimer: null,
+    // Flag to prevent concurrent requests (separate from loading indicator)
+    _isLoadingMore: false,
 
     /**
      * Initialize the component
@@ -54,23 +61,54 @@ window.similarImagesGrid = function () {
     },
 
     /**
-     * Load more similar images via AJAX
+     * Prefetch next page on mousedown for faster perceived loading.
+     * Called via @mousedown on the Load More button.
+     */
+    prefetchMore() {
+      if (this._isLoadingMore || !this.hasMore || this._pendingFetch) return;
+
+      // Build URL with current offset and any filter parameters
+      const url = new URL(window.location.href);
+      url.searchParams.set("offset", this.offset);
+
+      this._pendingFetch = fetch(url.toString(), {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+    },
+
+    /**
+     * Load more similar images via AJAX.
+     * Uses prefetched response if available.
      */
     async loadMore() {
-      if (this.loading || !this.hasMore) return;
+      if (this._isLoadingMore || !this.hasMore) return;
+      this._isLoadingMore = true;
 
-      this.loading = true;
+      // Debounce the loading indicator - only show after 200ms
+      this._loadingTimer = setTimeout(() => {
+        this.loading = true;
+      }, 200);
 
       try {
-        // Build URL with current offset and any filter parameters
-        const url = new URL(window.location.href);
-        url.searchParams.set("offset", this.offset);
+        let response;
 
-        const response = await fetch(url.toString(), {
-          headers: {
-            "X-Requested-With": "XMLHttpRequest",
-          },
-        });
+        if (this._pendingFetch) {
+          // Use the prefetched request
+          response = await this._pendingFetch;
+          this._pendingFetch = null;
+        } else {
+          // No prefetch, make the request now
+          const url = new URL(window.location.href);
+          url.searchParams.set("offset", this.offset);
+
+          response = await fetch(url.toString(), {
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
@@ -82,7 +120,7 @@ window.similarImagesGrid = function () {
           // Parse the response to count new items and check hasMore flag
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, "text/html");
-          const newItems = doc.querySelectorAll("[data-image-id]");
+          const newItems = doc.querySelectorAll(".image-card-wrapper");
           const hasMoreEl = doc.querySelector("[data-has-more]");
 
           if (newItems.length > 0) {
@@ -111,9 +149,12 @@ window.similarImagesGrid = function () {
         }
       } catch (error) {
         console.error("Error loading more images:", error);
+        this._pendingFetch = null;
         // Don't set hasMore to false on error - let user retry
       } finally {
+        clearTimeout(this._loadingTimer);
         this.loading = false;
+        this._isLoadingMore = false;
       }
     },
   };

@@ -191,6 +191,26 @@ def georeference_interface(request):
                 "label": "Detected Address",
             }
 
+    # Build subject hints - always shown, rendered below other hints
+    # These come from subjects linked to the image that have OSM elements with centroids
+    subject_hints = []
+    if current_image:
+        subject_mappings = current_image.subject_mappings.prefetch_related(
+            "subject__osm_elements"
+        ).order_by("order")
+        for mapping in subject_mappings:
+            subject = mapping.subject
+            # Use the first OSM element with a centroid
+            osm_element = subject.osm_elements.filter(centroid__isnull=False).first()
+            if osm_element:
+                subject_hints.append(
+                    {
+                        "lat": osm_element.centroid.y,
+                        "lng": osm_element.centroid.x,
+                        "label": subject.title,
+                    }
+                )
+
     context = {
         "current_image": current_image,
         "source": source,
@@ -205,6 +225,8 @@ def georeference_interface(request):
         "previous_image": current_image.get_previous_image() if current_image else None,
         "location_hint": location_hint,
         "location_hint_json": json.dumps(location_hint),
+        "subject_hints": subject_hints,
+        "subject_hints_json": json.dumps(subject_hints),
     }
 
     # Remove duplicate message - template already shows appropriate message when no image available

@@ -8,7 +8,7 @@
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="{% if source.description %}{{ source.description }}{% else %}Archive with {{ collections.count }} collection{{ collections.count|pluralize }} and {{ total_images }} image{{ total_images|pluralize }}.{% endif %}">
 	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
@@ -50,8 +50,8 @@
                         <h1 class="card-title mb-3">
                             <i class="fas fa-archive me-2"></i>{{ source.name }}
                         </h1>
-                        {% if source.description %}
-                            <p class="card-text text-muted">{{ source.description }}</p>
+                        {% if rendered_description %}
+                            <div class="card-text text-muted markdown-content">{{ rendered_description|safe }}</div>
                         {% endif %}
                         <a href="{{ source.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-external-link-alt me-1"></i>Homepage

@@ -43,6 +43,8 @@
 /* Comment preview in activity feed - collapsible long comments */
 .comment-preview {
     overflow: hidden; /* Creates block formatting context to respect floats */
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .comment-preview .markdown-content {

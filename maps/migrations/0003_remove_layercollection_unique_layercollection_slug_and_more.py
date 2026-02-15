@@ -4,29 +4,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('maps', '0002_add_slugs'),
+        ("maps", "0002_add_slugs"),
     ]
 
     operations = [
         migrations.RemoveConstraint(
-            model_name='layercollection',
-            name='unique_layercollection_slug',
+            model_name="layercollection",
+            name="unique_layercollection_slug",
         ),
         migrations.AddField(
-            model_name='maplayer',
-            name='oim_link',
-            field=models.URLField(blank=True, help_text='Optional URL to the OIM (OldInsuranceMaps.net) entry'),
+            model_name="maplayer",
+            name="oim_link",
+            field=models.URLField(
+                blank=True,
+                help_text="Optional URL to the OIM (OldInsuranceMaps.net) entry",
+            ),
         ),
         migrations.AddField(
-            model_name='maplayer',
-            name='source_link',
-            field=models.URLField(blank=True, help_text='Optional URL to the source of this map layer'),
+            model_name="maplayer",
+            name="source_link",
+            field=models.URLField(
+                blank=True, help_text="Optional URL to the source of this map layer"
+            ),
         ),
         migrations.AlterField(
-            model_name='layercollection',
-            name='slug',
+            model_name="layercollection",
+            name="slug",
             field=models.SlugField(unique=True),
         ),
     ]

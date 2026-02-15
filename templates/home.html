@@ -7,7 +7,7 @@
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="{{ site_subtitle }}">
 	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
@@ -41,7 +41,7 @@
 <!-- Full-width map that grows to fill remaining space -->
 <div class="container-fluid px-0 flex-grow-1 d-flex">
     <div class="map-container w-100">
-        {% include 'images/partials/map_display.html' with map_id='homepage-map' center_lng='-77.44' center_lat='37.53' zoom_level='11.5' geolocate=True hash=True include_geocoder=True %}
+        {% include 'images/partials/map_display.html' with map_id='homepage-map' geolocate=True hash=True include_geocoder=True %}
     </div>
 </div>
 {% endblock %}

@@ -2,6 +2,7 @@ import "../../styles/pages/browse-subjects.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import maplibregl from "maplibre-gl";
+import { DEFAULT_MAP_CENTER } from "../constants/map.js";
 
 document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
@@ -22,12 +23,18 @@ document.addEventListener("DOMContentLoaded", function () {
   const map = new maplibregl.Map({
     container: "subjects-map",
     style: getMapStyle(),
-    center: [-77.43916, 37.54376],
+    center: DEFAULT_MAP_CENTER,
     zoom: 13,
   });
 
   // Add fullscreen control
   map.addControl(new maplibregl.FullscreenControl());
+
+  // Get Bootstrap's primary color from CSS variable
+  const primaryColor =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--bs-primary")
+      .trim() || "#0d6efd";
 
   // Function to add all custom sources and layers
   function addCustomLayers() {
@@ -46,11 +53,28 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("Source added, adding layers");
 
     // Add vector tiles source for regular image georeferences
+    // URL with version is provided by the template via window.VECTOR_TILES_URL
     map.addSource("images", {
       type: "vector",
-      tiles: [window.location.origin + "/api/v1/tiles/{z}/{x}/{y}.mvt"],
+      tiles: [window.location.origin + window.VECTOR_TILES_URL],
       minzoom: 0,
-      maxzoom: 18,
+      maxzoom: 14,
+    });
+
+    // Add circle layer for image georeferences
+    map.addLayer({
+      id: "image-circles",
+      type: "circle",
+      source: "images",
+      "source-layer": "image_points",
+      paint: {
+        "circle-radius": 8,
+        "circle-color": primaryColor,
+        "circle-stroke-color": "#fff",
+        "circle-stroke-width": 2,
+        "circle-opacity": 0, // Hidden by default, will show on hover
+        "circle-stroke-opacity": 0, // Hide stroke initially too
+      },
     });
 
     // Load direction arrow image asynchronously
@@ -61,50 +85,37 @@ document.addEventListener("DOMContentLoaded", function () {
         );
         map.addImage("image-direction", image.data);
 
-        // Add direction markers for image georeferences
-        map.addLayer({
-          id: "image-directions",
-          type: "symbol",
-          source: "images",
-          "source-layer": "image_points",
-          filter: ["has", "direction"],
-          layout: {
-            "icon-image": "image-direction",
-            "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
+        // Add direction markers for image georeferences (underneath circles)
+        map.addLayer(
+          {
+            id: "image-directions",
+            type: "symbol",
+            source: "images",
+            "source-layer": "image_points",
+            filter: ["has", "direction"],
+            layout: {
+              "icon-image": "image-direction",
+              "icon-overlap": "always",
+              "icon-size": {
+                stops: [
+                  [5, 0.3],
+                  [15, 1],
+                ],
+              },
+              "icon-rotate": ["to-number", ["get", "direction"]],
+              "icon-rotation-alignment": "map",
+              "icon-pitch-alignment": "map",
             },
-            "icon-rotate": ["to-number", ["get", "direction"]],
-            "icon-rotation-alignment": "map",
-            "icon-pitch-alignment": "map",
+            paint: {
+              "icon-opacity": 0, // Hidden by default, will show on hover
+            },
           },
-          paint: {
-            "icon-opacity": 0, // Hidden by default, will show on hover
-          },
-        });
+          "image-circles",
+        ); // Insert below image-circles
       } catch (error) {
         console.warn("Could not load direction arrow image:", error);
       }
     })();
-
-    // Add circle layer for image georeferences
-    map.addLayer({
-      id: "image-circles",
-      type: "circle",
-      source: "images",
-      "source-layer": "image_points",
-      paint: {
-        "circle-radius": 8,
-        "circle-color": "green",
-        "circle-stroke-color": "#fff",
-        "circle-stroke-width": 2,
-        "circle-opacity": 0, // Hidden by default, will show on hover
-        "circle-stroke-opacity": 0, // Hide stroke initially too
-      },
-    });
 
     console.log("Image circles layer added");
 

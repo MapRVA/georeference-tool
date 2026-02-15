@@ -10,7 +10,7 @@ from ..models import (
     Source,
     TopRatedImageView,
 )
-from ..utils import render_markdown_safe
+from ..utils import get_overall_stats, render_markdown_safe
 
 
 def apply_image_filters(request, queryset):
@@ -120,46 +120,36 @@ def browse_sources(request):
     )
 
     # Add statistics for each source (only from public collections)
-    total_collections = 0
-    total_images = 0
-    total_georeferenced = 0
-
     for source in sources:
         # Count only public collections for this source
         source.public_collections_count = source.collections.filter(public=True).count()
-        total_collections += source.public_collections_count
 
         source.total_images = Image.objects.filter(
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
+            will_not_georef=False,
         ).count()
+        # Count images as georeferenced if they have point georeferences
+        # OR aerials with polygon georeferences
         source.georeferenced_images = (
             Image.objects.filter(
                 collection__source=source,
                 collection__public=True,
                 duplicate_of__isnull=True,
-                georeferences__isnull=False,
+                will_not_georef=False,
+            )
+            .filter(
+                Q(georeferences__isnull=False)
+                | Q(aerial=True, aerial_georeferences__isnull=False)
             )
             .distinct()
             .count()
         )
         source.pending_images = source.total_images - source.georeferenced_images
 
-        # Add to overall totals
-        total_images += source.total_images
-        total_georeferenced += source.georeferenced_images
-
-    # Calculate overall statistics
-    overall_stats = {
-        "total_sources": sources.count(),
-        "total_collections": total_collections,
-        "total_images": total_images,
-        "total_georeferenced": total_georeferenced,
-        "georeferenced_percentage": round((total_georeferenced / total_images * 100), 1)
-        if total_images > 0
-        else 0,
-    }
+    # Get overall statistics using shared utility function
+    overall_stats = get_overall_stats()
 
     # Get top-rated image from entire site for Open Graph metadata
     top_rated_entry = (
@@ -238,6 +228,11 @@ def source_detail(request, slug):
             id=top_rated_entry.image_id
         )
 
+    # Render markdown description
+    rendered_description = None
+    if source.description:
+        rendered_description = render_markdown_safe(source.description)
+
     context = {
         "source": source,
         "collections": collections,
@@ -255,6 +250,7 @@ def source_detail(request, slug):
         if total_images > 0
         else 0,
         "top_rated_image": top_rated_image,
+        "rendered_description": rendered_description,
     }
     return render(request, "images/source_detail.html", context)
 
@@ -397,6 +393,11 @@ def collection_detail(request, source_slug, collection_slug):
             id=top_rated_entry.image_id
         )
 
+    # Render markdown description
+    rendered_description = None
+    if collection.description:
+        rendered_description = render_markdown_safe(collection.description)
+
     context = {
         "source": source,
         "collection": collection,
@@ -408,6 +409,7 @@ def collection_detail(request, source_slug, collection_slug):
         if total_images > 0
         else 0,
         "top_rated_image": top_rated_image,
+        "rendered_description": rendered_description,
     }
     return render(request, "images/collection_detail.html", context)
 
@@ -458,24 +460,9 @@ def image_detail(request, image_id):
     """Display detailed view of an image for georeferencing"""
     image = get_object_or_404(Image, id=image_id)
 
-    # Render confidence notes as markdown for the current georeference
+    # Get current georeferences (cached HTML is used directly in templates)
     georeference = image.get_georeference()
-    rendered_notes = None
-    if georeference and georeference.confidence_notes:
-        rendered_notes = render_markdown_safe(georeference.confidence_notes)
-
-    # Render notes for all georeferences in the timeline
-    georeferences_with_notes = []
-    for geo in image.georeferences.all():
-        rendered_geo_notes = None
-        if geo.confidence_notes:
-            rendered_geo_notes = render_markdown_safe(geo.confidence_notes)
-        georeferences_with_notes.append(
-            {
-                "georeference": geo,
-                "rendered_notes": rendered_geo_notes,
-            }
-        )
+    polygonal_georeference = image.get_aerial_georeference() if image.aerial else None
 
     # Get total count of images in this collection
     total_images_in_collection = image.collection.images.count()
@@ -498,12 +485,8 @@ def image_detail(request, image_id):
         "image": image,
         "has_georeference": image.georeferences.exists(),
         "georeference": georeference,
-        "rendered_notes": rendered_notes,
         "validations": georeference.validations.all() if georeference else [],
-        "georeferences_with_notes": georeferences_with_notes,
-        "polygonal_georeference": image.get_aerial_georeference()
-        if image.aerial
-        else None,
+        "polygonal_georeference": polygonal_georeference,
         "next_image": image.get_next_image(),
         "previous_image": image.get_previous_image(),
         "total_images_in_collection": total_images_in_collection,

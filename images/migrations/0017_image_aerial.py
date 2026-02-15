@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0016_album_albumimage_album_images_and_more'),
+        ("images", "0016_album_albumimage_album_images_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='aerial',
+            model_name="image",
+            name="aerial",
             field=models.BooleanField(default=False),
         ),
     ]

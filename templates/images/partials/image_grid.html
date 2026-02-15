@@ -11,7 +11,7 @@
     {% if page_obj %}
         <div class="row" {{ row_attrs }}>
             {% for image in page_obj %}
-                {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default:True badges=badges|default:True buttons=buttons|default:True %}
+                {% include 'images/partials/image_card.html' with georeference_url=georeference_url|default:"/georeference/" show_collection_link=show_collection_link|default_if_none:True badges=badges|default:True buttons=buttons|default:True %}
             {% endfor %}
         </div>
 
@@ -24,5 +24,43 @@
 
     {% if show_toolbar and user.is_authenticated %}
         {% include 'images/partials/bulk_modals.html' %}
+    {% endif %}
+
+    {% comment %}
+    Create Album Modal - for single-image album dropdown in image cards.
+    This is separate from bulk_modals.html which handles bulk operations.
+    {% endcomment %}
+    {% if user.is_authenticated %}
+    <div class="modal fade" id="createAlbumModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Album</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="modalImageId" value="">
+                    <div class="mb-3">
+                        <label for="newAlbumTitle" class="form-label">Album Title</label>
+                        <input type="text" class="form-control" id="newAlbumTitle" placeholder="Enter album title">
+                    </div>
+                    <div class="mb-3">
+                        <label for="newAlbumDescription" class="form-label">Description (optional)</label>
+                        <textarea class="form-control" id="newAlbumDescription" rows="2" placeholder="Enter album description"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="newAlbumPublic">
+                        <label class="form-check-label" for="newAlbumPublic">
+                            Make this album public
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="createAlbumBtn">Create Album</button>
+                </div>
+            </div>
+        </div>
+    </div>
     {% endif %}
 </div>

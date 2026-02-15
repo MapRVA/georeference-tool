@@ -1,27 +1,24 @@
+import hashlib
 import json
 
 from django.contrib.gis.geos import Point
+from django.core.cache import caches
 from django.db import connection
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 
-from ..models import Image
+from ..models import Image, TileVersion
 from .core import get_min_scale_for_zoom
+
+tile_cache = caches["tiles"]
 
 
 def geojson_endpoint(request):
-    """Return GeoJSON FeatureCollection of georeferenced images"""
+    """Return GeoJSON FeatureCollection of georeferenced images.
 
-    # Start with all georeferenced images from public collections/sources
-    images = (
-        Image.objects.select_related("collection__source")
-        .prefetch_related("georeferences", "subject_mappings__subject__wikidata_item")
-        .filter(
-            georeferences__isnull=False,  # Must be georeferenced
-            collection__public=True,  # Collection must be public
-            collection__source__public=True,  # Source must be public
-        )
-    )
+    Reads from the public_georeferences_mvt materialized view for performance,
+    joining to live tables only for permalink and subject data.
+    """
 
     # Apply filters based on GET parameters
     image_id = request.GET.get("image")
@@ -29,67 +26,99 @@ def geojson_endpoint(request):
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
 
+    where_conditions = []
+    where_params = []
+
     if image_id:
-        images = images.filter(id=image_id)
+        where_conditions.append("mv.image_id = %s")
+        where_params.append(image_id)
     if collection_id:
-        images = images.filter(collection_id=collection_id)
+        where_conditions.append("i.collection_id = %s")
+        where_params.append(collection_id)
     if source_id:
-        images = images.filter(collection__source_id=source_id)
-    if subject_id:
-        images = images.filter(subject_mappings__subject_id=subject_id)
-
-    # Build GeoJSON features
-    features = []
-    for image in images:
-        georeference = image.get_georeference()
-        if not georeference:  # Skip if no georeference found
-            continue
-
-        # Build the image entry URL (absolute URL to image detail page)
-        img_entry = request.build_absolute_uri(
-            reverse("images:image_detail", kwargs={"image_id": image.id})
+        where_conditions.append(
+            "i.collection_id IN (SELECT id FROM images_collection WHERE source_id = %s)"
         )
+        where_params.append(source_id)
+    if subject_id:
+        where_conditions.append(
+            "mv.image_id IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = %s)"
+        )
+        where_params.append(subject_id)
 
-        # Build properties
-        properties = {
-            "img_url": image.permalink,
-            "img_entry": img_entry,
-            "original_date": str(image.original_date) if image.original_date else None,
-            "edtf_date": str(image.edtf_date) if image.edtf_date else None,
-            "start_decdate": image.start_decdate,
-            "fuzzy_start_decdate": image.fuzzy_start_decdate,
-            "end_decdate": image.end_decdate,
-            "fuzzy_end_decdate": image.fuzzy_end_decdate,
-        }
+    where_clause = " AND ".join(where_conditions)
+    if where_clause:
+        where_clause = f"WHERE {where_clause}"
 
-        # Only include direction if it's not None
-        if georeference.direction is not None:
-            properties["direction"] = georeference.direction
+    sql = f"""
+        SELECT
+            mv.image_id,
+            ST_X(mv.point) as lon,
+            ST_Y(mv.point) as lat,
+            i.permalink,
+            mv.original_date,
+            mv.edtf_date,
+            mv.start_decdate,
+            mv.fuzzy_start_decdate,
+            mv.end_decdate,
+            mv.fuzzy_end_decdate,
+            mv.scale,
+            mv.direction,
+            (
+                SELECT array_agg(wi.wikidata_id)
+                FROM images_subjectmapping sm
+                JOIN subjects_subject ss ON sm.subject_id = ss.id
+                JOIN subjects_wikidataitem wi ON ss.wikidata_item_id = wi.id
+                WHERE sm.image_id = mv.image_id
+            ) as subjects
+        FROM public_georeferences_mvt mv
+        JOIN images_image i ON mv.image_id = i.id
+        {where_clause}
+    """
 
-        # Only include scale if it's not None
-        if image.scale is not None:
-            properties["scale"] = image.scale
+    features = []
+    with connection.cursor() as cursor:
+        cursor.execute(sql, where_params)
+        columns = [col.name for col in cursor.description]
 
-        # Add subjects as Wikidata IDs if they exist
-        subject_wikidata_ids = [
-            mapping.subject.wikidata_item.wikidata_id
-            for mapping in image.subject_mappings.all()
-            if mapping.subject.wikidata_item
-        ]
-        if subject_wikidata_ids:
-            properties["subjects"] = subject_wikidata_ids
+        for row in cursor.fetchall():
+            data = dict(zip(columns, row))
 
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [georeference.point.x, georeference.point.y],
-            },
-            "properties": properties,
-        }
-        features.append(feature)
+            img_entry = request.build_absolute_uri(
+                reverse("images:image_detail", kwargs={"image_id": data["image_id"]})
+            )
 
-    # Build final GeoJSON
+            properties = {
+                "img_url": data["permalink"],
+                "img_entry": img_entry,
+                "original_date": data["original_date"] or None,
+                "edtf_date": data["edtf_date"] or None,
+                "start_decdate": data["start_decdate"],
+                "fuzzy_start_decdate": data["fuzzy_start_decdate"],
+                "end_decdate": data["end_decdate"],
+                "fuzzy_end_decdate": data["fuzzy_end_decdate"],
+            }
+
+            if data["direction"] is not None:
+                properties["direction"] = data["direction"]
+
+            if data["scale"] and data["scale"] != 0:
+                properties["scale"] = data["scale"]
+
+            if data["subjects"]:
+                properties["subjects"] = data["subjects"]
+
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [data["lon"], data["lat"]],
+                    },
+                    "properties": properties,
+                }
+            )
+
     geojson = {"type": "FeatureCollection", "features": features}
 
     return JsonResponse(geojson)
@@ -279,21 +308,97 @@ def polygonal_georeferences_at_point(request):
     return JsonResponse(geojson)
 
 
-def vector_tiles_endpoint(request, z, x, y):
-    """Return MVT vector tiles of georeferenced images (using materialized view for performance)"""
+def get_tile_version() -> str:
+    """Get current tile data version from the database."""
+    return str(TileVersion.get_version())
 
+
+def bump_tile_version():
+    """Increment tile version, invalidating all cached tiles."""
+    return str(TileVersion.bump())
+
+
+def vector_tiles_endpoint(request, z, x, y, v=None):
+    """Return MVT vector tiles of georeferenced images.
+
+    URLs may include a version (v) for cache-busting, but it's not used server-side.
+    When the version changes, all tile URLs change, invalidating browser and CDN caches.
+    """
+
+    # Collect filter parameters
     enable_scale_filter = (
         request.GET.get("enable_scale_filter", "false").lower() == "true"
     )
-
-    # Apply the same filters as GeoJSON endpoint
     image_id = request.GET.get("image")
     collection_id = request.GET.get("collection")
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
     album_id = request.GET.get("album")
 
-    # Build WHERE conditions for filtering on pre-filtered materialized view
+    is_filtered = any([image_id, collection_id, source_id, subject_id, album_id])
+
+    # Only use cache for unfiltered tiles
+    if not is_filtered:
+        version = get_tile_version()
+        cache_key = f"tile:{version}:{z}:{x}:{y}:{enable_scale_filter}"
+
+        cached = tile_cache.get(cache_key)
+        if cached is not None:
+            return _make_tile_response(cached, z, is_filtered=False, hit=True)
+
+    # Generate tile (cache miss or filtered request)
+    mvt_data = _generate_tile(
+        z,
+        x,
+        y,
+        enable_scale_filter,
+        image_id,
+        collection_id,
+        source_id,
+        subject_id,
+        album_id,
+    )
+
+    # Cache unfiltered tiles only
+    if not is_filtered:
+        tile_cache.set(cache_key, mvt_data, timeout=86400)
+
+    return _make_tile_response(mvt_data, z, is_filtered, hit=False)
+
+
+def _make_tile_response(
+    mvt_data: bytes, z: int, is_filtered: bool, hit: bool
+) -> HttpResponse:
+    """Create response with appropriate cache headers."""
+    response = HttpResponse(mvt_data, content_type="application/x-protobuf")
+
+    if is_filtered:
+        # Don't cache filtered tiles in browser, short edge cache
+        response["Cache-Control"] = "public, max-age=0, s-maxage=300"
+    else:
+        # Versioned URLs mean stale tiles are never requested again, so cache aggressively
+        response["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
+
+    response["ETag"] = f'"{hashlib.md5(mvt_data).hexdigest()}"'
+    response["X-Tile-Cache"] = "HIT" if hit else "MISS"
+
+    return response
+
+
+def _generate_tile(
+    z,
+    x,
+    y,
+    enable_scale_filter,
+    image_id,
+    collection_id,
+    source_id,
+    subject_id,
+    album_id,
+) -> bytes:
+    """Generate MVT tile from database."""
+
+    # Build WHERE conditions for filtering
     where_conditions = []
     where_params = []
 
@@ -329,11 +434,12 @@ def vector_tiles_endpoint(request, z, x, y):
 
     where_clause = " AND ".join(where_conditions)
 
-    # Build WHERE clause - add filter conditions if any exist
     if where_clause:
-        where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+        where_clause_sql = f"WHERE {where_clause} AND ST_Intersects(point_3857, ST_TileEnvelope(%s, %s, %s))"
     else:
-        where_clause_sql = "WHERE ST_Intersects(point, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))"
+        where_clause_sql = (
+            "WHERE ST_Intersects(point_3857, ST_TileEnvelope(%s, %s, %s))"
+        )
 
     sql = f"""
         SELECT ST_AsMVT(mvtgeoms.*, 'image_points') as mvt FROM (
@@ -355,7 +461,6 @@ def vector_tiles_endpoint(request, z, x, y):
         ) mvtgeoms
     """
 
-    # Parameters: Z, X, Y for tile envelope (twice), plus any filter parameters
     query_params = [z, x, y] + where_params + [z, x, y]
 
     with connection.cursor() as cursor:
@@ -363,11 +468,9 @@ def vector_tiles_endpoint(request, z, x, y):
         result = cursor.fetchone()
 
         if result and result[0]:
-            mvt_data = bytes(result[0])
-            response = HttpResponse(mvt_data, content_type="application/x-protobuf")
-            return response
+            return bytes(result[0])
         else:
-            return HttpResponse(b"", content_type="application/x-protobuf")
+            return b""
 
 
 def osm_elements_vector_tiles_endpoint(request, z, x, y):
@@ -387,7 +490,7 @@ def osm_elements_vector_tiles_endpoint(request, z, x, y):
                 ) as image_ids,
                 oe.geometry_area as geometry_area
             FROM subjects_osmelement oe
-            LEFT JOIN subjects_subject s ON oe.id = s.osm_element_id
+            LEFT JOIN subjects_subject s ON s.id = oe.subject_id
             INNER JOIN images_subjectmapping sm ON s.id = sm.subject_id
             WHERE ST_Intersects(oe.geometry, ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326))
             GROUP BY oe.id, s.id, oe.osm_id, oe.geometry, s.title, s.slug, oe.geometry_area

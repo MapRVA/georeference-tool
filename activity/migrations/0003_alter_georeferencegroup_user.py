@@ -6,16 +6,22 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('activity', '0002_sitewide_milestone'),
+        ("activity", "0002_sitewide_milestone"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='georeferencegroup',
-            name='user',
-            field=models.ForeignKey(blank=True, help_text='User who made the georeferences (null for anonymous submissions)', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='georeference_groups', to=settings.AUTH_USER_MODEL),
+            model_name="georeferencegroup",
+            name="user",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="User who made the georeferences (null for anonymous submissions)",
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="georeference_groups",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

@@ -62,8 +62,15 @@ window.activityFilter = function (initialFilters) {
 window.activityFeed = function (initialHasMore, initialNoneSelected = false) {
   return {
     hasMore: initialHasMore,
-    loading: false,
+    loading: false, // Controls spinner visibility (debounced)
     noneSelected: initialNoneSelected,
+
+    // Pending fetch promise from prefetch (mousedown)
+    _pendingFetch: null,
+    // Timer for debounced loading indicator
+    _loadingTimer: null,
+    // Flag to prevent concurrent requests (separate from loading indicator)
+    _isLoadingMore: false,
 
     get lastTimestamp() {
       const items = this.$refs.items?.querySelectorAll(".activity-item");
@@ -116,20 +123,54 @@ window.activityFeed = function (initialHasMore, initialNoneSelected = false) {
       }
     },
 
-    async loadMore() {
-      if (this.loading || !this.hasMore) return;
+    /**
+     * Prefetch next page on mousedown for faster perceived loading.
+     * Called via @mousedown on the Load More button.
+     */
+    prefetchMore() {
+      if (this._isLoadingMore || !this.hasMore || this._pendingFetch) return;
 
-      this.loading = true;
+      const url = new URL(window.location.href);
+      url.searchParams.set("before", this.lastTimestamp);
+
+      this._pendingFetch = fetch(url.toString(), {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+    },
+
+    /**
+     * Load more activities via AJAX.
+     * Uses prefetched response if available.
+     */
+    async loadMore() {
+      if (this._isLoadingMore || !this.hasMore) return;
+      this._isLoadingMore = true;
+
+      // Debounce the loading indicator - only show after 200ms
+      this._loadingTimer = setTimeout(() => {
+        this.loading = true;
+      }, 200);
 
       try {
-        const url = new URL(window.location.href);
-        url.searchParams.set("before", this.lastTimestamp);
+        let response;
 
-        const response = await fetch(url.toString(), {
-          headers: {
-            "X-Requested-With": "XMLHttpRequest",
-          },
-        });
+        if (this._pendingFetch) {
+          // Use the prefetched request
+          response = await this._pendingFetch;
+          this._pendingFetch = null;
+        } else {
+          // No prefetch, make the request now
+          const url = new URL(window.location.href);
+          url.searchParams.set("before", this.lastTimestamp);
+
+          response = await fetch(url.toString(), {
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
@@ -159,9 +200,12 @@ window.activityFeed = function (initialHasMore, initialNoneSelected = false) {
         }
       } catch (error) {
         console.error("Error loading more activities:", error);
+        this._pendingFetch = null;
         // Don't set hasMore to false on error - let user retry
       } finally {
+        clearTimeout(this._loadingTimer);
         this.loading = false;
+        this._isLoadingMore = false;
       }
     },
   };

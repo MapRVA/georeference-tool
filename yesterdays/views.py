@@ -1,25 +1,29 @@
 import json
 
+from django.core.cache import cache
+from django.db import connection
 from django.db.models import Count, F, Max
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from images.models import (
     AerialGeoreference,
-    Collection,
     Georeference,
     GeoreferenceValidation,
     Image,
-    Source,
     TopRatedImageView,
 )
+from images.utils import get_overall_stats
 
 
-def home(request):
-    """Home page view"""
-    # Get top-rated image from entire site for Open Graph metadata
+def get_top_rated_image():
+    """Get the top-rated image for Open Graph metadata, with caching."""
+    cached = cache.get("top_rated_image")
+    if cached is not None:
+        return cached
+
     top_rated_entry = (
         TopRatedImageView.objects.all()
         .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
@@ -31,9 +35,15 @@ def home(request):
             id=top_rated_entry.image_id
         )
 
+    cache.set("top_rated_image", top_rated_image, timeout=900)  # 15 minutes
+    return top_rated_image
+
+
+def home(request):
+    """Home page view"""
     context = {
         "page_title": "Home",
-        "top_rated_image": top_rated_image,
+        "top_rated_image": get_top_rated_image(),
     }
     return render(request, "home.html", context)
 
@@ -214,26 +224,8 @@ def stats(request):
         ),
     )
 
-    # Overall statistics
-    total_sources = Source.objects.filter(public=True).count()
-    total_collections = Collection.objects.filter(
-        public=True, source__public=True
-    ).count()
-    # Georeferenced count is the sum of all confidence levels (excluding not georeferenced)
-    georeferenced_count = (
-        low_confidence_count + medium_confidence_count + high_confidence_count
-    )
-    georeferenced_percentage = (
-        round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0
-    )
-
-    overall_stats = {
-        "total_sources": total_sources,
-        "total_collections": total_collections,
-        "total_images": total_images,
-        "total_georeferenced": georeferenced_count,
-        "georeferenced_percentage": georeferenced_percentage,
-    }
+    # Get overall statistics using shared utility function
+    overall_stats = get_overall_stats()
 
     context = {
         "page_title": "Stats",
@@ -259,3 +251,35 @@ def robots_txt(request):
         "Disallow: */polygonal-georeference/*",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+@require_GET
+def health_ready(request):
+    """
+    Kubernetes readiness probe endpoint.
+    Returns 200 if the app is ready to serve traffic.
+    """
+    from images.views.search import CLIP_AVAILABLE, is_clip_ready
+
+    checks = {
+        "database": False,
+        "clip_model": False,
+    }
+
+    # Check database connectivity
+    try:
+        connection.ensure_connection()
+        checks["database"] = True
+    except Exception:
+        pass
+
+    # Check CLIP model (only required if CLIP is available)
+    if CLIP_AVAILABLE:
+        checks["clip_model"] = is_clip_ready()
+    else:
+        checks["clip_model"] = True  # Not required if CLIP unavailable
+
+    all_ready = all(checks.values())
+    status = 200 if all_ready else 503
+
+    return JsonResponse({"ready": all_ready, "checks": checks}, status=status)

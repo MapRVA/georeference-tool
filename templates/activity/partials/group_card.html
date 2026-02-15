@@ -95,7 +95,7 @@
                                                          @resize.window.debounce.100ms="checkOverflow()">
                                                         <div class="markdown-content comment-collapsed"
                                                              :class="{ 'comment-collapsed': !notesExpanded }"
-                                                             x-ref="content">{{ georeference.confidence_notes|markdown }}</div>
+                                                             x-ref="content">{{ georeference.confidence_notes_html|safe }}</div>
                                                         <button x-show="overflows && !notesExpanded"
                                                                 x-cloak
                                                                 @click="notesExpanded = true"

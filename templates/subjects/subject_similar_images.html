@@ -30,7 +30,7 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'subjects:browse_subjects' %}">Subjects</a></li>
             <li class="breadcrumb-item"><a href="{% url 'subjects:subject_detail' subject.slug %}">{{ subject.title }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">Similar Images</li>
         </ol>
@@ -77,6 +77,7 @@
                 <div class="text-center my-4">
                     <button x-show="hasMore && !loading"
                             x-cloak
+                            @mousedown="prefetchMore"
                             @click="loadMore"
                             class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-down me-2"></i>Load More

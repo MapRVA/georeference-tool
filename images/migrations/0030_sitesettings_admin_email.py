@@ -4,15 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0029_image_source_point_preimage_source_point'),
+        ("images", "0029_image_source_point_preimage_source_point"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='sitesettings',
-            name='admin_email',
-            field=models.EmailField(blank=True, help_text='Admin contact email, used for external API requests (e.g., Nominatim geocoder)', max_length=254, null=True),
+            model_name="sitesettings",
+            name="admin_email",
+            field=models.EmailField(
+                blank=True,
+                help_text="Admin contact email, used for external API requests (e.g., Nominatim geocoder)",
+                max_length=254,
+                null=True,
+            ),
         ),
     ]

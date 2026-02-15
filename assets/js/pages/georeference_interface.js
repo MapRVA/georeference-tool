@@ -182,23 +182,43 @@ document.addEventListener("DOMContentLoaded", function () {
       maplibregl.addProtocol("pmtiles", protocol.tile);
     }
 
-    // Determine initial map center and zoom based on location hint
+    // Determine initial map position based on all hints
     const locationHint = config.locationHint;
-    let initialCenter = [-77.44, 37.53];
-    let initialZoom = 11.5;
+    const subjectHints = config.subjectHints || [];
 
+    // Collect all hint coordinates for bounds calculation
+    const allHintCoords = [];
     if (locationHint) {
-      initialCenter = [locationHint.lng, locationHint.lat];
-      initialZoom = 17; // Zoom in closer when we have a hint
+      allHintCoords.push([locationHint.lng, locationHint.lat]);
+    }
+    subjectHints.forEach((hint) => {
+      allHintCoords.push([hint.lng, hint.lat]);
+    });
+
+    // Build map options based on number of hints
+    const mapOptions = {
+      container: "mymap",
+      style: OSM_STYLE_URL,
+    };
+
+    if (allHintCoords.length > 1) {
+      // Multiple hints: fit bounds to show them all
+      const bounds = new maplibregl.LngLatBounds();
+      allHintCoords.forEach((coord) => bounds.extend(coord));
+      mapOptions.bounds = bounds;
+      mapOptions.fitBoundsOptions = { padding: 100, maxZoom: 17 };
+    } else if (allHintCoords.length === 1) {
+      // Single hint: center on it
+      mapOptions.center = allHintCoords[0];
+      mapOptions.zoom = 17;
+    } else {
+      // No hints: default Richmond center
+      mapOptions.center = [-77.44, 37.53];
+      mapOptions.zoom = 11.5;
     }
 
     // Initialize map
-    var map = new maplibregl.Map({
-      container: "mymap",
-      style: OSM_STYLE_URL,
-      center: initialCenter,
-      zoom: initialZoom,
-    });
+    var map = new maplibregl.Map(mapOptions);
 
     // Try to setup PMTiles protocol
     window.setupPMTilesProtocol();
@@ -212,6 +232,66 @@ document.addEventListener("DOMContentLoaded", function () {
         map.addImage("surveillance-direction", image.data);
       } catch (error) {
         console.warn("Could not load direction arrow image:", error);
+      }
+
+      // Add subject hint markers if available (rendered first, so underneath other hints)
+      const subjectHints = config.subjectHints || [];
+      if (subjectHints.length > 0) {
+        const subjectHintFeatures = subjectHints.map((hint) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [hint.lng, hint.lat],
+          },
+          properties: {
+            label: hint.label,
+          },
+        }));
+
+        map.addSource("subject-hints", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: subjectHintFeatures,
+          },
+        });
+
+        // Orange color to match browse subjects page
+        const subjectHintColor = { circle: "#ff6b35", text: "#c44d1c" };
+
+        // Add a pulsing circle for each subject hint
+        map.addLayer({
+          id: "subject-hints-pulse",
+          type: "circle",
+          source: "subject-hints",
+          paint: {
+            "circle-radius": 25,
+            "circle-color": subjectHintColor.circle,
+            "circle-opacity": 0.3,
+            "circle-stroke-color": subjectHintColor.circle,
+            "circle-stroke-width": 2,
+            "circle-stroke-opacity": 0.6,
+          },
+        });
+
+        // Add labels for subject hints
+        map.addLayer({
+          id: "subject-hints-label",
+          type: "symbol",
+          source: "subject-hints",
+          layout: {
+            "text-field": ["get", "label"],
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            "text-size": 12,
+            "text-offset": [0, 2.5],
+            "text-anchor": "top",
+          },
+          paint: {
+            "text-color": subjectHintColor.text,
+            "text-halo-color": "#fff",
+            "text-halo-width": 2,
+          },
+        });
       }
 
       // Add location hint marker if available
@@ -263,7 +343,7 @@ document.addEventListener("DOMContentLoaded", function () {
           },
         });
 
-        // Add label for the hint
+        // Add label for the hint (always visible, renders over subject hints)
         map.addLayer({
           id: "location-hint-label",
           type: "symbol",
@@ -274,6 +354,7 @@ document.addEventListener("DOMContentLoaded", function () {
             "text-size": 12,
             "text-offset": [0, 2.5],
             "text-anchor": "top",
+            "text-allow-overlap": true,
           },
           paint: {
             "text-color": hintColor.text,
@@ -286,8 +367,8 @@ document.addEventListener("DOMContentLoaded", function () {
       // Add all existing georeferenced images for context using vector tiles
       // These are added BEFORE the pin layers so the user's pin always renders on top
       try {
-        // Build vector tiles URL for all context images
-        let contextVectorTilesUrl =
+        // Build vector tiles URL (version is already included from template)
+        const contextVectorTilesUrl =
           window.location.origin +
           config.urls.vectorTiles.replace("/0/0/0.mvt", "/{z}/{x}/{y}.mvt");
 
@@ -369,25 +450,28 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       if (map.hasImage("surveillance-direction")) {
-        map.addLayer({
-          id: "pin-symbol",
-          type: "symbol",
-          source: "pin",
-          layout: {
-            "icon-image": "surveillance-direction",
-            "icon-overlap": "always",
-            "icon-size": {
-              stops: [
-                [5, 0.3],
-                [15, 1],
-              ],
+        map.addLayer(
+          {
+            id: "pin-symbol",
+            type: "symbol",
+            source: "pin",
+            layout: {
+              "icon-image": "surveillance-direction",
+              "icon-overlap": "always",
+              "icon-size": {
+                stops: [
+                  [5, 0.3],
+                  [15, 1],
+                ],
+              },
+              "icon-rotate": ["to-number", ["get", "direction"]],
+              "icon-rotation-alignment": "map",
+              "icon-pitch-alignment": "map",
             },
-            "icon-rotate": ["to-number", ["get", "direction"]],
-            "icon-rotation-alignment": "map",
-            "icon-pitch-alignment": "map",
+            filter: ["has", "direction"],
           },
-          filter: ["has", "direction"],
-        });
+          "pin-circle",
+        ); // Insert below pin-circle
       }
 
       // Restore any existing pin if there was one
@@ -426,6 +510,8 @@ document.addEventListener("DOMContentLoaded", function () {
       new LayerControl({
         mapLayersUrl: config.urls.mapLayers,
         overlayLayerIds: [
+          "subject-hints-pulse",
+          "subject-hints-label",
           "location-hint-pulse",
           "location-hint-label",
           "pin-circle",

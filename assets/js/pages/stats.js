@@ -19,6 +19,11 @@ document.addEventListener("DOMContentLoaded", function () {
     .getElementById("dailyGeoreferencesChart")
     .getContext("2d");
 
+  // Get Bootstrap primary color from CSS variables
+  const primaryColor = getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-primary")
+    .trim();
+
   // Convert labels and counts to data points with x (date) and y (count) values
   const dataPoints = dailyLabels.map((label, index) => ({
     x: label,
@@ -32,8 +37,8 @@ document.addEventListener("DOMContentLoaded", function () {
         {
           label: "Cumulative Georeferences",
           data: dataPoints,
-          borderColor: "rgba(75, 192, 192, 1)",
-          backgroundColor: "rgba(75, 192, 192, 0.2)",
+          borderColor: primaryColor,
+          backgroundColor: `color-mix(in srgb, ${primaryColor} 20%, transparent)`,
           fill: true,
           tension: 0.1,
           pointRadius: 0,
@@ -74,6 +79,14 @@ document.addEventListener("DOMContentLoaded", function () {
   const statusCtx = document
     .getElementById("imageStatusChart")
     .getContext("2d");
+
+  // Get Bootstrap theme colors from CSS variables
+  const styles = getComputedStyle(document.documentElement);
+  const secondaryColor = styles.getPropertyValue("--bs-secondary").trim();
+  const dangerColor = styles.getPropertyValue("--bs-danger").trim();
+  const warningColor = styles.getPropertyValue("--bs-warning").trim();
+  const successColor = styles.getPropertyValue("--bs-success").trim();
+
   new Chart(statusCtx, {
     type: "pie",
     data: {
@@ -83,16 +96,16 @@ document.addEventListener("DOMContentLoaded", function () {
           label: "Image Status",
           data: statusCounts,
           backgroundColor: [
-            "rgba(108, 117, 125, 0.7)", // Grey
-            "rgba(255, 99, 132, 0.7)", // Light Red
-            "rgba(255, 205, 86, 0.7)", // Yellow
-            "rgba(75, 192, 192, 0.7)", // Green
+            `color-mix(in srgb, ${secondaryColor} 70%, transparent)`,
+            `color-mix(in srgb, ${dangerColor} 70%, transparent)`,
+            `color-mix(in srgb, ${warningColor} 70%, transparent)`,
+            `color-mix(in srgb, ${successColor} 70%, transparent)`,
           ],
           borderColor: [
-            "rgba(108, 117, 125, 1)",
-            "rgba(255, 99, 132, 1)",
-            "rgba(255, 205, 86, 1)",
-            "rgba(75, 192, 192, 1)",
+            secondaryColor,
+            dangerColor,
+            warningColor,
+            successColor,
           ],
           borderWidth: 1,
         },

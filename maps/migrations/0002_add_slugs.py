@@ -17,35 +17,38 @@ def populate_slugs(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('maps', '0001_initial'),
+        ("maps", "0001_initial"),
     ]
 
     operations = [
         # Add slug fields without unique constraint first
         migrations.AddField(
-            model_name='layercollection',
-            name='slug',
-            field=models.SlugField(default='temp'),
+            model_name="layercollection",
+            name="slug",
+            field=models.SlugField(default="temp"),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='maplayer',
-            name='slug',
-            field=models.SlugField(default='temp', help_text='URL-friendly identifier for this layer'),
+            model_name="maplayer",
+            name="slug",
+            field=models.SlugField(
+                default="temp", help_text="URL-friendly identifier for this layer"
+            ),
             preserve_default=False,
         ),
         # Populate slugs from names
         migrations.RunPython(populate_slugs, reverse_code=migrations.RunPython.noop),
         # Now add the unique constraint to layercollection slug
         migrations.AddConstraint(
-            model_name='layercollection',
-            constraint=models.UniqueConstraint(fields=['slug'], name='unique_layercollection_slug'),
+            model_name="layercollection",
+            constraint=models.UniqueConstraint(
+                fields=["slug"], name="unique_layercollection_slug"
+            ),
         ),
         # Add unique_together for maplayer
         migrations.AlterUniqueTogether(
-            name='maplayer',
-            unique_together={('collection', 'slug')},
+            name="maplayer",
+            unique_together={("collection", "slug")},
         ),
     ]

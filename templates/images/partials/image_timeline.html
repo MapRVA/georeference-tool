@@ -11,7 +11,7 @@
                 <div class="timeline">
                     {% for item in timeline_items %}
                         {% if item.type == 'georeference' %}
-                            {% with georeference=item.georeference rendered_geo_notes=item.rendered_notes %}
+                            {% with georeference=item.georeference %}
                     <div class="timeline-item">
                         <div class="timeline-marker">
                             <i class="fas fa-map-marker-alt"></i>
@@ -21,16 +21,11 @@
                                 <h6 class="timeline-title">
                                     Georeferenced by
                                     {% if georeference.georeferenced_by %}
-                                        {% if georeference.georeferenced_by.get_profile_url %}
-                                            <strong>
-                                                <a href="{{ georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                    {{ georeference.georeferenced_by.get_display_name }}
-                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                </a>
-                                            </strong>
-                                        {% else %}
-                                            <strong>{{ georeference.georeferenced_by.get_display_name }}</strong>
-                                        {% endif %}
+                                        <strong>
+                                            <a href="{% url 'user_profile' georeference.georeferenced_by.get_display_name %}" class="text-decoration-none text-body">
+                                                {{ georeference.georeferenced_by.get_display_name }}
+                                            </a>
+                                        </strong>
                                     {% else %}
                                         <strong>Anonymous</strong>
                                     {% endif %}
@@ -70,9 +65,9 @@
                                         </span>
                                     </div>
                                 </div>
-                                {% if rendered_geo_notes %}
-                                    <div class="timeline-notes markdown-content">
-                                        {{ rendered_geo_notes|safe }}
+                                {% if georeference.confidence_notes_html %}
+                                    <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
+                                        {{ georeference.confidence_notes_html|safe }}
                                     </div>
                                 {% endif %}
                             </div>
@@ -98,16 +93,11 @@
                                                 <div class="validation-content flex-grow-1">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span class="validation-user">
-                                                            {% if validation.validated_by.get_profile_url %}
-                                                                <strong>
-                                                                    <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                                        {{ validation.validated_by.get_display_name }}
-                                                                        <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                                    </a>
-                                                                </strong>
-                                                            {% else %}
-                                                                <strong>{{ validation.validated_by.get_display_name }}</strong>
-                                                            {% endif %}
+                                                            <strong>
+                                                                <a href="{% url 'user_profile' validation.validated_by.get_display_name %}" class="text-decoration-none text-body">
+                                                                    {{ validation.validated_by.get_display_name }}
+                                                                </a>
+                                                            </strong>
                                                             <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
                                                                 {{ validation.validation|capfirst }}
                                                             </span>
@@ -127,7 +117,7 @@
                     </div>
                             {% endwith %}
                         {% elif item.type == 'aerial_georeference' %}
-                            {% with aerial_georeference=item.aerial_georeference rendered_aerial_notes=item.rendered_notes %}
+                            {% with aerial_georeference=item.aerial_georeference %}
                     <div class="timeline-item">
                         <div class="timeline-marker">
                             <i class="fas fa-plane"></i>
@@ -137,16 +127,11 @@
                                 <h6 class="timeline-title">
                                     Aerial Georeference submitted by
                                     {% if aerial_georeference.georeferenced_by %}
-                                        {% if aerial_georeference.georeferenced_by.get_profile_url %}
-                                            <strong>
-                                                <a href="{{ aerial_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                    {{ aerial_georeference.georeferenced_by.get_display_name }}
-                                                    <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                </a>
-                                            </strong>
-                                        {% else %}
-                                            <strong>{{ aerial_georeference.georeferenced_by.get_display_name }}</strong>
-                                        {% endif %}
+                                        <strong>
+                                            <a href="{% url 'user_profile' aerial_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none text-body">
+                                                {{ aerial_georeference.georeferenced_by.get_display_name }}
+                                            </a>
+                                        </strong>
                                     {% else %}
                                         <strong>Anonymous</strong>
                                     {% endif %}
@@ -169,9 +154,9 @@
                                         </span>
                                     </div>
                                 </div>
-                                {% if rendered_aerial_notes %}
-                                    <div class="timeline-notes markdown-content">
-                                        {{ rendered_aerial_notes|safe }}
+                                {% if aerial_georeference.confidence_notes_html %}
+                                    <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
+                                        {{ aerial_georeference.confidence_notes_html|safe }}
                                     </div>
                                 {% endif %}
                             </div>
@@ -197,16 +182,11 @@
                                                 <div class="validation-content flex-grow-1">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span class="validation-user">
-                                                            {% if validation.validated_by.get_profile_url %}
-                                                                <strong>
-                                                                    <a href="{{ validation.validated_by.get_profile_url }}" target="_blank" class="text-decoration-none text-dark">
-                                                                        {{ validation.validated_by.get_display_name }}
-                                                                        <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                                                    </a>
-                                                                </strong>
-                                                            {% else %}
-                                                                <strong>{{ validation.validated_by.get_display_name }}</strong>
-                                                            {% endif %}
+                                                            <strong>
+                                                                <a href="{% url 'user_profile' validation.validated_by.get_display_name %}" class="text-decoration-none text-body">
+                                                                    {{ validation.validated_by.get_display_name }}
+                                                                </a>
+                                                            </strong>
                                                             <span class="badge {% if validation.validation == 'correct' %}bg-success{% elif validation.validation == 'incorrect' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-1">
                                                                 {{ validation.validation|capfirst }}
                                                             </span>
@@ -226,7 +206,7 @@
                     </div>
                             {% endwith %}
                         {% elif item.type == 'comment' %}
-                            {% with comment=item.comment rendered_text=item.rendered_text %}
+                            {% with comment=item.comment %}
                     <div class="timeline-item">
                         <div class="timeline-marker">
                             <i class="fas fa-comment"></i>
@@ -235,30 +215,19 @@
                             <div class="timeline-header">
                                 <h6 class="timeline-title">
                                     Comment by
-                                    {% if comment.commented_by.get_profile_url %}
-                                        <strong>
-                                            <a href="{{ comment.commented_by.get_profile_url }}" target="_blank" class="text-decoration-none text-body">
-                                                {{ comment.commented_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        </strong>
-                                    {% else %}
-                                        <strong>{{ comment.commented_by.get_display_name }}</strong>
-                                    {% endif %}
+                                    <strong>
+                                        <a href="{% url 'user_profile' comment.commented_by.get_display_name %}" class="text-decoration-none text-body">
+                                            {{ comment.commented_by.get_display_name }}
+                                        </a>
+                                    </strong>
                                 </h6>
                                 <small class="text-muted">
                                     <i class="fas fa-calendar me-1"></i>{{ comment.created_at|date:"M j, Y g:i A" }}
                                 </small>
                             </div>
-                            {% if rendered_text %}
-                                <div class="timeline-notes markdown-content">
-                                    {{ rendered_text|safe }}
-                                </div>
-                            {% else %}
-                                <div class="timeline-notes markdown-content">
-                                    {{ comment.text }}
-                                </div>
-                            {% endif %}
+                            <div class="timeline-notes markdown-content p-2 bg-body-secondary rounded">
+                                {{ comment.text_html|safe }}
+                            </div>
                         </div>
                     </div>
                             {% endwith %}

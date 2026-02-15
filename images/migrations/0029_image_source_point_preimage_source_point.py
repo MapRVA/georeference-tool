@@ -5,20 +5,31 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0028_move_subjects_to_subjects_app'),
+        ("images", "0028_move_subjects_to_subjects_app"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='source_point',
-            field=django.contrib.gis.db.models.fields.PointField(blank=True, help_text='Location hint from source metadata (e.g., embedded coordinates from archive)', null=True, spatial_index=False, srid=4326),
+            model_name="image",
+            name="source_point",
+            field=django.contrib.gis.db.models.fields.PointField(
+                blank=True,
+                help_text="Location hint from source metadata (e.g., embedded coordinates from archive)",
+                null=True,
+                spatial_index=False,
+                srid=4326,
+            ),
         ),
         migrations.AddField(
-            model_name='preimage',
-            name='source_point',
-            field=django.contrib.gis.db.models.fields.PointField(blank=True, help_text='Location hint from source metadata (e.g., embedded coordinates from archive)', null=True, spatial_index=False, srid=4326),
+            model_name="preimage",
+            name="source_point",
+            field=django.contrib.gis.db.models.fields.PointField(
+                blank=True,
+                help_text="Location hint from source metadata (e.g., embedded coordinates from archive)",
+                null=True,
+                spatial_index=False,
+                srid=4326,
+            ),
         ),
     ]

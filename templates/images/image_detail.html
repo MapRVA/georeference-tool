@@ -6,7 +6,7 @@
 {% block opengraph %}
 	<meta property="og:title" content="{% if image.title %}{{ image.title }}{% else %}Image from {{ image.collection.source.name }}{% endif %} – Yesterdays">
 	<meta property="og:type" content="website">
-	<meta property="og:image" content="{{ image.permalink }}">
+	<meta property="og:image" content="{{ image.thumbnail }}">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Image from {{ image.collection.source.name }}, {{ image.collection.name }}.">
 {% endblock %}
@@ -305,14 +305,9 @@
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
                                     {% if polygonal_georeference.georeferenced_by %}
-                                        {% if polygonal_georeference.georeferenced_by.get_profile_url %}
-                                            <a href="{{ polygonal_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
-                                                {{ polygonal_georeference.georeferenced_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        {% else %}
+                                        <a href="{% url 'user_profile' polygonal_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none">
                                             {{ polygonal_georeference.georeferenced_by.get_display_name }}
-                                        {% endif %}
+                                        </a>
                                     {% else %}
                                         Anonymous
                                     {% endif %}
@@ -356,6 +351,15 @@
                                         {% endif %}
                                     {% endwith %}
                                 </dd>
+
+                                {% if polygonal_georeference.confidence_notes_html %}
+                                    <dt class="col-sm-12 mt-2">Notes:</dt>
+                                    <dd class="col-sm-12">
+                                        <div class="p-2 bg-body-secondary rounded markdown-content">
+                                            {{ polygonal_georeference.confidence_notes_html|safe }}
+                                        </div>
+                                    </dd>
+                                {% endif %}
                             </dl>
                         </div>
                     </div>
@@ -373,14 +377,9 @@
                                 <dd class="col-sm-7">
                                     <i class="fas fa-user me-1"></i>
                                     {% if image.get_georeference.georeferenced_by %}
-                                        {% if image.get_georeference.georeferenced_by.get_profile_url %}
-                                            <a href="{{ image.get_georeference.georeferenced_by.get_profile_url }}" target="_blank" class="text-decoration-none">
-                                                {{ image.get_georeference.georeferenced_by.get_display_name }}
-                                                <i class="fas fa-external-link-alt ms-1 small text-muted"></i>
-                                            </a>
-                                        {% else %}
+                                        <a href="{% url 'user_profile' image.get_georeference.georeferenced_by.get_display_name %}" class="text-decoration-none">
                                             {{ image.get_georeference.georeferenced_by.get_display_name }}
-                                        {% endif %}
+                                        </a>
                                     {% else %}
                                         Anonymous
                                     {% endif %}
@@ -432,11 +431,11 @@
                                     {% endwith %}
                                 </dd>
 
-                                {% if rendered_notes %}
+                                {% if georeference.confidence_notes_html %}
                                     <dt class="col-sm-12 mt-2">Notes:</dt>
                                     <dd class="col-sm-12">
-                                        <div class="p-2 rounded markdown-content">
-                                            {{ rendered_notes|safe }}
+                                        <div class="p-2 bg-body-secondary rounded markdown-content">
+                                            {{ georeference.confidence_notes_html|safe }}
                                         </div>
                                     </dd>
                                 {% endif %}

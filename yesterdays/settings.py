@@ -3,6 +3,7 @@ Django settings for yesterdays project.
 """
 
 import os
+import re
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,7 +31,12 @@ if not SECRET_KEY:
         raise ValueError("DJANGO_SECRET_KEY or DEBUG environment variable must be set")
 
 # Allow hosts from environment variable or use defaults
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# localhost is always included for Kubernetes health probes
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + [
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
 
 # Proxy settings for Cloudflare tunnel
 # Tell Django to trust the X-Forwarded-Proto header from the proxy
@@ -40,6 +46,20 @@ USE_X_FORWARDED_PORT = True
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS", "True").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
+# Prometheus metrics (disabled by default)
+PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
+# CLIP model warmup on startup (disabled by default)
+CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
     "true",
     "1",
     "yes",
@@ -63,7 +83,11 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
+    "yesterdays",
 ]
+
+if PROMETHEUS_ENABLED:
+    INSTALLED_APPS.insert(0, "django_prometheus")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -77,6 +101,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+if PROMETHEUS_ENABLED:
+    MIDDLEWARE.insert(0, "django_prometheus.middleware.PrometheusBeforeMiddleware")
+    MIDDLEWARE.append("django_prometheus.middleware.PrometheusAfterMiddleware")
 
 ROOT_URLCONF = "yesterdays.urls"
 
@@ -100,12 +128,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "yesterdays.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-# Use SQLite for local development, PostgreSQL for production
+# Use PostgreSQL
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "django_prometheus.db.backends.postgis"
+        if PROMETHEUS_ENABLED
+        else "django.contrib.gis.db.backends.postgis",
         "NAME": os.getenv("PG_DBNAME", "georef"),
         "USER": os.getenv("PG_USER", "django_user"),
         "PASSWORD": os.getenv("PG_PASSWORD", ""),
@@ -114,7 +142,23 @@ DATABASES = {
         "OPTIONS": {
             "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
         },
+        "CONN_MAX_AGE": 0,  # New connection per request
     }
+}
+
+# Local memory cache (might consider e.g. Redis in the future)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "default",
+    },
+    "tiles": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "tiles",
+        "OPTIONS": {
+            "MAX_ENTRIES": 10000,
+        },
+    },
 }
 
 # Read database password from mounted secret if available
@@ -153,6 +197,15 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Django Vite configuration
+DJANGO_VITE = {
+    "default": {
+        "dev_mode": os.getenv("DJANGO_VITE_DEV_MODE", "False").lower() == "true",
+        "dev_server_host": "localhost",
+        "dev_server_port": 5173,
+        "manifest_path": BASE_DIR / "static" / "manifest.json",
+    }
+}
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
@@ -168,23 +221,28 @@ else:
     STATIC_ROOT = BASE_DIR / "static"  # Vite outputs here, Whitenoise serves from here
     STATICFILES_DIRS = []  # No additional dirs in production
 
+
+def immutable_file_test(path, url):
+    # Match Vite's hash pattern: main-CSliV9zW.js, style-a4ef2389.css
+    return re.match(r"^.+[.-][0-9a-zA-Z_-]{8,12}\..+$", url)
+
+
+WHITENOISE_IMMUTABLE_FILE_TEST = immutable_file_test
+
 # Whitenoise configuration
 # In development, use default storage so Vite rebuilds are picked up immediately
 # In production, use CompressedManifestStaticFilesStorage for caching/compression
 if DEBUG:
     WHITENOISE_AUTOREFRESH = True
 else:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-# Django Vite configuration
-DJANGO_VITE = {
-    "default": {
-        "dev_mode": os.getenv("DJANGO_VITE_DEV_MODE", "False").lower() == "true",
-        "dev_server_host": "localhost",
-        "dev_server_port": 5173,
-        "manifest_path": BASE_DIR / "static" / "manifest.json",
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
     }
-}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -245,14 +303,17 @@ CELERY_TASK_QUEUES = {
 
 # Celery Beat schedule for periodic tasks
 # Rate limiting is achieved by Beat's schedule interval, not per-worker limits
+# Tasks expire shortly before the next one is scheduled to prevent backlog buildup
 CELERY_BEAT_SCHEDULE = {
     "refresh-next-wikidata-item": {
         "task": "subjects.tasks.refresh_next_wikidata_item",
         "schedule": float(METADATA_REFRESH_WIKIDATA_INTERVAL),
+        "options": {"expires": METADATA_REFRESH_WIKIDATA_INTERVAL - 5},
     },
     "refresh-next-osm-element": {
         "task": "subjects.tasks.refresh_next_osm_element",
         "schedule": float(METADATA_REFRESH_OSM_INTERVAL),
+        "options": {"expires": METADATA_REFRESH_OSM_INTERVAL - 5},
     },
 }
 

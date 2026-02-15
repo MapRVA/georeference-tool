@@ -1,5 +1,11 @@
 import "../../styles/pages/album_detail.css";
 
+// Import image grid component (includes album dropdown functionality)
+import { imageGrid } from "../components/image_grid.js";
+
+// Register the image grid component with Alpine
+window.Alpine.data("imageGrid", imageGrid);
+
 document.addEventListener("DOMContentLoaded", function () {
   const toggleBtn = document.getElementById("togglePublicBtn");
 

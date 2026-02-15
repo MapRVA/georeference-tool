@@ -80,6 +80,7 @@
                 <div class="text-center my-4">
                     <button x-show="hasMore && !loading"
                             x-cloak
+                            @mousedown="prefetchMore"
                             @click="loadMore"
                             class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-down me-2"></i>Load More

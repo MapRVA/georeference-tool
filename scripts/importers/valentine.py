@@ -24,6 +24,9 @@ sys.path.insert(0, project_root)
 # Change to project directory for Django
 os.chdir(project_root)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
+# Disable heavy startup tasks — import scripts only need the ORM
+os.environ["CLIP_WARMUP_ENABLED"] = "false"
+os.environ["PROMETHEUS_ENABLED"] = "false"
 
 import django
 
@@ -481,7 +484,7 @@ def main(
             items_unresolved = hold
             sleep(POLITE_WAIT_SECS)
 
-        r2_uploader = R2Uploader()
+        r2_uploader = None if hotlink else R2Uploader()
 
         skip_count = 0
         for child in tqdm(items_resolved["archival_number"]):

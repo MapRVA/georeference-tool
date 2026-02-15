@@ -507,6 +507,7 @@
         currentImage: null,
         {% endif %}
         locationHint: {{ location_hint_json|safe }},
+        subjectHints: {{ subject_hints_json|safe }},
         isStaff: {{ user.is_staff|yesno:"true,false" }},
         isAuthenticated: {{ request.user.is_authenticated|yesno:"true,false" }},
         difficultyFilters: {{ difficulty_filters_json|safe }},
@@ -517,7 +518,7 @@
             markDifficulty: {% if current_image %}"{% url 'images:mark_difficulty' current_image.id %}"{% else %}null{% endif %},
             markWillNotGeoref: {% if current_image %}"{% url 'images:mark_will_not_georef' current_image.id %}"{% else %}null{% endif %},
             mapLayers: "{% url 'maps:map_layers' %}",
-            vectorTiles: "{% url 'images:vector_tiles' z=0 x=0 y=0 %}",
+            vectorTiles: "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}",
             imageDetail: {% if current_image %}"{% url 'images:image_detail' current_image.id %}"{% else %}null{% endif %},
             georeferenceInterface: "{% url 'images:georeference_interface' %}",
             osmLogin: "{% url 'osm_auth:login' %}"

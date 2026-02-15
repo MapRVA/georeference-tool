@@ -89,9 +89,15 @@ urlpatterns = [
         name="osm_elements_tiles",
     ),
     path(
-        "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
+        "api/v1/tiles/v<int:v>/<int:z>/<int:x>/<int:y>.mvt",
         views.vector_tiles_endpoint,
         name="vector_tiles",
+    ),
+    # Third-party tile consumers likely won't use our cache-busting versioning:
+    path(
+        "api/v1/tiles/<int:z>/<int:x>/<int:y>.mvt",
+        views.vector_tiles_endpoint,
+        name="vector_tiles_unversioned",
     ),
     path("api/v1/search/", views.semantic_search, name="semantic_search"),
     path("api/v1/search/text/", views.text_search, name="text_search"),

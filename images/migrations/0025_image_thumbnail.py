@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0024_sitesettings_alter_album_map_mode'),
+        ("images", "0024_sitesettings_alter_album_map_mode"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='thumbnail',
-            field=models.URLField(blank=True, help_text='Direct link to the thumbnail (CDN or processed URL)', null=True),
+            model_name="image",
+            name="thumbnail",
+            field=models.URLField(
+                blank=True,
+                help_text="Direct link to the thumbnail (CDN or processed URL)",
+                null=True,
+            ),
         ),
     ]

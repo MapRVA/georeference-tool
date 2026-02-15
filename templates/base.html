@@ -12,6 +12,8 @@
     <script>
         // Global map configuration
         window.OSM_STYLE_URL = "{{ osm_style_url }}";
+        window.DEFAULT_MAP_CENTER = {{ default_map_center }};
+        window.DEFAULT_MAP_ZOOM = {{ default_map_zoom }};
         window.ADMIN_EMAIL = {% if admin_email %}"{{ admin_email }}"{% else %}null{% endif %};
     </script>
 
@@ -40,9 +42,6 @@
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
-                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'images:browse_sources' %}">Browse</a>
                     </li>

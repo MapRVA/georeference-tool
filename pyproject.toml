@@ -6,34 +6,38 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.14.3",
-    "boto3>=1.42.31",
+    "boto3>=1.42.34",
     "celery[librabbitmq]>=5.6.2",
     "click>=8.3.1",
     "clip",
     "django>=5.2.9",
     "django-cors-headers>=4.9.0",
+    "django-prometheus>=2.4.0",
     "django-ratelimit>=4.1.0",
     "django-vite>=3.1.0",
     "edtf>=5.0.0",
     "geopy>=2.4.1",
-    "markdown>=3.10",
+    "markdown>=3.10.1",
     "nh3>=0.3.2",
     "osm-login-python>=2.1.0",
     "pillow>=12.1.0",
     "psycopg[binary]>=3.3.2",
     "requests>=2.32.5",
-    "torch>=2.8.0",
-    "torchvision>=0.23.0",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
     "tqdm>=4.67.1",
     "uvicorn[standard]>=0.40.0",
-    "whitenoise>=6.11.0",
-    "zensical>=0.0.17",
+    "whitenoise[brotli]>=6.11.0",
+    "zensical>=0.0.19",
 ]
 
 [tool.uv]
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
+
+[tool.uv.extra-build-dependencies]
+clip = ["setuptools<81"]
 
 [tool.uv.sources]
 clip = { git = "https://github.com/openai/CLIP.git" }

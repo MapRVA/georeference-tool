@@ -7,64 +7,130 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0015_alter_image_scale_comment'),
+        ("images", "0015_alter_image_scale_comment"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Album',
+            name="Album",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, help_text='UUID for the album (difficult to guess)', primary_key=True, serialize=False)),
-                ('title', models.CharField(help_text='Title of the album', max_length=500)),
-                ('description', models.TextField(blank=True, help_text='Optional description of the album')),
-                ('public', models.BooleanField(default=False, help_text='Whether this album is visible to other users')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='albums', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        help_text="UUID for the album (difficult to guess)",
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                (
+                    "title",
+                    models.CharField(help_text="Title of the album", max_length=500),
+                ),
+                (
+                    "description",
+                    models.TextField(
+                        blank=True, help_text="Optional description of the album"
+                    ),
+                ),
+                (
+                    "public",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Whether this album is visible to other users",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "owner",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="albums",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-created_at'],
+                "ordering": ["-created_at"],
             },
         ),
         migrations.CreateModel(
-            name='AlbumImage',
+            name="AlbumImage",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('order', models.PositiveIntegerField(default=0, help_text='Display order in the album (lower numbers first)')),
-                ('added_at', models.DateTimeField(auto_now_add=True)),
-                ('album', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='album_images', to='images.album')),
-                ('image', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='album_references', to='images.image')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "order",
+                    models.PositiveIntegerField(
+                        default=0,
+                        help_text="Display order in the album (lower numbers first)",
+                    ),
+                ),
+                ("added_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "album",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="album_images",
+                        to="images.album",
+                    ),
+                ),
+                (
+                    "image",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="album_references",
+                        to="images.image",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['album', 'order'],
+                "ordering": ["album", "order"],
             },
         ),
         migrations.AddField(
-            model_name='album',
-            name='images',
-            field=models.ManyToManyField(help_text='Images in this album', related_name='albums', through='images.AlbumImage', to='images.image'),
+            model_name="album",
+            name="images",
+            field=models.ManyToManyField(
+                help_text="Images in this album",
+                related_name="albums",
+                through="images.AlbumImage",
+                to="images.image",
+            ),
         ),
         migrations.AddIndex(
-            model_name='albumimage',
-            index=models.Index(fields=['album', 'order'], name='images_albu_album_i_5906df_idx'),
+            model_name="albumimage",
+            index=models.Index(
+                fields=["album", "order"], name="images_albu_album_i_5906df_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='albumimage',
-            index=models.Index(fields=['image'], name='images_albu_image_i_bfbe74_idx'),
+            model_name="albumimage",
+            index=models.Index(fields=["image"], name="images_albu_image_i_bfbe74_idx"),
         ),
         migrations.AlterUniqueTogether(
-            name='albumimage',
-            unique_together={('album', 'image')},
+            name="albumimage",
+            unique_together={("album", "image")},
         ),
         migrations.AddIndex(
-            model_name='album',
-            index=models.Index(fields=['owner', 'public'], name='images_albu_owner_i_febf68_idx'),
+            model_name="album",
+            index=models.Index(
+                fields=["owner", "public"], name="images_albu_owner_i_febf68_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='album',
-            index=models.Index(fields=['owner'], name='images_albu_owner_i_cb6fa1_idx'),
+            model_name="album",
+            index=models.Index(fields=["owner"], name="images_albu_owner_i_cb6fa1_idx"),
         ),
     ]

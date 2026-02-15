@@ -8,7 +8,7 @@
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Browse {{ overall_stats.total_sources }} image archive{{ overall_stats.total_sources|pluralize }} with {{ overall_stats.total_images }} image{{ overall_stats.total_images|pluralize }}.">
 	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.permalink }}">
+	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
 	{% endif %}
 {% endblock %}
@@ -101,31 +101,12 @@
         {% if sources %}
             <div class="row mt-4">
                 <div class="col-12">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>Overall Statistics</h5>
-                            <div class="row text-center">
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <div class="h3 text-primary mb-1">{{ overall_stats.total_sources }}</div>
-                                    <small class="text-muted">Total Sources</small>
-                                </div>
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <div class="h3 text-info mb-1">{{ overall_stats.total_collections }}</div>
-                                    <small class="text-muted">Total Collections</small>
-                                </div>
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <div class="h3 text-warning mb-1">{{ overall_stats.total_images }}</div>
-                                    <small class="text-muted">Total Images</small>
-                                </div>
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <div class="h3 text-success mb-1">{{ overall_stats.total_georeferenced }}</div>
-                                    <small class="text-muted">Georeferenced</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {% include 'images/partials/overall_stats.html' %}
                 </div>
             </div>
+            <p class="text-muted small mt-3"><em>
+                The above statistics do not include duplicates, or images we have decided not to georeference.
+            </em></p>
         {% endif %}
     </div>
 </div>

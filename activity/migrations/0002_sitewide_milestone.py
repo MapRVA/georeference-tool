@@ -4,22 +4,45 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('activity', '0001_initial'),
+        ("activity", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SitewideMilestone',
+            name="SitewideMilestone",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('count', models.PositiveIntegerField(help_text='The milestone count reached (100, 250, 500, etc.)', unique=True)),
-                ('reached_at', models.DateTimeField(db_index=True, help_text='Timestamp when this milestone was reached')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "count",
+                    models.PositiveIntegerField(
+                        help_text="The milestone count reached (100, 250, 500, etc.)",
+                        unique=True,
+                    ),
+                ),
+                (
+                    "reached_at",
+                    models.DateTimeField(
+                        db_index=True,
+                        help_text="Timestamp when this milestone was reached",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-reached_at'],
-                'indexes': [models.Index(fields=['-reached_at'], name='activity_si_reached_d32766_idx')],
+                "ordering": ["-reached_at"],
+                "indexes": [
+                    models.Index(
+                        fields=["-reached_at"], name="activity_si_reached_d32766_idx"
+                    )
+                ],
             },
         ),
     ]

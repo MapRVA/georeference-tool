@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0022_osmelement_geometry_area'),
+        ("images", "0022_osmelement_geometry_area"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='album',
-            name='map_mode',
-            field=models.BooleanField(default=False, help_text='Whether to display map view for this album'),
+            model_name="album",
+            name="map_mode",
+            field=models.BooleanField(
+                default=False, help_text="Whether to display map view for this album"
+            ),
         ),
     ]
