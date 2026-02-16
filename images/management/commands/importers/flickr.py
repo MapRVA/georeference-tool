@@ -62,7 +62,9 @@ def get_flickr_client():
             "FLICKR_API_KEY is not set in Django settings. "
             "Add FLICKR_API_KEY (and optionally FLICKR_API_SECRET) to your settings."
         )
-    return flickrapi.FlickrAPI(api_key, api_secret or "", format="parsed-json")
+    return flickrapi.FlickrAPI(
+        api_key, api_secret or "", format="parsed-json", token_cache_location="/tmp"
+    )
 
 
 def parse_description_fields(description):
