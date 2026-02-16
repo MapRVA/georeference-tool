@@ -375,6 +375,10 @@ SESSION_SAVE_EVERY_REQUEST = True
 # Login URL for @login_required decorator
 LOGIN_URL = "/auth/login/"
 
+# Flickr API Settings
+FLICKR_API_KEY = os.getenv("FLICKR_API_KEY")
+FLICKR_API_SECRET = os.getenv("FLICKR_API_SECRET")
+
 # Map Settings
 # Protomaps API key for map tiles
 PROTOMAPS_API_KEY = os.getenv("PROTOMAPS_API_KEY")

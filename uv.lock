@@ -370,6 +370,21 @@ wheels = [
 ]
 
 [[package]]
+name = "flickrapi"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "requests-oauthlib" },
+    { name = "requests-toolbelt" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/f1/d10fa0872e4f781c2ed47e94e728ecd3c1998f8c8d12e78c7329a25d0727/flickrapi-2.4.0.tar.gz", hash = "sha256:ffb27b0e4f6d3ae8fc7d20e4696d2de2f95093ecf665a93d7f1d5a3383f8e20d", size = 44982, upload-time = "2018-02-04T15:48:58.204Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/d7/291b7f0f02cf0f59460f7bcc15192905b4c61e13b9fb9263ee86b0a5f647/flickrapi-2.4.0-py2.py3-none-any.whl", hash = "sha256:28e6d0ebafc83b79c58d5056b3370fb2ae6618e386fa691246f3240dbcd8b967", size = 26573, upload-time = "2018-02-04T15:47:20.633Z" },
+]
+
+[[package]]
 name = "fsspec"
 version = "2025.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1021,6 +1036,18 @@ wheels = [
 ]
 
 [[package]]
+name = "requests-toolbelt"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f3/61/d7545dafb7ac2230c70d38d31cbfe4cc64f7144dc41f6e4e4b78ecd9f5bb/requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6", size = 206888, upload-time = "2023-05-01T04:11:33.229Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/51/d4db610ef29373b879047326cbf6fa98b6c1969d6f6dc423279de2b1be2c/requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06", size = 54481, upload-time = "2023-05-01T04:11:28.427Z" },
+]
+
+[[package]]
 name = "s3transfer"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1457,6 +1484,7 @@ dependencies = [
     { name = "django-ratelimit" },
     { name = "django-vite" },
     { name = "edtf" },
+    { name = "flickrapi" },
     { name = "geopy" },
     { name = "markdown" },
     { name = "nh3" },
@@ -1486,6 +1514,7 @@ requires-dist = [
     { name = "django-ratelimit", specifier = ">=4.1.0" },
     { name = "django-vite", specifier = ">=3.1.0" },
     { name = "edtf", specifier = ">=5.0.0" },
+    { name = "flickrapi", specifier = ">=2.4.0" },
     { name = "geopy", specifier = ">=2.4.1" },
     { name = "markdown", specifier = ">=3.10.2" },
     { name = "nh3", specifier = ">=0.3.2" },
