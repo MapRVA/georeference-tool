@@ -23,6 +23,7 @@ import re
 from time import sleep
 
 import flickrapi
+import requests
 from django.conf import settings
 from flickrapi.exceptions import FlickrError
 from tqdm import tqdm
