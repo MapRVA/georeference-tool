@@ -24,12 +24,16 @@ from time import sleep
 
 import flickrapi
 from django.conf import settings
+from flickrapi.exceptions import FlickrError
 from tqdm import tqdm
 
 from images.models import Collection, Image, Source
 from images.utils import R2Uploader
 
-POLITE_WAIT_SECS = 1.0
+DEFAULT_POLITE_WAIT_SECS = 1.0
+BACKOFF_MULTIPLIER = 2
+MAX_BACKOFF_SECS = 120
+MAX_RETRIES = 5
 
 # Flickr license IDs that represent public domain / no known restrictions
 # See https://www.flickr.com/services/api/flickr.photos.licenses.getInfo.html
@@ -38,6 +42,40 @@ PUBLIC_DOMAIN_LICENSES = {
     9,  # Public Domain Dedication (CC0)
     10,  # Public Domain Mark
 }
+
+
+def prompt_wait_secs():
+    """Ask the user to configure the polite wait time between API requests."""
+    choice = input(
+        f"\nSeconds to wait between API requests [{DEFAULT_POLITE_WAIT_SECS}]: "
+    ).strip()
+    if not choice:
+        return DEFAULT_POLITE_WAIT_SECS
+    try:
+        value = float(choice)
+        if value < 0:
+            print("Wait time cannot be negative, using default.")
+            return DEFAULT_POLITE_WAIT_SECS
+        return value
+    except ValueError:
+        print("Invalid number, using default.")
+        return DEFAULT_POLITE_WAIT_SECS
+
+
+def flickr_call_with_backoff(func, *args, **kwargs):
+    """Call a Flickr API method with exponential backoff on 429 errors."""
+    backoff = MAX_BACKOFF_SECS / (BACKOFF_MULTIPLIER ** (MAX_RETRIES - 1))
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return func(*args, **kwargs)
+        except FlickrError as e:
+            if "429" in str(e) and attempt < MAX_RETRIES:
+                wait = min(backoff, MAX_BACKOFF_SECS)
+                tqdm.write(f"  ⏳ Rate limited (429), backing off {wait:.0f}s...")
+                sleep(wait)
+                backoff *= BACKOFF_MULTIPLIER
+            else:
+                raise
 
 
 def extract_album_id(album_input):
@@ -243,7 +281,7 @@ def get_or_create_collection(source, album_info):
 
 def get_original_url(flickr_json, photo_id):
     """Get the URL of the largest available size for a photo."""
-    sizes = flickr_json.photos.getSizes(photo_id=photo_id)
+    sizes = flickr_call_with_backoff(flickr_json.photos.getSizes, photo_id=photo_id)
     size_list = sizes["sizes"]["size"]
 
     # Prefer Original, then Large, then whatever is biggest
@@ -257,7 +295,7 @@ def get_original_url(flickr_json, photo_id):
     return size_list[-1]["source"] if size_list else None
 
 
-def fetch_album_photos(flickr, album_id, total):
+def fetch_album_photos(flickr, album_id, total, wait_secs):
     """Paginate through all photos in an album, yielding each photo dict.
 
     Handles pagination via flickr.photosets.getPhotos with parsed-json format,
@@ -267,7 +305,8 @@ def fetch_album_photos(flickr, album_id, total):
     pages = (total + per_page - 1) // per_page
 
     for page in range(1, pages + 1):
-        resp = flickr.photosets.getPhotos(
+        resp = flickr_call_with_backoff(
+            flickr.photosets.getPhotos,
             photoset_id=album_id,
             extras="description,license,owner_name,date_taken,url_o",
             per_page=per_page,
@@ -276,10 +315,10 @@ def fetch_album_photos(flickr, album_id, total):
         for photo in resp["photoset"]["photo"]:
             yield photo
         if page < pages:
-            sleep(POLITE_WAIT_SECS)
+            sleep(wait_secs)
 
 
-def process_album(flickr, album_id, collection, owner, total, options):
+def process_album(flickr, album_id, collection, owner, total, options, wait_secs):
     """Enumerate photos in an album and import them.
 
     Mode 1 ("album"): parse metadata from descriptions, import everything.
@@ -292,7 +331,7 @@ def process_album(flickr, album_id, collection, owner, total, options):
     skipped = 0
     errors = 0
 
-    photos = fetch_album_photos(flickr, album_id, total)
+    photos = fetch_album_photos(flickr, album_id, total, wait_secs)
 
     for photo in tqdm(photos, total=total, desc="Processing photos"):
         if max_images and imported >= max_images:
@@ -340,7 +379,7 @@ def process_album(flickr, album_id, collection, owner, total, options):
             continue
 
         # Get the highest-resolution image URL
-        sleep(POLITE_WAIT_SECS)
+        sleep(wait_secs)
         try:
             image_url = get_original_url(flickr, photo_id)
         except Exception as e:
@@ -380,7 +419,7 @@ def process_album(flickr, album_id, collection, owner, total, options):
             tqdm.write(f"  ✗ DB error for {photo_id}: {e}")
             errors += 1
 
-        sleep(POLITE_WAIT_SECS)
+        sleep(wait_secs)
 
     return imported, skipped, errors
 
@@ -414,9 +453,13 @@ def handle(options):
     print(f"Album ID: {album_id}")
 
     flickr = get_flickr_client()
+    wait_secs = prompt_wait_secs()
+    print(f"Wait between requests: {wait_secs}s")
 
     # Fetch album metadata
-    album_info_resp = flickr.photosets.getInfo(photoset_id=album_id)
+    album_info_resp = flickr_call_with_backoff(
+        flickr.photosets.getInfo, photoset_id=album_id
+    )
     photoset = album_info_resp["photoset"]
     album_info = {
         "id": album_id,
@@ -445,6 +488,7 @@ def handle(options):
         album_info["owner"],
         int(album_info["count"]),
         options,
+        wait_secs,
     )
 
     # Summary
