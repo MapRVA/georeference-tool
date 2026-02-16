@@ -277,7 +277,7 @@ def fetch_album_photos(flickr, album_id, total):
             sleep(POLITE_WAIT_SECS)
 
 
-def process_album(flickr, album_id, collection, total, options):
+def process_album(flickr, album_id, collection, owner, total, options):
     """Enumerate photos in an album and import them.
 
     Mode 1 ("album"): parse metadata from descriptions, import everything.
@@ -325,7 +325,6 @@ def process_album(flickr, album_id, collection, total, options):
             continue
 
         # Build the Flickr page URL for this photo
-        owner = photo.get("owner")
         original_url = f"https://www.flickr.com/photos/{owner}/{photo_id}/"
 
         if dry_run:
@@ -438,7 +437,12 @@ def handle(options):
 
     # Process photos
     imported, skipped, errors = process_album(
-        flickr, album_id, collection, int(album_info["count"]), options
+        flickr,
+        album_id,
+        collection,
+        album_info["owner"],
+        int(album_info["count"]),
+        options,
     )
 
     # Summary
