@@ -194,7 +194,7 @@ def process_items(
                         permalink = r2_uploader.upload_url(image_url)
                         break  # Success, exit retry loop
 
-                    except R2UploaderError as e:
+                    except (R2UploaderError, requests.RequestException) as e:
                         if attempt < MAX_RETRIES:
                             print(
                                 f"    ⚠ Download failed for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"

@@ -387,7 +387,7 @@ class R2Uploader:
 
         except requests.RequestException as e:
             if raise_on_err:
-                raise R2UploaderError(f"Failed to download from {source_url}: {e}")
+                raise
             else:
                 if tqdm:
                     tqdm.write(f"Failed to download from {source_url}: {e}")

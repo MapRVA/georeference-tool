@@ -392,12 +392,34 @@ def process_album(flickr, album_id, collection, owner, total, options, wait_secs
             errors += 1
             continue
 
-        # Upload to R2
-        try:
-            permalink = r2_uploader.upload_url(image_url)
-        except Exception as e:
-            tqdm.write(f"  ✗ Upload error for {photo_id}: {e}")
+        # Upload to R2 (with backoff on 429s from Flickr CDN)
+        permalink = None
+        backoff = wait_secs
+        for attempt in range(MAX_RETRIES):
+            try:
+                permalink = r2_uploader.upload_url(image_url)
+                break
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code == 429:
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECS)
+                    tqdm.write(
+                        f"  ⏳ CDN rate limited (429) for {photo_id}, "
+                        f"backing off {backoff:.0f}s (attempt {attempt + 1}/{MAX_RETRIES})..."
+                    )
+                    sleep(backoff)
+                else:
+                    tqdm.write(f"  ✗ Download error for {photo_id}: {e}")
+                    errors += 1
+                    break
+            except Exception as e:
+                tqdm.write(f"  ✗ Upload error for {photo_id}: {e}")
+                errors += 1
+                break
+        else:
+            tqdm.write(f"  ✗ Gave up on {photo_id} after {MAX_RETRIES} attempts")
             errors += 1
+
+        if not permalink:
             continue
 
         # Create the Image record
