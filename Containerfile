@@ -50,7 +50,6 @@ COPY maps ./maps
 COPY subjects ./subjects
 COPY activity ./activity
 COPY osm_auth ./osm_auth
-COPY scripts ./scripts
 COPY templates ./templates
 COPY yesterdays ./yesterdays
 
@@ -93,7 +92,6 @@ COPY --from=build --chown=app:app /app/maps /app/maps
 COPY --from=build --chown=app:app /app/subjects /app/subjects
 COPY --from=build --chown=app:app /app/activity /app/activity
 COPY --from=build --chown=app:app /app/osm_auth /app/osm_auth
-COPY --from=build --chown=app:app /app/scripts /app/scripts
 COPY --from=build --chown=app:app /app/templates /app/templates
 COPY --from=build --chown=app:app /app/yesterdays /app/yesterdays
 COPY --from=build --chown=app:app /app/static /app/static
