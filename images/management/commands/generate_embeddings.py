@@ -105,19 +105,12 @@ class Command(BaseCommand):
 
         model_name = options["model_name"]
 
-        # Check for local model
-        local_model_path = Path("./models/ViT-B-32.pt").absolute()
+        local_model_dir = Path("./models").absolute()
 
-        if local_model_path.exists():
-            self.stdout.write(
-                f"Loading CLIP model {model_name} from {local_model_path.parent}"
-            )
-            self.model, self.preprocess = clip.load(
-                model_name, device=device, download_root=local_model_path.parent
-            )
-        else:
-            self.stdout.write(f"Loading CLIP model {model_name}")
-            self.model, self.preprocess = clip.load(model_name, device=device)
+        self.stdout.write(f"Loading CLIP model {model_name}")
+        self.model, self.preprocess = clip.load(
+            model_name, device=device, download_root=local_model_dir
+        )
 
         self.device = device
         self.stdout.write(f"Using device: {device}")
