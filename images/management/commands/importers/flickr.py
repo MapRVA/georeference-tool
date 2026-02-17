@@ -31,6 +31,14 @@ from tqdm import tqdm
 from images.models import Collection, Image, Source
 from images.utils import R2Uploader
 
+FIELD_MAX_LENGTHS = {
+    "title": 500,
+    "creator": 100,
+    "ref": 50,
+    "original_date": 50,
+    "edtf_date": 50,
+}
+
 DEFAULT_POLITE_WAIT_SECS = 1.0
 BACKOFF_MULTIPLIER = 2
 MAX_BACKOFF_SECS = 120
@@ -43,6 +51,29 @@ PUBLIC_DOMAIN_LICENSES = {
     9,  # Public Domain Dedication (CC0)
     10,  # Public Domain Mark
 }
+
+
+def check_field_lengths(photo_id, fields):
+    """Check field values against DB max lengths, prompting the user to fix any that are too long."""
+    for name, max_len in FIELD_MAX_LENGTHS.items():
+        value = fields.get(name, "")
+        if not value or len(value) <= max_len:
+            continue
+        tqdm.write(
+            f"\n  ⚠ Field '{name}' for photo {photo_id} is {len(value)} chars "
+            f"(max {max_len}):\n    {value!r}"
+        )
+        new_value = input(
+            f"  New value for '{name}' (Enter to truncate, 's' to skip photo): "
+        ).strip()
+        if new_value.lower() == "s":
+            return None
+        if new_value:
+            fields[name] = new_value
+        else:
+            fields[name] = value[:max_len]
+            tqdm.write(f"    Truncated to: {fields[name]!r}")
+    return fields
 
 
 def prompt_wait_secs():
@@ -326,6 +357,7 @@ def process_album(flickr, album_id, collection, owner, total, options, wait_secs
     """
     dry_run = options.get("dry_run", False)
     max_images = options.get("max_images")
+    skip = options.get("skip", 0)
     r2_uploader = None if dry_run else R2Uploader()
 
     imported = 0
@@ -334,7 +366,9 @@ def process_album(flickr, album_id, collection, owner, total, options, wait_secs
 
     photos = fetch_album_photos(flickr, album_id, total, wait_secs)
 
-    for photo in tqdm(photos, total=total, desc="Processing photos"):
+    for i, photo in enumerate(tqdm(photos, total=total, desc="Processing photos")):
+        if i < skip:
+            continue
         if max_images and imported >= max_images:
             break
 
@@ -360,6 +394,25 @@ def process_album(flickr, album_id, collection, owner, total, options, wait_secs
         date_str = fields.get("date", "")
         ref = fields.get("identifier", "")
         edtf_date = parse_flickr_date(date_str)
+
+        # Validate field lengths against DB constraints
+        saveable = {
+            "title": title,
+            "creator": creator,
+            "ref": ref,
+            "original_date": date_str,
+            "edtf_date": edtf_date,
+        }
+        saveable = check_field_lengths(photo_id, saveable)
+        if saveable is None:
+            tqdm.write(f"  ⏭ Skipped {photo_id} by user request")
+            skipped += 1
+            continue
+        title = saveable["title"]
+        creator = saveable["creator"]
+        ref = saveable["ref"]
+        date_str = saveable["original_date"]
+        edtf_date = saveable["edtf_date"]
 
         # Duplicate check
         if ref and Image.objects.filter(ref=ref).exists():
@@ -453,6 +506,12 @@ def add_arguments(parser):
         "album",
         type=str,
         help="Flickr album URL or numeric album ID",
+    )
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        help="Number of photos to skip from the start of the album",
     )
     parser.add_argument(
         "--max-images",
