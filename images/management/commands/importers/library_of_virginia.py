@@ -184,7 +184,12 @@ class LibraryOfVirginiaScraper:
         return images
 
     def scrape_area(
-        self, area_code, max_neighborhoods=None, max_images=None, dry_run=False
+        self,
+        area_code,
+        max_neighborhoods=None,
+        max_images=None,
+        dry_run=False,
+        license=None,
     ):
         """Scrape a specific area"""
         if area_code not in self.AREA_URLS:
@@ -270,6 +275,7 @@ class LibraryOfVirginiaScraper:
                             original_url=image_data["original_url"],
                             original_date=SOURCE_YEAR,
                             edtf_date=SOURCE_YEAR,
+                            license=license,
                         )
                         print(f"      → Created image ID: {image.id}")
                         imported_count += 1
@@ -293,11 +299,15 @@ class LibraryOfVirginiaScraper:
             f"{'Would import' if dry_run else 'Imported'}: {total_imported} total images"
         )
 
-    def scrape_all_areas(self, max_neighborhoods=None, max_images=None, dry_run=False):
+    def scrape_all_areas(
+        self, max_neighborhoods=None, max_images=None, dry_run=False, license=None
+    ):
         """Scrape all areas A, B, C, D"""
         print("\n=== Scraping ALL Areas (A, B, C, D) ===")
         for area_code in ["A", "B", "C", "D"]:
-            self.scrape_area(area_code, max_neighborhoods, max_images, dry_run)
+            self.scrape_area(
+                area_code, max_neighborhoods, max_images, dry_run, license=license
+            )
             time.sleep(2)  # Longer delay between areas
 
 
@@ -334,6 +344,7 @@ def handle(options):
             max_neighborhoods=options["max_neighborhoods"],
             max_images=options["max_images"],
             dry_run=options["dry_run"],
+            license=options.get("license"),
         )
     else:
         scraper.scrape_area(
@@ -341,4 +352,5 @@ def handle(options):
             max_neighborhoods=options["max_neighborhoods"],
             max_images=options["max_images"],
             dry_run=options["dry_run"],
+            license=options.get("license"),
         )

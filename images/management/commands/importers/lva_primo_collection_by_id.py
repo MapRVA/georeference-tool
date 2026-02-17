@@ -1413,6 +1413,7 @@ def handle(options):
                     creator=record.get("creator", ""),
                     original_date=record.get("date"),
                     edtf_date=edtf_date,
+                    license=options.get("license"),
                 )
             else:
                 image = Image.objects.create(
@@ -1425,6 +1426,7 @@ def handle(options):
                     creator=record.get("creator", ""),
                     original_date=record.get("date"),
                     edtf_date=edtf_date,
+                    license=options.get("license"),
                 )
         except Exception as e:
             tqdm.write(f"✗ Error creating image: {e}")

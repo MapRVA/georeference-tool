@@ -248,16 +248,16 @@
                                 </a>
                             </dd>
 
-                            {% if image.license_title %}
+                            {% if image.license %}
                                 <dt class="col-sm-5">License:</dt>
                                 <dd class="col-sm-7">
-                                    {% if image.license_permalink %}
-                                        <a href="{{ image.license_permalink }}" target="_blank" class="text-decoration-none">
-                                            {{ image.license_title }}
+                                    {% if image.license.permalink %}
+                                        <a href="{{ image.license.permalink }}" target="_blank" class="text-decoration-none">
+                                            {{ image.license.display_name }}
                                             <i class="fas fa-external-link-alt ms-1 small"></i>
                                         </a>
                                     {% else %}
-                                        {{ image.license_title }}
+                                        {{ image.license.display_name }}
                                     {% endif %}
                                 </dd>
                             {% endif %}

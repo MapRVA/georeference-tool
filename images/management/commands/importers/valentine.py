@@ -510,6 +510,7 @@ def handle(options):
                     creator=record.get("creator", ""),
                     original_date=record.get("original_date"),
                     edtf_date=record.get("edtf_date"),
+                    license=options.get("license"),
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
             else:
@@ -523,6 +524,7 @@ def handle(options):
                     creator=record.get("creator", ""),
                     original_date=record.get("original_date"),
                     edtf_date=record.get("edtf_date"),
+                    license=options.get("license"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
         except Exception as e:

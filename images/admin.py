@@ -17,6 +17,7 @@ from .models import (
     GeoreferenceValidation,
     Image,
     ImageSkip,
+    License,
     PreCollection,
     PreImage,
     SiteSettings,
@@ -139,6 +140,12 @@ class SkippedByFilter(UserDisplayNameFilter):
     title = "user"
     parameter_name = "user"
     field_name = "user"
+
+
+@admin.register(License)
+class LicenseAdmin(admin.ModelAdmin):
+    list_display = ("name", "display_name", "permalink", "flickr_id")
+    search_fields = ("name", "display_name", "description")
 
 
 @admin.register(Source)
@@ -421,8 +428,6 @@ class PreImageAdmin(admin.ModelAdmin):
         # Make nullable fields not required in admin form
         nullable_fields = [
             "description",
-            "license_title",
-            "license_permalink",
             "creator",
             "ref",
             "original_date",
@@ -438,8 +443,6 @@ class PreImageAdmin(admin.ModelAdmin):
         # Convert empty strings to None for nullable fields
         nullable_fields = [
             "description",
-            "license_title",
-            "license_permalink",
             "creator",
             "ref",
             "original_date",
@@ -466,7 +469,7 @@ class PreImageAdmin(admin.ModelAdmin):
         ),
         (
             "License Information",
-            {"fields": ("license_title", "license_permalink")},
+            {"fields": ("license",)},
         ),
         (
             "Date Information",
@@ -513,7 +516,7 @@ class ImageAdmin(admin.ModelAdmin):
     list_filter = ("difficulty", "scale", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
-    autocomplete_fields = ["duplicate_of"]
+    autocomplete_fields = ["duplicate_of", "license"]
     actions = ["label_scales_action"]
 
     def label_scales_action(self, request, queryset):
@@ -527,8 +530,6 @@ class ImageAdmin(admin.ModelAdmin):
         nullable_fields = [
             "original_url",
             "description",
-            "license_title",
-            "license_permalink",
             "creator",
             "ref",
             "original_date",
@@ -571,8 +572,6 @@ class ImageAdmin(admin.ModelAdmin):
         nullable_fields = [
             "original_url",
             "description",
-            "license_title",
-            "license_permalink",
             "creator",
             "ref",
             "original_date",
@@ -603,7 +602,7 @@ class ImageAdmin(admin.ModelAdmin):
         ),
         (
             "License Information",
-            {"fields": ("license_title", "license_permalink")},
+            {"fields": ("license",)},
         ),
         (
             "Date Information",

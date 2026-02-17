@@ -10,6 +10,35 @@ from importlib import import_module
 
 from django.core.management.base import BaseCommand, CommandError
 
+from images.models import License
+
+
+def prompt_license():
+    """Prompt the user to select a license from the database, or skip."""
+    licenses = list(License.objects.all())
+    if not licenses:
+        print("No licenses found in the database. Proceeding without a license.")
+        return None
+
+    print("\nSelect a license for imported images:")
+    print("  0) No license")
+    for i, lic in enumerate(licenses, start=1):
+        print(f"  {i}) {lic.name}")
+
+    while True:
+        try:
+            choice = int(input("\nEnter number: "))
+        except (ValueError, EOFError):
+            print("Please enter a valid number.")
+            continue
+        if choice == 0:
+            return None
+        if 1 <= choice <= len(licenses):
+            selected = licenses[choice - 1]
+            print(f"Selected: {selected.name}")
+            return selected
+        print(f"Please enter a number between 0 and {len(licenses)}.")
+
 
 class Command(BaseCommand):
     help = "Import images from a source. Run 'manage.py import <source> --help' for source-specific options."
@@ -43,4 +72,5 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         module = self._get_source_module(options["source"])
+        options["license"] = prompt_license()
         module.handle(options)

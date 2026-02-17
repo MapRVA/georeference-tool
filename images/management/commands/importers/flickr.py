@@ -488,6 +488,7 @@ def process_album(flickr, album_id, collection, owner, total, options, wait_secs
                 creator=creator,
                 original_date=date_str,
                 edtf_date=edtf_date or None,
+                license=options.get("license"),
             )
             tqdm.write(f"  ✓ #{image.id} {title}")
             imported += 1

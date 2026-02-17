@@ -120,7 +120,13 @@ def fetch_items(collection_code, start=1, max_items=None):
 
 
 def process_items(
-    collection, collection_code, items, dry_run=False, r2_uploader=None, debug=None
+    collection,
+    collection_code,
+    items,
+    dry_run=False,
+    r2_uploader=None,
+    debug=None,
+    license=None,
 ):
     """Process and import items from ContentDM"""
     imported_count = 0
@@ -247,7 +253,7 @@ def process_items(
                 "creator": image_data.get("Creator", ""),
                 "original_date": image_data.get("Date"),
                 "edtf_date": image_data.get("etdf_date"),
-                "license_title": "Non-commercial Use Only",
+                "license": license,
             }
 
             if not dry_run:
@@ -274,8 +280,8 @@ def add_arguments(parser):
     """Add rpl-specific arguments to the parser."""
     parser.add_argument(
         "--collection-code",
-        default="RPLTHC",
-        help="ContentDM collection code (default: RPLTHC)",
+        default=None,
+        help="ContentDM collection code (e.g. RPLTHC)",
     )
     parser.add_argument(
         "--max-images",
@@ -297,6 +303,10 @@ def add_arguments(parser):
 def handle(options):
     """Run the Richmond Public Library import."""
     collection_code = options["collection_code"]
+    if not collection_code:
+        print("Error: --collection-code is required.")
+        print("Example: uv run manage.py import rpl --collection-code RPLTHC")
+        return
     max_images = options["max_images"]
     dry_run = options["dry_run"]
     debug = options["debug"]
@@ -320,7 +330,13 @@ def handle(options):
 
     # Process items
     imported_count = process_items(
-        coll, collection_code, items, dry_run, r2_uploader, debug
+        coll,
+        collection_code,
+        items,
+        dry_run,
+        r2_uploader,
+        debug,
+        license=options.get("license"),
     )
 
     if debug == "meta":

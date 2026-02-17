@@ -143,11 +143,10 @@ def get_image_ids_from_page(url, collection_id):
     return get_image_ids_from_page_content(response.text, collection_id)
 
 
-def extract_license_from_rights(html_content):
+def is_public_domain(html_content):
     """
-    Extracts license information from the rights section.
-    Returns a dict with 'license_title' and optionally 'license_permalink' if
-    the public domain text is found.
+    Check whether the rights section indicates public domain.
+    Returns True if the public domain text is found, False otherwise.
     """
     # Extract the rights section
     rights_match = re.search(
@@ -157,18 +156,14 @@ def extract_license_from_rights(html_content):
     )
 
     if not rights_match:
-        return {}
+        return False
 
     rights_text = rights_match.group(1).strip()
 
-    # Check for public domain text
-    if (
+    return (
         "This material is in the public domain in the United States and thus is free of any copyright restriction."
         in rights_text
-    ):
-        return {"license_title": "Public Domain"}
-
-    return {}
+    )
 
 
 def get_image_details(
@@ -371,8 +366,7 @@ def get_image_details(
         )
 
     # --- License ---
-    license_info = extract_license_from_rights(html_content)
-    details.update(license_info)
+    details["is_public_domain"] = is_public_domain(html_content)
 
     # --- Geolocation ---
     # Extract embedded coordinates from the page's Google Maps initialization
@@ -544,10 +538,7 @@ def handle(options):
             sys.exit(1)
 
         # Check if image is public domain
-        if (
-            "license_title" not in details
-            or details["license_title"] != "Public Domain"
-        ):
+        if not details.get("is_public_domain"):
             non_public_domain_count += 1
             continue
 
@@ -578,7 +569,7 @@ def handle(options):
                     creator=details.get("creator", ""),
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
-                    license_title=details.get("license_title"),
+                    license=options.get("license"),
                     source_point=details.get("source_point"),
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
@@ -593,7 +584,7 @@ def handle(options):
                     creator=details.get("creator", ""),
                     original_date=details.get("original_date"),
                     edtf_date=details.get("edtf_date"),
-                    license_title=details.get("license_title"),
+                    license=options.get("license"),
                     source_point=details.get("source_point"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")

@@ -242,6 +242,31 @@ class PreCollection(models.Model):
         unique_together = ["source", "name", "slug"]
 
 
+class License(models.Model):
+    """License under which an image is published"""
+
+    name = models.CharField(max_length=500)
+    display_name = models.CharField(
+        max_length=500,
+        help_text="Name shown on the site",
+    )
+    permalink = models.URLField(
+        null=True, blank=True, help_text="Link to license information"
+    )
+    description = models.TextField(
+        blank=True, help_text="Internal notes about this license"
+    )
+    flickr_id = models.SmallIntegerField(
+        null=True, blank=True, unique=True, help_text="Flickr license ID"
+    )
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ["name"]
+
+
 class Image(models.Model):
     """Individual image to be georeferenced"""
 
@@ -268,9 +293,8 @@ class Image(models.Model):
         null=True, help_text="Original URL from the source website"
     )
     description = models.TextField(null=True)
-    license_title = models.CharField(null=True, max_length=500)
-    license_permalink = models.URLField(
-        null=True, help_text="Link to license information"
+    license = models.ForeignKey(
+        License, null=True, blank=True, on_delete=models.SET_NULL, related_name="images"
     )
 
     creator = models.CharField(
@@ -532,9 +556,12 @@ class PreImage(models.Model):
         help_text="Direct link to the image (CDN or processed URL)"
     )
     description = models.TextField(null=True)
-    license_title = models.CharField(null=True, max_length=500)
-    license_permalink = models.URLField(
-        null=True, help_text="Link to license information"
+    license = models.ForeignKey(
+        License,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pre_images",
     )
 
     creator = models.CharField(
