@@ -168,7 +168,7 @@ The site should now be live at http://localhost:8000
 ## Load a collection
 
 ```
-uv run scripts/importers/library_of_virginia.py --area A
+uv run manage.py import library_of_virginia --area A
 ```
 
 ## Admin creds
