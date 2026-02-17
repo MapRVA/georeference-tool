@@ -140,6 +140,12 @@ def process_items(
                 pbar.update(1)
                 continue
 
+             # Don't get things that aren't images -- here PDFs and URLs (videos)
+            if item.get("filetype") == "pdf" or item.get("filetype") == "url":
+                print("    ✗ Item is not an image, skipping")
+                pbar.update(1)
+                continue
+
             # Build URLs
             original_url = f"{BASE_VIEWER_URL}/{collection_code}/id/{contentdm_id}"
             image_url = (
