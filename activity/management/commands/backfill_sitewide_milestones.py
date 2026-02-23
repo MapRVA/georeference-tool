@@ -41,11 +41,13 @@ class Command(BaseCommand):
                 FROM images_georeference g
                 JOIN images_image i ON g.image_id = i.id
                 WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+                  AND i.aerial = FALSE
                 UNION ALL
                 SELECT ag.image_id, ag.georeferenced_at
                 FROM images_aerialgeoreference ag
                 JOIN images_image i ON ag.image_id = i.id
                 WHERE i.duplicate_of_id IS NULL AND i.will_not_georef = FALSE
+                  AND i.aerial = TRUE
             ) AS all_georefs
             GROUP BY image_id
             ORDER BY first_georeferenced_at
