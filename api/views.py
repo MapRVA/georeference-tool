@@ -248,6 +248,7 @@ class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["get"])
     def geometry(self, request, pk=None):
         """GeoJSON FeatureCollection of OSM geometries for this subject."""
+        generics.get_object_or_404(Subject, pk=pk)
         elements = OsmElement.objects.filter(subject_id=pk)
         serializer = OsmElementGeoSerializer(elements, many=True)
         return Response(serializer.data)

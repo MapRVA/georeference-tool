@@ -470,6 +470,11 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["features"], [])
 
+    def test_geometry_nonexistent_subject(self):
+        """Geometry endpoint returns 404 for a subject that does not exist."""
+        resp = self.client.get("/api/v2/subjects/999999/geometry/")
+        self.assertEqual(resp.status_code, 404)
+
 
 # ---------------------------------------------------------------------------
 # Georeferences (GeoJSON)
