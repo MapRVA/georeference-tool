@@ -57,6 +57,18 @@ nav = [
      "usage/search.md",
      "usage/subjects.md",
   ]},
+  {"API" = [
+     "api/index.md",
+     "api/sources.md",
+     "api/collections.md",
+     "api/images.md",
+     "api/users.md",
+     "api/georeferences.md",
+     "api/search.md",
+     "api/subjects.md",
+     "api/activity.md",
+     "api/statistics.md",
+  ]},
   {"Development" = [
      "development/contributing.md",
      "development/environment.md",
