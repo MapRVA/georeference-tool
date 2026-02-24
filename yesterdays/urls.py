@@ -62,6 +62,7 @@ urlpatterns = [
         subject_views.wikidata_lookup,
         name="wikidata_lookup",
     ),
+    path("api/v2/", include("api.urls")),
     path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
     path("maps/", include("maps.urls")),
     path("admin/", admin.site.urls),

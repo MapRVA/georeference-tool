@@ -465,16 +465,16 @@ class Image(models.Model):
 
     @property
     def is_georeferenced(self):
-        """Check if this image has been georeferenced
-        For regular images: has a point georeference
-        For aerial images: has EITHER a point georeference OR an aerial georeference (polygon)
+        """Check if this image has been georeferenced.
+
+        For aerial (from-above) images: requires a polygon georeference.
+        Point georeferences may exist but don't count toward this status.
+
+        For regular images: requires a point georeference.
         """
         if self.aerial:
-            # Aerial images are georeferenced if they have a point OR polygon georeference
-            return self.georeferences.exists() or self.aerial_georeferences.exists()
-        else:
-            # Regular images only use point georeferences
-            return self.georeferences.exists()
+            return self.aerial_georeferences.exists()
+        return self.georeferences.exists()
 
     @property
     def georeference_count(self):
@@ -483,20 +483,17 @@ class Image(models.Model):
 
     @property
     def georeference_status(self):
-        """Get the current georeferencing status"""
+        """Get the current georeferencing status.
+
+        Returns one of: "duplicate", "will_not_georef", "georeferenced",
+        or "pending".
+        """
         if self.duplicate_of:
             return "duplicate"
         elif self.will_not_georef:
             return "will_not_georef"
         elif self.is_georeferenced:
-            # Check if any georeferences have validations
-            if any(
-                georeference.validations.exists()
-                for georeference in self.georeferences.all()
-            ):
-                return "validated"
-            else:
-                return "georeferenced"
+            return "georeferenced"
         else:
             return "pending"
 

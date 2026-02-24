@@ -76,8 +76,13 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.gis",
     "django.contrib.postgres",
+    "rest_framework",
+    "rest_framework_gis",
+    "django_filters",
+    "drf_spectacular",
     "corsheaders",
     "django_vite",
+    "api",
     "osm_auth",
     "subjects",
     "images",
@@ -436,3 +441,28 @@ ACTIVITY_SITEWIDE_MILESTONE_THRESHOLDS = [
     19000,
     20000,
 ]
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "api.pagination.DefaultPagination",
+    "PAGE_SIZE": 50,
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ]
+    + (
+        ["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []
+    ),
+}
+
+# drf-spectacular (OpenAPI schema generation)
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Yesterdays API",
+    "DESCRIPTION": "API for querying historical georeferenced images.",
+    "VERSION": "2.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}

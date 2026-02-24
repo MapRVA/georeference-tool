@@ -15,7 +15,7 @@ from images.models import (
     Image,
     TopRatedImageView,
 )
-from images.utils import get_overall_stats
+from images.utils import get_confidence_breakdown, get_overall_stats
 
 
 def get_top_rated_image():
@@ -82,62 +82,8 @@ def stats(request):
     daily_labels = [entry["date"] for entry in cumulative_data]
     daily_counts = [entry["count"] for entry in cumulative_data]
 
-    # Image status pie chart - optimized with single database query
-    from django.db import connection
-
-    query = """
-    WITH point_georefs AS (
-        SELECT
-            g.image_id,
-            g.confidence,
-            ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
-        FROM images_georeference g
-    ),
-    aerial_georefs AS (
-        SELECT
-            ag.image_id,
-            ag.confidence,
-            ROW_NUMBER() OVER (PARTITION BY ag.image_id ORDER BY ag.georeferenced_at DESC) as rn
-        FROM images_aerialgeoreference ag
-    )
-    SELECT
-        COALESCE(
-            CASE
-                WHEN img.aerial = TRUE AND ag.confidence IS NOT NULL THEN ag.confidence
-                WHEN img.aerial = FALSE AND pg.confidence IS NOT NULL THEN pg.confidence
-                ELSE 'not_georeferenced'
-            END
-        ) as confidence_level,
-        COUNT(DISTINCT img.id) as count
-    FROM images_image img
-    LEFT JOIN aerial_georefs ag ON img.id = ag.image_id AND ag.rn = 1
-    LEFT JOIN point_georefs pg ON img.id = pg.image_id AND pg.rn = 1
-    WHERE img.duplicate_of_id IS NULL
-      AND img.will_not_georef = FALSE
-    GROUP BY confidence_level
-    """
-
-    with connection.cursor() as cursor:
-        cursor.execute(query)
-        confidence_results = cursor.fetchall()
-
-    # Parse query results into counts
-    total_images = 0
-    not_georeferenced_count = 0
-    low_confidence_count = 0
-    medium_confidence_count = 0
-    high_confidence_count = 0
-
-    for confidence_level, count in confidence_results:
-        total_images += count
-        if confidence_level == "not_georeferenced":
-            not_georeferenced_count = count
-        elif confidence_level == "low":
-            low_confidence_count = count
-        elif confidence_level == "medium":
-            medium_confidence_count = count
-        elif confidence_level == "high":
-            high_confidence_count = count
+    # Image status pie chart
+    breakdown = get_confidence_breakdown()
 
     status_labels = [
         "Not Georeferenced",
@@ -146,10 +92,10 @@ def stats(request):
         "High Confidence",
     ]
     status_counts = [
-        not_georeferenced_count,
-        low_confidence_count,
-        medium_confidence_count,
-        high_confidence_count,
+        breakdown["not_georeferenced"],
+        breakdown["low"],
+        breakdown["medium"],
+        breakdown["high"],
     ]
 
     # Top contributors - aggregate georeferences and validations by username

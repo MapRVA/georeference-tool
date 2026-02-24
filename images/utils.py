@@ -160,6 +160,67 @@ def render_markdown_safe(text):
     return sanitized
 
 
+def get_confidence_breakdown():
+    """
+    Get per-confidence image counts, avoiding double-counting from-above images.
+
+    For aerial images, uses the aerial georeference confidence; for non-aerial
+    images, uses the point georeference confidence.  Each image is counted
+    exactly once under its most-recent georeference's confidence level (or
+    ``not_georeferenced`` if it has none).
+
+    Returns:
+        dict with keys ``not_georeferenced``, ``low``, ``medium``, ``high``,
+        each mapping to an integer count.
+    """
+    query = """
+    WITH point_georefs AS (
+        SELECT
+            g.image_id,
+            g.confidence,
+            ROW_NUMBER() OVER (PARTITION BY g.image_id ORDER BY g.georeferenced_at DESC) as rn
+        FROM images_georeference g
+    ),
+    aerial_georefs AS (
+        SELECT
+            ag.image_id,
+            ag.confidence,
+            ROW_NUMBER() OVER (PARTITION BY ag.image_id ORDER BY ag.georeferenced_at DESC) as rn
+        FROM images_aerialgeoreference ag
+    )
+    SELECT
+        COALESCE(
+            CASE
+                WHEN img.aerial = TRUE AND ag.confidence IS NOT NULL THEN ag.confidence
+                WHEN img.aerial = FALSE AND pg.confidence IS NOT NULL THEN pg.confidence
+                ELSE 'not_georeferenced'
+            END
+        ) as confidence_level,
+        COUNT(DISTINCT img.id) as count
+    FROM images_image img
+    INNER JOIN images_collection col ON img.collection_id = col.id
+    INNER JOIN images_source src ON col.source_id = src.id
+    LEFT JOIN aerial_georefs ag ON img.id = ag.image_id AND ag.rn = 1
+    LEFT JOIN point_georefs pg ON img.id = pg.image_id AND pg.rn = 1
+    WHERE img.duplicate_of_id IS NULL
+      AND img.will_not_georef = FALSE
+      AND col.public = TRUE
+      AND src.public = TRUE
+    GROUP BY confidence_level
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+    breakdown = {"not_georeferenced": 0, "low": 0, "medium": 0, "high": 0}
+    for confidence_level, count in rows:
+        if confidence_level in breakdown:
+            breakdown[confidence_level] = count
+
+    return breakdown
+
+
 def get_overall_stats():
     """
     Get overall site statistics for images.
