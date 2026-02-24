@@ -241,6 +241,18 @@ class TestUsersEndpoint(ApiFixturesMixin, TestCase):
         counts = [r["point_georeferences"] for r in results]
         self.assertEqual(counts, sorted(counts, reverse=True))
 
+    def test_counts_no_cross_product_inflation(self):
+        """User with both point and aerial georefs should not get inflated counts."""
+        # Give Alice an aerial georeference (she already has 3 point georefs)
+        AerialGeoreference.objects.create(
+            image=self.img3, polygon=Polygon(POLYGON_COORDS, srid=4326),
+            confidence="medium", georeferenced_by=self.user_alice,
+        )
+        resp = self.client.get("/api/v2/users/100/")
+        data = resp.json()
+        self.assertEqual(data["point_georeferences"], 3)
+        self.assertEqual(data["from_above_georeferences"], 1)
+
 
 # ---------------------------------------------------------------------------
 # Sources

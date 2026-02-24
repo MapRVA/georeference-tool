@@ -93,10 +93,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             point_georeferences=Count(
                 "georeferenced_images",
                 filter=Q(georeferenced_images__image__is_searchable=True),
+                distinct=True,
             ),
             from_above_georeferences=Count(
                 "aerial_georeferenced_images",
                 filter=Q(aerial_georeferenced_images__image__is_searchable=True),
+                distinct=True,
             ),
         ).filter(Q(point_georeferences__gt=0) | Q(from_above_georeferences__gt=0))
 
