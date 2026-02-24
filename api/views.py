@@ -67,6 +67,7 @@ class RemappingOrderingFilter(OrderingFilter):
         ordering = self.get_ordering(request, queryset, view)
         field_map = getattr(view, "ordering_field_map", {})
         if ordering:
+
             def _remap(field):
                 if field.startswith("-"):
                     return f"-{field_map.get(field[1:], field[1:])}"
@@ -825,7 +826,9 @@ def text_search_view(request):
     try:
         page = max(int(request.query_params.get("page", 1)), 1)
         page_size = min(max(int(request.query_params.get("page_size", 20)), 1), 100)
-        threshold = max(0.0, min(float(request.query_params.get("threshold", 0.7)), 1.0))
+        threshold = max(
+            0.0, min(float(request.query_params.get("threshold", 0.7)), 1.0)
+        )
     except ValueError:
         return Response({"error": "Invalid numeric parameters."}, status=400)
     offset = (page - 1) * page_size

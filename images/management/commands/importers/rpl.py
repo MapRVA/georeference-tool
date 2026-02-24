@@ -140,7 +140,7 @@ def process_items(
                 pbar.update(1)
                 continue
 
-             # Don't get things that aren't images -- here PDFs and URLs (videos)
+            # Don't get things that aren't images -- here PDFs and URLs (videos)
             if item.get("filetype") == "pdf" or item.get("filetype") == "url":
                 print("    ✗ Item is not an image, skipping")
                 pbar.update(1)

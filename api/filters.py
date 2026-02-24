@@ -8,9 +8,7 @@ def _filter_georeferenced_by(queryset, name, value):
     try:
         osm_id = int(value)
     except (ValueError, TypeError):
-        raise ValidationError(
-            {"georeferenced_by": "Must be an integer (OSM user ID)."}
-        )
+        raise ValidationError({"georeferenced_by": "Must be an integer (OSM user ID)."})
     if osm_id == 0:
         username = "hardcoded_admin"
     else:
@@ -26,11 +24,13 @@ class ImageFilter(filters.FilterSet):
 
     # Temporal filters: year-based ranges against the decimal date fields
     year_min = filters.NumberFilter(
-        field_name="fuzzy_end_decdate", lookup_expr="gte",
+        field_name="fuzzy_end_decdate",
+        lookup_expr="gte",
         help_text="Minimum year (includes images that may extend into this year)",
     )
     year_max = filters.NumberFilter(
-        field_name="fuzzy_start_decdate", lookup_expr="lte",
+        field_name="fuzzy_start_decdate",
+        lookup_expr="lte",
         help_text="Maximum year (includes images that may start before this year)",
     )
 
@@ -57,19 +57,19 @@ class GeoreferenceFilter(filters.FilterSet):
     image = filters.NumberFilter(field_name="image_id")
     source = filters.NumberFilter(field_name="image__collection__source_id")
     collection = filters.NumberFilter(field_name="image__collection_id")
-    subject = filters.NumberFilter(
-        field_name="image__subject_mappings__subject_id"
-    )
+    subject = filters.NumberFilter(field_name="image__subject_mappings__subject_id")
     confidence = filters.ChoiceFilter(
         choices=Georeference.CONFIDENCE_CHOICES,
     )
     from_above = filters.BooleanFilter(field_name="image__aerial")
     georeferenced_by = filters.NumberFilter(method=_filter_georeferenced_by)
     year_min = filters.NumberFilter(
-        field_name="image__fuzzy_end_decdate", lookup_expr="gte",
+        field_name="image__fuzzy_end_decdate",
+        lookup_expr="gte",
     )
     year_max = filters.NumberFilter(
-        field_name="image__fuzzy_start_decdate", lookup_expr="lte",
+        field_name="image__fuzzy_start_decdate",
+        lookup_expr="lte",
     )
 
     class Meta:
@@ -81,18 +81,18 @@ class FromAboveGeoreferenceFilter(filters.FilterSet):
     image = filters.NumberFilter(field_name="image_id")
     source = filters.NumberFilter(field_name="image__collection__source_id")
     collection = filters.NumberFilter(field_name="image__collection_id")
-    subject = filters.NumberFilter(
-        field_name="image__subject_mappings__subject_id"
-    )
+    subject = filters.NumberFilter(field_name="image__subject_mappings__subject_id")
     confidence = filters.ChoiceFilter(
         choices=AerialGeoreference.CONFIDENCE_CHOICES,
     )
     georeferenced_by = filters.NumberFilter(method=_filter_georeferenced_by)
     year_min = filters.NumberFilter(
-        field_name="image__fuzzy_end_decdate", lookup_expr="gte",
+        field_name="image__fuzzy_end_decdate",
+        lookup_expr="gte",
     )
     year_max = filters.NumberFilter(
-        field_name="image__fuzzy_start_decdate", lookup_expr="lte",
+        field_name="image__fuzzy_start_decdate",
+        lookup_expr="lte",
     )
 
     class Meta:

@@ -41,42 +41,63 @@ class ApiFixturesMixin:
     def setUpTestData(cls):
         # -- Users --
         cls.user_alice = User.objects.create_user(
-            username="osm_100", first_name="Alice", password="test",
+            username="osm_100",
+            first_name="Alice",
+            password="test",
         )
         cls.user_bob = User.objects.create_user(
-            username="osm_200", first_name="Bob", password="test",
+            username="osm_200",
+            first_name="Bob",
+            password="test",
         )
         cls.user_carol = User.objects.create_user(
-            username="osm_300", first_name="Carol", password="test",
+            username="osm_300",
+            first_name="Carol",
+            password="test",
         )
         cls.user_validator = User.objects.create_user(
-            username="osm_400", first_name="Dan", password="test",
+            username="osm_400",
+            first_name="Dan",
+            password="test",
         )
 
         # -- Sources --
         cls.source = Source.objects.create(
-            name="Library of Virginia", slug="lva",
-            url="https://example.com/lva", description="Public archive.",
+            name="Library of Virginia",
+            slug="lva",
+            url="https://example.com/lva",
+            description="Public archive.",
             public=True,
         )
         cls.source_private = Source.objects.create(
-            name="Private Archive", slug="private",
-            url="https://example.com/priv", description="Not public.",
+            name="Private Archive",
+            slug="private",
+            url="https://example.com/priv",
+            description="Not public.",
             public=False,
         )
 
         # -- Collections --
         cls.collection = Collection.objects.create(
-            source=cls.source, name="Collection A", slug="a",
-            url="https://example.com/a", public=True,
+            source=cls.source,
+            name="Collection A",
+            slug="a",
+            url="https://example.com/a",
+            public=True,
         )
         cls.collection_b = Collection.objects.create(
-            source=cls.source, name="Collection B", slug="b",
-            url="https://example.com/b", public=True,
+            source=cls.source,
+            name="Collection B",
+            slug="b",
+            url="https://example.com/b",
+            public=True,
         )
         cls.collection_private = Collection.objects.create(
-            source=cls.source_private, name="Private", slug="priv",
-            url="https://example.com/priv-coll", public=True,
+            source=cls.source_private,
+            name="Private",
+            slug="priv",
+            url="https://example.com/priv-coll",
+            public=True,
         )
 
         # -- Images --
@@ -88,7 +109,8 @@ class ApiFixturesMixin:
             original_date="ca. 1900-1910",
         )
         Image.objects.filter(pk=cls.img1.pk).update(
-            fuzzy_start_decdate=1900, fuzzy_end_decdate=1910,
+            fuzzy_start_decdate=1900,
+            fuzzy_end_decdate=1910,
         )
         cls.img2 = Image.objects.create(
             collection=cls.collection,
@@ -97,7 +119,8 @@ class ApiFixturesMixin:
             original_date="ca. 1920-1930",
         )
         Image.objects.filter(pk=cls.img2.pk).update(
-            fuzzy_start_decdate=1920, fuzzy_end_decdate=1930,
+            fuzzy_start_decdate=1920,
+            fuzzy_end_decdate=1930,
         )
         cls.img3 = Image.objects.create(
             collection=cls.collection_b,
@@ -107,7 +130,8 @@ class ApiFixturesMixin:
             aerial=True,
         )
         Image.objects.filter(pk=cls.img3.pk).update(
-            fuzzy_start_decdate=1940, fuzzy_end_decdate=1940,
+            fuzzy_start_decdate=1940,
+            fuzzy_end_decdate=1940,
         )
         cls.img_private = Image.objects.create(
             collection=cls.collection_private,
@@ -121,23 +145,29 @@ class ApiFixturesMixin:
 
         # -- Subject + mapping --
         cls.subject = Subject.objects.create(
-            title="Main Street", slug="main-street",
+            title="Main Street",
+            slug="main-street",
             description="A major thoroughfare.",
         )
         SubjectMapping.objects.create(image=cls.img1, subject=cls.subject)
         cls.osm_element = OsmElement.objects.create(
-            osm_id=12345, subject=cls.subject,
+            osm_id=12345,
+            subject=cls.subject,
             geometry=Polygon(POLYGON_COORDS, srid=4326),
         )
 
         # -- Georeferences --
         cls.georef1 = Georeference.objects.create(
-            image=cls.img1, point=Point(-77.43, 37.54, srid=4326),
-            confidence="high", georeferenced_by=cls.user_alice,
+            image=cls.img1,
+            point=Point(-77.43, 37.54, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user_alice,
         )
         cls.georef2_old = Georeference.objects.create(
-            image=cls.img2, point=Point(-77.44, 37.53, srid=4326),
-            confidence="medium", georeferenced_by=cls.user_alice,
+            image=cls.img2,
+            point=Point(-77.44, 37.53, srid=4326),
+            confidence="medium",
+            georeferenced_by=cls.user_alice,
         )
         # Backdate so georef2_new wins the "most recent per image" deduplication
         Georeference.objects.filter(pk=cls.georef2_old.pk).update(
@@ -146,25 +176,31 @@ class ApiFixturesMixin:
         cls.georef2_old.refresh_from_db()
 
         cls.georef2_new = Georeference.objects.create(
-            image=cls.img2, point=Point(-77.45, 37.53, srid=4326),
-            confidence="low", georeferenced_by=cls.user_alice,
+            image=cls.img2,
+            point=Point(-77.45, 37.53, srid=4326),
+            confidence="low",
+            georeferenced_by=cls.user_alice,
         )
 
         # -- Aerial georeference --
         cls.aerial_georef = AerialGeoreference.objects.create(
-            image=cls.img3, polygon=Polygon(POLYGON_COORDS, srid=4326),
-            confidence="high", georeferenced_by=cls.user_bob,
+            image=cls.img3,
+            polygon=Polygon(POLYGON_COORDS, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user_bob,
         )
 
         # -- Validation --
         cls.validation = GeoreferenceValidation.objects.create(
-            georeference=cls.georef1, validated_by=cls.user_validator,
+            georeference=cls.georef1,
+            validated_by=cls.user_validator,
             validation="correct",
         )
 
         # -- Comment --
         cls.comment = Comment.objects.create(
-            image=cls.img1, text="Great photo!",
+            image=cls.img1,
+            text="Great photo!",
             commented_by=cls.user_bob,
         )
 
@@ -178,18 +214,23 @@ class ApiFixturesMixin:
             count=3,
         )
         GeoreferenceGroupMember.objects.create(
-            group=cls.georef_group, georeference=cls.georef1,
+            group=cls.georef_group,
+            georeference=cls.georef1,
             added_at=cls.georef1.georeferenced_at,
         )
         GeoreferenceGroupMember.objects.create(
-            group=cls.georef_group, georeference=cls.georef2_new,
+            group=cls.georef_group,
+            georeference=cls.georef2_new,
             added_at=cls.georef2_new.georeferenced_at,
         )
         cls.user_milestone = UserMilestone.objects.create(
-            user=cls.user_alice, count=5, reached_at=now,
+            user=cls.user_alice,
+            count=5,
+            reached_at=now,
         )
         cls.sitewide_milestone = SitewideMilestone.objects.create(
-            count=100, reached_at=now,
+            count=100,
+            reached_at=now,
         )
 
 
@@ -199,7 +240,6 @@ class ApiFixturesMixin:
 
 
 class TestUsersEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_status(self):
         resp = self.client.get("/api/v2/users/")
         self.assertEqual(resp.status_code, 200)
@@ -245,8 +285,10 @@ class TestUsersEndpoint(ApiFixturesMixin, TestCase):
         """User with both point and aerial georefs should not get inflated counts."""
         # Give Alice an aerial georeference (she already has 3 point georefs)
         AerialGeoreference.objects.create(
-            image=self.img3, polygon=Polygon(POLYGON_COORDS, srid=4326),
-            confidence="medium", georeferenced_by=self.user_alice,
+            image=self.img3,
+            polygon=Polygon(POLYGON_COORDS, srid=4326),
+            confidence="medium",
+            georeferenced_by=self.user_alice,
         )
         resp = self.client.get("/api/v2/users/100/")
         data = resp.json()
@@ -260,7 +302,6 @@ class TestUsersEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestSourcesEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_status_and_count(self):
         resp = self.client.get("/api/v2/sources/")
         self.assertEqual(resp.status_code, 200)
@@ -286,8 +327,10 @@ class TestSourcesEndpoint(ApiFixturesMixin, TestCase):
     def test_collections_url_present(self):
         resp = self.client.get(f"/api/v2/sources/{self.source.pk}/")
         self.assertIn("collections_url", resp.json())
-        self.assertIn(f"/api/v2/sources/{self.source.pk}/collections/",
-                       resp.json()["collections_url"])
+        self.assertIn(
+            f"/api/v2/sources/{self.source.pk}/collections/",
+            resp.json()["collections_url"],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +339,6 @@ class TestSourcesEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestCollectionsEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_status_and_count(self):
         resp = self.client.get("/api/v2/collections/")
         self.assertEqual(resp.status_code, 200)
@@ -324,9 +366,7 @@ class TestCollectionsEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.json()["count"], 1)
 
     def test_nested_route(self):
-        resp = self.client.get(
-            f"/api/v2/sources/{self.source.pk}/collections/"
-        )
+        resp = self.client.get(f"/api/v2/sources/{self.source.pk}/collections/")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 2)
 
@@ -337,7 +377,6 @@ class TestCollectionsEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestImagesEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_status_and_count(self):
         resp = self.client.get("/api/v2/images/")
         self.assertEqual(resp.status_code, 200)
@@ -390,15 +429,11 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_filter_by_collection(self):
-        resp = self.client.get(
-            f"/api/v2/images/?collection={self.collection.pk}"
-        )
+        resp = self.client.get(f"/api/v2/images/?collection={self.collection.pk}")
         self.assertEqual(resp.json()["count"], 2)
 
     def test_filter_by_subject(self):
-        resp = self.client.get(
-            f"/api/v2/images/?subject={self.subject.pk}"
-        )
+        resp = self.client.get(f"/api/v2/images/?subject={self.subject.pk}")
         self.assertEqual(resp.json()["count"], 1)
 
     def test_filter_by_year_min(self):
@@ -442,7 +477,6 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_status_and_count(self):
         resp = self.client.get("/api/v2/subjects/")
         self.assertEqual(resp.status_code, 200)
@@ -461,9 +495,7 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.json()["count"], 1)
 
     def test_geometry_action(self):
-        resp = self.client.get(
-            f"/api/v2/subjects/{self.subject.pk}/geometry/"
-        )
+        resp = self.client.get(f"/api/v2/subjects/{self.subject.pk}/geometry/")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["type"], "FeatureCollection")
@@ -475,7 +507,9 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
         """Geometry endpoint returns empty FeatureCollection for subject with no OSM elements."""
         # Create a subject with an image mapping but no OsmElements
         subj2 = Subject.objects.create(
-            title="Empty Subject", slug="empty", description="No geometry.",
+            title="Empty Subject",
+            slug="empty",
+            description="No geometry.",
         )
         SubjectMapping.objects.create(image=self.img2, subject=subj2)
         resp = self.client.get(f"/api/v2/subjects/{subj2.pk}/geometry/")
@@ -494,7 +528,6 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_geojson_shape(self):
         resp = self.client.get("/api/v2/georeferences/")
         self.assertEqual(resp.status_code, 200)
@@ -520,29 +553,36 @@ class TestGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
         features = resp.json()["features"]
         by_id = {f["id"]: f for f in features}
         self.assertEqual(by_id[self.georef1.pk]["properties"]["validation_count"], 1)
-        self.assertEqual(by_id[self.georef2_new.pk]["properties"]["validation_count"], 0)
+        self.assertEqual(
+            by_id[self.georef2_new.pk]["properties"]["validation_count"], 0
+        )
 
     def test_feature_properties(self):
         resp = self.client.get("/api/v2/georeferences/")
         feature = resp.json()["features"][0]
         self.assertIn("id", feature)
         props = feature["properties"]
-        for key in ["image_id", "image_title", "direction",
-                     "confidence", "georeferenced_by", "georeferenced_at",
-                     "validation_count"]:
+        for key in [
+            "image_id",
+            "image_title",
+            "direction",
+            "confidence",
+            "georeferenced_by",
+            "georeferenced_at",
+            "validation_count",
+        ]:
             self.assertIn(key, props)
 
     def test_filter_by_image(self):
-        resp = self.client.get(
-            f"/api/v2/georeferences/?image={self.img1.pk}"
-        )
+        resp = self.client.get(f"/api/v2/georeferences/?image={self.img1.pk}")
         self.assertEqual(resp.json()["count"], 1)
 
     def test_filter_by_confidence(self):
         resp = self.client.get("/api/v2/georeferences/?confidence=high")
         self.assertEqual(resp.json()["count"], 1)
         self.assertEqual(
-            resp.json()["features"][0]["id"], self.georef1.pk,
+            resp.json()["features"][0]["id"],
+            self.georef1.pk,
         )
 
     def test_filter_by_georeferenced_by(self):
@@ -563,15 +603,11 @@ class TestGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
 
     def test_bbox_filter_excludes(self):
         # Box far from all test points
-        resp = self.client.get(
-            "/api/v2/georeferences/?in_bbox=-78.0,38.0,-77.9,38.1"
-        )
+        resp = self.client.get("/api/v2/georeferences/?in_bbox=-78.0,38.0,-77.9,38.1")
         self.assertEqual(resp.json()["count"], 0)
 
     def test_ordering_by_validation_count(self):
-        resp = self.client.get(
-            "/api/v2/georeferences/?ordering=-validation_count"
-        )
+        resp = self.client.get("/api/v2/georeferences/?ordering=-validation_count")
         features = resp.json()["features"]
         counts = [f["properties"]["validation_count"] for f in features]
         self.assertEqual(counts, sorted(counts, reverse=True))
@@ -590,7 +626,6 @@ class TestGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestFromAboveGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
-
     def test_list_geojson_shape(self):
         resp = self.client.get("/api/v2/from-above-georeferences/")
         self.assertEqual(resp.status_code, 200)
@@ -607,9 +642,7 @@ class TestFromAboveGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(props["validation_count"], 0)
 
     def test_filter_by_confidence(self):
-        resp = self.client.get(
-            "/api/v2/from-above-georeferences/?confidence=high"
-        )
+        resp = self.client.get("/api/v2/from-above-georeferences/?confidence=high")
         self.assertEqual(resp.json()["count"], 1)
 
     def test_ordering(self):
@@ -625,14 +658,18 @@ class TestFromAboveGeoreferencesEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestStatsEndpoint(ApiFixturesMixin, TestCase):
-
     def test_status_and_shape(self):
         resp = self.client.get("/api/v2/stats/")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        for key in ["total_sources", "total_collections", "total_images",
-                     "georeferenced_images", "total_georeferences",
-                     "confidence_breakdown"]:
+        for key in [
+            "total_sources",
+            "total_collections",
+            "total_images",
+            "georeferenced_images",
+            "total_georeferences",
+            "confidence_breakdown",
+        ]:
             self.assertIn(key, data)
 
     def test_source_and_collection_counts(self):
@@ -656,7 +693,6 @@ class TestStatsEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestActivityEndpoint(ApiFixturesMixin, TestCase):
-
     def test_status_and_shape(self):
         resp = self.client.get("/api/v2/activity/")
         self.assertEqual(resp.status_code, 200)
@@ -692,9 +728,7 @@ class TestActivityEndpoint(ApiFixturesMixin, TestCase):
         self.assertLessEqual(len(resp.json()), 1)
 
     def test_before_param_old_date(self):
-        resp = self.client.get(
-            "/api/v2/activity/?before=2000-01-01T00:00:00Z"
-        )
+        resp = self.client.get("/api/v2/activity/?before=2000-01-01T00:00:00Z")
         self.assertEqual(resp.json(), [])
 
     def test_before_param_invalid(self):
@@ -709,7 +743,6 @@ class TestActivityEndpoint(ApiFixturesMixin, TestCase):
 
 
 class TestSearchEndpoints(ApiFixturesMixin, TestCase):
-
     # -- Semantic search --
 
     @patch("api.views.CLIP_AVAILABLE", False)

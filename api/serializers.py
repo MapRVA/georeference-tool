@@ -111,9 +111,7 @@ class CollectionSerializer(serializers.ModelSerializer):
     def get_images_url(self, obj):
         request = self.context.get("request")
         if request:
-            return request.build_absolute_uri(
-                f"/api/v2/images/?collection={obj.id}"
-            )
+            return request.build_absolute_uri(f"/api/v2/images/?collection={obj.id}")
         return None
 
 
@@ -303,16 +301,16 @@ class GeoreferenceGeoSerializer(GeoFeatureModelSerializer):
 
     image_id = serializers.IntegerField(source="image.id", read_only=True)
     image_title = serializers.CharField(source="image.title", read_only=True)
-    image_thumbnail = serializers.URLField(
-        source="image.thumbnail", read_only=True
-    )
+    image_thumbnail = serializers.URLField(source="image.thumbnail", read_only=True)
     georeferenced_by = serializers.CharField(
         source="georeferenced_by.get_display_name",
         default="Anonymous",
         read_only=True,
     )
     validation_count = serializers.IntegerField(
-        source="_validation_count", default=0, read_only=True,
+        source="_validation_count",
+        default=0,
+        read_only=True,
     )
 
     class Meta:
@@ -336,16 +334,16 @@ class FromAboveGeoreferenceGeoSerializer(GeoFeatureModelSerializer):
 
     image_id = serializers.IntegerField(source="image.id", read_only=True)
     image_title = serializers.CharField(source="image.title", read_only=True)
-    image_thumbnail = serializers.URLField(
-        source="image.thumbnail", read_only=True
-    )
+    image_thumbnail = serializers.URLField(source="image.thumbnail", read_only=True)
     georeferenced_by = serializers.CharField(
         source="georeferenced_by.get_display_name",
         default="Anonymous",
         read_only=True,
     )
     validation_count = serializers.IntegerField(
-        source="_validation_count", default=0, read_only=True,
+        source="_validation_count",
+        default=0,
+        read_only=True,
     )
 
     class Meta:

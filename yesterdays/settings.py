@@ -454,9 +454,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ]
-    + (
-        ["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []
-    ),
+    + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
 }
 
 # drf-spectacular (OpenAPI schema generation)
