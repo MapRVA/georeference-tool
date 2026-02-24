@@ -84,7 +84,7 @@ You can also just open these URLs in your browser — they work the same way.
 | [`/api/v2/from-above-georeferences/`](georeferences.md#from-above-georeferences) | Polygon coverage areas as GeoJSON |
 | [`/api/v2/search/semantic/`](search.md#semantic-search) | Search images by meaning (CLIP) |
 | [`/api/v2/search/text/`](search.md#text-search) | Search images by text matching |
-| [`/api/v2/stats/`](activity.md#site-statistics) | Site-wide statistics |
+| [`/api/v2/stats/`](statistics.md#site-statistics) | Site-wide statistics |
 | [`/api/v2/activity/`](activity.md#activity-feed) | Recent activity feed |
 
 ## Response format
