@@ -23,6 +23,33 @@ const dangerColor =
     .getPropertyValue("--bs-danger")
     .trim() || "#d52e1c";
 
+/**
+ * Project a point along a bearing for a given distance.
+ * Returns [lng, lat] for the destination point.
+ */
+function destinationPoint(lngLat, bearingDeg, distanceMeters) {
+  const R = 6371000; // Earth radius in meters
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const lat1 = toRad(lngLat[1]);
+  const lng1 = toRad(lngLat[0]);
+  const bearing = toRad(bearingDeg);
+  const angularDist = distanceMeters / R;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDist) +
+      Math.cos(lat1) * Math.sin(angularDist) * Math.cos(bearing),
+  );
+  const lng2 =
+    lng1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angularDist) * Math.cos(lat1),
+      Math.cos(angularDist) - Math.sin(lat1) * Math.sin(lat2),
+    );
+
+  return [toDeg(lng2), toDeg(lat2)];
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   // Check if configuration is available
   if (!window.georeferenceConfig) {
@@ -428,6 +455,30 @@ document.addEventListener("DOMContentLoaded", function () {
         console.warn("Could not load context images:", error);
       }
 
+      // Add bearing line source and layer (rendered below pin but above context images)
+      map.addSource("bearing-line", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
+      map.addLayer({
+        id: "bearing-line",
+        type: "line",
+        source: "bearing-line",
+        paint: {
+          "line-color": dangerColor,
+          "line-width": 2,
+          "line-dasharray": [3, 3],
+          "line-opacity": 0.6,
+        },
+        layout: {
+          visibility: "none",
+        },
+      });
+
       // Add the user's pin source and layers LAST so they render above all else
       map.addSource("pin", {
         type: "geojson",
@@ -514,6 +565,7 @@ document.addEventListener("DOMContentLoaded", function () {
           "subject-hints-label",
           "location-hint-pulse",
           "location-hint-label",
+          "bearing-line",
           "pin-circle",
           "pin-symbol",
           "context-image-circles",
@@ -536,6 +588,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var pinPlaced = false;
     var currentDirection = null;
     var isJoystickDragging = false;
+    var bearingLineEnabled = false;
     var contextDisplayMode = "ghost"; // Default to ghost mode
     var isHoveringContextImage = false; // Track when hovering over context images
     var activePopup = null; // Track active popup
@@ -565,6 +618,57 @@ document.addEventListener("DOMContentLoaded", function () {
       latitudeInput.value = lat.toFixed(6);
       longitudeInput.value = lng.toFixed(6);
       submitButton.disabled = false;
+    }
+
+    function updateBearingLine() {
+      if (!map.getSource("bearing-line")) return;
+
+      var lat = parseFloat(latitudeInput.value);
+      var lng = parseFloat(longitudeInput.value);
+
+      if (
+        bearingLineEnabled &&
+        pinPlaced &&
+        currentDirection !== null &&
+        !isNaN(lat) &&
+        !isNaN(lng)
+      ) {
+        // Compute distance from map center to corner so the line always extends off-screen
+        var bounds = map.getBounds();
+        var center = map.getCenter();
+        var cornerDist = center.distanceTo(bounds.getNorthEast());
+        var totalDist = cornerDist * 2;
+
+        // Interpolate points along the great circle so the line curves correctly
+        // when zoomed out on a Mercator projection
+        var numSegments = Math.max(2, Math.ceil(64 * (totalDist / 20000000)));
+        var stepDist = totalDist / numSegments;
+        var origin = [lng, lat];
+        var coordinates = [origin];
+        for (var i = 1; i <= numSegments; i++) {
+          coordinates.push(
+            destinationPoint(origin, currentDirection, stepDist * i),
+          );
+        }
+
+        map.getSource("bearing-line").setData({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "LineString",
+                coordinates: coordinates,
+              },
+            },
+          ],
+        });
+      } else {
+        map.getSource("bearing-line").setData({
+          type: "FeatureCollection",
+          features: [],
+        });
+      }
     }
 
     function updateDirection(direction) {
@@ -606,6 +710,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Update confidence validation based on new direction
       updateConfidenceValidation();
+
+      // Update bearing centerline
+      updateBearingLine();
     }
 
     function getJoystickMaxRadius() {
@@ -843,6 +950,12 @@ document.addEventListener("DOMContentLoaded", function () {
           features: [],
         });
       }
+      if (map.getSource("bearing-line")) {
+        map.getSource("bearing-line").setData({
+          type: "FeatureCollection",
+          features: [],
+        });
+      }
 
       // Reset state
       pinPlaced = false;
@@ -1041,6 +1154,14 @@ document.addEventListener("DOMContentLoaded", function () {
       // Initialize MapSwap link and update on map move
       updateMapSwapLink();
       map.on("moveend", updateMapSwapLink);
+
+      // Sync bearing line layer visibility from checkbox (layers exist now)
+      if (bearingLineEnabled && map.getLayer("bearing-line")) {
+        map.setLayoutProperty("bearing-line", "visibility", "visible");
+      }
+
+      // Recalculate bearing line on zoom/pan so it always extends off-screen
+      map.on("moveend", updateBearingLine);
     });
 
     map.on("click", function (e) {
@@ -1464,6 +1585,26 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 1000);
           }
         });
+      });
+    }
+
+    // Handle bearing line toggle (checkbox is source of truth; browser restores state on reload)
+    const bearingLineToggle = document.getElementById("bearing-line-toggle");
+    if (bearingLineToggle) {
+      // Read initial state from checkbox (browser may restore checked state on reload);
+      // layer visibility is synced later in the map "load" handler once layers exist
+      bearingLineEnabled = bearingLineToggle.checked;
+
+      bearingLineToggle.addEventListener("change", function () {
+        bearingLineEnabled = this.checked;
+        if (map.getLayer("bearing-line")) {
+          map.setLayoutProperty(
+            "bearing-line",
+            "visibility",
+            bearingLineEnabled ? "visible" : "none",
+          );
+        }
+        updateBearingLine();
       });
     }
 
