@@ -20,7 +20,8 @@ document.addEventListener("DOMContentLoaded", function () {
  * @param {Object} initialFilters - Initial filter states {group, comment, milestone}
  */
 window.activityFilter = function (initialFilters) {
-  const allTypes = ["group", "comment", "milestone", "sitewide"];
+  const allTypes = ["group", "comment", "milestone", "sitewide", "validation"];
+  const defaultTypes = ["group", "comment", "milestone", "sitewide"];
 
   return {
     filters: {
@@ -28,6 +29,7 @@ window.activityFilter = function (initialFilters) {
       comment: initialFilters?.comment ?? true,
       milestone: initialFilters?.milestone ?? true,
       sitewide: initialFilters?.sitewide ?? true,
+      validation: initialFilters?.validation ?? false,
     },
 
     applyFilters() {
@@ -39,7 +41,11 @@ window.activityFilter = function (initialFilters) {
       const url = new URL(window.location.href);
       url.searchParams.delete("before");
 
-      if (selected.length === 0 || selected.length === allTypes.length) {
+      // Omit types param only when selection matches the server default
+      const isDefault =
+        selected.length === defaultTypes.length &&
+        defaultTypes.every((t) => selected.includes(t));
+      if (selected.length === 0 || isDefault) {
         url.searchParams.delete("types");
       } else {
         url.searchParams.set("types", selected.join(","));

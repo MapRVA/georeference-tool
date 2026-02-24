@@ -50,6 +50,13 @@
                             <i class="fas fa-rocket me-1"></i>Site Milestones
                         </label>
                     </li>
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.validation" @change="applyFilters()">
+                            <i class="fas fa-check-circle me-1"></i>Validations
+                        </label>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -68,6 +75,8 @@
                                 {% include 'activity/partials/milestone_card.html' with milestone=event %}
                             {% elif event_type == 'sitewide' %}
                                 {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
+                            {% elif event_type == 'validation' %}
+                                {% include 'activity/partials/validation_card.html' with validation=event %}
                             {% endif %}
                         </div>
                     {% endfor %}

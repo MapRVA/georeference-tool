@@ -6,7 +6,11 @@ from django.http import Http404
 from django.shortcuts import render
 from django.utils import timezone
 
-from images.models import Comment
+from images.models import (
+    AerialGeoreferenceValidation,
+    Comment,
+    GeoreferenceValidation,
+)
 
 from .models import (
     GeoreferenceGroup,
@@ -17,7 +21,8 @@ from .models import (
 
 ITEMS_PER_PAGE = 20
 FETCH_LIMIT = 50  # Fetch this many of each type to ensure we have enough
-ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide"}
+ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "validation"}
+DEFAULT_EVENT_TYPES = {"group", "comment", "milestone", "sitewide"}
 
 
 def activity_feed(request):
@@ -35,7 +40,7 @@ def activity_feed(request):
             none_selected = True
             selected_types = set()
     else:
-        selected_types = ALL_EVENT_TYPES
+        selected_types = DEFAULT_EVENT_TYPES
 
     # Parse 'before' timestamp if provided
     before = None
@@ -97,12 +102,14 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     comment_filter = {}
     milestone_filter = {}
     sitewide_filter = {}
+    validation_filter = {}
 
     if before:
         group_filter["ended_at__lt"] = before
         comment_filter["created_at__lt"] = before
         milestone_filter["reached_at__lt"] = before
         sitewide_filter["reached_at__lt"] = before
+        validation_filter["validated_at__lt"] = before
 
     events = []
 
@@ -145,6 +152,21 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
             **sitewide_filter
         ).order_by("-reached_at")[:FETCH_LIMIT]
         events.extend(("sitewide", m, m.reached_at) for m in sitewide_milestones)
+
+    if "validation" in event_types:
+        georef_validations = (
+            GeoreferenceValidation.objects.filter(**validation_filter)
+            .select_related("validated_by", "georeference__image")
+            .order_by("-validated_at")[:FETCH_LIMIT]
+        )
+        events.extend(("validation", v, v.validated_at) for v in georef_validations)
+
+        aerial_validations = (
+            AerialGeoreferenceValidation.objects.filter(**validation_filter)
+            .select_related("validated_by", "georeference__image")
+            .order_by("-validated_at")[:FETCH_LIMIT]
+        )
+        events.extend(("validation", v, v.validated_at) for v in aerial_validations)
 
     # Sort by timestamp descending and take the requested limit
     events.sort(key=lambda e: e[2], reverse=True)

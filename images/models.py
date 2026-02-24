@@ -819,6 +819,10 @@ class AerialGeoreferenceValidation(models.Model):
     )
     validated_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def image(self):
+        return self.georeference.image
+
     def __str__(self):
         return f"{self.validation} validation by {self.validated_by.username}"
 
@@ -859,6 +863,10 @@ class GeoreferenceValidation(models.Model):
         help_text="Cached rendered HTML of notes",
     )
     validated_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def image(self):
+        return self.georeference.image
 
     def __str__(self):
         return f"{self.validation} validation by {self.validated_by.username}"

@@ -8,6 +8,8 @@
             {% include 'activity/partials/milestone_card.html' with milestone=event %}
         {% elif event_type == 'sitewide' %}
             {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
+        {% elif event_type == 'validation' %}
+            {% include 'activity/partials/validation_card.html' with validation=event %}
         {% endif %}
     </div>
 {% endfor %}
