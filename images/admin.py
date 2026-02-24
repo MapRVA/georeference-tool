@@ -218,7 +218,7 @@ class CollectionAdmin(admin.ModelAdmin):
                 {
                     "id": image.id,
                     "title": image.title,
-                    "permalink": image.permalink,
+                    "permalink": image.display_permalink,
                     "description": image.description,
                     "date_display": image.date_display,
                     "difficulty": image.difficulty,
@@ -348,7 +348,7 @@ class PreCollectionAdmin(admin.ModelAdmin):
                 {
                     "id": image.id,
                     "title": image.title,
-                    "permalink": image.permalink,
+                    "permalink": image.display_permalink,
                     "description": image.description,
                     "date_display": image.date_display,
                     "keep": image.keep,
@@ -612,6 +612,13 @@ class ImageAdmin(admin.ModelAdmin):
             },
         ),
         ("Georeferencing", {"fields": ("difficulty", "scale", "will_not_georef")}),
+        (
+            "Display Adjustments",
+            {
+                "fields": ("mirror", "rotation"),
+                "description": "Mirror is applied first, then rotation. Saving will queue a background task to re-process the image.",
+            },
+        ),
         (
             "System Information",
             {

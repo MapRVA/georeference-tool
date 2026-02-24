@@ -647,8 +647,8 @@ def _format_search_result(request, image, distance):
     result = {
         "id": image.id,
         "title": image.title,
-        "permalink": image.permalink,
-        "thumbnail": image.thumbnail or image.permalink,
+        "permalink": image.display_permalink,
+        "thumbnail": image.thumbnail or image.display_permalink,
         "original_date": image.original_date,
         "date_display": image.date_display,
         "similarity": round(similarity, 4),

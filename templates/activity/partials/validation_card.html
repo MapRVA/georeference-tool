@@ -16,7 +16,7 @@
             <div class="flex-grow-1">
                 {% if validation.image %}
                     <a href="{% url 'images:image_detail' validation.image.id %}" class="float-sm-end ms-sm-3 mb-2 mb-sm-0 d-none d-sm-block">
-                        <img src="{% if validation.image.thumbnail %}{{ validation.image.thumbnail }}{% else %}{{ validation.image.permalink }}{% endif %}"
+                        <img src="{% if validation.image.thumbnail %}{{ validation.image.thumbnail }}{% else %}{{ validation.image.display_permalink }}{% endif %}"
                              alt="{{ validation.image.title|default:'Image' }}"
                              class="rounded activity-thumbnail-lg"
                              loading="lazy">
@@ -46,7 +46,7 @@
                     {% if validation.image %}
                         <div class="ms-3 flex-shrink-0 d-sm-none">
                             <a href="{% url 'images:image_detail' validation.image.id %}" class="d-block">
-                                <img src="{% if validation.image.thumbnail %}{{ validation.image.thumbnail }}{% else %}{{ validation.image.permalink }}{% endif %}"
+                                <img src="{% if validation.image.thumbnail %}{{ validation.image.thumbnail }}{% else %}{{ validation.image.display_permalink }}{% endif %}"
                                      alt="{{ validation.image.title|default:'Image' }}"
                                      class="rounded activity-thumbnail"
                                      loading="lazy">

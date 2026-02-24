@@ -272,9 +272,9 @@ CELERY_BROKER_POOL_LIMIT = 10  # Connection pool size
 
 # Queue routing configuration
 CELERY_TASK_ROUTES = {
-    # Thumbnail generation goes to background queue
-    "images.tasks.generate_thumbnail_for_image": {"queue": "background"},
-    "images.tasks.generate_thumbnails_batch": {"queue": "background"},
+    # Image processing (thumbnails + transforms) goes to background queue
+    "images.tasks.process_image": {"queue": "background"},
+    "images.tasks.process_images_batch": {"queue": "background"},
     # Metadata refresh tasks go to background queue
     "subjects.tasks.refresh_next_wikidata_item": {"queue": "background"},
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},

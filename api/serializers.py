@@ -382,6 +382,9 @@ class ImageSerializer(serializers.ModelSerializer):
     license = LicenseSerializer(read_only=True)
     subjects = SubjectSummarySerializer(many=True, read_only=True)
     from_above = serializers.BooleanField(source="aerial", read_only=True)
+    permalink = serializers.CharField(source="display_permalink", read_only=True)
+    rotation = serializers.SerializerMethodField()
+    mirror = serializers.SerializerMethodField()
     georeference_status = serializers.SerializerMethodField()
     date_display = serializers.CharField(read_only=True)
     georeferences = GeoreferenceInlineSerializer(many=True, read_only=True)
@@ -409,12 +412,24 @@ class ImageSerializer(serializers.ModelSerializer):
             "subjects",
             "from_above",
             "scale",
+            "mirror",
+            "rotation",
             "georeference_status",
             "georeferences",
             "from_above_georeferences",
             "comments",
             "detail_url",
         ]
+
+    def get_rotation(self, obj):
+        if obj.has_transform and not obj.transformed_permalink:
+            return 0
+        return obj.rotation
+
+    def get_mirror(self, obj):
+        if obj.has_transform and not obj.transformed_permalink:
+            return "none"
+        return obj.mirror
 
     def get_georeference_status(self, obj):
         return _get_georeference_status(obj)

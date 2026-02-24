@@ -97,51 +97,19 @@ def refresh_view_on_source_save(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Image)
-def queue_thumbnail_generation(sender, instance, created, **kwargs):
+def queue_image_processing(sender, instance, **kwargs):
     """
-    Queue thumbnail generation when a new Image is created.
+    Queue image processing (thumbnail generation and/or transforms) on every save.
 
-    This signal handler triggers when an Image instance is saved.
-    It only queues the thumbnail generation task for newly created images
-    that don't already have a thumbnail.
-
-    Args:
-        sender: The model class that sent the signal (Image)
-        instance: The actual instance of the model that was saved
-        created: Boolean indicating if this is a new instance
-        **kwargs: Additional keyword arguments from the signal
+    The task itself checks current state and only does work that's needed,
+    so it's safe to queue on every save.
     """
-    # Debug logging
-    logger.info(f"Signal triggered for Image {instance.id}, created={created}")
+    from .tasks import process_image
 
-    # Only process newly created images
-    if not created:
-        logger.info(f"Image {instance.id} is not new, skipping")
-        return
+    def _queue():
+        try:
+            process_image.apply_async(args=[instance.id])
+        except Exception as e:
+            logger.error(f"Failed to queue image processing for Image {instance.id}: {e}")
 
-    # Skip if thumbnail already exists
-    if instance.thumbnail:
-        logger.info(f"Image {instance.id} already has thumbnail, skipping generation")
-        return
-
-    logger.info(f"Processing new Image {instance.id} for thumbnail generation")
-
-    # Import here to avoid circular imports
-    from .tasks import generate_thumbnail_for_image
-
-    # Queue the thumbnail generation task
-    try:
-        # Use a small delay to ensure the database transaction is committed
-        # before the Celery worker tries to fetch the image
-        task = generate_thumbnail_for_image.apply_async(
-            args=[instance.id],
-            countdown=5,  # Wait 5 seconds before starting
-            queue="background",  # Use background queue for thumbnail generation
-        )
-        logger.info(
-            f"Queued thumbnail generation for Image {instance.id}, task ID: {task.id}"
-        )
-    except Exception as e:
-        logger.error(
-            f"Failed to queue thumbnail generation for Image {instance.id}: {e}"
-        )
+    transaction.on_commit(_queue)

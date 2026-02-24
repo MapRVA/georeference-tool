@@ -1,7 +1,7 @@
 <div class="image-container position-relative">
     <div class="pswp-gallery" id="pswp-gallery">
-        <a href="{{ image.permalink }}" title="Click to view full-size image">
-            <img id="main-image" src="{{ image.permalink }}"
+        <a href="{{ image.display_permalink }}" title="Click to view full-size image">
+            <img id="main-image" src="{{ image.display_permalink }}"
                  {% if image.thumbnail %}data-thumbnail="{{ image.thumbnail }}"{% endif %}
                  alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                  class="img-fluid w-100"

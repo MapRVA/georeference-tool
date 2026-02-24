@@ -55,7 +55,7 @@ def geojson_endpoint(request):
             mv.image_id,
             ST_X(mv.point) as lon,
             ST_Y(mv.point) as lat,
-            i.permalink,
+            COALESCE(i.transformed_permalink, i.permalink) as permalink,
             mv.original_date,
             mv.edtf_date,
             mv.start_decdate,
@@ -144,7 +144,7 @@ def _build_aerial_georeference_feature(image, aerial_georeference, request):
     # Build properties
     properties = {
         "id": image.id,
-        "img_url": image.permalink,
+        "img_url": image.display_permalink,
         "img_entry": img_entry,
         "original_date": str(image.original_date) if image.original_date else None,
         "edtf_date": str(image.edtf_date) if image.edtf_date else None,

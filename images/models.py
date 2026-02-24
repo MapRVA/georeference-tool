@@ -276,6 +276,19 @@ class Image(models.Model):
         ("hard", "Hard"),
     ]
 
+    ROTATION_CHOICES = [
+        (0, "None"),
+        (90, "90°"),
+        (180, "180°"),
+        (270, "270°"),
+    ]
+
+    MIRROR_CHOICES = [
+        ("none", "None"),
+        ("h", "Horizontal"),
+        ("v", "Vertical"),
+    ]
+
     collection = models.ForeignKey(
         Collection, on_delete=models.CASCADE, related_name="images"
     )
@@ -288,6 +301,11 @@ class Image(models.Model):
         null=True,
         blank=True,
         help_text="Direct link to the thumbnail (CDN or processed URL)",
+    )
+    transformed_permalink = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Transformed version of the image (rotated/mirrored), generated automatically",
     )
     original_url = models.URLField(
         null=True, help_text="Original URL from the source website"
@@ -354,6 +372,19 @@ class Image(models.Model):
                     }
                 )
 
+    @property
+    def has_transform(self):
+        """Whether this image has any rotation or mirror transform applied."""
+        return self.rotation != 0 or self.mirror != "none"
+
+    @property
+    def display_permalink(self):
+        """The URL to use when displaying this image.
+
+        Returns transformed_permalink if available, otherwise permalink.
+        """
+        return self.transformed_permalink or self.permalink
+
     def save(self, *args, **kwargs):
         """Validate EDTF date format and pre-calculate decimal dates before saving"""
         if self.edtf_date:
@@ -370,6 +401,21 @@ class Image(models.Model):
             self.fuzzy_start_decdate = None
             self.end_decdate = None
             self.fuzzy_end_decdate = None
+
+        # When transforms change, clear stale assets immediately so the user
+        # sees the original image while the background task regenerates them.
+        update_fields = kwargs.get("update_fields")
+        if self.pk and (
+            update_fields is None or {"rotation", "mirror"} & set(update_fields)
+        ):
+            try:
+                old = Image.objects.only("rotation", "mirror").get(pk=self.pk)
+                if old.rotation != self.rotation or old.mirror != self.mirror:
+                    self.transformed_permalink = None
+                    self.thumbnail = None
+            except Image.DoesNotExist:
+                pass
+
         super().save(*args, **kwargs)
 
     # Is this image an aerial?
@@ -385,6 +431,17 @@ class Image(models.Model):
         help_text="Scale: 1 (close-up/indoor), 2 (single building), 3 (multiple buildings), 4 (city block), 5 (wide landscape).",
     )
     will_not_georef = models.BooleanField(default=False)
+    rotation = models.IntegerField(
+        choices=ROTATION_CHOICES,
+        default=0,
+        help_text="Clockwise rotation to apply when displaying this image",
+    )
+    mirror = models.CharField(
+        max_length=4,
+        choices=MIRROR_CHOICES,
+        default="none",
+        help_text="Mirror transform to apply when displaying this image",
+    )
     skip_count = models.PositiveIntegerField(default=0)
     source_point = gis_models.PointField(
         null=True,

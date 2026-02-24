@@ -85,7 +85,7 @@
 
             <!-- Image Thumbnail -->
             <a href="{% url 'images:image_detail' image.id %}" class="image-container d-block" style="height: 200px; overflow: hidden; text-decoration: none; color: inherit;">
-                <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.permalink }}{% endif %}"
+                <img src="{% if image.thumbnail %}{{ image.thumbnail }}{% else %}{{ image.display_permalink }}{% endif %}"
                      alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
                      class="img-fluid w-100 h-100"
                      style="object-fit: cover;"

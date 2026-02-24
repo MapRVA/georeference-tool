@@ -34,7 +34,7 @@
                                         {% if album.images.exists %}
                                             {% with first_image=album.album_images.first %}
                                                 {% if first_image and first_image.image.permalink %}
-                                                    <img src="{% if first_image.image.thumbnail %}{{ first_image.image.thumbnail }}{% else %}{{ first_image.image.permalink }}{% endif %}"
+                                                    <img src="{% if first_image.image.thumbnail %}{{ first_image.image.thumbnail }}{% else %}{{ first_image.image.display_permalink }}{% endif %}"
                                                          alt="{{ album.title }}"
                                                          class="card-img-top"
                                                          style="height: 200px; object-fit: cover;">

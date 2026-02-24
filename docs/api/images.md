@@ -252,6 +252,8 @@ Returns complete details for a single image, including its georeferences, subjec
     ],
     "from_above": false,
     "scale": null,
+    "mirror": "none",
+    "rotation": 0,
     "georeference_status": "georeferenced",
     "georeferences": [
         {
@@ -285,13 +287,15 @@ The detail response includes all the [list fields](#list-fields), plus:
 
 | Field                      | Type           | Description |
 |----------------------------|----------------|-------------|
-| `permalink`                | string         | Link to this image on the Yesterdays website |
+| `permalink`                | string         | Direct URL to the image file. If a rotation or mirror transform has been applied, this automatically points to the corrected version. |
 | `original_url`             | string         | Link to the image in the original archive |
 | `description`              | string         | Full description of the image |
 | `license`                  | object or null | License info (display_name, permalink), or `null` if no license is available |
 | `edtf_date`                | string         | Date in [EDTF](https://www.loc.gov/standards/datetime/) format, when available |
 | `subjects`                 | array          | [Subjects](subjects.md) tagged in this image, with Wikidata metadata |
 | `scale`                    | string         | Scale notation for maps and from-above imagery |
+| `mirror`                   | string         | Mirror transform applied: `"none"`, `"h"` (horizontal), or `"v"` (vertical) |
+| `rotation`                 | integer        | Clockwise rotation applied to this image: `0`, `90`, `180`, or `270` (degrees) |
 | `georeferences`            | array          | Point georeferences (see below) |
 | `from_above_georeferences` | array          | From-above polygon georeferences (see below) |
 | `comments`                 | array          | Community comments on this image |

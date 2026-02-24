@@ -13,7 +13,7 @@
 
 
 {% block extra_css %}
-<link rel="preload" as="image" href="{{ image.permalink }}">
+<link rel="preload" as="image" href="{{ image.display_permalink }}">
 {% endblock %}
 
 
@@ -259,6 +259,24 @@
                                     {% else %}
                                         {{ image.license.display_name }}
                                     {% endif %}
+                                </dd>
+                            {% endif %}
+
+                            {% if image.mirror != "none" %}
+                                <dt class="col-sm-5 mt-3">Mirror:</dt>
+                                <dd class="col-sm-7 mt-3">
+                                    <i class="fas fa-arrows-alt-{% if image.mirror == "h" %}h{% else %}v{% endif %} me-1"></i>{{ image.get_mirror_display }}
+                                </dd>
+                            {% endif %}
+                            {% if image.rotation %}
+                                <dt class="col-sm-5 {% if image.mirror == "none" %}mt-3{% endif %}">Rotation:</dt>
+                                <dd class="col-sm-7 {% if image.mirror == "none" %}mt-3{% endif %}">
+                                    <i class="fas fa-redo me-1"></i>{{ image.get_rotation_display }}
+                                </dd>
+                            {% endif %}
+                            {% if image.has_transform and not image.transformed_permalink %}
+                                <dd class="col-sm-12 mt-1">
+                                    <small class="text-warning"><i class="fas fa-hourglass me-1"></i>Transformation not yet processed. Image shown is original.</small>
                                 </dd>
                             {% endif %}
 
@@ -683,7 +701,7 @@
                             {% for duplicate in image.duplicates.all %}
                             <div class="col-lg-3 col-md-4 col-sm-6">
                                 <div class="card h-100 shadow-sm">
-                                    <img src="{{ duplicate.permalink }}"
+                                    <img src="{{ duplicate.display_permalink }}"
                                          alt="{% if duplicate.title %}{{ duplicate.title }}{% else %}Duplicate Image #{{ duplicate.id }}{% endif %}"
                                          class="card-img-top"
                                          style="height: 200px; object-fit: cover; cursor: pointer;"

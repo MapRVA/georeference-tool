@@ -633,7 +633,7 @@ def label_scales(request):
             {
                 "id": image.id,
                 "title": image.title,
-                "permalink": image.permalink,
+                "permalink": image.display_permalink,
                 "description": image.description,
                 "date_display": image.date_display,
                 "scale": image.scale,

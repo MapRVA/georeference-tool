@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 from urllib.parse import urlparse
 
@@ -8,96 +9,173 @@ from PIL import Image as PILImage
 from .models import Image
 from .utils import R2Uploader, R2UploaderError
 
+logger = logging.getLogger(__name__)
+
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
-def generate_thumbnail_for_image(
-    self, image_id: int, quality: int = 85, overwrite: bool = False
-):
+def process_image(self, image_id: int, quality: int = 85):
     """
-    Generate a thumbnail for a single image and upload to R2.
+    Ensure an image has the correct transformed/plain assets on R2.
 
-    Args:
-        image_id: The database ID of the Image to process
-        quality: WEBP quality (1-100)
-        overwrite: Whether to overwrite existing thumbnail
+    This task is queued on every Image save. It checks the current state and
+    does only the work needed:
+    - If the image has a transform: apply it, upload full-size + thumbnail
+    - If no transform but no thumbnail: generate a plain thumbnail
+    - If everything is already correct: do nothing
 
-    Returns:
-        dict with status and thumbnail_url or error message
+    A stale-write guard re-checks the DB before writing, so concurrent tasks
+    from rapid saves won't clobber each other.
     """
     try:
         image = Image.objects.get(pk=image_id)
     except Image.DoesNotExist:
-        return {"status": "error", "message": f"Image {image_id} not found"}
+        return
 
-    # Skip if thumbnail already exists (unless overwrite)
-    if image.thumbnail and not overwrite:
-        return {
-            "status": "skipped",
-            "message": "Thumbnail already exists",
-            "thumbnail_url": image.thumbnail,
-        }
+    # Snapshot current state — used for stale-write guard later
+    task_rotation = image.rotation
+    task_mirror = image.mirror
 
-    # Extract thumbnail key from permalink
-    thumbnail_key = get_thumbnail_key_from_permalink(image.permalink)
-    if not thumbnail_key:
-        return {
-            "status": "error",
-            "message": f"Could not extract hash from permalink: {image.permalink}",
-        }
+    # Determine what work is needed
+    needs_transform = image.has_transform and not image.transformed_permalink
+    needs_thumbnail = not image.thumbnail
+    needs_transform_cleanup = (
+        not image.has_transform and image.transformed_permalink
+    )
+
+    if not needs_transform and not needs_thumbnail and not needs_transform_cleanup:
+        return
+
+    base_key = get_base_key_from_permalink(image.permalink)
+    if not base_key:
+        logger.error(
+            "Could not extract hash from permalink for image %d: %s",
+            image_id,
+            image.permalink,
+        )
+        return
 
     try:
-        # Initialize R2 uploader
         r2_uploader = R2Uploader()
 
-        # Download the source image
+        # Download the original image
         pil_image = download_image(image.permalink)
         if pil_image is None:
             raise Exception(f"Failed to download image from {image.permalink}")
 
-        # Generate thumbnail
-        thumbnail = create_thumbnail(pil_image)
+        if needs_transform or needs_transform_cleanup:
+            # Full reprocessing: either applying new transforms or cleaning up old ones
+            if image.has_transform:
+                transformed = transform_image(
+                    pil_image, image.rotation, image.mirror
+                )
 
-        # Convert to bytes
-        thumbnail_bytes = BytesIO()
-        thumbnail.save(thumbnail_bytes, "WEBP", quality=quality)
-        thumbnail_bytes.seek(0)
+                # Upload full-size transformed image
+                transformed_bytes = BytesIO()
+                transformed.save(transformed_bytes, "WEBP", quality=quality)
+                transformed_bytes.seek(0)
 
-        # Upload to R2
-        public_url = r2_uploader.upload_file_content(
-            thumbnail_bytes.read(),
-            thumbnail_key,
-            content_type="image/webp",
-            overwrite=overwrite,
-        )
+                transformed_key = f"{base_key}_transformed"
+                transformed_url = r2_uploader.upload_file_content(
+                    transformed_bytes.read(),
+                    transformed_key,
+                    content_type="image/webp",
+                    overwrite=True,
+                )
 
-        # Update the Image model
-        image.thumbnail = public_url
-        image.save(update_fields=["thumbnail"])
+                # Thumbnail from the transformed image
+                thumb = create_thumbnail(transformed)
+                thumb_bytes = BytesIO()
+                thumb.save(thumb_bytes, "WEBP", quality=quality)
+                thumb_bytes.seek(0)
 
-        return {"status": "success", "thumbnail_url": public_url}
+                thumb_key = f"{base_key}_transformed_thumb"
+                thumb_url = r2_uploader.upload_file_content(
+                    thumb_bytes.read(),
+                    thumb_key,
+                    content_type="image/webp",
+                    overwrite=True,
+                )
+
+                if _transform_changed(image_id, task_rotation, task_mirror):
+                    return
+
+                Image.objects.filter(pk=image_id).update(
+                    transformed_permalink=transformed_url,
+                    thumbnail=thumb_url,
+                )
+            else:
+                # Transforms removed — generate plain thumbnail, clear transformed_permalink
+                thumb = create_thumbnail(pil_image)
+                thumb_bytes = BytesIO()
+                thumb.save(thumb_bytes, "WEBP", quality=quality)
+                thumb_bytes.seek(0)
+
+                thumb_key = f"{base_key}_thumb"
+                thumb_url = r2_uploader.upload_file_content(
+                    thumb_bytes.read(),
+                    thumb_key,
+                    content_type="image/webp",
+                    overwrite=True,
+                )
+
+                if _transform_changed(image_id, task_rotation, task_mirror):
+                    return
+
+                Image.objects.filter(pk=image_id).update(
+                    transformed_permalink=None,
+                    thumbnail=thumb_url,
+                )
+        else:
+            # Just needs a plain thumbnail (no transform involved)
+            thumb = create_thumbnail(pil_image)
+            thumb_bytes = BytesIO()
+            thumb.save(thumb_bytes, "WEBP", quality=quality)
+            thumb_bytes.seek(0)
+
+            thumb_key = f"{base_key}_thumb"
+            thumb_url = r2_uploader.upload_file_content(
+                thumb_bytes.read(),
+                thumb_key,
+                content_type="image/webp",
+                overwrite=True,
+            )
+
+            if _transform_changed(image_id, task_rotation, task_mirror):
+                return
+
+            Image.objects.filter(pk=image_id).update(thumbnail=thumb_url)
 
     except R2UploaderError as e:
-        # Retry on R2 errors
         raise self.retry(exc=e)
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    except Exception:
+        logger.exception("Failed to process image %d", image_id)
+
+
+def _transform_changed(image_id, expected_rotation, expected_mirror):
+    """Check if the transform has changed since the task started."""
+    current = Image.objects.only("rotation", "mirror").get(pk=image_id)
+    if current.rotation != expected_rotation or current.mirror != expected_mirror:
+        logger.info(
+            "Transform changed for image %d while task was running, skipping write",
+            image_id,
+        )
+        return True
+    return False
 
 
 @shared_task(ignore_result=True)
-def generate_thumbnails_batch(
+def process_images_batch(
     collection_id: int | None = None,
     image_ids: list[int] | None = None,
     quality: int = 85,
-    overwrite: bool = False,
 ):
     """
-    Queue thumbnail generation for multiple images.
+    Queue image processing for multiple images.
 
     Args:
         collection_id: Optional collection to filter by
         image_ids: Optional specific image IDs to process
         quality: WEBP quality
-        overwrite: Whether to regenerate existing thumbnails
     """
     queryset = Image.objects.all()
 
@@ -105,27 +183,44 @@ def generate_thumbnails_batch(
         queryset = queryset.filter(collection_id=collection_id)
     if image_ids:
         queryset = queryset.filter(id__in=image_ids)
-    if not overwrite:
-        queryset = queryset.filter(thumbnail__isnull=True)
 
     count = 0
     for image_id in queryset.values_list("id", flat=True):
-        generate_thumbnail_for_image.delay(
-            image_id, quality=quality, overwrite=overwrite
-        )
+        process_image.delay(image_id, quality=quality)
         count += 1
 
     return {"queued": count}
 
 
-def get_thumbnail_key_from_permalink(permalink: str) -> str | None:
-    """Extract hash from permalink and generate thumbnail key."""
+def transform_image(
+    img: PILImage.Image, rotation: int, mirror: str
+) -> PILImage.Image:
+    """Apply mirror and rotation transforms to a PIL Image.
+
+    Order of operations: mirror first, then rotate (matching EXIF convention).
+    """
+    if mirror == "h":
+        img = img.transpose(PILImage.FLIP_LEFT_RIGHT)
+    elif mirror == "v":
+        img = img.transpose(PILImage.FLIP_TOP_BOTTOM)
+
+    if rotation == 90:
+        img = img.transpose(PILImage.ROTATE_270)  # PIL rotates counter-clockwise
+    elif rotation == 180:
+        img = img.transpose(PILImage.ROTATE_180)
+    elif rotation == 270:
+        img = img.transpose(PILImage.ROTATE_90)
+
+    return img
+
+
+def get_base_key_from_permalink(permalink: str) -> str | None:
+    """Extract the base hash key from a permalink URL."""
     try:
         parsed = urlparse(permalink)
         path_parts = parsed.path.strip("/").split("/")
         if path_parts:
-            hash_value = path_parts[-1]
-            return f"{hash_value}_thumb"
+            return path_parts[-1]
     except Exception:
         pass
     return None
@@ -150,6 +245,9 @@ def download_image(url: str, timeout: int = 30) -> PILImage.Image | None:
 def create_thumbnail(img: PILImage.Image, max_dimension: int = 500) -> PILImage.Image:
     """Create a thumbnail with max_dimension longest side, preserving aspect ratio."""
     width, height = img.size
+
+    if max(width, height) <= max_dimension:
+        return img.copy()
 
     if width > height:
         scale_factor = max_dimension / width

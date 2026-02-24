@@ -500,7 +500,7 @@
             id: {{ current_image.id }},
             isGeoreferenced: {{ current_image.georeferences.exists|yesno:"true,false" }},
             title: "{{ current_image.title|default:"null"|escapejs }}",
-            permalink: "{{ current_image.permalink }}",
+            permalink: "{{ current_image.display_permalink }}",
             originalUrl: "{{ current_image.original_url }}",
             description: "{{ current_image.description|default:"null"|escapejs }}",
             dateDisplay: "{{ current_image.date_display }}",
