@@ -812,10 +812,21 @@ class AerialGeoreferenceValidation(models.Model):
     )
     validation = models.CharField(max_length=10, choices=VALIDATION_CHOICES)
     notes = models.TextField(blank=True, help_text="Optional validation notes")
+    notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of notes",
+    )
     validated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.validation} validation by {self.validated_by.username}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.notes_html = render_markdown_safe(self.notes)
+        super().save(*args, **kwargs)
 
     class Meta:
         unique_together = ["georeference", "validated_by"]
@@ -842,10 +853,21 @@ class GeoreferenceValidation(models.Model):
     )
     validation = models.CharField(max_length=10, choices=VALIDATION_CHOICES)
     notes = models.TextField(blank=True, help_text="Optional validation notes")
+    notes_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of notes",
+    )
     validated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.validation} validation by {self.validated_by.username}"
+
+    def save(self, *args, **kwargs):
+        from .utils import render_markdown_safe
+
+        self.notes_html = render_markdown_safe(self.notes)
+        super().save(*args, **kwargs)
 
     class Meta:
         unique_together = ["georeference", "validated_by"]

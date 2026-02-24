@@ -104,8 +104,8 @@
                                                         </span>
                                                         <small class="text-muted">{{ validation.validated_at|date:"M j, g:i A" }}</small>
                                                     </div>
-                                                    {% if validation.notes %}
-                                                        <p class="validation-notes small text-muted mb-0 mt-1">{{ validation.notes }}</p>
+                                                    {% if validation.notes_html %}
+                                                        <div class="validation-notes markdown-content small text-muted mb-0 mt-1">{{ validation.notes_html|safe }}</div>
                                                     {% endif %}
                                                 </div>
                                             </div>
@@ -193,8 +193,8 @@
                                                         </span>
                                                         <small class="text-muted">{{ validation.validated_at|date:"M j, g:i A" }}</small>
                                                     </div>
-                                                    {% if validation.notes %}
-                                                        <p class="validation-notes small text-muted mb-0 mt-1">{{ validation.notes }}</p>
+                                                    {% if validation.notes_html %}
+                                                        <div class="validation-notes markdown-content small text-muted mb-0 mt-1">{{ validation.notes_html|safe }}</div>
                                                     {% endif %}
                                                 </div>
                                             </div>
