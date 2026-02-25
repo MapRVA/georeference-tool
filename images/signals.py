@@ -110,6 +110,8 @@ def queue_image_processing(sender, instance, **kwargs):
         try:
             process_image.apply_async(args=[instance.id])
         except Exception as e:
-            logger.error(f"Failed to queue image processing for Image {instance.id}: {e}")
+            logger.error(
+                f"Failed to queue image processing for Image {instance.id}: {e}"
+            )
 
     transaction.on_commit(_queue)

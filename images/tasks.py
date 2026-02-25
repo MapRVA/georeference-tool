@@ -38,9 +38,7 @@ def process_image(self, image_id: int, quality: int = 85):
     # Determine what work is needed
     needs_transform = image.has_transform and not image.transformed_permalink
     needs_thumbnail = not image.thumbnail
-    needs_transform_cleanup = (
-        not image.has_transform and image.transformed_permalink
-    )
+    needs_transform_cleanup = not image.has_transform and image.transformed_permalink
 
     if not needs_transform and not needs_thumbnail and not needs_transform_cleanup:
         return
@@ -65,9 +63,7 @@ def process_image(self, image_id: int, quality: int = 85):
         if needs_transform or needs_transform_cleanup:
             # Full reprocessing: either applying new transforms or cleaning up old ones
             if image.has_transform:
-                transformed = transform_image(
-                    pil_image, image.rotation, image.mirror
-                )
+                transformed = transform_image(pil_image, image.rotation, image.mirror)
 
                 # Upload full-size transformed image
                 transformed_bytes = BytesIO()
@@ -192,9 +188,7 @@ def process_images_batch(
     return {"queued": count}
 
 
-def transform_image(
-    img: PILImage.Image, rotation: int, mirror: str
-) -> PILImage.Image:
+def transform_image(img: PILImage.Image, rotation: int, mirror: str) -> PILImage.Image:
     """Apply mirror and rotation transforms to a PIL Image.
 
     Order of operations: mirror first, then rotate (matching EXIF convention).

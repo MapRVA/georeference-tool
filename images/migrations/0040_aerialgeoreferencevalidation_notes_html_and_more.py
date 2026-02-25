@@ -4,20 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0039_license_remove_image_license_permalink_and_more'),
+        ("images", "0039_license_remove_image_license_permalink_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='aerialgeoreferencevalidation',
-            name='notes_html',
-            field=models.TextField(blank=True, editable=False, help_text='Cached rendered HTML of notes'),
+            model_name="aerialgeoreferencevalidation",
+            name="notes_html",
+            field=models.TextField(
+                blank=True, editable=False, help_text="Cached rendered HTML of notes"
+            ),
         ),
         migrations.AddField(
-            model_name='georeferencevalidation',
-            name='notes_html',
-            field=models.TextField(blank=True, editable=False, help_text='Cached rendered HTML of notes'),
+            model_name="georeferencevalidation",
+            name="notes_html",
+            field=models.TextField(
+                blank=True, editable=False, help_text="Cached rendered HTML of notes"
+            ),
         ),
     ]

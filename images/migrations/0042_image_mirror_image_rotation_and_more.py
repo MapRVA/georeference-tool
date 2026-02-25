@@ -4,25 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('images', '0041_populate_validation_notes_html'),
+        ("images", "0041_populate_validation_notes_html"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='mirror',
-            field=models.CharField(choices=[('none', 'None'), ('h', 'Horizontal'), ('v', 'Vertical')], default='none', help_text='Mirror transform to apply when displaying this image', max_length=4),
+            model_name="image",
+            name="mirror",
+            field=models.CharField(
+                choices=[("none", "None"), ("h", "Horizontal"), ("v", "Vertical")],
+                default="none",
+                help_text="Mirror transform to apply when displaying this image",
+                max_length=4,
+            ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='rotation',
-            field=models.IntegerField(choices=[(0, 'None'), (90, '90°'), (180, '180°'), (270, '270°')], default=0, help_text='Clockwise rotation to apply when displaying this image'),
+            model_name="image",
+            name="rotation",
+            field=models.IntegerField(
+                choices=[(0, "None"), (90, "90°"), (180, "180°"), (270, "270°")],
+                default=0,
+                help_text="Clockwise rotation to apply when displaying this image",
+            ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='transformed_permalink',
-            field=models.URLField(blank=True, help_text='Transformed version of the image (rotated/mirrored), generated automatically', null=True),
+            model_name="image",
+            name="transformed_permalink",
+            field=models.URLField(
+                blank=True,
+                help_text="Transformed version of the image (rotated/mirrored), generated automatically",
+                null=True,
+            ),
         ),
     ]

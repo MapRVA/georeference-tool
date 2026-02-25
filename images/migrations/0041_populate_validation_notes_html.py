@@ -27,7 +27,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(
-            populate_validation_notes_html, migrations.RunPython.noop
-        ),
+        migrations.RunPython(populate_validation_notes_html, migrations.RunPython.noop),
     ]

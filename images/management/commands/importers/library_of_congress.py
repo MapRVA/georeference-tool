@@ -16,7 +16,6 @@ import requests
 from tqdm import tqdm
 
 from images.models import Collection, Image, Source
-
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 3.0  # 3 seconds as requested for LoC rate limiting
@@ -84,7 +83,6 @@ def get_collection_info():
     )
 
     default_description = f"Images from the {collection_name} collection at the Library of Congress, filtered for Richmond, Virginia."
-    collection_description = input(
     collection_description = (
         input(f"Collection description [{default_description}]: ")
         or default_description
@@ -118,7 +116,7 @@ def create_collection_if_not_exist(source, collection_info):
         return existing_collection
 
     # Show collection details to user for confirmation
-    print(f"\n  Collection Details:")
+    print("\n  Collection Details:")
     print(f"  Name: {collection_name}")
     print(f"  Source: {source.name}")
     print(f"  URL: {collection_url}")
@@ -592,6 +590,7 @@ def add_arguments(parser):
     parser.add_argument(
         "--max-items", type=int, default=None, help="Maximum number of items to process"
     )
+
 
 def handle(options):
     """Run the Library of Congress import."""
