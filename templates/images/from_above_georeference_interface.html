@@ -324,7 +324,10 @@
             aerialGeoreferenceImage: "{% url 'images:aerial_georeference_image' image.id %}",
             markDifficulty: "{% url 'images:mark_difficulty' image.id %}",
             markWillNotGeoref: "{% url 'images:mark_will_not_georef' image.id %}"
-        }
+        },
+        {% if aerial_georeference %}
+        existingPolygon: {{ aerial_georeference.polygon.json|safe }},
+        {% endif %}
     };
 </script>
 

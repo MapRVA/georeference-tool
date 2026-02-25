@@ -167,6 +167,28 @@ document.addEventListener("DOMContentLoaded", function () {
       map.on("gm:loaded", function () {
         console.log("Geoman fully loaded");
 
+        // Load existing polygon if correcting a previous georeference
+        if (config.existingPolygon) {
+          var feature = {
+            type: "Feature",
+            geometry: config.existingPolygon,
+            properties: { shape: "polygon" },
+          };
+          var imported = gm.features.importGeoJsonFeature(feature);
+          if (imported) {
+            currentPolygonId = imported.id;
+          }
+
+          // Fit map to the polygon bounds
+          var bounds = new maplibregl.LngLatBounds();
+          config.existingPolygon.coordinates[0].forEach(function (c) {
+            bounds.extend(c);
+          });
+          map.fitBounds(bounds, { padding: 50 });
+
+          updatePolygonData();
+        }
+
         // Enforce one polygon limit
         map.on("gm:create", function (event) {
           if (event.shape === "polygon") {
