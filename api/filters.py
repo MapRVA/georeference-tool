@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
@@ -48,9 +50,11 @@ class ImageFilter(filters.FilterSet):
         return queryset.filter(subject_mappings__subject_id=value)
 
     def filter_georeferenced(self, queryset, name, value):
+        has_point = Q(aerial=False, georeferences__isnull=False)
+        has_aerial = Q(aerial=True, aerial_georeferences__isnull=False)
         if value:
-            return queryset.filter(georeferences__isnull=False).distinct()
-        return queryset.filter(georeferences__isnull=True)
+            return queryset.filter(has_point | has_aerial).distinct()
+        return queryset.exclude(has_point | has_aerial)
 
 
 class GeoreferenceFilter(filters.FilterSet):

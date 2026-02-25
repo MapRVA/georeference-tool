@@ -455,10 +455,40 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.json()["count"], 1)
 
     def test_filter_georeferenced_true(self):
-        # georeferenced filter checks point georeferences only
-        # img1 has georefs, img2 has georefs, img3 has only aerial → excluded
+        """Includes non-aerial images with point georefs and aerial images with polygon georefs."""
         resp = self.client.get("/api/v2/images/?georeferenced=true")
-        self.assertEqual(resp.json()["count"], 2)
+        ids = [r["id"] for r in resp.json()["results"]]
+        # Non-aerial with point georeferences
+        self.assertIn(self.img1.pk, ids)
+        self.assertIn(self.img2.pk, ids)
+        # Aerial with polygon georeference
+        self.assertIn(self.img3.pk, ids)
+        # Duplicate has no georeferences
+        self.assertNotIn(self.img_duplicate.pk, ids)
+
+    def test_filter_georeferenced_false(self):
+        """Excludes both point-georeferenced and aerial-georeferenced images."""
+        resp = self.client.get("/api/v2/images/?georeferenced=false")
+        ids = [r["id"] for r in resp.json()["results"]]
+        self.assertIn(self.img_duplicate.pk, ids)
+        self.assertNotIn(self.img1.pk, ids)
+        self.assertNotIn(self.img3.pk, ids)
+
+    def test_filter_georeferenced_ignores_polygon_on_non_aerial(self):
+        """A non-aerial image with only a polygon georef is not considered georeferenced."""
+        # Make img3 non-aerial; it still has an AerialGeoreference but no point georef
+        Image.objects.filter(pk=self.img3.pk).update(aerial=False)
+        resp = self.client.get("/api/v2/images/?georeferenced=true")
+        ids = [r["id"] for r in resp.json()["results"]]
+        self.assertNotIn(self.img3.pk, ids)
+
+    def test_filter_georeferenced_ignores_point_on_aerial(self):
+        """An aerial image with only a point georef is not considered georeferenced."""
+        # Make img1 aerial; it has point georefs but no AerialGeoreference
+        Image.objects.filter(pk=self.img1.pk).update(aerial=True)
+        resp = self.client.get("/api/v2/images/?georeferenced=true")
+        ids = [r["id"] for r in resp.json()["results"]]
+        self.assertNotIn(self.img1.pk, ids)
 
     def test_filter_from_above(self):
         resp = self.client.get("/api/v2/images/?from_above=true")
