@@ -58,6 +58,7 @@ Use the `detail_url` field to fetch the full details for any image.
             "original_date": "9/1956",
             "date_display": "9/1956",
             "from_above": false,
+            "duplicate_of": null,
             "collection": {
                 "id": 39,
                 "name": "Edith K. Shelton Photograph Collection",
@@ -82,6 +83,7 @@ Use the `detail_url` field to fetch the full details for any image.
 | `original_date` | string | Date string as recorded by the source |
 | `date_display` | string | Human-friendly date display |
 | `from_above` | boolean | Whether this is a from-above (bird's-eye) image |
+| `duplicate_of` | integer or null | ID of the image this is a duplicate of, or `null` if not a duplicate |
 | `collection` | object | Collection info (id, name, slug, source_name) |
 | `georeference_status` | string | One of `"available"`, `"georeferenced"`, `"duplicate"`, or `"will_not_georef"` |
 | `detail_url` | string | API link to the full detail for this image |
@@ -251,6 +253,7 @@ Returns complete details for a single image, including its georeferences, subjec
         }
     ],
     "from_above": false,
+    "duplicate_of": null,
     "scale": null,
     "mirror": "none",
     "rotation": 0,

@@ -382,6 +382,7 @@ class ImageSerializer(serializers.ModelSerializer):
     license = LicenseSerializer(read_only=True)
     subjects = SubjectSummarySerializer(many=True, read_only=True)
     from_above = serializers.BooleanField(source="aerial", read_only=True)
+    duplicate_of = serializers.IntegerField(source="duplicate_of_id", read_only=True)
     permalink = serializers.CharField(source="display_permalink", read_only=True)
     rotation = serializers.SerializerMethodField()
     mirror = serializers.SerializerMethodField()
@@ -411,6 +412,7 @@ class ImageSerializer(serializers.ModelSerializer):
             "collection",
             "subjects",
             "from_above",
+            "duplicate_of",
             "scale",
             "mirror",
             "rotation",
@@ -446,6 +448,7 @@ class ImageListSerializer(serializers.ModelSerializer):
 
     collection = CollectionSummarySerializer(read_only=True)
     from_above = serializers.BooleanField(source="aerial", read_only=True)
+    duplicate_of = serializers.IntegerField(source="duplicate_of_id", read_only=True)
     date_display = serializers.CharField(read_only=True)
     georeference_status = serializers.SerializerMethodField()
     detail_url = serializers.SerializerMethodField()
@@ -460,6 +463,7 @@ class ImageListSerializer(serializers.ModelSerializer):
             "original_date",
             "date_display",
             "from_above",
+            "duplicate_of",
             "collection",
             "georeference_status",
             "detail_url",

@@ -181,7 +181,8 @@ class ImageViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = (
             Image.objects.filter(
-                is_searchable=True,
+                collection__public=True,
+                collection__source__public=True,
             )
             .annotate(
                 order=F("id"),

@@ -133,6 +133,12 @@ class ApiFixturesMixin:
             fuzzy_start_decdate=1940,
             fuzzy_end_decdate=1940,
         )
+        cls.img_duplicate = Image.objects.create(
+            collection=cls.collection,
+            title="Main Street 1900 (duplicate)",
+            permalink="https://img.example.com/dup.jpg",
+            duplicate_of=cls.img1,
+        )
         cls.img_private = Image.objects.create(
             collection=cls.collection_private,
             title="Private Image",
@@ -140,7 +146,7 @@ class ApiFixturesMixin:
         )
 
         # Refresh to pick up signal-computed is_searchable
-        for img in [cls.img1, cls.img2, cls.img3, cls.img_private]:
+        for img in [cls.img1, cls.img2, cls.img3, cls.img_duplicate, cls.img_private]:
             img.refresh_from_db()
 
         # -- Subject + mapping --
@@ -380,7 +386,7 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
     def test_list_status_and_count(self):
         resp = self.client.get("/api/v2/images/")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["count"], 3)
+        self.assertEqual(resp.json()["count"], 4)
 
     def test_private_image_excluded(self):
         resp = self.client.get("/api/v2/images/")
@@ -430,7 +436,7 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
 
     def test_filter_by_collection(self):
         resp = self.client.get(f"/api/v2/images/?collection={self.collection.pk}")
-        self.assertEqual(resp.json()["count"], 2)
+        self.assertEqual(resp.json()["count"], 3)
 
     def test_filter_by_subject(self):
         resp = self.client.get(f"/api/v2/images/?subject={self.subject.pk}")
@@ -469,6 +475,26 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
         resp = self.client.get("/api/v2/images/?ordering=title")
         titles = [r["title"] for r in resp.json()["results"]]
         self.assertEqual(titles, sorted(titles))
+
+    def test_duplicate_included_in_list(self):
+        resp = self.client.get("/api/v2/images/")
+        ids = [r["id"] for r in resp.json()["results"]]
+        self.assertIn(self.img_duplicate.pk, ids)
+
+    def test_duplicate_of_field_in_list(self):
+        resp = self.client.get("/api/v2/images/")
+        by_id = {r["id"]: r for r in resp.json()["results"]}
+        self.assertEqual(by_id[self.img_duplicate.pk]["duplicate_of"], self.img1.pk)
+        self.assertIsNone(by_id[self.img1.pk]["duplicate_of"])
+
+    def test_duplicate_detail_accessible(self):
+        resp = self.client.get(f"/api/v2/images/{self.img_duplicate.pk}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["duplicate_of"], self.img1.pk)
+
+    def test_non_duplicate_detail_has_null_duplicate_of(self):
+        resp = self.client.get(f"/api/v2/images/{self.img1.pk}/")
+        self.assertIsNone(resp.json()["duplicate_of"])
 
 
 # ---------------------------------------------------------------------------
