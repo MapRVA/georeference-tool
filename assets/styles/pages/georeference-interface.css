@@ -68,6 +68,26 @@
     padding: 0.5em 0.75em;
 }
 
+/* Image centerline (mirrors the map bearing-line style) */
+.image-container .image-centerline {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    height: 100%;
+    width: 2px;
+    margin-left: -1px;
+    z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        var(--bs-dark, #212529) 0px,
+        var(--bs-dark, #212529) 6px,
+        var(--bs-light, #f8f9fa) 6px,
+        var(--bs-light, #f8f9fa) 12px
+    );
+}
+
 /* Map styles */
 #mymap {
     width: 100%;

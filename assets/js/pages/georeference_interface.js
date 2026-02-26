@@ -17,11 +17,19 @@ import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
 
-// Get the danger color from Bootstrap's CSS custom properties
+// Get colors from Bootstrap's CSS custom properties
 const dangerColor =
   getComputedStyle(document.documentElement)
     .getPropertyValue("--bs-danger")
     .trim() || "#d52e1c";
+const darkColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-dark")
+    .trim() || "#212529";
+const lightColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-light")
+    .trim() || "#f8f9fa";
 
 /**
  * Project a point along a bearing for a given distance.
@@ -465,14 +473,26 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       map.addLayer({
+        id: "bearing-line-bg",
+        type: "line",
+        source: "bearing-line",
+        paint: {
+          "line-color": lightColor,
+          "line-width": 2,
+        },
+        layout: {
+          visibility: "none",
+        },
+      });
+
+      map.addLayer({
         id: "bearing-line",
         type: "line",
         source: "bearing-line",
         paint: {
-          "line-color": dangerColor,
+          "line-color": darkColor,
           "line-width": 2,
           "line-dasharray": [3, 3],
-          "line-opacity": 0.6,
         },
         layout: {
           visibility: "none",
@@ -565,6 +585,7 @@ document.addEventListener("DOMContentLoaded", function () {
           "subject-hints-label",
           "location-hint-pulse",
           "location-hint-label",
+          "bearing-line-bg",
           "bearing-line",
           "pin-circle",
           "pin-symbol",
@@ -626,13 +647,20 @@ document.addEventListener("DOMContentLoaded", function () {
       var lat = parseFloat(latitudeInput.value);
       var lng = parseFloat(longitudeInput.value);
 
-      if (
+      var bearingLineVisible =
         bearingLineEnabled &&
         pinPlaced &&
         currentDirection !== null &&
         !isNaN(lat) &&
-        !isNaN(lng)
-      ) {
+        !isNaN(lng);
+
+      // Sync image centerline with map bearing line visibility
+      var imageCenterline = document.querySelector(".image-centerline");
+      if (imageCenterline) {
+        imageCenterline.style.display = bearingLineVisible ? "block" : "none";
+      }
+
+      if (bearingLineVisible) {
         // Compute distance from map center to corner so the line always extends off-screen
         var bounds = map.getBounds();
         var center = map.getCenter();
@@ -1156,8 +1184,12 @@ document.addEventListener("DOMContentLoaded", function () {
       map.on("moveend", updateMapSwapLink);
 
       // Sync bearing line layer visibility from checkbox (layers exist now)
-      if (bearingLineEnabled && map.getLayer("bearing-line")) {
-        map.setLayoutProperty("bearing-line", "visibility", "visible");
+      if (bearingLineEnabled) {
+        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "visible");
+          }
+        }
       }
 
       // Recalculate bearing line on zoom/pan so it always extends off-screen
@@ -1597,12 +1629,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
       bearingLineToggle.addEventListener("change", function () {
         bearingLineEnabled = this.checked;
-        if (map.getLayer("bearing-line")) {
-          map.setLayoutProperty(
-            "bearing-line",
-            "visibility",
-            bearingLineEnabled ? "visible" : "none",
-          );
+        const vis = bearingLineEnabled ? "visible" : "none";
+        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", vis);
+          }
         }
         updateBearingLine();
       });
