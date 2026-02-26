@@ -207,7 +207,7 @@ DJANGO_VITE = {
     "default": {
         "dev_mode": os.getenv("DJANGO_VITE_DEV_MODE", "False").lower() == "true",
         "dev_server_host": "localhost",
-        "dev_server_port": 5173,
+        "dev_server_port": int(os.getenv("DJANGO_VITE_DEV_PORT", "5173")),
         "manifest_path": BASE_DIR / "static" / "manifest.json",
     }
 }
