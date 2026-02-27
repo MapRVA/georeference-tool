@@ -50,6 +50,7 @@ edit_uri = "edit/trunk/docs/"
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   {"Home" = "index.md"},
+  {"Data Licenses" = "licenses.md"},
   {"Contact Us" = "contact.md"},
   {"Usage Guide" = [
      "usage/browsing.md",
