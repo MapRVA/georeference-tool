@@ -30,6 +30,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("robots.txt", views.robots_txt, name="robots_txt"),
     path("health/ready/", views.health_ready, name="health_ready"),
+    path("map/", views.map, name="map"),
     path("stats/", views.stats, name="stats"),
     path("admin/login/", auth_views.admin_login, name="admin_login"),
     path("user/<str:username>/", auth_views.user_profile, name="user_profile"),

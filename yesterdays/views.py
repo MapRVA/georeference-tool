@@ -48,6 +48,15 @@ def home(request):
     return render(request, "home.html", context)
 
 
+def map(request):
+    """Map page view"""
+    context = {
+        "page_title": "Map",
+        "top_rated_image": get_top_rated_image(),
+    }
+    return render(request, "map.html", context)
+
+
 def stats(request):
     """Stats page view"""
     # Daily georeferences (cumulative) - include both point and aerial georeferences
