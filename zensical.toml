@@ -53,7 +53,8 @@ nav = [
   {"Data Licenses" = "licenses.md"},
   {"Contact Us" = "contact.md"},
   {"Usage Guide" = [
-     "usage/browsing.md",
+     "usage/index.md",
+     "usage/organization.md",
      "usage/georeferencing.md",
      "usage/search.md",
      "usage/subjects.md",
@@ -71,11 +72,11 @@ nav = [
      "api/statistics.md",
   ]},
   {"Development" = [
-     "development/contributing.md",
+     "development/index.md",
      "development/environment.md",
   ]},
   {"Administration" = [
-     "administration/admin-panel.md",
+     "administration/index.md",
      "administration/deployment.md",
      "administration/importing.md",
   ]},

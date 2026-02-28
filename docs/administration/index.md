@@ -1,5 +1,6 @@
 # Admin Panel
 
+Users are designated as admins at the discretion of the host.
 The Yesterdays admin panel is located at `/admin/`.
 You will be prompted to login with your OpenStreetMap account, just like the rest of the site.
 All content on Yesterdays can be edited in this panel.

@@ -2,8 +2,8 @@
 
 [Yesterdays](https://yesterdays.maprva.org) is a platform developed by [MapRVA](https://maprva.org) to catalogue and georeference historical images of Richmond, Virginia.
 
-This site documents how images are [organized](/usage/browsing/), [georeferenced](/usage/georeferencing/), and [searched](/usage/search/) on Yesterdays.
-There is additional information available about [developing]([/development/contributing/)) and [deploying]([/deployment/](/administration/deployment/)) this platform.
+This site documents how images are [organized](/usage/organization/), [georeferenced](/usage/georeferencing/), and [searched](/usage/search/) on Yesterdays.
+There is additional information available about [developing](/development/) and [deploying](/administration/deployment/) this platform.
 
 ## Join Us!
 
