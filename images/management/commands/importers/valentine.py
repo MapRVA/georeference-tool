@@ -199,10 +199,10 @@ def get_record_details(
     if creator_match:
         result["creator"] = creator_match.group(1)
 
-    if inscription_match:
+    if inscription_match and "description" in result:
         result["description"] += "\n\nInscription: " + inscription_match.group(1)
 
-    if geo_match:
+    if geo_match and "description" in result:
         result["description"] += "\n\nGeographic Description: " + geo_match.group(1)
 
     # Process image URL to create proper downloadable URL
@@ -309,6 +309,20 @@ def get_record_details(
                 result["edtf_date"] = f"[{first_year},{second_year}]"
             else:
                 result["edtf_date"] = f"[{first_year}..{second_year}]"
+            return result
+
+        # Try "MM/YYYY-MM/YYYY" month-year range format (e.g., "12/1976-1/1977")
+        month_year_range_match = re.match(
+            r"^(\d{1,2})/(\d{4})\s*-\s*(\d{1,2})/(\d{4})$", date_str
+        )
+        if month_year_range_match:
+            first_month = month_year_range_match.group(1).zfill(2)
+            first_year = month_year_range_match.group(2)
+            second_month = month_year_range_match.group(3).zfill(2)
+            second_year = month_year_range_match.group(4)
+            result["edtf_date"] = (
+                f"[{first_year}-{first_month}..{second_year}-{second_month}]"
+            )
             return result
 
         # Try "MM/YYYY" format
