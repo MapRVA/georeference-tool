@@ -448,12 +448,20 @@ def handle(options):
     match = re.search(
         r"Page <strong>\d+</strong> of <strong>(\d+)</strong>", html_content
     )
-    if not match:
-        print("Could not find total number of pages. Scraping first page only.")
-        num_pages = 1
-    else:
+    if match:
         num_pages = int(match.group(1))
         print(f"Found {num_pages} pages in total.")
+    else:
+        # Fallback: look for numbered pagination links like index.2.html, index.3.html
+        page_links = re.findall(
+            rf"/{collection_id}/index\.(\d+)\.html", html_content
+        )
+        if page_links:
+            num_pages = max(int(p) for p in page_links)
+            print(f"Found {num_pages} pages from pagination links.")
+        else:
+            print("Could not find total number of pages. Scraping first page only.")
+            num_pages = 1
 
     if max_pages and num_pages > max_pages:
         num_pages = max_pages

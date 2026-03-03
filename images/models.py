@@ -319,7 +319,7 @@ class Image(models.Model):
         null=True, max_length=100, help_text="Creator(s) of the work"
     )
     ref = models.CharField(
-        null=True, max_length=50, help_text="Source-specific reference"
+        null=True, max_length=100, help_text="Source-specific reference"
     )
 
     original_date = models.CharField(
@@ -622,7 +622,7 @@ class PreImage(models.Model):
         null=True, max_length=100, help_text="Creator(s) of the work"
     )
     ref = models.CharField(
-        null=True, max_length=50, help_text="Source-specific reference"
+        null=True, max_length=100, help_text="Source-specific reference"
     )
 
     original_date = models.CharField(
