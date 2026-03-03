@@ -5,7 +5,9 @@ Usage:
     python manage.py generate_embeddings [--batch-size 100] [--force] [--image-ids 1,2,3]
 """
 
+import gc
 from io import BytesIO
+from itertools import islice
 from pathlib import Path
 from typing import Optional
 
@@ -64,24 +66,22 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No images found to process."))
             return
 
-        # Convert queryset to list to avoid re-evaluation during processing
-        images_list = list(images_queryset)
-
         self.stdout.write(
             self.style.SUCCESS(
                 f"Processing {total_images} images in batches of {options['batch_size']}"
             )
         )
 
-        # Process images in batches
+        # Process images in batches, iterating lazily
         batch_size = options["batch_size"]
         processed_count = 0
         failed_count = 0
+        batch_num = 0
 
-        for i in range(0, total_images, batch_size):
-            batch_images = images_list[i : i + batch_size]
-
-            self.stdout.write(f"Processing batch {i // batch_size + 1}...")
+        iterator = images_queryset.iterator(chunk_size=batch_size)
+        while batch_images := list(islice(iterator, batch_size)):
+            batch_num += 1
+            self.stdout.write(f"Processing batch {batch_num}...")
 
             batch_processed, batch_failed = self.process_batch(batch_images)
             processed_count += batch_processed
@@ -117,7 +117,7 @@ class Command(BaseCommand):
 
     def get_images_queryset(self, options):
         """Get the queryset of images to process"""
-        queryset = Image.objects.select_related("collection", "collection__source")
+        queryset = Image.objects.only("id", "permalink", "embedding")
 
         # Filter by specific IDs if provided
         if options["image_ids"]:
@@ -152,7 +152,11 @@ class Command(BaseCommand):
                     )
                     continue
 
-                preprocessed = self.preprocess(pil_image)
+                try:
+                    preprocessed = self.preprocess(pil_image)
+                finally:
+                    pil_image.close()
+
                 successful_images.append(image)
                 embeddings.append(preprocessed)
 
@@ -168,6 +172,7 @@ class Command(BaseCommand):
         # Generate embeddings
         try:
             embeddings_tensor = torch.stack(embeddings).to(self.device)
+            del embeddings
 
             with torch.no_grad():
                 features = self.model.encode_image(embeddings_tensor)
@@ -175,6 +180,10 @@ class Command(BaseCommand):
 
             # Convert to lists for database storage
             features_list = features.cpu().numpy().tolist()
+
+            del embeddings_tensor, features
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
 
             # Save to database
             with transaction.atomic():
@@ -189,11 +198,13 @@ class Command(BaseCommand):
                 self.style.ERROR(f"Error generating embeddings for batch: {str(e)}")
             )
             return 0, len(batch_images)
+        finally:
+            gc.collect()
 
     def download_image(self, url: str, timeout: int = 30) -> Optional[PILImage.Image]:
         """Download an image from URL and return PIL Image"""
         try:
-            response = requests.get(url, timeout=timeout, stream=True)
+            response = requests.get(url, timeout=timeout)
             response.raise_for_status()
 
             # Check content type
@@ -204,9 +215,11 @@ class Command(BaseCommand):
                 )
                 return None
 
-            # Load image
+            # Load image — .convert("RGB") copies pixel data, so we can
+            # close the original immediately to free the BytesIO buffer.
             image_data = BytesIO(response.content)
             pil_image = PILImage.open(image_data).convert("RGB")
+            image_data.close()
 
             return pil_image
 
