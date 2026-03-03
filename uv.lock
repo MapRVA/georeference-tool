@@ -1708,6 +1708,10 @@ dependencies = [
     { name = "tqdm" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "whitenoise", extra = ["brotli"] },
+]
+
+[package.dev-dependencies]
+docs = [
     { name = "zensical" },
 ]
 
@@ -1740,8 +1744,10 @@ requires-dist = [
     { name = "tqdm", specifier = "~=4.67.3" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.41.0" },
     { name = "whitenoise", extras = ["brotli"], specifier = "~=6.12.0" },
-    { name = "zensical", specifier = "~=0.0.24" },
 ]
+
+[package.metadata.requires-dev]
+docs = [{ name = "zensical", specifier = "~=0.0.24" }]
 
 [[package]]
 name = "zensical"

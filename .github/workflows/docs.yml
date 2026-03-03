@@ -2,9 +2,13 @@ name: Documentation
 on:
   push:
     branches:
-      - master
-      - main
       - trunk
+    paths:
+      - docs/**
+      - zensical.toml
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/docs.yml
 permissions:
   contents: read
   pages: write
@@ -17,12 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/configure-pages@v5
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.x
-      - run: pip install zensical
-      - run: zensical build --clean
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --only-group docs
+      - run: uv run --only-group docs zensical build --clean
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
