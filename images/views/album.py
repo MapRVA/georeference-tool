@@ -70,9 +70,6 @@ def edit_album(request, album_id):
         messages.success(request, "Album updated successfully.")
         return redirect(
             "images:album_detail",
-            display_name=album.owner.get_display_name()
-            if hasattr(album.owner, "get_display_name")
-            else album.owner.username,
             album_id=album.id,
         )
 
@@ -295,15 +292,11 @@ def remove_image_from_album(request):
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-def album_detail(request, display_name, album_id):
+def album_detail(request, album_id):
     """Display a specific album with its images"""
 
-    # Look up user by display name (first_name for OSM users or username)
-    # Try first_name first (OSM username), then fall back to username
-    user = get_object_or_404(User, first_name=display_name)
-    if not user:
-        user = get_object_or_404(User, username=display_name)
-    album = get_object_or_404(Album, id=album_id, owner=user)
+    album = get_object_or_404(Album, id=album_id)
+    user = album.owner
 
     # Check permissions - only show if public or user is viewing their own
     if not album.public and (not request.user.is_authenticated or request.user != user):

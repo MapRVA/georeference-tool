@@ -10,7 +10,7 @@
                 <li class="breadcrumb-item">Users</li>
                 <li class="breadcrumb-item"><a href="{% url 'user_profile' display_name %}">{{ display_name }}</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'user_albums_list' display_name %}">Albums</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'images:album_detail' display_name album.id %}">{{ album.title }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'images:album_detail' album.id %}">{{ album.title }}</a></li>
                 <li class="breadcrumb-item active">Delete</li>
             </ol>
         </nav>
@@ -77,7 +77,7 @@
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-trash me-2"></i>Yes, Delete Album
                     </button>
-                    <a href="{% url 'images:album_detail' display_name album.id %}" class="btn btn-secondary">
+                    <a href="{% url 'images:album_detail' album.id %}" class="btn btn-secondary">
                         <i class="fas fa-times me-2"></i>Cancel
                     </a>
                 </form>

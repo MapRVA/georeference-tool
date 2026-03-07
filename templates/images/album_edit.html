@@ -32,7 +32,7 @@
                 <li class="breadcrumb-item">Users</li>
                 <li class="breadcrumb-item"><a href="{% url 'user_profile' display_name %}">{{ display_name }}</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'user_albums_list' display_name %}">Albums</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'images:album_detail' display_name album.id %}">{{ album.title }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'images:album_detail' album.id %}">{{ album.title }}</a></li>
                 <li class="breadcrumb-item active">Edit</li>
             </ol>
         </nav>
@@ -125,7 +125,7 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save me-2"></i>Save Changes
                         </button>
-                        <a href="{% url 'images:album_detail' display_name album.id %}" class="btn btn-secondary">
+                        <a href="{% url 'images:album_detail' album.id %}" class="btn btn-secondary">
                             <i class="fas fa-times me-2"></i>Cancel
                         </a>
                         <a href="{% url 'images:delete_album' album.id %}" class="btn btn-danger ms-auto">

@@ -29,7 +29,7 @@
                     <div class="row g-3">
                         {% for album in albums %}
                             <div class="col-lg-4 col-md-6">
-                                <a href="{% url 'images:album_detail' display_name album.id %}" class="text-decoration-none">
+                                <a href="{% url 'images:album_detail' album.id %}" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm">
                                         {% if album.images.exists %}
                                             {% with first_image=album.album_images.first %}

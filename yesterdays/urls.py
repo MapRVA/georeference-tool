@@ -19,6 +19,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from maps.views import map_layers_view
 from osm_auth import views as auth_views
@@ -38,6 +39,13 @@ urlpatterns = [
         "user/<str:username>/albums/",
         auth_views.user_albums_list,
         name="user_albums_list",
+    ),
+    # Backwards-compat redirect: old album URLs to new /album/<id>/ path
+    path(
+        "user/<str:username>/albums/<uuid:album_id>/",
+        lambda request, username, album_id: RedirectView.as_view(
+            url=f"/album/{album_id}/", permanent=True
+        )(request),
     ),
     path("subjects/", include("subjects.urls")),
     path("activity/", include("activity.urls")),
