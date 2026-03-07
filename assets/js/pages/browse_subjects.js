@@ -4,6 +4,117 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import maplibregl from "maplibre-gl";
 import { DEFAULT_MAP_CENTER } from "../constants/map.js";
 
+/**
+ * Alpine.js component for subject browsing with search and "Load More".
+ */
+window.Alpine.data("subjectBrowser", function () {
+  const config = window.subjectBrowserConfig || {};
+  const perPage = config.perPage || 12;
+
+  return {
+    query:
+      new URLSearchParams(window.location.search).get("filter") || "",
+    offset: perPage,
+    hasMore: config.hasMore ?? false,
+    loading: false,
+    noResults: false,
+    _isLoadingMore: false,
+    _pendingFetch: null,
+    _loadingTimer: null,
+
+    async search() {
+      this.offset = 0;
+      this._isLoadingMore = true;
+      this.loading = true;
+
+      try {
+        const html = await this._fetch();
+        this.$refs.subjectGrid.innerHTML = html;
+        this._parseHasMore(html);
+        this.noResults =
+          this.$refs.subjectGrid.querySelectorAll(".subject-card-wrapper")
+            .length === 0;
+        this.offset = perPage;
+      } catch (error) {
+        console.error("Error searching subjects:", error);
+      } finally {
+        clearTimeout(this._loadingTimer);
+        this.loading = false;
+        this._isLoadingMore = false;
+      }
+    },
+
+    prefetchMore() {
+      if (this._isLoadingMore || !this.hasMore || this._pendingFetch) return;
+      this._pendingFetch = this._fetch();
+    },
+
+    async loadMore() {
+      if (this._isLoadingMore || !this.hasMore) return;
+      this._isLoadingMore = true;
+
+      this._loadingTimer = setTimeout(() => {
+        this.loading = true;
+      }, 200);
+
+      try {
+        let html;
+        if (this._pendingFetch) {
+          html = await this._pendingFetch;
+          this._pendingFetch = null;
+        } else {
+          html = await this._fetch();
+        }
+
+        if (html.trim()) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const newItems = doc.querySelectorAll(".subject-card-wrapper");
+
+          if (newItems.length > 0) {
+            this.$refs.subjectGrid.insertAdjacentHTML("beforeend", html);
+            const addedTemplate =
+              this.$refs.subjectGrid.querySelector("[data-has-more]");
+            if (addedTemplate) addedTemplate.remove();
+            this.offset += newItems.length;
+            this._parseHasMore(html);
+          } else {
+            this.hasMore = false;
+          }
+        } else {
+          this.hasMore = false;
+        }
+      } catch (error) {
+        console.error("Error loading more subjects:", error);
+        this._pendingFetch = null;
+      } finally {
+        clearTimeout(this._loadingTimer);
+        this.loading = false;
+        this._isLoadingMore = false;
+      }
+    },
+
+    async _fetch() {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set("offset", this.offset);
+      if (this.query) url.searchParams.set("filter", this.query);
+
+      const response = await fetch(url.toString(), {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      return response.text();
+    },
+
+    _parseHasMore(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const el = doc.querySelector("[data-has-more]");
+      this.hasMore = el ? el.dataset.hasMore === "true" : false;
+    },
+  };
+});
+
 document.addEventListener("DOMContentLoaded", function () {
   const mapContainer = document.getElementById("subjects-map");
   if (!mapContainer) return; // Exit if no map on this page

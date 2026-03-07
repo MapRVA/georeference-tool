@@ -458,7 +458,9 @@ def reorder_subjects(request, image_id):
 
 
 def browse_subjects(request):
-    """Browse all subjects"""
+    """Browse all subjects with search and load-more support."""
+    PER_PAGE = 12
+
     subjects = (
         Subject.objects.all()
         .select_related("wikidata_item")
@@ -486,35 +488,57 @@ def browse_subjects(request):
         .order_by("-total_images", "title")
     )
 
-    # Calculate pending_images for each subject (needed by template)
-    for subject in subjects:
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    # Calculate overall statistics before filtering by search query
+    if not is_ajax:
+        all_subjects = list(subjects)
+        total_subjects = len(all_subjects)
+        total_images = sum(s.total_images for s in all_subjects)
+        total_georeferenced = sum(s.georeferenced_images for s in all_subjects)
+
+        overall_stats = {
+            "total_subjects": total_subjects,
+            "total_images": total_images,
+            "total_georeferenced": total_georeferenced,
+            "georeferenced_percentage": round(
+                (total_georeferenced / total_images * 100), 1
+            )
+            if total_images > 0
+            else 0,
+        }
+
+    # Apply search filter
+    query = request.GET.get("filter", "").strip()
+    if query:
+        subjects = subjects.filter(title__icontains=query)
+
+    # Offset-based pagination
+    try:
+        offset = max(0, int(request.GET.get("offset", 0)))
+    except (ValueError, TypeError):
+        offset = 0
+
+    subject_list = list(subjects[offset : offset + PER_PAGE + 1])
+    has_more = len(subject_list) > PER_PAGE
+    subject_list = subject_list[:PER_PAGE]
+
+    # Calculate pending_images and attach representative images
+    for subject in subject_list:
         subject.pending_images = subject.total_images - subject.georeferenced_images
-
-    # Calculate overall statistics
-    total_subjects = len(subjects)
-    total_images = sum(subject.total_images for subject in subjects)
-    total_georeferenced = sum(subject.georeferenced_images for subject in subjects)
-
-    overall_stats = {
-        "total_subjects": total_subjects,
-        "total_images": total_images,
-        "total_georeferenced": total_georeferenced,
-        "georeferenced_percentage": round((total_georeferenced / total_images * 100), 1)
-        if total_images > 0
-        else 0,
-    }
-
-    # Paginate subjects for browsing
-    paginator = Paginator(subjects, 12)  # 12 subjects per page for grid layout
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    # Attach representative images for subjects on this page
-    for subject in page_obj:
         subject.representative = subject.get_representative_image()
 
+    if is_ajax:
+        return render(
+            request,
+            "subjects/partials/browse_subject_cards.html",
+            {"subjects": subject_list, "has_more": has_more},
+        )
+
     context = {
-        "page_obj": page_obj,
+        "subjects": subject_list,
+        "has_more": has_more,
+        "per_page": PER_PAGE,
         "overall_stats": overall_stats,
     }
     return render(request, "subjects/browse_subjects.html", context)

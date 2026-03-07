@@ -8,7 +8,7 @@
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Explore {{ overall_stats.total_subjects }} subject{{ overall_stats.total_subjects|pluralize }} totalling {{ overall_stats.total_images }} image{{ overall_stats.total_images|pluralize }}.">
-	{% with page_obj.0.representative as og_image %}{% if og_image %}
+	{% with subjects.0.representative as og_image %}{% if og_image %}
 	<meta property="og:image" content="{{ og_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ og_image.title }}">
 	{% endif %}{% endwith %}
@@ -19,6 +19,10 @@
 <script>
     window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
     window.VECTOR_TILES_URL = "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}".replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+    window.subjectBrowserConfig = {
+        perPage: {{ per_page }},
+        hasMore: {% if has_more %}true{% else %}false{% endif %}
+    };
 </script>
 {% vite_asset 'assets/js/pages/browse_subjects.js' %}
 {% endblock %}
@@ -32,118 +36,44 @@
             <p class="text-muted">Explore image subjects, including notable buildings, statues, and natural features.</p>
         </div>
 
-        <!-- Map Container - Only show on first page -->
-        {% if page_obj.number == 1 %}
         <div id="subjects-map"></div>
-        {% endif %}
 
-        <div class="row">
-            {% for subject in page_obj %}
-                <div class="col-lg-6 col-xl-4 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        {% if subject.representative and subject.representative.thumbnail %}
-                            <a href="{{ subject.get_absolute_url }}" class="d-block">
-                                <img src="{{ subject.representative.thumbnail }}"
-                                     alt="{{ subject.title }}"
-                                     class="card-img-top"
-                                     style="height: 200px; object-fit: cover;">
-                            </a>
-                        {% else %}
-                            <a href="{{ subject.get_absolute_url }}" class="card-img-top d-flex align-items-center justify-content-center text-decoration-none" style="height: 200px;">
-                                <i class="fas fa-map-pin fa-4x text-muted"></i>
-                            </a>
-                        {% endif %}
-                        <div class="card-body">
-                            <h5 class="card-title mb-2">
-                                <a href="{{ subject.get_absolute_url }}" class="text-decoration-none">
-                                    {{ subject.title }}
-                                </a>
-                                <small class="text-muted d-block mt-1">{{ subject.total_images }} image{{ subject.total_images|pluralize }}</small>
-                            </h5>
-
-                            {% if subject.wikidata_item and subject.wikidata_item.description %}
-                                <p class="card-text text-muted small">{{ subject.wikidata_item.description|truncatewords:20 }}</p>
-                            {% elif subject.description %}
-                                <p class="card-text text-muted small">{{ subject.description|truncatewords:20 }}</p>
-                            {% endif %}
-
-                            {% if subject.wikidata_item %}
-                                <div>
-                                    <small class="text-muted">
-                                        <a href="{{ subject.wikidata_item.wikidata_url }}" target="_blank" class="text-decoration-none">
-                                            {{ subject.wikidata_item.wikidata_id }}
-                                            <i class="fas fa-external-link-alt ms-1"></i>
-                                        </a>
-                                    </small>
-                                    {% if subject.wikidata_item.inception %}
-                                        <br><small class="text-muted">Built: {{ subject.wikidata_item.inception|date:"Y" }}</small>
-                                    {% endif %}
-                                    {% if subject.wikidata_item.va_landmark_id %}
-                                        <br><small class="text-muted">VA Landmark: {{ subject.wikidata_item.va_landmark_id }}</small>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        <div class="card-footer bg-body border-top-0">
-                            <div class="d-flex justify-content-end">
-                                {% if subject.pending_images > 0 %}
-                                <a href="{% url 'images:georeference_interface' %}?subject={{ subject.slug }}" class="btn btn-success">
-                                    <i class="fas fa-map-marker-alt me-1"></i>Georeference
-                                </a>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% empty %}
-                <div class="col-12">
-                    <div class="text-center py-5">
-                        <i class="fas fa-map-pin fa-3x text-muted mb-3"></i>
-                        <h3 class="text-muted">No Subjects Available</h3>
-                        <p class="text-muted">No images are tagged with subjects yet.</p>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-
-        <!-- Pagination -->
-        {% if page_obj.has_other_pages %}
-            <nav aria-label="Subjects pagination" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
-                                <i class="fas fa-chevron-left"></i> Previous
-                            </a>
-                        </li>
-                    {% endif %}
-
-                    {% for num in page_obj.paginator.page_range %}
-                        {% if page_obj.number == num %}
-                            <li class="page-item active">
-                                <span class="page-link">{{ num }}</span>
-                            </li>
-                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
-                                Next <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </li>
-                    {% endif %}
-                </ul>
-            </nav>
-
-            <div class="text-center text-muted mt-2">
-                Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} subjects
+        <div x-data="subjectBrowser()">
+            <div class="mb-4">
+                <input type="search" class="form-control form-control-lg"
+                       placeholder="Filter subjects..."
+                       x-model="query"
+                       @input.debounce.300ms="search()">
             </div>
-        {% endif %}
+
+            <div class="row" x-ref="subjectGrid">
+                {% include "subjects/partials/browse_subject_cards.html" %}
+            </div>
+
+            <div x-show="!hasMore && !loading" x-cloak class="text-center text-muted my-3">
+                <template x-if="noResults">
+                    <div class="py-4">
+                        <i class="fas fa-map-pin fa-3x text-muted mb-3 d-block"></i>
+                        <h5 class="text-muted">No subjects found</h5>
+                    </div>
+                </template>
+            </div>
+
+            <div class="text-center my-4">
+                <button x-show="hasMore && !loading"
+                        x-cloak
+                        @mousedown="prefetchMore"
+                        @click="loadMore"
+                        class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-down me-2"></i>Load More
+                </button>
+                <div x-show="loading" x-cloak>
+                    <div class="spinner-border text-secondary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
