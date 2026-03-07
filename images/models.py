@@ -1052,6 +1052,17 @@ class ImageRating(models.Model):
         ]
 
 
+@receiver(post_delete, sender=SubjectMapping)
+def clear_representative_image_on_mapping_delete(sender, instance, **kwargs):
+    """If a subject's representative image loses its mapping, clear the representative."""
+    from subjects.models import Subject
+
+    Subject.objects.filter(
+        pk=instance.subject_id,
+        representative_image_id=instance.image_id,
+    ).update(representative_image=None)
+
+
 @receiver([post_save, post_delete], sender=ImageSkip)
 def update_skip_count(sender, instance, **kwargs):
     """Update the skip_count on Image when ImageSkip is created/deleted"""

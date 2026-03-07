@@ -8,3 +8,13 @@
 .subject-card:hover .subject-card-control {
     opacity: 1;
 }
+
+.subject-card .set-representative.btn-outline-secondary {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color) !important;
+}
+
+.subject-card .set-representative.btn-outline-secondary:hover {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-warning) !important;
+}

@@ -12,7 +12,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from images.models import Image, SubjectMapping, TopRatedImageView
+from images.models import Image, SubjectMapping
 
 from .models import Subject, WikidataItem
 
@@ -362,6 +362,37 @@ def remove_subject_from_image(request, subject_mapping_id):
 
 
 @require_http_methods(["POST"])
+def set_representative_image(request, subject_id, image_id):
+    """Set the representative image for a subject (logged-in users only)"""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "You must be logged in to do this."},
+            status=403,
+        )
+
+    subject = get_object_or_404(Subject, id=subject_id)
+    image = get_object_or_404(Image, id=image_id)
+
+    # Verify the image is actually mapped to this subject
+    if not SubjectMapping.objects.filter(subject=subject, image=image).exists():
+        return JsonResponse(
+            {"success": False, "error": "This image is not tagged with this subject."},
+            status=400,
+        )
+
+    subject.representative_image = image
+    subject.save(update_fields=["representative_image"])
+
+    return JsonResponse(
+        {
+            "success": True,
+            "message": f"{image.title} is now the representative image for {subject.title}.",
+            "thumbnail": image.thumbnail or "",
+        }
+    )
+
+
+@require_http_methods(["POST"])
 def reorder_subjects(request, image_id):
     """API endpoint to reorder subjects for an image (logged-in users only)"""
     if not request.user.is_authenticated:
@@ -478,22 +509,13 @@ def browse_subjects(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # Get top-rated image from entire site for Open Graph metadata
-    top_rated_entry = (
-        TopRatedImageView.objects.all()
-        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
-        .first()
-    )
-    top_rated_image = None
-    if top_rated_entry:
-        top_rated_image = Image.objects.select_related("collection__source").get(
-            id=top_rated_entry.image_id
-        )
+    # Attach representative images for subjects on this page
+    for subject in page_obj:
+        subject.representative = subject.get_representative_image()
 
     context = {
         "page_obj": page_obj,
         "overall_stats": overall_stats,
-        "top_rated_image": top_rated_image,
     }
     return render(request, "subjects/browse_subjects.html", context)
 
@@ -631,19 +653,7 @@ def subject_detail(request, subject_slug):
     # Check if subject has images with embeddings for similarity search
     has_images_with_embeddings = all_images.filter(embedding__isnull=False).exists()
 
-    # Get top-rated image from this subject for Open Graph metadata
-    top_rated_entry = (
-        TopRatedImageView.objects.filter(
-            image_id__in=all_images.values_list("id", flat=True)
-        )
-        .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
-        .first()
-    )
-    top_rated_image = None
-    if top_rated_entry:
-        top_rated_image = Image.objects.select_related("collection__source").get(
-            id=top_rated_entry.image_id
-        )
+    representative_image = subject.get_representative_image()
 
     context = {
         "subject": subject,
@@ -655,7 +665,7 @@ def subject_detail(request, subject_slug):
         if total_images > 0
         else 0,
         "has_images_with_embeddings": has_images_with_embeddings,
-        "top_rated_image": top_rated_image,
+        "representative_image": representative_image,
     }
     return render(request, "subjects/subject_detail.html", context)
 

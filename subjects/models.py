@@ -246,6 +246,14 @@ class Subject(models.Model):
         related_name="subjects",
         help_text="Optional linked Wikidata item",
     )
+    representative_image = models.ForeignKey(
+        "images.Image",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="User-chosen representative image for this subject",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -266,6 +274,29 @@ class Subject(models.Model):
 
     def get_absolute_url(self):
         return reverse("subjects:subject_detail", kwargs={"subject_slug": self.slug})
+
+    def get_representative_image(self):
+        """Return the best representative image for this subject.
+
+        Priority: representative_image field, then top-rated, then lowest ID.
+        Returns None only if no images are mapped to this subject.
+        """
+        from images.models import Image, TopRatedImageView
+
+        if self.representative_image_id is not None:
+            return self.representative_image
+
+        mapped_image_ids = self.image_mappings.values_list("image_id", flat=True)
+
+        top_rated = (
+            TopRatedImageView.objects.filter(image_id__in=mapped_image_ids)
+            .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
+            .first()
+        )
+        if top_rated:
+            return Image.objects.get(pk=top_rated.image_id)
+
+        return Image.objects.filter(pk__in=mapped_image_ids).order_by("id").first()
 
     class Meta:
         ordering = ["title"]

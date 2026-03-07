@@ -8,10 +8,10 @@
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Explore {{ overall_stats.total_subjects }} subject{{ overall_stats.total_subjects|pluralize }} totalling {{ overall_stats.total_images }} image{{ overall_stats.total_images|pluralize }}.">
-	{% if top_rated_image %}
-	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
-	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
-	{% endif %}
+	{% with page_obj.0.representative as og_image %}{% if og_image %}
+	<meta property="og:image" content="{{ og_image.thumbnail }}">
+	<meta property="og:image:alt" content="{{ og_image.title }}">
+	{% endif %}{% endwith %}
 {% endblock %}
 
 
@@ -41,17 +41,17 @@
             {% for subject in page_obj %}
                 <div class="col-lg-6 col-xl-4 mb-4">
                     <div class="card h-100 shadow-sm">
-                        {% if subject.wikidata_item and subject.wikidata_item.image_url %}
+                        {% if subject.representative and subject.representative.thumbnail %}
                             <a href="{{ subject.get_absolute_url }}" class="d-block">
-                                <img src="{{ subject.wikidata_item.image_url }}"
+                                <img src="{{ subject.representative.thumbnail }}"
                                      alt="{{ subject.title }}"
                                      class="card-img-top"
                                      style="height: 200px; object-fit: cover;">
                             </a>
                         {% else %}
-                            <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 200px;">
+                            <a href="{{ subject.get_absolute_url }}" class="card-img-top d-flex align-items-center justify-content-center text-decoration-none" style="height: 200px;">
                                 <i class="fas fa-map-pin fa-4x text-muted"></i>
-                            </div>
+                            </a>
                         {% endif %}
                         <div class="card-body">
                             <h5 class="card-title mb-2">

@@ -41,6 +41,11 @@ urlpatterns = [
         name="remove_subject_from_image",
     ),
     path(
+        "api/subject/<int:subject_id>/representative/<int:image_id>/",
+        views.set_representative_image,
+        name="set_representative_image",
+    ),
+    path(
         "api/image/<int:image_id>/reorder/",
         views.reorder_subjects,
         name="reorder_subjects",

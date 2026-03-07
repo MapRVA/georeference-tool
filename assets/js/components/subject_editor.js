@@ -29,6 +29,7 @@ export function initSubjectEditor() {
     addSubject: editorElement.dataset.addSubjectUrl,
     subjectAutocomplete: editorElement.dataset.autocompleteUrl,
     removeSubjectPattern: editorElement.dataset.removeSubjectUrl,
+    setRepresentativePattern: editorElement.dataset.setRepresentativeUrl,
     reorderSubjects: editorElement.dataset.reorderUrl,
   };
 
@@ -170,7 +171,7 @@ export function initSubjectEditor() {
     sortableInstance = new Sortable(subjectRow, {
       animation: 150,
       handle: ".drag-handle",
-      filter: ".remove-subject",
+      filter: ".remove-subject, .set-representative",
       preventOnFilter: true,
       onEnd: function () {
         const subjectCards = subjectRow.querySelectorAll(".subject-card");
@@ -397,6 +398,86 @@ export function initSubjectEditor() {
   // Clear pending removal when modal is hidden
   removeSubjectModal.addEventListener("hidden.bs.modal", function () {
     pendingRemoval = null;
+  });
+
+  // Set representative image
+  document.addEventListener("click", function (e) {
+    const starButton = e.target.closest(".set-representative");
+    if (!starButton) return;
+
+    const subjectId = starButton.dataset.subjectId;
+    if (!subjectId) return;
+
+    const csrfToken = document.querySelector(
+      '[name="csrfmiddlewaretoken"]',
+    )?.value;
+    const url = urls.setRepresentativePattern.replace(
+      "/0/",
+      `/${subjectId}/`,
+    );
+
+    starButton.disabled = true;
+    const originalIcon = starButton.innerHTML;
+    starButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrfToken,
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          return response
+            .json()
+            .catch(() => null)
+            .then((errorData) => {
+              throw new Error(errorData?.error || response.statusText);
+            });
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          showAlert("success", data.message);
+          // Update star button styles: this one becomes active, others reset
+          document.querySelectorAll(`.set-representative[data-subject-id="${subjectId}"]`).forEach((btn) => {
+            btn.classList.remove("btn-warning");
+            btn.classList.add("btn-outline-secondary");
+          });
+          starButton.classList.remove("btn-outline-secondary");
+          starButton.classList.add("btn-warning");
+
+          // Swap thumbnail in the subject card
+          if (data.thumbnail) {
+            const card = starButton.closest(".subject-card");
+            const existingImg = card.querySelector(".card-img-top");
+            if (existingImg) {
+              if (existingImg.tagName === "IMG") {
+                existingImg.src = data.thumbnail;
+              } else {
+                // Replace placeholder div with an img inside a link
+                const subjectUrl = card.querySelector(".card-body a")?.href || "#";
+                const link = document.createElement("a");
+                link.href = subjectUrl;
+                link.className = "d-block";
+                link.innerHTML = `<img src="${data.thumbnail}" alt="" class="card-img-top" loading="lazy" style="height: 150px; object-fit: cover;">`;
+                existingImg.replaceWith(link);
+              }
+            }
+          }
+        } else {
+          showAlert("danger", data.error || "An unknown error occurred.");
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        showAlert("danger", `Error setting representative image: ${error.message}`);
+      })
+      .finally(() => {
+        starButton.disabled = false;
+        starButton.innerHTML = originalIcon;
+      });
   });
 
   // Initialize sortable for drag-and-drop reordering
