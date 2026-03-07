@@ -5,6 +5,7 @@ Scrapes archival records from The Valentine Museum's Rediscovery Software API.
 """
 
 import re
+import sys
 from time import sleep
 
 import requests
@@ -152,7 +153,10 @@ def get_archival_children(archival_number: str, table: str):
 
 
 def get_record_details(
-    readable_primary_key: str, last_possible_year=None, first_possible_year=None
+    readable_primary_key: str,
+    last_possible_year=None,
+    first_possible_year=None,
+    date_overrides=None,
 ):
     url = "https://valentine.rediscoverysoftware.com/ProficioWcfServices/ProficioWcfService.svc/GetRecordDetails"
     headers = {
@@ -242,6 +246,11 @@ def get_record_details(
     if date_match:
         date_str = date_match.group(1).strip()
         result["original_date"] = date_str
+
+        # Check for user-provided date overrides first
+        if date_overrides and date_str in date_overrides:
+            result["edtf_date"] = date_overrides[date_str]
+            return result
 
         if first_possible_year:
             # Match "Pre YYYY-YYYY"
@@ -410,6 +419,12 @@ def add_arguments(parser):
         type=int,
         help='First possible year for date ranges like "Pre YYYY" or "Pre YYYY-YYYY"',
     )
+    parser.add_argument(
+        "--date-override",
+        action="append",
+        default=[],
+        help='Override a specific date string with an EDTF value (e.g., "Late 20th Century=[1975..1980]"). Can be specified multiple times.',
+    )
 
 
 def handle(options):
@@ -419,6 +434,21 @@ def handle(options):
     hotlink = options["hotlink"]
     last_possible_year = options["last_possible_year"]
     first_possible_year = options["first_possible_year"]
+
+    # Parse date overrides into a dict
+    date_overrides = {}
+    for override in options["date_override"]:
+        if "=" not in override:
+            print(f"✗ Invalid date override (missing '='): {override}")
+            print('  Expected format: "Date String=EDTF value"')
+            sys.exit(1)
+        date_str, edtf_value = override.split("=", 1)
+        date_overrides[date_str] = edtf_value
+
+    if date_overrides:
+        print(f"Date overrides: {len(date_overrides)}")
+        for date_str, edtf_value in date_overrides.items():
+            print(f'  "{date_str}" → {edtf_value}')
 
     source = create_source_if_not_exist()
     collection = create_collection_if_not_exist(
@@ -490,6 +520,7 @@ def handle(options):
             child,
             last_possible_year=last_possible_year,
             first_possible_year=first_possible_year,
+            date_overrides=date_overrides,
         )
 
         # Do we have an image URL to try and download?
