@@ -17,7 +17,7 @@ from images.models import AerialGeoreference, Album, Georeference
 
 def get_osm_auth():
     """Initialize and return robust OSM Auth instance with settings"""
-    return Auth(
+    auth = Auth(
         osm_url=settings.OSM_URL,
         client_id=settings.OSM_CLIENT_ID,
         client_secret=settings.OSM_CLIENT_SECRET,
@@ -25,6 +25,8 @@ def get_osm_auth():
         login_redirect_uri=settings.OSM_LOGIN_REDIRECT_URI,
         scope=settings.OSM_SCOPE,
     )
+    auth.oauth.headers.update({"User-Agent": "Yesterdays/1.0 (https://maprva.org)"})
+    return auth
 
 
 def login(request):
