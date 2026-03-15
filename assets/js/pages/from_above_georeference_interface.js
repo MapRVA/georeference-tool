@@ -103,6 +103,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var drawnPolygon = null;
   var gm = null;
   var currentPolygonId = null;
+  var currentFeatureRef = null; // direct reference to the Geoman feature object
+  var isEditing = !config.existingPolygon; // new georefs are "edited" by default
+  var confidenceSelected = false;
 
   // Initialize Geoman after map loads
   map.on("load", function () {
@@ -164,7 +167,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.log("Geoman initialized successfully:", gm);
 
       // Listen for Geoman loaded event
-      map.on("gm:loaded", function () {
+      map.on("gm:loaded", async function () {
         console.log("Geoman fully loaded");
 
         // Load existing polygon if correcting a previous georeference
@@ -174,9 +177,13 @@ document.addEventListener("DOMContentLoaded", function () {
             geometry: config.existingPolygon,
             properties: { shape: "polygon" },
           };
-          var imported = gm.features.importGeoJsonFeature(feature);
+          var imported = await gm.features.importGeoJsonFeature(feature);
           if (imported) {
             currentPolygonId = imported.id;
+            currentFeatureRef = imported;
+            drawnPolygon = imported.getGeoJson
+              ? imported.getGeoJson()
+              : feature;
           }
 
           // Fit map to the polygon bounds
@@ -185,8 +192,6 @@ document.addEventListener("DOMContentLoaded", function () {
             bounds.extend(c);
           });
           map.fitBounds(bounds, { padding: 50 });
-
-          updatePolygonData();
         }
 
         // Enforce one polygon limit
@@ -202,18 +207,24 @@ document.addEventListener("DOMContentLoaded", function () {
               console.log("Removing previous polygon:", currentPolygonId);
 
               try {
-                gm.features.forEach(function (feature) {
-                  if (feature.id === currentPolygonId) {
-                    console.log(
-                      "Found feature to remove, calling delete method",
-                    );
-                    if (typeof feature.delete === "function") {
-                      feature.delete();
-                    } else if (typeof feature.remove === "function") {
-                      feature.remove();
-                    }
+                // Try the stored reference first (works for imported features)
+                if (currentFeatureRef) {
+                  if (typeof currentFeatureRef.delete === "function") {
+                    currentFeatureRef.delete();
+                  } else if (typeof currentFeatureRef.remove === "function") {
+                    currentFeatureRef.remove();
                   }
-                });
+                } else {
+                  gm.features.forEach(function (feature) {
+                    if (feature.id === currentPolygonId) {
+                      if (typeof feature.delete === "function") {
+                        feature.delete();
+                      } else if (typeof feature.remove === "function") {
+                        feature.remove();
+                      }
+                    }
+                  });
+                }
               } catch (e) {
                 console.warn("Error removing polygon:", e);
               }
@@ -221,6 +232,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Store the new polygon's ID
             currentPolygonId = event.feature.id;
+            currentFeatureRef = event.feature;
+            isEditing = true;
 
             // Update polygon data
             updatePolygonData();
@@ -232,19 +245,29 @@ document.addEventListener("DOMContentLoaded", function () {
           if (event.feature && event.feature.id === currentPolygonId) {
             console.log("Polygon removed by user");
             currentPolygonId = null;
+            currentFeatureRef = null;
             updatePolygonData();
           }
         });
 
-        // Track polygon editing
+        // Track polygon editing — Geoman converts "change" mode to "edit"
+        // in public event names, so vertex edits fire gm:editend
         map.on("gm:editend", function (event) {
-          if (event.feature && event.feature.id === currentPolygonId) {
-            console.log("Polygon edited");
-            updatePolygonData();
+          console.log("Polygon edited (vertex change)");
+          isEditing = true;
+          if (event.feature) {
+            currentFeatureRef = event.feature;
           }
+          updatePolygonData();
         });
-
-        updatePolygonData();
+        map.on("gm:dragend", function (event) {
+          console.log("Polygon dragged");
+          isEditing = true;
+          if (event.feature) {
+            currentFeatureRef = event.feature;
+          }
+          updatePolygonData();
+        });
       });
     } catch (e) {
       console.error("Error initializing Geoman:", e);
@@ -254,6 +277,16 @@ document.addEventListener("DOMContentLoaded", function () {
       );
     }
   });
+
+  function updateSubmitButton() {
+    if (submitButton) {
+      submitButton.disabled = !(
+        drawnPolygon &&
+        isEditing &&
+        confidenceSelected
+      );
+    }
+  }
 
   function updatePolygonData() {
     try {
@@ -266,21 +299,20 @@ document.addEventListener("DOMContentLoaded", function () {
       drawnPolygon = null;
 
       gm.features.forEach(function (feature) {
-        if (feature.shape === "polygon" && feature.id === currentPolygonId) {
+        if (feature.id === currentPolygonId) {
           console.log("Found current polygon:", feature.id);
           drawnPolygon = feature.getGeoJson();
         }
       });
 
-      // Update submit button state
-      if (drawnPolygon) {
-        submitButton.disabled = false;
-        console.log("Polygon ready for submission:", drawnPolygon);
-      } else {
-        drawnPolygon = null;
-        submitButton.disabled = true;
-        console.log("No polygon to submit");
+      // Imported features may not appear in gm.features iteration —
+      // fall back to the stored reference
+      if (!drawnPolygon && currentFeatureRef && currentFeatureRef.getGeoJson) {
+        drawnPolygon = currentFeatureRef.getGeoJson();
       }
+
+      // Update submit button state — require polygon, edit, and confidence
+      updateSubmitButton();
     } catch (e) {
       console.warn("Error querying polygon data:", e);
     }
@@ -298,6 +330,7 @@ document.addEventListener("DOMContentLoaded", function () {
   if (confidenceRadios && confidenceRadios.length > 0) {
     confidenceRadios.forEach((radio) => {
       radio.addEventListener("change", function () {
+        confidenceSelected = true;
         if (this.value === "low") {
           if (notesRequiredIndicator)
             notesRequiredIndicator.style.display = "inline";
@@ -309,6 +342,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (notesHelpText) notesHelpText.style.display = "none";
           if (confidenceNotes) confidenceNotes.required = false;
         }
+        updateSubmitButton();
       });
     });
   }
