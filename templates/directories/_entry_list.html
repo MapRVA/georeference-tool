@@ -1,0 +1,54 @@
+{% comment %}
+Reusable partial for displaying a list of directory entries.
+
+Expects:
+  entries  – queryset/list of Entry objects, prefetched with
+             person_links__person, address_links__address,
+             business_links__business, occupation_links__occupation,
+             and page__directory.
+  hide     – (optional) a field name to suppress, e.g. "address" when
+             we're already on the address detail page.
+{% endcomment %}
+
+{% if entries %}
+<ul class="list-group">
+    {% for entry in entries %}
+    <li class="list-group-item">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                {% for link in entry.person_links.all %}
+                    {% if link.person.first_name or link.person.last_name %}
+                        <a href="{% url 'directories:entry_validate_specific' entry_uuid=entry.uuid %}" class="text-decoration-none text-body"><strong>{{ link.person }}</strong></a>
+                    {% endif %}
+                {% endfor %}
+                {% if hide != "occupation" %}
+                    {% for link in entry.occupation_links.all %}
+                        {% if link.occupation.name %}<span class="mx-1 text-muted">|</span>{{ link.occupation }}{% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% if hide != "business" %}
+                    {% for link in entry.business_links.all %}
+                        {% if link.business.name %}<span class="mx-1 text-muted">|</span>{{ link.business }}{% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% if hide != "address" %}
+                    {% for link in entry.address_links.all %}
+                        {% if link.address.housenumber or link.address.street %}<span class="mx-1 text-muted">|</span><a href="{% url 'directories:address_detail' address_uuid=link.address.uuid %}" class="text-decoration-none text-body">{{ link.address }}</a>{% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% if entry.original_text %}
+                    <div class="font-monospace small text-muted">{{ entry.original_text }}</div>
+                {% endif %}
+            </div>
+            <div class="text-nowrap ms-3">
+                <a href="{% url 'directories:directory_view' slug=entry.page.directory.slug %}" class="text-muted small" title="{{ entry.page.directory.title }}">
+                    <i class="fas fa-book-open me-1"></i>{{ entry.page.directory.title }}
+                </a>
+            </div>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-muted">No entries found.</p>
+{% endif %}

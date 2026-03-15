@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}Entry Details – Yesterdays{% endblock %}
+
+{% block extra_js %}
+    {% vite_asset 'assets/js/pages/entry_validate.js' %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'directories:directory_list' %}">Directories</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'directories:directory_view' slug=directory.slug %}">{{ directory.title }}</a></li>
+                {% if page %}<li class="breadcrumb-item"><a href="{% url 'directories:directory_view' slug=directory.slug %}?page={{ page.order|add:1 }}">Page {{ page.order|add:1 }}</a></li>{% endif %}
+                <li class="breadcrumb-item active">Entry</li>
+            </ol>
+        </nav>
+
+        {% if not entry %}
+            <div class="alert alert-info">No entries with bounding boxes to validate.</div>
+        {% else %}
+
+        <h1 class="h4 mb-3">Entry Details</h1>
+
+        <div x-data="entryForm()" x-init="init()">
+        <div class="row">
+            <div class="col-lg-7">
+                <div id="osd-viewer"
+                     data-iiif-info="{{ iiif_info_url }}"
+                     data-entry='{{ entry_json }}'
+                     style="height: 60vh; border: 1px solid rgba(0,0,0,0.125); border-radius: var(--border-radius);"></div>
+            </div>
+
+            <div class="col-lg-5">
+                <form @submit.prevent="save">
+                    <div class="mb-3">
+                        <h6 class="mb-2">Original text</h6>
+                        <small class="form-text text-muted d-block mb-1">Text exactly as it appears on the page.</small>
+                        <input type="text" class="form-control form-control-sm font-monospace" x-model="fields.original_text">
+                    </div>
+
+                    <hr>
+
+                    <h6 class="mb-2">Person</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-4">
+                            <label class="form-label small">First name</label>
+                            <input type="text" class="form-control form-control-sm" x-model="fields.first_name">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Middle name</label>
+                            <input type="text" class="form-control form-control-sm" x-model="fields.middle_name">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Last name</label>
+                            <input type="text" class="form-control form-control-sm" x-model="fields.last_name">
+                        </div>
+                    </div>
+                    <div x-data="{ showMorePerson: false }" x-init="showMorePerson = !!fields.birth_date">
+                        <button type="button" class="btn btn-link btn-sm p-0 mb-2" @click="showMorePerson = !showMorePerson">
+                            <i class="fas fa-chevron-right me-1" :class="{ 'fa-chevron-down': showMorePerson, 'fa-chevron-right': !showMorePerson }"></i>More
+                        </button>
+                        <div x-show="showMorePerson" x-transition class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Birth date</label>
+                                <input type="text" class="form-control form-control-sm" x-model="fields.birth_date" placeholder="EDTF, e.g. 1890-03">
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="mt-3 mb-2">Address</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-4">
+                            <label class="form-label small">House number</label>
+                            <input type="text" class="form-control form-control-sm" x-model="fields['addr:housenumber']">
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label small">Street</label>
+                            <input type="text" class="form-control form-control-sm" x-model="fields['addr:street']">
+                        </div>
+                    </div>
+                    <div x-data="{ showMoreAddr: false }" x-init="showMoreAddr = !!(fields['addr:city'] || fields['addr:postcode'] || fields['addr:state'] || fields['addr:district'] || fields['addr:neighbourhood'] || fields['addr:suburb'] || fields['addr:place'] || fields['addr:hamlet'] || fields['addr:province'] || fields['addr:floor'])">
+                        <button type="button" class="btn btn-link btn-sm p-0 mb-2" @click="showMoreAddr = !showMoreAddr">
+                            <i class="fas fa-chevron-right me-1" :class="{ 'fa-chevron-down': showMoreAddr, 'fa-chevron-right': !showMoreAddr }"></i>More
+                        </button>
+                        <div x-show="showMoreAddr" x-transition>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small">City</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:city']">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">Postcode</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:postcode']">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small">State</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:state']">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">District</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:district']">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small">Neighbourhood</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:neighbourhood']">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">Suburb</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:suburb']">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="form-label small">Place</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:place']">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small">Hamlet</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:hamlet']">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small">Province</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:province']">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="form-label small">Floor</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="fields['addr:floor']">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="mt-3 mb-2">Occupation</h6>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" x-model="fields.occupation">
+                    </div>
+
+                    <h6 class="mt-3 mb-2">Business</h6>
+                    <div class="mb-3">
+                        <input type="text" class="form-control form-control-sm" x-model="fields.business">
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success flex-fill" :disabled="saving || (!dirty && alreadyApproved)">
+                            <i class="fas fa-check me-1"></i><span x-text="dirty ? 'Save & Approve' : (alreadyApproved ? 'Approved' : 'Approve')"></span>
+                        </button>
+                        <button x-show="dirty" x-transition type="button" class="btn btn-outline-secondary" @click="reset()">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </div>
+
+                </form>
+
+                {% if request.user.is_authenticated %}
+                <button type="button" class="btn btn-info w-100 mt-3" data-bs-toggle="modal" data-bs-target="#commentModal">
+                    <i class="fas fa-comment me-1"></i>Add a Comment
+                </button>
+                {% endif %}
+
+                <template x-if="timeline.length">
+                    <div>
+                        <h6 class="mt-4 mb-2"><i class="fas fa-history me-2"></i>Timeline</h6>
+                        <div class="timeline small">
+                            <template x-for="(event, idx) in timeline" :key="idx">
+                                <div class="timeline-item">
+                                    <div class="timeline-marker">
+                                        <i class="fas" :class="{
+                                            'fa-robot': event.type === 'ocr_created',
+                                            'fa-check': event.type === 'approved',
+                                            'fa-pen': event.type === 'edited',
+                                            'fa-comment': event.type === 'comment'
+                                        }"></i>
+                                    </div>
+                                    <div class="timeline-content border rounded-2">
+                                        <div class="timeline-header">
+                                            <h6 class="timeline-title mb-0">
+                                                <span x-text="event.label"></span>
+                                                <template x-if="event.user">
+                                                    <span>by <strong x-text="event.user"></strong></span>
+                                                </template>
+                                            </h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar me-1"></i><span x-text="formatDate(event.time)"></span>
+                                            </small>
+                                        </div>
+                                        <template x-if="event.text">
+                                            <div class="timeline-notes p-2 bg-body-secondary rounded mt-1" x-text="event.text"></div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <script>
+            function entryForm() {
+                return {
+                    fields: {},
+                    initialFields: {},
+                    saving: false,
+                    dirty: false,
+                    alreadyApproved: {{ already_approved|yesno:"true,false" }},
+                    entryUuid: '{{ entry.uuid }}',
+                    timeline: {{ timeline_json|safe }},
+                    commentText: '',
+                    commentSubmitting: false,
+                    commentUrl: '{% if request.user.is_authenticated %}{% url "directories:add_entry_comment" entry_uuid=entry.uuid %}{% endif %}',
+                    currentUser: '{{ request.user.username|default:"" }}',
+                    init() {
+                        const data = JSON.parse(document.getElementById('osd-viewer').dataset.entry);
+                        this.fields = {
+                            first_name: data.first_name || '',
+                            middle_name: data.middle_name || '',
+                            last_name: data.last_name || '',
+                            birth_date: data.birth_date || '',
+                            'addr:housenumber': data['addr:housenumber'] || '',
+                            'addr:street': data['addr:street'] || '',
+                            'addr:city': data['addr:city'] || '',
+                            'addr:postcode': data['addr:postcode'] || '',
+                            'addr:state': data['addr:state'] || '',
+                            'addr:district': data['addr:district'] || '',
+                            'addr:neighbourhood': data['addr:neighbourhood'] || '',
+                            'addr:suburb': data['addr:suburb'] || '',
+                            'addr:place': data['addr:place'] || '',
+                            'addr:hamlet': data['addr:hamlet'] || '',
+                            'addr:province': data['addr:province'] || '',
+                            'addr:floor': data['addr:floor'] || '',
+                            occupation: data.occupation || '',
+                            business: data.business || '',
+                            original_text: data.original_text || '',
+                        };
+                        this.initialFields = { ...this.fields };
+                        this.$watch('fields', () => {
+                            this.dirty = JSON.stringify(this.fields) !== JSON.stringify(this.initialFields);
+                        }, { deep: true });
+                    },
+                    reset() {
+                        this.fields = { ...this.initialFields };
+                    },
+                    showAlert(type, message) {
+                        const el = document.createElement('div');
+                        el.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+                        el.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                        el.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                        document.body.appendChild(el);
+                        setTimeout(() => el.remove(), 5000);
+                    },
+                    formatDate(iso) {
+                        const d = new Date(iso);
+                        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                    },
+                    _csrfToken() {
+                        return document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                            || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+                    },
+                    async save() {
+                        this.saving = true;
+                        const wasEdited = this.dirty;
+                        try {
+                            const res = await fetch(`/directories/api/entries/${this.entryUuid}/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': this._csrfToken(),
+                                },
+                                body: JSON.stringify({ ...this.fields, edited: wasEdited }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                this.initialFields = { ...this.fields };
+                                this.dirty = false;
+                                this.alreadyApproved = true;
+                                this.showAlert('success', wasEdited ? 'Entry saved and approved.' : 'Entry approved.');
+                                this.timeline.push({
+                                    type: wasEdited ? 'edited' : 'approved',
+                                    label: wasEdited ? 'Edited' : 'Approved',
+                                    user: this.currentUser,
+                                    time: new Date().toISOString(),
+                                    text: '',
+                                });
+                            } else {
+                                this.showAlert('danger', data.error || 'Save failed.');
+                            }
+                        } catch (e) {
+                            this.showAlert('danger', 'Network error.');
+                        } finally {
+                            this.saving = false;
+                        }
+                    },
+                    async submitComment() {
+                        const text = this.commentText.trim();
+                        if (!text) return;
+                        this.commentSubmitting = true;
+                        try {
+                            const res = await fetch(this.commentUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': this._csrfToken(),
+                                },
+                                body: JSON.stringify({ text }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                this.timeline.push({
+                                    type: 'comment',
+                                    label: 'Comment',
+                                    user: this.currentUser,
+                                    time: new Date().toISOString(),
+                                    text: text,
+                                });
+                                this.commentText = '';
+                                const modal = bootstrap.Modal.getInstance(document.getElementById('commentModal'));
+                                if (modal) modal.hide();
+                                this.showAlert('success', 'Comment added.');
+                            } else {
+                                this.showAlert('danger', data.error || 'Error adding comment.');
+                            }
+                        } catch (e) {
+                            this.showAlert('danger', 'Network error.');
+                        } finally {
+                            this.commentSubmitting = false;
+                        }
+                    },
+                };
+            }
+        </script>
+
+        {% if request.user.is_authenticated %}
+        <!-- Comment Modal -->
+        <div class="modal fade" id="commentModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add a Comment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="commentForm" @submit.prevent="submitComment">
+                        <div class="modal-body">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="commentText" class="form-label">Comment</label>
+                                <textarea class="form-control" id="commentText" name="text" rows="5"
+                                          placeholder="Share your thoughts about this entry..."
+                                          x-model="commentText"></textarea>
+                            </div>
+                            <p class="text-muted small mb-0">By contributing to Yesterdays, you agree to release your submissions <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">into the public domain</a>.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" :disabled="commentSubmitting">
+                                <template x-if="commentSubmitting">
+                                    <span><i class="fas fa-spinner fa-spin me-1"></i>Submitting...</span>
+                                </template>
+                                <template x-if="!commentSubmitting">
+                                    <span><i class="fas fa-comment me-1"></i>Submit Comment</span>
+                                </template>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        </div>{# x-data wrapper #}
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ address }} – Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'directories:directory_list' %}">Directories</a></li>
+                <li class="breadcrumb-item active">Address</li>
+            </ol>
+        </nav>
+
+        <h1 class="mb-4">{{ address }}</h1>
+
+        <h5 class="mb-3">{{ entries|length }} directory entr{{ entries|length|pluralize:"y,ies" }} at this address</h5>
+
+        {% include "directories/_entry_list.html" with entries=entries hide="address" %}
+    </div>
+</div>
+{% endblock %}

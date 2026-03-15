@@ -27,3 +27,32 @@
 .action-button:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
+
+/* Directory entry annotation overlays on OpenSeadragon viewers.
+   OSD sets display:block inline, so we use visibility to hide/show.
+   box-sizing: border-box keeps the border inside OSD's computed dimensions. */
+.annotation-overlay {
+    box-sizing: border-box;
+    border: 3px solid transparent;
+    background: transparent;
+    pointer-events: none;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.annotation-overlay.hover {
+    border-color: rgba(230, 57, 70, 0.5);
+}
+
+.annotation-overlay.active {
+    border-color: #e63946;
+    background: rgba(230, 57, 70, 0.12);
+}
+
+.entry-has-bbox:hover {
+    background: #fff5f5;
+}
+
+.entry-selected {
+    border-left: 3px solid #e63946 !important;
+    background: #fff5f5;
+}

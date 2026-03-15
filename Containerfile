@@ -15,6 +15,7 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     g++ \
     make \
     file \
+    libvips-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv

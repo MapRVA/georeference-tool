@@ -5,8 +5,11 @@ Includes markdown rendering and HTML sanitization.
 
 import hashlib
 import io
+import logging
 import mimetypes
 import os
+import ssl
+import time
 from xml.etree import ElementTree as etree
 
 import boto3
@@ -328,14 +331,24 @@ class R2Uploader:
         # Validate required environment variables
         self._validate_config()
 
-        # Initialize S3 client for R2
-        self.s3_client = boto3.client(
-            service_name="s3",
-            endpoint_url=self.endpoint_url,
-            aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-            region_name=self.region,
-        )
+        # Initialize S3 client for R2 (retry on transient SSL init errors)
+        logger = logging.getLogger(__name__)
+        for attempt in range(3):
+            try:
+                self.s3_client = boto3.client(
+                    service_name="s3",
+                    endpoint_url=self.endpoint_url,
+                    aws_access_key_id=self.access_key_id,
+                    aws_secret_access_key=self.secret_access_key,
+                    region_name=self.region,
+                )
+                break
+            except ssl.SSLError:
+                if attempt < 2:
+                    logger.warning("SSLError creating S3 client, retrying (attempt %d/3)", attempt + 1)
+                    time.sleep(0.1 * (attempt + 1))
+                else:
+                    raise
 
         # Set default public URL base if not provided
         if not self.public_url_base:
@@ -529,6 +542,83 @@ class R2Uploader:
             return True
         except ClientError as e:
             raise R2UploaderError(f"Failed to delete from R2: {e}")
+
+    def upload_original(self, image_id, source_url, timeout=30, in_tqdm=False):
+        """
+        Download a file from URL and upload to R2 at images/<ID>/original.<ext>.
+
+        Args:
+            image_id (int): Image ID for the R2 key path
+            source_url (str): URL to download the file from
+            timeout (int): Timeout for downloading the source file
+            in_tqdm (bool): If True, use tqdm to print messages
+
+        Returns:
+            str: Public URL of the uploaded file, or None on download failure
+
+        Raises:
+            R2UploaderError: If upload fails
+        """
+        key = f"images/{image_id}/original"
+
+        # Check if file already exists
+        if self.file_exists(key):
+            return self.get_public_url(key)
+
+        _print = tqdm.write if in_tqdm else print
+
+        try:
+            _print(f"  Downloading from: {source_url}")
+            response = requests.get(source_url, timeout=timeout, stream=True)
+            response.raise_for_status()
+
+            file_content = response.content
+
+            # Determine content type and extension
+            content_type = response.headers.get("content-type")
+            if not content_type:
+                content_type, _ = mimetypes.guess_type(source_url)
+                if not content_type:
+                    content_type = "application/octet-stream"
+
+            ext = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ""
+            # mimetypes returns .jpe for image/jpeg on some systems
+            if ext in (".jpe", ".jpeg"):
+                ext = ".jpg"
+            key = f"images/{image_id}/original{ext}"
+
+            _print(f"  Uploading to R2: {key}")
+            self.s3_client.upload_fileobj(
+                io.BytesIO(file_content),
+                self.bucket_name,
+                key,
+                ExtraArgs={
+                    "ContentType": content_type,
+                    "CacheControl": "public, max-age=31536000",
+                },
+            )
+
+            public_url = self.get_public_url(key)
+            _print(f"  ✓ Uploaded to R2: {public_url}")
+            return public_url
+
+        except requests.RequestException as e:
+            _print(f"Failed to download from {source_url}: {e}")
+            return None
+        except ClientError as e:
+            raise R2UploaderError(f"Failed to upload to R2: {e}")
+
+    def generate_presigned_put_url(self, key, content_type, expiration=300):
+        """Generate a presigned PUT URL for direct browser uploads."""
+        return self.s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": self.bucket_name,
+                "Key": key,
+                "ContentType": content_type,
+            },
+            ExpiresIn=expiration,
+        )
 
     def get_public_url(self, key):
         """
