@@ -281,9 +281,9 @@ CELERY_TASK_ROUTES = {
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
     # IIIF tile generation goes to background queue
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
-    "directories.tasks.generate_iiif_tiles": {"queue": "background"},
+    "directories.tasks.ocr.generate_iiif_tiles": {"queue": "background"},
     # OCR processing goes to background queue
-    "directories.tasks.run_page_ocr": {"queue": "background"},
+    "directories.tasks.ocr.run_page_ocr": {"queue": "background"},
 }
 
 # Metadata refresh intervals (seconds between each refresh)
