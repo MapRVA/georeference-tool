@@ -50,6 +50,7 @@ COPY pyproject.toml ./
 COPY assets ./assets
 COPY api ./api
 COPY images ./images
+COPY directories ./directories
 COPY maps ./maps
 COPY subjects ./subjects
 COPY activity ./activity
@@ -93,6 +94,7 @@ COPY --from=build --chown=app:app /app/uv.lock /app/
 COPY --from=build --chown=app:app /app/.python-version /app/
 COPY --from=build --chown=app:app /app/api /app/api
 COPY --from=build --chown=app:app /app/images /app/images
+COPY --from=build --chown=app:app /app/directories /app/directories
 COPY --from=build --chown=app:app /app/maps /app/maps
 COPY --from=build --chown=app:app /app/subjects /app/subjects
 COPY --from=build --chown=app:app /app/activity /app/activity
