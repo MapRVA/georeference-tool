@@ -73,8 +73,6 @@ def generate_iiif_tiles(self, page_id):
     soft_time_limit=240,
 )
 def run_page_ocr(self, page_id, prompt, model_identifier):
-    from .models import Page
-
     page = Page.objects.select_related("directory").get(pk=page_id)
 
     logger.info("OCR for page %s using model %s", page.uuid, model_identifier)
