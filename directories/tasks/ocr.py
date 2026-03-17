@@ -504,7 +504,7 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
 
     # Extract LLM response from JSON returned by OpenRouter
     result = response.json()
-    llm_response: str = result["choices"][0]["message"]["content"]
+    llm_content: str = result["choices"][0]["message"]["content"]
 
     # The response we want from the LLM is a JSON list.
     # Sometimes LLMs return an otherwise-valuable response,
@@ -562,7 +562,7 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
     #  - parse_error: set if the LLM response wasn't valid JSON
     result = {
         "prompt": prompt,
-        "llm_response": llm_response,
+        "llm_response": llm_content,
         "entries": entries,
     }
     if parse_error:
