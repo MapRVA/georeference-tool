@@ -15,9 +15,6 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     g++ \
     make \
     file \
-    libvips-dev \
-    tesseract-ocr \
-    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -80,6 +77,9 @@ WORKDIR /app
 RUN apt-get -y update && apt-get install -y --no-install-recommends \
     libgdal32 \
     libproj25 \
+    libvips42 \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
