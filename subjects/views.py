@@ -459,7 +459,7 @@ def reorder_subjects(request, image_id):
 
 def browse_subjects(request):
     """Browse all subjects with search and load-more support."""
-    PER_PAGE = 12
+    PER_PAGE = 100
 
     subjects = (
         Subject.objects.all()

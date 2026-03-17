@@ -257,11 +257,11 @@
                             <i class="fas fa-info-circle me-1"></i>
                             <small>You can georeference images anonymously. <a href="{% url 'osm_auth:login' %}?image={{ image.id }}">Login with OpenStreetMap</a> to track your contributions and access validation features.</small>
                         </div>
-                    {% elif request.user.is_authenticated and not user.is_staff %}
+                    {% elif request.user.is_authenticated %}
                         <!-- Logged in user info -->
                         <div class="alert alert-success mb-2">
                             <i class="fas fa-user-check me-1"></i>
-                            <small>Logged in as <strong>{{ osm_username }}</strong>. Your contributions will be tracked!</small>
+                            <small>Logged in as <strong>{{ osm_username }}</strong>.</small>
                         </div>
                     {% endif %}
 

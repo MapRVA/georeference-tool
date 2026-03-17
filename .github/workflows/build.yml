@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - trunk
+      - develop
 
 env:
   IMAGE_NAME: yesterdays

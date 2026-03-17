@@ -380,20 +380,12 @@ def aerial_georeference_interface(request, image_id):
             status=404,
         )
 
-    # Get OSM authentication info
-    osm_authenticated = (
-        hasattr(request.user, "osm_profile") and request.user.osm_profile is not None
-    )
-    osm_username = request.user.osm_profile.display_name if osm_authenticated else None
-
     # Get the existing aerial georeference if it exists
     aerial_georeference = image.get_aerial_georeference()
 
     context = {
         "image": image,
         "aerial_georeference": aerial_georeference,
-        "osm_authenticated": osm_authenticated,
-        "osm_username": osm_username,
         "user": request.user,
     }
 
