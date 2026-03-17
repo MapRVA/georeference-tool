@@ -16,6 +16,8 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     make \
     file \
     libvips-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
