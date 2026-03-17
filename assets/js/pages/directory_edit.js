@@ -1,5 +1,10 @@
 import Sortable from "sortablejs";
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : window.directoryEditConfig.csrfToken;
+}
+
 const OCR_STATUS_LABELS = {
   "": { text: "Not OCR'd", class: "text-bg-light text-dark", icon: "minus-circle" },
   pending: { text: "OCR queued", class: "text-bg-secondary", icon: "clock" },
@@ -300,14 +305,20 @@ document.addEventListener("alpine:init", () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": config.csrfToken,
+            "X-CSRFToken": getCsrfToken(),
           },
           body: JSON.stringify({ filename: file.name }),
         });
 
         if (!presignRes.ok) {
-          const err = await presignRes.json();
-          throw new Error(err.error || "Failed to get upload URL");
+          let msg = `Server error (${presignRes.status})`;
+          try {
+            const err = await presignRes.json();
+            msg = err.error || msg;
+          } catch {
+            // Response wasn't JSON (e.g. HTML error page)
+          }
+          throw new Error(msg);
         }
 
         const presignData = await presignRes.json();
@@ -342,7 +353,7 @@ document.addEventListener("alpine:init", () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": config.csrfToken,
+            "X-CSRFToken": getCsrfToken(),
           },
           body: JSON.stringify({
             page_uuid: presignData.page_uuid,
@@ -382,7 +393,7 @@ document.addEventListener("alpine:init", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRFToken": config.csrfToken,
+          "X-CSRFToken": getCsrfToken(),
         },
         body: JSON.stringify({ page_ids: ids }),
       });
@@ -393,7 +404,7 @@ document.addEventListener("alpine:init", () => {
       const url = config.queueTilesUrlTemplate.replace("00000000-0000-0000-0000-000000000000", pageId);
       const res = await fetch(url, {
         method: "POST",
-        headers: { "X-CSRFToken": config.csrfToken },
+        headers: { "X-CSRFToken": getCsrfToken() },
       });
 
       if (res.ok) {
@@ -427,7 +438,7 @@ document.addEventListener("alpine:init", () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": config.csrfToken,
+            "X-CSRFToken": getCsrfToken(),
           },
           body: JSON.stringify({ model }),
         });
@@ -484,7 +495,7 @@ document.addEventListener("alpine:init", () => {
       const url = config.deleteUrlTemplate.replace("00000000-0000-0000-0000-000000000000", pageId);
       const res = await fetch(url, {
         method: "DELETE",
-        headers: { "X-CSRFToken": config.csrfToken },
+        headers: { "X-CSRFToken": getCsrfToken() },
       });
 
       if (res.ok) {

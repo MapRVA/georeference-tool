@@ -10,6 +10,7 @@ from django.db import transaction
 from django.db.models import Count, Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 from iiif_prezi3 import (
     Annotation,
@@ -705,6 +706,7 @@ def directory_create(request):
 
 
 @staff_member_required
+@ensure_csrf_cookie
 def directory_edit(request, slug):
     directory = get_object_or_404(Directory, slug=slug)
 
