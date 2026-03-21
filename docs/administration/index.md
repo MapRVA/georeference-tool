@@ -1,4 +1,4 @@
-# Admin Panel
+# Administration
 
 Users are designated as admins at the discretion of the host.
 The Yesterdays admin panel is located at `/admin/`.

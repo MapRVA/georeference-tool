@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-docs = ["zensical~=0.0.24"]
+docs = ["zensical~=0.0.28"]
 
 [tool.uv]
 default-groups = ["docs"]

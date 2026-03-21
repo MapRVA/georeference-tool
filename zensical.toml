@@ -93,7 +93,7 @@ nav = [
 #
 # Read more: https://zensical.org/docs/customization/#additional-css
 #
-#extra_css = ["stylesheets/extra.css"]
+extra_css = ["stylesheets/extra.css"]
 
 # With the `extra_javascript` option you can add your own JavaScript to your
 # project to customize the behavior according to your needs.
@@ -284,6 +284,9 @@ features = [
     #"toc.integrate",
 ]
 
+[project.theme.icon]
+logo = "fontawesome/solid/map-location-dot"
+
 # ----------------------------------------------------------------------------
 # In the "palette" subsection you can configure options for the color scheme.
 # You can configure different color # schemes, e.g., to turn on dark mode,
@@ -303,6 +306,8 @@ toggle.name = "Switch to light mode"
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
@@ -310,6 +315,8 @@ toggle.name = "Switch to dark mode"
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to system preference"
 
