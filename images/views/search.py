@@ -1424,13 +1424,13 @@ def reverse_image_search(request):
                 where_conditions.append(
                     "(start_decdate >= %s OR fuzzy_start_decdate >= %s)"
                 )
-                where_params["start_year"] = start_year
+                where_params.extend([start_year, start_year])
 
             if end_year is not None:
                 where_conditions.append(
                     "(end_decdate <= %s OR fuzzy_end_decdate <= %s)"
                 )
-                where_params["end_year"] = end_year
+                where_params.extend([end_year, end_year])
 
             # Add subject filtering conditions
             if no_subjects:
