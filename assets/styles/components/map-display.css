@@ -12,6 +12,19 @@
     max-width: 60vw;
 }
 
+/* Popup navigation for overlapping features */
+.maplibregl-popup-content:has(.popup-nav-row) {
+    padding-top: 4px;
+}
+
+.popup-nav-row {
+    margin-right: 1.25rem; /* leave room for the close button */
+}
+
+.popup-nav-row .btn {
+    font-size: 0.5rem;
+}
+
 /* Dark mode support for MapLibre popups using Bootstrap CSS variables */
 @media (prefers-color-scheme: dark) {
     .maplibregl-popup-content {

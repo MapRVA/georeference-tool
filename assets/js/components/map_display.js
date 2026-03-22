@@ -912,35 +912,141 @@ export function initializeMap(config) {
 
     // Add click handlers for image markers
     if (!imageId || showOtherImages) {
+      // Helper function to build popup DOM content for a single feature
+      const buildPopupContent = function (properties) {
+        const imgEntry = window.location.origin + "/" + properties.id + "/";
+        const container = document.createElement("div");
+
+        const imgLink = document.createElement("a");
+        imgLink.href = imgEntry;
+
+        const img = document.createElement("img");
+        img.src = properties.thumbnail;
+        img.style.cssText =
+          "border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;";
+        imgLink.appendChild(img);
+        container.appendChild(imgLink);
+
+        const footer = document.createElement("div");
+        footer.className =
+          "d-flex align-items-center justify-content-between mt-1";
+
+        if (properties.original_date) {
+          const dateSpan = document.createElement("span");
+          dateSpan.className = "text-muted";
+          dateSpan.innerHTML =
+            '<i class="fas fa-calendar me-1"></i>' + properties.original_date;
+          footer.appendChild(dateSpan);
+        }
+
+        const link = document.createElement("a");
+        link.href = imgEntry;
+        link.className = "btn btn-primary btn-sm";
+        link.innerHTML = '<i class="fas fa-eye me-1"></i>View';
+        footer.appendChild(link);
+
+        container.appendChild(footer);
+
+        return container;
+      };
+
       // Helper function to handle circle layer click
       const handleCircleClick = function (e, checkScaleVisibility) {
         if (!e.features.length) return;
-        const properties = e.features[0].properties;
 
+        // Filter features by scale visibility if needed
+        let features = e.features;
         if (checkScaleVisibility && enableScaleVisibility) {
-          const scale =
-            !properties.scale || properties.scale === 0 ? 6 : properties.scale;
           const zoom = map.getZoom();
-
-          if (!scaleHelpers.isFullDetail(scale, zoom)) return;
+          features = features.filter((f) => {
+            const scale =
+              !f.properties.scale || f.properties.scale === 0
+                ? 6
+                : f.properties.scale;
+            return scaleHelpers.isFullDetail(scale, zoom);
+          });
+          if (features.length === 0) return;
         }
 
-        const imgEntry = window.location.origin + "/" + properties.id + "/";
+        // Deduplicate by feature id
+        const seen = new Set();
+        features = features.filter((f) => {
+          const id = f.properties.id;
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
 
-        const popupContent = `
-                  <div>
-                      <img src="${properties.thumbnail}"
-                            style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
-                      ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ""}
-                      <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                          <i class="fas fa-eye me-1"></i>View Details
-                      </a>
-                  </div>
-                `;
+        const wrapper = document.createElement("div");
+        const contentSlot = document.createElement("div");
+
+        let currentIndex = 0;
+
+        // Navigation row (only shown for multiple features)
+        let navRow = null;
+        let navLabel = null;
+        let prevBtn = null;
+        let nextBtn = null;
+
+        if (features.length > 1) {
+          navRow = document.createElement("div");
+          navRow.className =
+            "popup-nav-row d-flex align-items-center gap-2 mb-1";
+
+          prevBtn = document.createElement("button");
+          prevBtn.type = "button";
+          prevBtn.className = "btn btn-sm btn-outline-secondary py-0 px-1";
+          prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+
+          nextBtn = document.createElement("button");
+          nextBtn.type = "button";
+          nextBtn.className = "btn btn-sm btn-outline-secondary py-0 px-1";
+          nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+
+          navLabel = document.createElement("span");
+          navLabel.className = "text-muted small";
+
+          navRow.appendChild(prevBtn);
+          navRow.appendChild(navLabel);
+          navRow.appendChild(nextBtn);
+          wrapper.appendChild(navRow);
+        }
+
+        wrapper.appendChild(contentSlot);
+
+        const showFeature = (index) => {
+          currentIndex = index;
+          contentSlot.replaceChildren(
+            buildPopupContent(features[index].properties),
+          );
+          if (navLabel) {
+            navLabel.textContent = index + 1 + " of " + features.length;
+          }
+          if (prevBtn) {
+            prevBtn.disabled = index === 0;
+          }
+          if (nextBtn) {
+            nextBtn.disabled = index === features.length - 1;
+          }
+        };
+
+        if (prevBtn) {
+          prevBtn.addEventListener("click", () => {
+            if (currentIndex > 0) showFeature(currentIndex - 1);
+          });
+        }
+        if (nextBtn) {
+          nextBtn.addEventListener("click", () => {
+            if (currentIndex < features.length - 1)
+              showFeature(currentIndex + 1);
+          });
+        }
+
+        showFeature(0);
 
         new maplibregl.Popup()
-          .setLngLat(e.features[0].geometry.coordinates)
-          .setHTML(popupContent)
+          .setLngLat(e.lngLat)
+          .setDOMContent(wrapper)
           .addTo(map);
       };
 
