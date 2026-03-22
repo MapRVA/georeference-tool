@@ -99,13 +99,13 @@
                             {% if image.difficulty %}
                                 <span class="badge status-badge
                                     {% if image.difficulty == 'easy' %}bg-success
-                                    {% elif image.difficulty == 'medium' %}bg-warning text-dark
+                                    {% elif image.difficulty == 'medium' %}text-bg-warning
                                     {% else %}bg-danger{% endif %}">
                                     <i class="fas fa-signal me-1"></i>{{ image.difficulty|capfirst }}
                                 </span>
                             {% endif %}
 
-                            <span class="badge status-badge {% if image.duplicate_of %}bg-secondary{% elif image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                            <span class="badge status-badge {% if image.duplicate_of %}bg-secondary{% elif image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}text-bg-warning{% endif %}">
                                 {% if image.duplicate_of %}
                                     <i class="fas fa-copy me-1"></i>Duplicate
                                 {% elif image.is_georeferenced %}
@@ -338,7 +338,7 @@
 
                                 <dt class="col-sm-5">Confidence:</dt>
                                 <dd class="col-sm-7">
-                                    <span class="badge {% if polygonal_georeference.confidence == 'high' %}bg-success{% elif polygonal_georeference.confidence == 'medium' %}bg-warning text-dark{% elif polygonal_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    <span class="badge {% if polygonal_georeference.confidence == 'high' %}bg-success{% elif polygonal_georeference.confidence == 'medium' %}text-bg-warning{% elif polygonal_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
                                         {{ polygonal_georeference.confidence|capfirst }}
                                     </span>
                                 </dd>
@@ -354,7 +354,7 @@
                                                     </span>
                                                 {% endif %}
                                                 {% if validation_counts.uncertain > 0 %}
-                                                    <span class="badge bg-warning text-dark" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
+                                                    <span class="badge text-bg-warning" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
                                                         {{ validation_counts.uncertain }}
                                                     </span>
                                                 {% endif %}
@@ -417,7 +417,7 @@
 
                                 <dt class="col-sm-5">Confidence:</dt>
                                 <dd class="col-sm-7">
-                                    <span class="badge {% if image.get_georeference.confidence == 'high' %}bg-success{% elif image.get_georeference.confidence == 'medium' %}bg-warning text-dark{% elif image.get_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    <span class="badge {% if image.get_georeference.confidence == 'high' %}bg-success{% elif image.get_georeference.confidence == 'medium' %}text-bg-warning{% elif image.get_georeference.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">
                                         {{ image.get_georeference.confidence|capfirst }}
                                     </span>
                                 </dd>
@@ -433,7 +433,7 @@
                                                     </span>
                                                 {% endif %}
                                                 {% if validation_counts.uncertain > 0 %}
-                                                    <span class="badge bg-warning text-dark" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
+                                                    <span class="badge text-bg-warning" title="{{ validation_counts.uncertain }} uncertain validation{{ validation_counts.uncertain|pluralize }}">
                                                         {{ validation_counts.uncertain }}
                                                     </span>
                                                 {% endif %}
@@ -779,7 +779,7 @@
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="radio" name="validation" value="uncertain" id="uncertain">
                                 <label class="form-check-label" for="uncertain">
-                                    <span class="badge bg-warning text-dark me-2">? Uncertain</span>
+                                    <span class="badge text-bg-warning me-2">? Uncertain</span>
                                     I'm not sure
                                 </label>
                             </div>

@@ -178,14 +178,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (difficultyBadge && difficultyBadge.innerHTML.includes("fa-signal")) {
       // Update existing badge
-      difficultyBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+      difficultyBadge.className = `badge status-badge text-bg-${getBootstrapColor(newDifficulty)}`;
       difficultyBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
     } else {
       // Create new badge
       const badgeContainer = cardHeader.querySelector(".d-flex.gap-2");
       if (badgeContainer) {
         const newBadge = document.createElement("span");
-        newBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+        newBadge.className = `badge status-badge text-bg-${getBootstrapColor(newDifficulty)}`;
         newBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
         badgeContainer.insertBefore(newBadge, badgeContainer.firstChild);
       }
@@ -307,7 +307,7 @@ document.addEventListener("DOMContentLoaded", function () {
           statusBadge.innerHTML =
             '<i class="fas fa-map-marker-alt me-1"></i>Georeferenced';
         } else {
-          statusBadge.className = "badge status-badge bg-warning text-dark";
+          statusBadge.className = "badge status-badge text-bg-warning";
           statusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Available';
         }
       }

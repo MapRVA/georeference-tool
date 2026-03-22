@@ -16,12 +16,21 @@ import { initImageViewer } from "../components/image_viewer.js";
 import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
+import { deduplicateFeatures, buildPopupWrapper } from "../components/map_popup.js";
 
 // Get colors from Bootstrap's CSS custom properties
 const dangerColor =
   getComputedStyle(document.documentElement)
     .getPropertyValue("--bs-danger")
     .trim() || "#d52e1c";
+const primaryColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-primary")
+    .trim() || "#286071";
+const secondaryColor =
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--bs-secondary")
+    .trim() || "#6c757d";
 const darkColor =
   getComputedStyle(document.documentElement)
     .getPropertyValue("--bs-dark")
@@ -422,7 +431,7 @@ document.addEventListener("DOMContentLoaded", function () {
           "source-layer": "image_points",
           paint: {
             "circle-radius": 6,
-            "circle-color": "#6c757d",
+            "circle-color": secondaryColor,
             "circle-opacity": 0.6,
             "circle-stroke-color": "#fff",
             "circle-stroke-width": 1,
@@ -1054,7 +1063,7 @@ document.addEventListener("DOMContentLoaded", function () {
           map.setPaintProperty(
             "context-image-circles",
             "circle-color",
-            "#6c757d",
+            secondaryColor,
           );
           map.setPaintProperty("context-image-circles", "circle-opacity", 0.6);
           map.setPaintProperty(
@@ -1093,7 +1102,7 @@ document.addEventListener("DOMContentLoaded", function () {
           map.setPaintProperty(
             "context-image-circles",
             "circle-color",
-            "#0d6efd",
+            primaryColor,
           );
           map.setPaintProperty("context-image-circles", "circle-opacity", 1.0);
           map.setPaintProperty(
@@ -1113,22 +1122,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Prevent the map click handler from firing when clicking on context images
             e.originalEvent.stopPropagation();
 
-            const properties = e.features[0].properties;
-
-            // Build absolute URL for image entry
-            const imgEntry = window.location.origin + "/" + properties.id + "/";
-
-            // Create popup content
-            const popupContent = `
-                          <div>
-                              <img src="${properties.thumbnail}"
-                                    style="border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;">
-                              ${properties.original_date ? `<p>Date: ${properties.original_date}</p>` : ""}
-                              <a href="${imgEntry}" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                                  <i class="fas fa-eye me-1"></i>View Details
-                              </a>
-                          </div>
-                        `;
+            const features = deduplicateFeatures(e.features);
+            if (features.length === 0) return;
 
             // Close any existing popup
             if (activePopup) {
@@ -1137,8 +1132,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Create and track new popup
             activePopup = new maplibregl.Popup()
-              .setLngLat(e.features[0].geometry.coordinates)
-              .setHTML(popupContent)
+              .setLngLat(e.lngLat)
+              .setDOMContent(buildPopupWrapper(features))
               .addTo(map);
 
             // Clear the popup reference when it's closed
@@ -1558,17 +1553,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (difficultyBadge && difficultyBadge.innerHTML.includes("fa-signal")) {
         // Update existing badge
-        difficultyBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)}`;
+        difficultyBadge.className = `badge status-badge text-bg-${getBootstrapColor(newDifficulty)}`;
         difficultyBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
-      } else {
-        // Create new badge if it doesn't exist yet
-        const badgeContainer = cardHeader.querySelector("h5");
-        if (badgeContainer && !cardHeader.querySelector(".badge")) {
-          const newBadge = document.createElement("span");
-          newBadge.className = `badge status-badge bg-${getBootstrapColor(newDifficulty)} ms-2`;
-          newBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
-          badgeContainer.appendChild(newBadge);
-        }
+      } else if (!cardHeader.querySelector(".badge")) {
+        // Create new badge as a sibling of the h5, not inside it
+        const newBadge = document.createElement("span");
+        newBadge.className = `badge status-badge text-bg-${getBootstrapColor(newDifficulty)} ms-2`;
+        newBadge.innerHTML = `<i class="fas fa-signal me-1"></i>${newDifficulty.charAt(0).toUpperCase() + newDifficulty.slice(1)}`;
+        cardHeader.appendChild(newBadge);
       }
     }
 

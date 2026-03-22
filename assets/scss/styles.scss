@@ -35,3 +35,8 @@ $body-tertiary-bg: #ece3ca;
 
 // Import all of Bootstrap's CSS
 @import "bootstrap/scss/bootstrap";
+
+// Custom badge text colors (use $light so "medium" badges stay readable in both modes)
+.text-bg-warning {
+  color: $light !important;
+}
