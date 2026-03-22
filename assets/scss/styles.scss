@@ -25,18 +25,18 @@ $dark: #0b1722;
 $light: #f4ecd6;
 
 $body-color: #0b1722;
-$body-bg: white;
+$body-bg: #fffdf9;
 
 $body-color-dark: #f4ecd6;
 $body-bg-dark: #0b1722;
 
-$body-secondary-bg: #e7dbbc;
-$body-tertiary-bg: #ece3ca;
+$body-secondary-bg: #f5f2eb;
+$body-tertiary-bg: #f0ede6;
 
 // Import all of Bootstrap's CSS
 @import "bootstrap/scss/bootstrap";
 
 // Custom badge text colors (use $light so "medium" badges stay readable in both modes)
 .text-bg-warning {
-  color: $light !important;
+    color: $light !important;
 }
