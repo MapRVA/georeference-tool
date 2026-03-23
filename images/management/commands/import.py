@@ -72,5 +72,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         module = self._get_source_module(options["source"])
-        options["license"] = prompt_license()
+        if not getattr(module, "SKIP_LICENSE_PROMPT", False):
+            options["license"] = prompt_license()
         module.handle(options)
