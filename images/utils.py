@@ -410,7 +410,10 @@ class R2Uploader:
                 tqdm.write(f"  Downloading from: {source_url}")
             else:
                 print(f"  Downloading from: {source_url}")
-            response = requests.get(source_url, timeout=timeout, stream=True)
+            headers = {"User-Agent": "Yesterdays/1.0 (https://maprva.org)"}
+            response = requests.get(
+                source_url, timeout=timeout, stream=True, headers=headers
+            )
             response.raise_for_status()
 
             # Get file content
