@@ -31,7 +31,7 @@ class MapLayerAdmin(admin.ModelAdmin):
             {"fields": ("name", "slug", "collection", "order", "description")},
         ),
         ("Map Data", {"fields": ("type", "url", "attribution")}),
-        ("Links", {"fields": ("source_link", "oim_link")}),
+        ("Links", {"fields": ("source_link", "iiif_link", "oim_link")}),
         (
             "System Information",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},

@@ -59,6 +59,9 @@ class MapLayer(models.Model):
     source_link = models.URLField(
         blank=True, help_text="Optional URL to the source of this map layer"
     )
+    iiif_link = models.URLField(
+        blank=True, help_text="Optional URL to the IIIF manifest"
+    )
     oim_link = models.URLField(
         blank=True, help_text="Optional URL to the OIM (OldInsuranceMaps.net) entry"
     )
