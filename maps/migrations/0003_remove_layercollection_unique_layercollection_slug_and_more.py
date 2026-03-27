@@ -23,14 +23,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="maplayer",
-            name="iiif_link",
-            field=models.URLField(
-                blank=True,
-                help_text="Optional URL to the IIIF manifest",
-            ),
-        ),
-        migrations.AddField(
-            model_name="maplayer",
             name="source_link",
             field=models.URLField(
                 blank=True, help_text="Optional URL to the source of this map layer"
