@@ -10,6 +10,7 @@ from images.models import (
     AerialGeoreferenceValidation,
     Comment,
     GeoreferenceValidation,
+    SubjectMapping,
 )
 
 from .models import (
@@ -21,7 +22,7 @@ from .models import (
 
 ITEMS_PER_PAGE = 20
 FETCH_LIMIT = 50  # Fetch this many of each type to ensure we have enough
-ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "validation"}
+ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "validation", "subject"}
 DEFAULT_EVENT_TYPES = {"group", "comment", "milestone", "sitewide"}
 
 
@@ -103,6 +104,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     milestone_filter = {}
     sitewide_filter = {}
     validation_filter = {}
+    subject_filter = {}
 
     if before:
         group_filter["ended_at__lt"] = before
@@ -110,6 +112,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         milestone_filter["reached_at__lt"] = before
         sitewide_filter["reached_at__lt"] = before
         validation_filter["validated_at__lt"] = before
+        subject_filter["created_at__lt"] = before
 
     events = []
 
@@ -167,6 +170,15 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
             .order_by("-validated_at")[:FETCH_LIMIT]
         )
         events.extend(("validation", v, v.validated_at) for v in aerial_validations)
+    
+    if "subject" in event_types:
+        subject_mappings = (
+            SubjectMapping.objects.filter(**subject_filter)
+            .select_related("image", "subject")
+            .order_by("-created_at")[:FETCH_LIMIT]
+        )
+        events.extend(("subject", s, s.created_at) for s in subject_mappings)
+
 
     # Sort by timestamp descending and take the requested limit
     events.sort(key=lambda e: e[2], reverse=True)

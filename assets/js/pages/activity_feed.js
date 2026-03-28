@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
  * @param {Object} initialFilters - Initial filter states {group, comment, milestone}
  */
 window.activityFilter = function (initialFilters) {
-  const allTypes = ["group", "comment", "milestone", "sitewide", "validation"];
+  const allTypes = ["group", "comment", "milestone", "sitewide", "validation", "subject"];
   const defaultTypes = ["group", "comment", "milestone", "sitewide"];
 
   return {
@@ -30,6 +30,7 @@ window.activityFilter = function (initialFilters) {
       milestone: initialFilters?.milestone ?? true,
       sitewide: initialFilters?.sitewide ?? true,
       validation: initialFilters?.validation ?? false,
+      subject: initialFilters?.subject ?? false,
     },
 
     applyFilters() {
