@@ -122,9 +122,8 @@ export PG_SSL_MODE=disable
 export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 
 # Deployment specific
-# Comma separated list of cities and states that your deployment will encompass
-export CITIES=Richmond
-export STATES=Virginia
+export CITY=Richmond
+export STATE=Virginia
 
 # Local Development Settings
 export LOCAL_DEV=0
