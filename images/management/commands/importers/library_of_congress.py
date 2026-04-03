@@ -227,14 +227,31 @@ def extract_image_data(result_item):
         record["original_date"] = result_item["date"]
         record["edtf_date"] = parse_loc_date(result_item["date"])
     # TODO: check resources if there are multiple files
-    #   for resource in result_item.get("resources", [])
-    #       if resource.get("files", 0) > 1:
-    #           print("more images???")
-    #           # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
-    #           # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
-    #           #   Head of JSON packet will have "segments" with list containing image URL
-    #           #   Could recursively load images from there
-    #           print(resource.get("url", ""))
+    for resource in result_item.get("resources", []):
+        if resource.get("files", 0) > 1:
+            print("more images???")
+            resource_url = resource.get("url")
+            if resource_url:
+                resource_url += "?st=list&fo=json"
+                res = requests.get(resource_url)
+                resource_data = res.json()
+                segments = resource_data.get("segments", [])
+                for segment in segments:
+                    if not re.search(r"^\d*\. ", segment["title"]):
+                        print("title does not start with #. ")
+                    # TODO: does not have a distinct control_number. But could add ".#" to existing?
+                    # description Empty? Inherit?
+                    # id NEED THIS
+                    # image_url NEED THIS
+                    # title Has "#. " at the start. Maybe remove?
+                    # All other fields can be inherited
+                    print(segment.get("image_url"))
+                print(segments)
+            # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
+            # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
+            #   Head of JSON packet will have "segments" with list containing image URL
+            #   Could recursively load images from there
+            print(resource.get("url", ""))
 
     if record["original_date"].startswith("[") and record["original_date"].endswith(
         "]"
