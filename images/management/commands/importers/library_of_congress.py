@@ -209,27 +209,30 @@ def extract_image_data(result_item):
     record["description"] = "\n".join(descriptions)
 
     # Extract creator information
-    # FIXME: this can blow up the 100 character limit for contributors
     contributors = item_data.get("contributors", [])
     if contributors:
         record["creator"] = contributors[0]  # Take first contributor
     elif result_item.get("contributor"):
         record["creator"] = ", ".join(result_item["contributor"])
+    if len(record["creator"]) > 100:
+        # To enforce max 100 character limit
+        record["creator"] = record["creator"][:100]
 
     # Extract and process date - use item.date as primary source
-    # TODO: hh has year in "item" "created_published"
-    #   'Documentation compiled after 1933'
-    #   would consider fuzzy
     if item_data.get("date"):
         record["original_date"] = item_data["date"]
         record["edtf_date"] = parse_loc_date(item_data["date"])
     elif result_item.get("date"):
         record["original_date"] = result_item["date"]
         record["edtf_date"] = parse_loc_date(result_item["date"])
-    # TODO: check resources if there are multiple files
+    elif item_data.get("created_published"):
+        record["original_date"] = item_data["created_published"]
+        record["edtf_date"] = parse_loc_date(item_data["created_published"])
+    sub_photos = []
     for resource in result_item.get("resources", []):
         if resource.get("files", 0) > 1:
-            print("more images???")
+            # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
+            # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
             resource_url = resource.get("url")
             if resource_url:
                 resource_url += "?st=list&fo=json"
@@ -237,29 +240,24 @@ def extract_image_data(result_item):
                 resource_data = res.json()
                 segments = resource_data.get("segments", [])
                 for segment in segments:
+                    # TODO: "item" "latitude / longitude" can be used to create georeference hint. Could add to description?
+                    #   can also check "place" list of dicts with lat lon field
                     if not re.search(r"^\d*\. ", segment["title"]):
-                        print("title does not start with #. ")
-                    # TODO: does not have a distinct control_number. But could add ".#" to existing?
-                    # description Empty? Inherit?
-                    # id NEED THIS
-                    # image_url NEED THIS
-                    # title Has "#. " at the start. Maybe remove?
-                    # All other fields can be inherited
-                    print(segment.get("image_url"))
-                print(segments)
-            # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
-            # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
-            #   Head of JSON packet will have "segments" with list containing image URL
-            #   Could recursively load images from there
-            print(resource.get("url", ""))
-
+                        subtitle = segment["title"]
+                    else:
+                        subtitle = re.sub(r"^\d*\. ", "", segment["title"])
+                    sub_photos.append({
+                        "title": subtitle,
+                        "ref": record["ref"] + f'.{segment["index"]}',
+                        "image_urls": segment["image_url"],
+                        "id": segment["id"],
+                    })
+    record["sub_photos"] = sub_photos
     if record["original_date"].startswith("[") and record["original_date"].endswith(
         "]"
     ):
         record["original_date"] = record["original_date"][1:-1].strip()
 
-    # TODO: "item" "latitude / longitude" can be used to create georeference hint. Could add to description?
-    #   can also check "place" list of dicts with lat lon field
     return record
 
 
@@ -553,6 +551,10 @@ def parse_loc_date(date_str):
     iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", date_str)
     if iso_match:
         return date_str
+    # Found in the "hh" collection
+    compiled_match = re.match(r"^Documentation compiled after (\d{4})$", date_str)
+    if compiled_match:
+        return compiled_match.group(1)
 
     # If we can't parse it, breakpoint
     breakpoint()
