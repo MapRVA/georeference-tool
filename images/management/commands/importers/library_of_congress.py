@@ -209,6 +209,7 @@ def extract_image_data(result_item):
     record["description"] = "\n".join(descriptions)
 
     # Extract creator information
+    # FIXME: this can blow up the 100 character limit for contributors
     contributors = item_data.get("contributors", [])
     if contributors:
         record["creator"] = contributors[0]  # Take first contributor
@@ -216,18 +217,32 @@ def extract_image_data(result_item):
         record["creator"] = ", ".join(result_item["contributor"])
 
     # Extract and process date - use item.date as primary source
+    # TODO: hh has year in "item" "created_published"
+    #   'Documentation compiled after 1933'
+    #   would consider fuzzy
     if item_data.get("date"):
         record["original_date"] = item_data["date"]
         record["edtf_date"] = parse_loc_date(item_data["date"])
     elif result_item.get("date"):
         record["original_date"] = result_item["date"]
         record["edtf_date"] = parse_loc_date(result_item["date"])
+    # TODO: check resources if there are multiple files
+    #   for resource in result_item.get("resources", [])
+    #       if resource.get("files", 0) > 1:
+    #           print("more images???")
+    #           # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
+    #           # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
+    #           #   Head of JSON packet will have "segments" with list containing image URL
+    #           #   Could recursively load images from there
+    #           print(resource.get("url", ""))
 
     if record["original_date"].startswith("[") and record["original_date"].endswith(
         "]"
     ):
         record["original_date"] = record["original_date"][1:-1].strip()
 
+    # TODO: "item" "latitude / longitude" can be used to create georeference hint. Could add to description?
+    #   can also check "place" list of dicts with lat lon field
     return record
 
 
