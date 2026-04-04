@@ -255,6 +255,7 @@ def extract_image_data(result_item):
                         "ref": record["ref"] + f'.{segment["index"]}',
                         "image_urls": segment["image_url"],
                         "id": segment["id"],
+                        "original_url": segment["url"],
                     })
     record["sub_photos"] = sub_photos
     if record["original_date"].startswith("[") and record["original_date"].endswith(
@@ -747,7 +748,8 @@ def handle(options):
             if record["sub_photos"]:
                 for sub_photo in record["sub_photos"]:
                     # Replace some fields with the sub photo fields
-                    sub_record = copy(record).update(sub_photo)
+                    sub_record = copy(record)
+                    sub_record.update(sub_photo)
                     result = create_image(sub_record, collection, options.get("license"))
                     if result == "skipped":
                         skip_count += 1
