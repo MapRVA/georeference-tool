@@ -10,6 +10,7 @@ The script will interactively prompt for collection details.
 """
 
 import re
+from copy import copy
 from time import sleep
 
 import requests
@@ -19,6 +20,7 @@ from images.models import Collection, Image, Source
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 3.0  # 3 seconds as requested for LoC rate limiting
+R2_UPLOADER = R2Uploader()
 
 
 def create_source_if_not_exist():
@@ -619,6 +621,57 @@ def get_highest_quality_image_url(record):
     return best_url
 
 
+def create_image(record, collection, license_):
+    # Check if already exists
+    existing_by_ref = Image.objects.filter(ref=record["ref"]).exists()
+    if existing_by_ref:
+        return "skipped"
+
+    # Get the highest quality image URL
+    image_url = get_highest_quality_image_url(record)
+    if not image_url:
+        tqdm.write("      ✗ No image URL found, skipping")
+        return "no image"
+
+    sleep(POLITE_WAIT_SECS)
+
+    # Try downloading and uploading the image
+    try:
+        uploaded_url = R2_UPLOADER.upload_url(
+            image_url,
+            in_tqdm=True,
+            raise_on_err=False,
+        )
+    except Exception as e:
+        tqdm.write(f"      ✗ Error uploading image: {e}")
+        return
+
+    if uploaded_url is None:
+        tqdm.write("      ✗ Unable to download/upload image, skipping")
+        return
+
+    # Create the image record
+    try:
+        tqdm.write(f"      → Inserting image {record['original_url']}")
+        image = Image.objects.create(
+            collection=collection,
+            title=record["title"],
+            permalink=uploaded_url,
+            ref=record["ref"],
+            original_url=record["original_url"],
+            description=record.get("description", ""),
+            creator=record.get("creator", ""),
+            original_date=record.get("original_date"),
+            edtf_date=record.get("edtf_date"),
+            license=license_,
+        )
+        tqdm.write(f"      → Created image ID: {image.id}")
+        return "processed"
+    except Exception as e:
+        tqdm.write(f"      ✗ Error creating image: {e}")
+        return "error"
+
+
 def add_arguments(parser):
     """Add library_of_congress-specific arguments to the parser."""
     parser.add_argument(
@@ -637,8 +690,6 @@ def handle(options):
     if not collection:
         print("Collection creation cancelled.")
         return
-
-    r2_uploader = R2Uploader()
 
     # First, get the total count
     print(f"\nFetching results for collection: {collection_info['slug']}")
@@ -691,58 +742,28 @@ def handle(options):
                 tqdm.write("      ✗ No control number found, skipping")
                 continue
 
-            # Check if already exists
-            existing_by_ref = Image.objects.filter(ref=record["ref"]).exists()
-            if existing_by_ref:
-                skip_count += 1
-                continue
-            elif skip_count > 0:
-                tqdm.write(f"Skipped {skip_count} images that already exist")
-                skip_count = 0
+            if record["sub_photos"]:
+                for sub_photo in record["sub_photos"]:
+                    # Replace some fields with the sub photo fields
+                    sub_record = copy(record).update(sub_photo)
+                    result = create_image(sub_record, collection, options.get("license"))
+                    if result == "skipped":
+                        skip_count += 1
+                    elif skip_count > 0:
+                        tqdm.write(f"Skipped {skip_count} images that already exist")
+                        skip_count = 0
+                    elif result == "processed":
+                        processed_count += 1
+            else:
+                result = create_image(record, collection, options.get("license"))
+                if result == "skipped":
+                    skip_count += 1
+                elif skip_count > 0:
+                    tqdm.write(f"Skipped {skip_count} images that already exist")
+                    skip_count = 0
+                elif result == "processed":
+                    processed_count += 1
 
-            # Get the highest quality image URL
-            image_url = get_highest_quality_image_url(record)
-            if not image_url:
-                tqdm.write("      ✗ No image URL found, skipping")
-                continue
-
-            sleep(POLITE_WAIT_SECS)
-
-            # Try downloading and uploading the image
-            try:
-                uploaded_url = r2_uploader.upload_url(
-                    image_url,
-                    in_tqdm=True,
-                    raise_on_err=False,
-                )
-            except Exception as e:
-                tqdm.write(f"      ✗ Error uploading image: {e}")
-                continue
-
-            if uploaded_url is None:
-                tqdm.write("      ✗ Unable to download/upload image, skipping")
-                continue
-
-            # Create the image record
-            try:
-                tqdm.write(f"      → Inserting image {record['original_url']}")
-                image = Image.objects.create(
-                    collection=collection,
-                    title=record["title"],
-                    permalink=uploaded_url,
-                    ref=record["ref"],
-                    original_url=record["original_url"],
-                    description=record.get("description", ""),
-                    creator=record.get("creator", ""),
-                    original_date=record.get("original_date"),
-                    edtf_date=record.get("edtf_date"),
-                    license=options.get("license"),
-                )
-                tqdm.write(f"      → Created image ID: {image.id}")
-                processed_count += 1
-            except Exception as e:
-                tqdm.write(f"      ✗ Error creating image: {e}")
-                continue
 
     print(f"\nProcessing complete. Processed {processed_count} images.")
     if skip_count > 0:
