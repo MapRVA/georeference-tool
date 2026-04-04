@@ -232,17 +232,19 @@ def extract_image_data(result_item):
         record["edtf_date"] = parse_loc_date(item_data["created_published"])
     sub_photos = []
     for resource in result_item.get("resources", []):
+        # In the case that an image is actually an album. This record will just be the first image
         if resource.get("files", 0) > 1:
-            # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet?fo=json
+            # Example result: https://www.loc.gov/resource/hhh.ca4637.sheet
             # Use https://www.loc.gov/resource/hhh.ca4637.sheet?st=list&fo=json to get list of segments
             resource_url = resource.get("url")
             if resource_url:
                 resource_url += "?st=list&fo=json"
                 res = requests.get(resource_url)
+                res.raise_for_status()
                 resource_data = res.json()
                 segments = resource_data.get("segments", [])
                 for segment in segments:
-                    # TODO: "item" "latitude / longitude" can be used to create georeference hint. Could add to description?
+                    # TODO: "item" "latitude / longitude" in the "hh" collection can be used to create georeference hint. Could add to description?
                     #   can also check "place" list of dicts with lat lon field
                     if not re.search(r"^\d*\. ", segment["title"]):
                         subtitle = segment["title"]
