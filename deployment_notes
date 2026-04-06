@@ -1,0 +1,8 @@
+All the changes needed to localize to a different place
+
+Change SiteSettings default lat/lon to 33.98007413690877, -117.37785664757142
+Change georeference_interface.js line 260 to mapOptions.center = [-117.37, 33.98];
+image_detail.js line 68 has hard-coded
+    change to         "https://mapswap.trailsta.sh/swap/#type=m&url=geo:33.98007,-117.3778;z=12";
+responsive_geocoder.js line 40 hard coded
+detect_addresses.py has hard-coded view box
