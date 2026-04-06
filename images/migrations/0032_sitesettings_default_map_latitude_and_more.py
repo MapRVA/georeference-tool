@@ -13,14 +13,14 @@ class Migration(migrations.Migration):
             model_name="sitesettings",
             name="default_map_latitude",
             field=models.FloatField(
-                default=37.54376, help_text="Default map center latitude"
+                default=33.98007413690877, help_text="Default map center latitude"
             ),
         ),
         migrations.AddField(
             model_name="sitesettings",
             name="default_map_longitude",
             field=models.FloatField(
-                default=-77.43916, help_text="Default map center longitude"
+                default=-117.37785664757142, help_text="Default map center longitude"
             ),
         ),
         migrations.AddField(
