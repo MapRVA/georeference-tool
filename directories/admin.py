@@ -55,9 +55,7 @@ class PageAdmin(admin.ModelAdmin):
         if not obj.pk:
             return "-"
         url = reverse("admin:directories_page_regenerate_tiles", args=[obj.pk])
-        return format_html(
-            '<a class="button" href="{}">Regenerate Tiles</a>', url
-        )
+        return format_html('<a class="button" href="{}">Regenerate Tiles</a>', url)
 
     def get_urls(self):
         custom_urls = [
@@ -78,9 +76,7 @@ class PageAdmin(admin.ModelAdmin):
         page.save(update_fields=["tile_status", "tile_error"])
         generate_iiif_tiles.apply_async(args=[page.id])
         self.message_user(request, f"Tile generation queued for page {page.uuid}.")
-        return redirect(
-            reverse("admin:directories_page_change", args=[page.pk])
-        )
+        return redirect(reverse("admin:directories_page_change", args=[page.pk]))
 
 
 class EntryPersonLinkInline(admin.TabularInline):
