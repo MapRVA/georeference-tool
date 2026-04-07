@@ -1,5 +1,8 @@
 from django import forms
 from django.contrib import admin
+from django.shortcuts import redirect
+from django.urls import path, reverse
+from django.utils.html import format_html
 
 from .models import (
     Directory,
@@ -42,10 +45,42 @@ class OCRModelAdmin(admin.ModelAdmin):
 
 @admin.register(Page)
 class PageAdmin(admin.ModelAdmin):
-    list_display = ["directory", "order", "uuid", "created_at"]
-    list_filter = ["directory"]
+    list_display = ["directory", "order", "uuid", "tile_status", "created_at"]
+    list_filter = ["directory", "tile_status"]
     search_fields = ["directory__title", "original_filename"]
-    readonly_fields = ["uuid"]
+    readonly_fields = ["uuid", "regenerate_tiles_button"]
+
+    @admin.display(description="Actions")
+    def regenerate_tiles_button(self, obj):
+        if not obj.pk:
+            return "-"
+        url = reverse("admin:directories_page_regenerate_tiles", args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}">Regenerate Tiles</a>', url
+        )
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                "<path:object_id>/regenerate-tiles/",
+                self.admin_site.admin_view(self.regenerate_tiles_view),
+                name="directories_page_regenerate_tiles",
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    def regenerate_tiles_view(self, request, object_id):
+        from .tasks import generate_iiif_tiles
+
+        page = self.get_object(request, object_id)
+        page.tile_status = "pending"
+        page.tile_error = ""
+        page.save(update_fields=["tile_status", "tile_error"])
+        generate_iiif_tiles.apply_async(args=[page.id])
+        self.message_user(request, f"Tile generation queued for page {page.uuid}.")
+        return redirect(
+            reverse("admin:directories_page_change", args=[page.pk])
+        )
 
 
 class EntryPersonLinkInline(admin.TabularInline):
