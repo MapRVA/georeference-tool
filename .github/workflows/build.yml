@@ -4,10 +4,11 @@ on:
     branches:
       - trunk
       - develop
+      - ie-local
 
 env:
   IMAGE_NAME: yesterdays
-  IMAGE_REGISTRY: ghcr.io/maprva
+  IMAGE_REGISTRY: ghcr.io/JosiahDub
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}
 
