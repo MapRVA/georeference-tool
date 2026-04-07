@@ -166,6 +166,7 @@ document.addEventListener("alpine:init", () => {
     normalizeEntry(raw) {
       return {
         original_text: raw.original_text || "",
+        notes: raw.notes || "",
         first_name: raw.first_name || "",
         middle_name: raw.middle_name || "",
         last_name: raw.last_name || "",

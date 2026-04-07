@@ -121,6 +121,10 @@ window.pageOcrConfig = {
                                     <label class="form-label small mb-1">Original text</label>
                                     <input type="text" class="form-control form-control-sm font-monospace" x-model="entry.original_text">
                                 </div>
+                                <div class="mb-2" x-show="entry.notes">
+                                    <label class="form-label small mb-1">Notes</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="entry.notes">
+                                </div>
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-3">
                                         <label class="form-label small mb-1">First name</label>

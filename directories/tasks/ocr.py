@@ -475,6 +475,11 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
     }
     media_type = media_types.get(ext, "image/jpeg")
 
+    # Use json_object mode instead of json_schema to avoid grammar
+    # compilation limits.  json_schema's constrained decoding creates
+    # 2^N states for N optional fields; with 18 optional fields that
+    # exceeds Anthropic's grammar size cap.  json_object guarantees
+    # syntactically valid JSON while the prompt describes the schema.
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -497,35 +502,47 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
                     ],
                 }
             ],
+            "response_format": {"type": "json_object"},
         },
         timeout=openrouter_timeout,
     )
     response.raise_for_status()
 
-    # Extract LLM response from JSON returned by OpenRouter
     result = response.json()
-    llm_content: str = result["choices"][0]["message"]["content"]
+    if "choices" not in result:
+        logger.error("OpenRouter response body: %s", json.dumps(result))
+        error_msg = result.get("error", {}).get("message", json.dumps(result))
+        raise RuntimeError(f"OpenRouter error: {error_msg}")
+    llm_content: str = result["choices"][0]["message"]["content"] or ""
+    logger.info(
+        "OpenRouter response for page %s: finish_reason=%s, content length=%d",
+        page.uuid,
+        result["choices"][0].get("finish_reason"),
+        len(llm_content),
+    )
+    if not llm_content:
+        logger.error("OpenRouter returned empty content: %s", json.dumps(result))
 
-    # The response we want from the LLM is a JSON list.
-    # Sometimes LLMs return an otherwise-valuable response,
-    # but with extra text before and after the JSON.
-    # Let's strip everything before the first "[" and last "]"
-    bracket_pos = llm_content.find("[")
-    if bracket_pos > 0:
-        llm_content = llm_content[bracket_pos:]
-    bracket_end = llm_content.rfind("]")
-    if bracket_end >= 0:
-        llm_content = llm_content[: bracket_end + 1]
+    # Strip markdown fences (```json ... ```) that some models add
+    stripped = llm_content.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            stripped = stripped[first_newline + 1 :]
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+        llm_content = stripped.strip()
 
-    # Parse the LLM output as JSON and match bounding boxes
-    #
-    # If the LLM returned invalid JSON, we still want to store the
-    # prompt and raw response so the user can see what went wrong.
-    # In that case entries will be empty and parse_error will be set.
+    # Parse the LLM output.  We handle both a top-level {"entries": [...]}
+    # wrapper and a bare array for robustness.
     entries = []
     parse_error = ""
     try:
-        entries = json.loads(llm_content)
+        parsed = json.loads(llm_content)
+        if isinstance(parsed, dict):
+            entries = parsed.get("entries", parsed.get("results", []))
+        elif isinstance(parsed, list):
+            entries = parsed
     except (json.JSONDecodeError, ValueError) as exc:
         parse_error = str(exc)
         logger.warning("LLM returned invalid JSON for page %s: %s", page.uuid, exc)
