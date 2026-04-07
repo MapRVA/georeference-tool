@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - trunk
-      - develop
       - ie-local
 
 env:
