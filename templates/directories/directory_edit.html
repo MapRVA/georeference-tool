@@ -80,7 +80,14 @@
             </ol>
         </nav>
 
-        <h1 class="mb-4"><i class="fas fa-edit me-3"></i>{{ directory.title }}</h1>
+        <div class="d-flex align-items-center mb-4">
+            <h1 class="mb-0"><i class="fas fa-edit me-3"></i>{{ directory.title }}</h1>
+            {% if perms.directories.change_directory %}
+            <a href="{% url 'admin:directories_directory_change' directory.pk %}" class="btn btn-sm btn-outline-secondary ms-auto">
+                <i class="fas fa-cog me-1"></i>Admin
+            </a>
+            {% endif %}
+        </div>
 
         <div x-data="directoryEdit()">
             <!-- Upload Zone -->
