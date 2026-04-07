@@ -1,8 +1,18 @@
 All the changes needed to localize to a different place
 
 Change images/models.py SiteSettings default lat/lon to 33.98007413690877, -117.37785664757142
+Change migration images/migrations/0032_sitesettings_default_map_latitude_and_more.py
+    DONE
 Change assets/js/pages/georeference_interface.js line 260 to mapOptions.center = [-117.37, 33.98];
+    DONE
 assets/js/pages/image_detail.js line 68 has hard-coded
     change to         "https://mapswap.trailsta.sh/swap/#type=m&url=geo:33.98007,-117.3778;z=12";
+    DONE
 assets/js/components/responsive_geocoder.js line 40 hard coded
 images/management/commands/detect_addresses.py has hard-coded view box
+    Both have same viewbox
+    Northwest: -117.51121814943878, 34.00530124508274
+    Northeast: 34.010080461413786, -117.30366739061262
+    Southeast: -117.29947444598987, 33.91357514704981
+    Southwest: 33.88604637384387, -117.52662447394147
+    DONE
