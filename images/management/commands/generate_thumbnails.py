@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import requests
 from django.core.management.base import BaseCommand
 from PIL import Image as PILImage
+from PIL import ImageOps
 
 from images.models import Image
 from images.utils import R2Uploader, R2UploaderError
@@ -247,7 +248,9 @@ class Command(BaseCommand):
 
             # Load image
             image_data = BytesIO(response.content)
-            pil_image = PILImage.open(image_data).convert("RGB")
+            pil_image = ImageOps.exif_transpose(PILImage.open(image_data)).convert(
+                "RGB"
+            )
 
             return pil_image
 
