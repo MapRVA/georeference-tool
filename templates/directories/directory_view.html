@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}{{ directory.title }} – Yesterdays{% endblock %}
+
+{% block extra_js %}
+    {% vite_asset 'assets/js/pages/directory_view.js' %}
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="preload" href="{{ manifest_url }}" as="fetch" crossorigin>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'directories:directory_list' %}">Directories</a></li>
+                <li class="breadcrumb-item active">{{ directory.title }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1>{{ directory.title }}</h1>
+            {% if user.is_staff %}
+                <div class="d-flex gap-2">
+                    <a id="page-ocr-link" href="#" class="btn btn-outline-secondary btn-sm d-none" title="OCR this page">
+                        <i class="fas fa-eye me-1"></i>OCR
+                    </a>
+                    <a href="{% url 'directories:directory_edit' slug=directory.slug %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-edit me-1"></i>Edit
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if directory.description %}
+            <p class="text-muted mb-3">{{ directory.description }}</p>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-xl-8">
+                <div id="osd-viewer" data-manifest="{{ manifest_url }}" data-entries="{{ entries_json }}" data-page-uuids="{{ page_uuids_json }}" style="height: 80vh;"></div>
+
+                <div id="page-controls" class="d-flex justify-content-center align-items-center gap-3 my-3">
+                    <button id="page-prev" class="btn btn-outline-secondary" disabled>
+                        <i class="fas fa-chevron-left me-1"></i>Previous
+                    </button>
+                    <span id="page-label" class="fw-semibold">Page 1</span>
+                    <button id="page-next" class="btn btn-outline-secondary" disabled>
+                        Next<i class="fas fa-chevron-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <section id="page-entries" aria-live="polite">
+                    <div id="entries-container" style="max-height: 80vh; overflow-y: auto;"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,15 +1,18 @@
 <div class="image-container position-relative">
-    <div class="image-centerline"></div>
-    <div class="pswp-gallery" id="pswp-gallery">
-        <a href="{{ image.display_permalink }}" title="Click to view full-size image">
-            <img id="main-image" src="{{ image.display_permalink }}"
-                 {% if image.thumbnail %}data-thumbnail="{{ image.thumbnail }}"{% endif %}
-                 alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
-                 class="img-fluid w-100"
-                 title="Click to view full-size image"
-                 fetchpriority="high">
-        </a>
+    {% if image.iiif_url %}
+    <!-- IIIF deep-zoom viewer -->
+    <div id="osd-viewer"
+         data-iiif-url="{{ image.iiif_url }}/info.json"
+         style="width: 100%; height: 600px;">
     </div>
+    {% else %}
+    <!-- Fallback: plain image -->
+    <div class="image-centerline"></div>
+    <img id="main-image" src="{{ image.display_permalink }}"
+         {% if image.thumbnail %}data-thumbnail="{{ image.thumbnail }}"{% endif %}
+         alt="{% if image.title %}{{ image.title }}{% else %}Image #{{ image.id }}{% endif %}"
+         class="img-fluid w-100"
+         fetchpriority="high">
     {% if image.thumbnail %}
     <div id="image-loading-bar" class="position-absolute bottom-0 start-0 w-100" style="z-index: 2;">
         <div class="progress" style="height: 4px; border-radius: 0; background-color: rgba(0,0,0,0.2);">
@@ -68,4 +71,5 @@
             </a>
         </div>
     </div>
+    {% endif %}
 </div>

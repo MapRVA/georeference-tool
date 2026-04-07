@@ -1,13 +1,21 @@
 import logging
 from io import BytesIO
-from urllib.parse import urlparse
-
 import requests
 from celery import shared_task
+from django.conf import settings
+from iiif_prezi3 import (
+    Annotation,
+    AnnotationBody,
+    AnnotationPage,
+    Canvas,
+    Manifest,
+    ServiceV3,
+)
 from PIL import Image as PILImage
 
 from .models import Image
 from .utils import R2Uploader, R2UploaderError
+from yesterdays.iiif import generate_and_upload_iiif_tiles
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +49,11 @@ def process_image(self, image_id: int, quality: int = 85):
     needs_transform_cleanup = not image.has_transform and image.transformed_permalink
 
     if not needs_transform and not needs_thumbnail and not needs_transform_cleanup:
+        if image.tile_status != "complete":
+            generate_iiif_tiles.delay(image_id)
         return
 
-    base_key = get_base_key_from_permalink(image.permalink)
-    if not base_key:
-        logger.error(
-            "Could not extract hash from permalink for image %d: %s",
-            image_id,
-            image.permalink,
-        )
-        return
+    base_key = f"images/{image_id}"
 
     try:
         r2_uploader = R2Uploader()
@@ -84,7 +87,7 @@ def process_image(self, image_id: int, quality: int = 85):
                 thumb.save(thumb_bytes, "WEBP", quality=quality)
                 thumb_bytes.seek(0)
 
-                thumb_key = f"{base_key}_transformed_thumb"
+                thumb_key = f"images/{image_id}/thumbnail.webp"
                 thumb_url = r2_uploader.upload_file_content(
                     thumb_bytes.read(),
                     thumb_key,
@@ -106,7 +109,7 @@ def process_image(self, image_id: int, quality: int = 85):
                 thumb.save(thumb_bytes, "WEBP", quality=quality)
                 thumb_bytes.seek(0)
 
-                thumb_key = f"{base_key}_thumb"
+                thumb_key = f"images/{image_id}/thumbnail.webp"
                 thumb_url = r2_uploader.upload_file_content(
                     thumb_bytes.read(),
                     thumb_key,
@@ -128,7 +131,7 @@ def process_image(self, image_id: int, quality: int = 85):
             thumb.save(thumb_bytes, "WEBP", quality=quality)
             thumb_bytes.seek(0)
 
-            thumb_key = f"{base_key}_thumb"
+            thumb_key = f"images/{image_id}/thumbnail.webp"
             thumb_url = r2_uploader.upload_file_content(
                 thumb_bytes.read(),
                 thumb_key,
@@ -145,6 +148,11 @@ def process_image(self, image_id: int, quality: int = 85):
         raise self.retry(exc=e)
     except Exception:
         logger.exception("Failed to process image %d", image_id)
+
+    # Chain IIIF tile generation if tiles are not already complete
+    image = Image.objects.only("tile_status").get(pk=image_id)
+    if image.tile_status != "complete":
+        generate_iiif_tiles.delay(image_id)
 
 
 def _transform_changed(image_id, expected_rotation, expected_mirror):
@@ -208,17 +216,6 @@ def transform_image(img: PILImage.Image, rotation: int, mirror: str) -> PILImage
     return img
 
 
-def get_base_key_from_permalink(permalink: str) -> str | None:
-    """Extract the base hash key from a permalink URL."""
-    try:
-        parsed = urlparse(permalink)
-        path_parts = parsed.path.strip("/").split("/")
-        if path_parts:
-            return path_parts[-1]
-    except Exception:
-        pass
-    return None
-
 
 def download_image(url: str, timeout: int = 30) -> PILImage.Image | None:
     """Download an image from URL and return PIL Image."""
@@ -252,3 +249,106 @@ def create_thumbnail(img: PILImage.Image, max_dimension: int = 500) -> PILImage.
     new_height = int(height * scale_factor)
 
     return img.resize((new_width, new_height), PILImage.LANCZOS)
+
+
+def _build_image_manifest(image, iiif_base, width, height):
+    """Build a static IIIF Presentation v3 manifest for a single Image."""
+    manifest_id = f"{settings.R2_PUBLIC_URL_BASE}/images/{image.id}/manifest.json"
+
+    manifest = Manifest(
+        id=manifest_id,
+        label={"en": [image.title or f"Image {image.id}"]},
+    )
+
+    canvas_id = f"{manifest_id}#canvas"
+    canvas = Canvas(
+        id=canvas_id,
+        label={"en": [image.title or f"Image {image.id}"]},
+        height=height,
+        width=width,
+    )
+
+    body = AnnotationBody(
+        id=f"{iiif_base}/full/max/0/default.jpg",
+        type="Image",
+        format="image/jpeg",
+        height=height,
+        width=width,
+    )
+    service = ServiceV3(id=iiif_base, type="ImageService3", profile="level0")
+    body.service = [service]
+
+    anno = Annotation(
+        id=f"{canvas_id}/anno",
+        motivation="painting",
+        body=body,
+        target=canvas_id,
+    )
+    anno_page = AnnotationPage(id=f"{canvas_id}/page")
+    anno_page.add_item(anno)
+    canvas.add_item(anno_page)
+    manifest.add_item(canvas)
+
+    return manifest.json(indent=2)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    ignore_result=True,
+    time_limit=1800,
+    soft_time_limit=1500,
+)
+def generate_iiif_tiles(self, image_id):
+    """Generate IIIF tiles and a static manifest for an Image."""
+    try:
+        image = Image.objects.get(pk=image_id)
+    except Image.DoesNotExist:
+        return
+
+    Image.objects.filter(pk=image_id).update(
+        tile_status="processing",
+        tile_error="",
+    )
+
+    try:
+        r2_prefix = f"images/{image.id}/tiles"
+        width, height = generate_and_upload_iiif_tiles(
+            source_url=image.display_permalink,
+            r2_tiles_prefix=r2_prefix,
+        )
+
+        # Build and upload static IIIF manifest
+        uploader = R2Uploader()
+        iiif_base = uploader.get_public_url(r2_prefix)
+        manifest_json = _build_image_manifest(image, iiif_base, width, height)
+        manifest_key = f"images/{image.id}/manifest.json"
+        uploader.upload_file_content(
+            manifest_json.encode("utf-8"),
+            manifest_key,
+            content_type='application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+            overwrite=True,
+        )
+
+        Image.objects.filter(pk=image_id).update(
+            tile_status="complete",
+            tile_error="",
+            iiif_url=iiif_base,
+            width=width,
+            height=height,
+        )
+        logger.info(
+            "IIIF tiles generated for image %d (%dx%d)",
+            image_id,
+            width,
+            height,
+        )
+
+    except Exception as exc:
+        logger.exception("Failed to generate IIIF tiles for image %d", image_id)
+        Image.objects.filter(pk=image_id).update(
+            tile_status="failed",
+            tile_error=str(exc),
+        )
+        raise self.retry(exc=exc)

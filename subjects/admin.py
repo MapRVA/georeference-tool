@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from .models import OsmElement, Subject, WikidataItem
+from .models import Address, Business, Occupation, OsmElement, Person, Subject, WikidataItem
 
 
 @admin.register(WikidataItem)
@@ -184,6 +184,30 @@ class WikidataItemAdmin(admin.ModelAdmin):
         return '<span style="color: #999; font-style: italic;">Save item first</span>'
 
     refresh_button.short_description = "Actions"
+
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ["housenumber", "street", "city", "state", "postcode"]
+    search_fields = ["housenumber", "street", "city", "state", "postcode"]
+
+
+@admin.register(Person)
+class PersonAdmin(admin.ModelAdmin):
+    list_display = ["last_name", "first_name", "middle_name", "birth_date"]
+    search_fields = ["first_name", "middle_name", "last_name"]
+
+
+@admin.register(Business)
+class BusinessAdmin(admin.ModelAdmin):
+    list_display = ["name"]
+    search_fields = ["name"]
+
+
+@admin.register(Occupation)
+class OccupationAdmin(admin.ModelAdmin):
+    list_display = ["name"]
+    search_fields = ["name"]
 
 
 class OsmElementInline(admin.TabularInline):

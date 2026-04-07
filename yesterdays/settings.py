@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
+    "directories",
     "yesterdays",
 ]
 
@@ -278,6 +279,11 @@ CELERY_TASK_ROUTES = {
     # Metadata refresh tasks go to background queue
     "subjects.tasks.refresh_next_wikidata_item": {"queue": "background"},
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
+    # IIIF tile generation goes to background queue
+    "images.tasks.generate_iiif_tiles": {"queue": "background"},
+    "directories.tasks.ocr.generate_iiif_tiles": {"queue": "background"},
+    # OCR processing goes to background queue
+    "directories.tasks.ocr.run_page_ocr": {"queue": "background"},
 }
 
 # Metadata refresh intervals (seconds between each refresh)
@@ -383,6 +389,13 @@ LOGIN_URL = "/auth/login/"
 # Flickr API Settings
 FLICKR_API_KEY = os.getenv("FLICKR_API_KEY")
 FLICKR_API_SECRET = os.getenv("FLICKR_API_SECRET")
+
+# R2 Storage
+R2_PUBLIC_URL_BASE = os.getenv("IMPORT_R2_PUBLIC_URL_BASE", "")
+
+# OpenRouter API (for OCR and other LLM tasks)
+OPENROUTER_KEY = os.getenv("OPENROUTER_KEY", "")
+OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 
 # Map Settings
 # Protomaps API key for map tiles
