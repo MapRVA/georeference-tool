@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "corsheaders",
+    "django_celery_results",
     "django_vite",
     "api",
     "osm_auth",
@@ -266,7 +267,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CELERY_BROKER_URL = os.getenv(
     "CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//"
 )
-CELERY_RESULT_BACKEND = "rpc://"  # RPC over RabbitMQ for synchronous task results
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_CACHE_BACKEND = "django-cache"
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    "polling_interval": 0.1,
+}
+CELERY_RESULT_EXPIRES = 3600  # Auto-cleanup results after 1 hour
 CELERY_TASK_IGNORE_RESULT = True  # Default: ignore results unless a task opts in
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
