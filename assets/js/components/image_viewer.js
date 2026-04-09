@@ -49,6 +49,7 @@ function initOSDViewer(el) {
     defaultZoomLevel: 0,
     gestureSettingsMouse: { scrollToZoom: true },
     tileSources: [iiifUrl],
+    drawer: "canvas",
   });
 
   addViewerButtons(viewer, el);

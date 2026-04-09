@@ -15,6 +15,7 @@ if (el) {
     defaultZoomLevel: 0,
     gestureSettingsMouse: { scrollToZoom: true },
     tileSources: [iiifInfoUrl],
+    drawer: "canvas",
   });
 
   addViewerButtons(viewer, el);
