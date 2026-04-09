@@ -76,7 +76,12 @@ urlpatterns = [
         name="wikidata_lookup",
     ),
     path("api/v2/", include("api.urls")),
-    path("maps/", include("maps.urls")),
+    path("layers/", include("maps.urls")),
+    path("maps/", RedirectView.as_view(url="/layers/", permanent=True)),
+    path(
+        "maps/<path:rest>",
+        RedirectView.as_view(url="/layers/%(rest)s", permanent=True),
+    ),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
 ]
