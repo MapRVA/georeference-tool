@@ -188,6 +188,9 @@ def process_image(self, image_id: int, quality: int = 85):
                 Image.objects.filter(pk=image_id).update(
                     transformed_permalink=transformed_url,
                     thumbnail=thumb_url,
+                    tile_status="",
+                    tile_error="",
+                    iiif_url=None,
                 )
             else:
                 # Transforms removed — generate plain thumbnail, clear transformed_permalink
@@ -210,6 +213,9 @@ def process_image(self, image_id: int, quality: int = 85):
                 Image.objects.filter(pk=image_id).update(
                     transformed_permalink=None,
                     thumbnail=thumb_url,
+                    tile_status="",
+                    tile_error="",
+                    iiif_url=None,
                 )
         else:
             # Just needs a plain thumbnail (no transform involved)
@@ -235,11 +241,18 @@ def process_image(self, image_id: int, quality: int = 85):
         raise self.retry(exc=e)
     except Exception:
         logger.exception("Failed to process image %d", image_id)
+        return
 
-    # Chain IIIF tile generation if tiles are not already complete
-    image = Image.objects.only("tile_status").get(pk=image_id)
-    if image.tile_status != "complete":
+    # Chain IIIF tile generation.
+    # When the display image changed (transform applied or removed), always
+    # queue — tile_status was reset above so this also serves as a safeguard
+    # against a concurrent generate_iiif_tiles marking stale tiles "complete".
+    if needs_transform or needs_transform_cleanup:
         generate_iiif_tiles.delay(image_id)
+    else:
+        image = Image.objects.only("tile_status").get(pk=image_id)
+        if image.tile_status != "complete":
+            generate_iiif_tiles.delay(image_id)
 
 
 def _transform_changed(image_id, expected_rotation, expected_mirror):
@@ -394,6 +407,9 @@ def generate_iiif_tiles(self, image_id):
     except Image.DoesNotExist:
         return
 
+    # Snapshot the source URL — used for a stale-write guard after tiling.
+    source_url = image.display_permalink
+
     Image.objects.filter(pk=image_id).update(
         tile_status="processing",
         tile_error="",
@@ -402,7 +418,7 @@ def generate_iiif_tiles(self, image_id):
     try:
         r2_prefix = f"images/{image.id}/tiles"
         width, height = generate_and_upload_iiif_tiles(
-            source_url=image.display_permalink,
+            source_url=source_url,
             r2_tiles_prefix=r2_prefix,
         )
 
@@ -417,6 +433,22 @@ def generate_iiif_tiles(self, image_id):
             content_type='application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
             overwrite=True,
         )
+
+        # Stale-write guard: if the display image changed while we were
+        # tiling, discard results so the next process_image cycle re-queues
+        # tile generation from the correct source.
+        current = Image.objects.get(pk=image_id)
+        if current.display_permalink != source_url:
+            logger.info(
+                "Display image changed for image %d while tiling, "
+                "discarding stale tiles",
+                image_id,
+            )
+            Image.objects.filter(pk=image_id).update(
+                tile_status="",
+                tile_error="",
+            )
+            return
 
         Image.objects.filter(pk=image_id).update(
             tile_status="complete",
