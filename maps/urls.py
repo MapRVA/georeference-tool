@@ -11,5 +11,4 @@ urlpatterns = [
         views.layer_detail,
         name="layer_detail",
     ),
-    path("api/v1/map-layers/", views.map_layers_view, name="map_layers"),
 ]

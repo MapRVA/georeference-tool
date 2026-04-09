@@ -19,16 +19,33 @@ class LayerCollectionAdmin(admin.ModelAdmin):
 
 @admin.register(MapLayer)
 class MapLayerAdmin(admin.ModelAdmin):
-    list_display = ("name", "collection", "order", "type", "url", "created_at")
-    list_filter = ("type", "collection", "created_at")
+    list_display = (
+        "name",
+        "layer_role",
+        "collection",
+        "order",
+        "type",
+        "is_default",
+        "created_at",
+    )
+    list_filter = ("type", "is_default", "collection", "created_at")
     search_fields = ("name", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at")
-    ordering = ("collection__order", "collection__name", "order", "name")
+    ordering = ("order", "name")
 
     fieldsets = (
         (
             "Basic Information",
-            {"fields": ("name", "slug", "collection", "order", "description")},
+            {
+                "fields": (
+                    "name",
+                    "slug",
+                    "collection",
+                    "is_default",
+                    "order",
+                    "description",
+                )
+            },
         ),
         ("Map Data", {"fields": ("type", "url", "attribution")}),
         ("Links", {"fields": ("source_link", "iiif_link", "oim_link")}),
@@ -37,3 +54,7 @@ class MapLayerAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    @admin.display(description="Role")
+    def layer_role(self, obj):
+        return "Primary" if obj.is_primary else "Secondary"

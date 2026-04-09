@@ -21,7 +21,6 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from maps.views import map_layers_view
 from osm_auth import views as auth_views
 from subjects import views as subject_views
 
@@ -77,7 +76,6 @@ urlpatterns = [
         name="wikidata_lookup",
     ),
     path("api/v2/", include("api.urls")),
-    path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
     path("maps/", include("maps.urls")),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),

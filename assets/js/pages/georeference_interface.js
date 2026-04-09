@@ -588,7 +588,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // always render above secondary layers.
     map.addControl(
       new LayerControl({
-        mapLayersUrl: config.urls.mapLayers,
         overlayLayerIds: [
           "subject-hints-pulse",
           "subject-hints-label",

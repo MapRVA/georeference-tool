@@ -90,12 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Note: Geoman creates layers dynamically with "gm_" prefix. The LayerControl's isOverlayLayer()
   // already recognizes these. We don't set beforeLayerId since Geoman layers are created after
   // map load, so we rely on the fallback logic and moveLayer() to reposition overlays correctly.
-  map.addControl(
-    new LayerControl({
-      mapLayersUrl: config.urls.mapLayers,
-    }),
-    "top-right",
-  );
+  map.addControl(new LayerControl(), "top-right");
   map.addControl(new maplibregl.NavigationControl());
   map.addControl(new maplibregl.FullscreenControl());
 
