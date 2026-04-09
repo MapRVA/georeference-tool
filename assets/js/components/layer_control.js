@@ -358,11 +358,19 @@ export class LayerControl {
 
     this.map.setStyle(styleUrl);
 
-    this.map.once("style.load", () => {
+    this.map.once("style.load", async () => {
       // Re-setup raster base layer sources/layers (destroyed by setStyle)
       Object.values(this.baseLayers).forEach((bl) => {
         if (bl.type === "xyz") bl.setupLayer();
       });
+
+      // Notify consumers to re-add their layers BEFORE restoring the overlay
+      // tile layer. This ensures consumer layers (Geoman polygons, hint markers,
+      // pins, etc.) exist when switchToOverlayLayer calls getBeforeLayerId(),
+      // so the overlay raster is correctly positioned beneath them.
+      if (this.options.onStyleSwap) {
+        await this.options.onStyleSwap(this.map);
+      }
 
       // Restore overlay tile layer if one was active
       if (savedOverlay && savedOverlayConfig) {
@@ -374,11 +382,6 @@ export class LayerControl {
           savedOverlayConfig.tileType,
           savedOverlayConfig.attribution,
         );
-      }
-
-      // Notify consumers to re-add their layers
-      if (this.options.onStyleSwap) {
-        this.options.onStyleSwap(this.map);
       }
 
       if (afterRestore) afterRestore();

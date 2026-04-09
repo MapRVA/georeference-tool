@@ -269,13 +269,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Function to add all map sources and layers
     async function addMapSourcesAndLayers() {
-      try {
-        const image = await map.loadImage(
-          "https://maprva.org/img/surveillance-direction.png",
-        );
-        map.addImage("surveillance-direction", image.data);
-      } catch (error) {
-        console.warn("Could not load direction arrow image:", error);
+      if (!map.hasImage("surveillance-direction")) {
+        try {
+          const image = await map.loadImage(
+            "https://maprva.org/img/surveillance-direction.png",
+          );
+          map.addImage("surveillance-direction", image.data);
+        } catch (error) {
+          console.warn("Could not load direction arrow image:", error);
+        }
       }
 
       // Add subject hint markers if available (rendered first, so underneath other hints)
@@ -600,6 +602,10 @@ document.addEventListener("DOMContentLoaded", function () {
           "context-image-circles",
           "context-image-directions",
         ],
+        onStyleSwap: async () => {
+          await addMapSourcesAndLayers();
+          restoreOverlayState();
+        },
       }),
       "top-right",
     );
@@ -1166,6 +1172,25 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
+    // Restore overlay state after layers are (re-)created (used on initial load
+    // and after style swaps, which destroy all sources/layers/images).
+    function restoreOverlayState() {
+      // Sync bearing line visibility from current toggle state
+      if (bearingLineEnabled) {
+        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "visible");
+          }
+        }
+      }
+
+      // Repopulate bearing line data (source is created empty)
+      updateBearingLine();
+
+      // Re-apply context image display mode and re-attach interaction handlers
+      updateContextImagesDisplay();
+    }
+
     // Map event handlers
     map.on("load", async () => {
       await addMapSourcesAndLayers();
@@ -1177,14 +1202,7 @@ document.addEventListener("DOMContentLoaded", function () {
       updateMapSwapLink();
       map.on("moveend", updateMapSwapLink);
 
-      // Sync bearing line layer visibility from checkbox (layers exist now)
-      if (bearingLineEnabled) {
-        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
-          if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, "visibility", "visible");
-          }
-        }
-      }
+      restoreOverlayState();
 
       // Recalculate bearing line on zoom/pan so it always extends off-screen
       map.on("moveend", updateBearingLine);
