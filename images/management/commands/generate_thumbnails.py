@@ -1,10 +1,11 @@
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlparse
+
 
 import requests
 from django.core.management.base import BaseCommand
 from PIL import Image as PILImage
+from PIL import ImageOps
 
 from images.models import Image
 from images.utils import R2Uploader, R2UploaderError
@@ -126,17 +127,7 @@ class Command(BaseCommand):
         failed_count = 0
 
         for image in images_queryset:
-            # Extract hash from permalink
-            thumbnail_key = self.get_thumbnail_key_from_permalink(image.permalink)
-
-            if not thumbnail_key:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Could not extract hash from permalink: {image.permalink}"
-                    )
-                )
-                failed_count += 1
-                continue
+            thumbnail_key = self.get_thumbnail_key(image.id)
 
             self.stdout.write(f"Processing image {image.id}: {image.permalink}")
             self.stdout.write(f"  Thumbnail key: {thumbnail_key}")
@@ -189,7 +180,7 @@ class Command(BaseCommand):
 
                 # Save locally if requested
                 if save_local:
-                    output_path = Path(output_dir) / f"{thumbnail_key}.webp"
+                    output_path = Path(output_dir) / f"image_{image.id}_thumbnail.webp"
                     with open(output_path, "wb") as f:
                         f.write(thumbnail_bytes.read())
                     self.stdout.write(
@@ -213,23 +204,14 @@ class Command(BaseCommand):
         self.stdout.write(f"Failed: {failed_count}")
         self.stdout.write(f"Total: {total_images}")
 
-    def get_thumbnail_key_from_permalink(self, permalink: str) -> str:
+    def get_thumbnail_key(self, image_id: int) -> str:
         """
-        Extract hash from permalink and generate thumbnail key.
+        Generate a unique thumbnail key using the image ID.
 
         Example:
-            https://cdn.maprva.org/3ea304c1af4a41166777 -> 3ea304c1af4a41166777_thumb
+            image_id=42 -> images/42/thumbnail.webp
         """
-        try:
-            parsed = urlparse(permalink)
-            # Get the last part of the path (the hash)
-            path_parts = parsed.path.strip("/").split("/")
-            if path_parts:
-                hash_value = path_parts[-1]
-                return f"{hash_value}_thumb"
-        except Exception:
-            pass
-        return None
+        return f"images/{image_id}/thumbnail.webp"
 
     def download_image(self, url: str, timeout: int = 30):
         """Download an image from URL and return PIL Image"""
@@ -247,7 +229,9 @@ class Command(BaseCommand):
 
             # Load image
             image_data = BytesIO(response.content)
-            pil_image = PILImage.open(image_data).convert("RGB")
+            pil_image = ImageOps.exif_transpose(PILImage.open(image_data)).convert(
+                "RGB"
+            )
 
             return pil_image
 

@@ -12,6 +12,7 @@ import requests
 from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 0.75
@@ -528,19 +529,6 @@ def handle(options):
             tqdm.write("      ✗ No image URL found for record, skipping")
             continue
 
-        # Try downloading the image (and uploading it to R2)
-        if not hotlink:
-            record["permalink"] = r2_uploader.upload_url(
-                record["permalink"],
-                in_tqdm=True,
-                raise_on_err=False,
-            )
-
-        # Were we successful in downloading the image?
-        if record["permalink"] is None:
-            tqdm.write("      ✗ Unable to download image, skipping")
-            continue
-
         try:
             tqdm.write("      → Inserting image {}".format(record["original_url"]))
 
@@ -559,6 +547,8 @@ def handle(options):
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
             else:
+                # Create image first with source URL as permalink,
+                # then upload original to images/<ID>/original.<ext>
                 image = Image.objects.create(
                     collection=collection,
                     title=record["title"],
@@ -572,5 +562,14 @@ def handle(options):
                     license=options.get("license"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
+
+                r2_url = r2_uploader.upload_original(
+                    image.id, record["permalink"], in_tqdm=True
+                )
+                if r2_url:
+                    Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                    generate_iiif_tiles.delay(image.id)
+                else:
+                    tqdm.write("      ⚠ Failed to upload original, keeping source URL")
         except Exception as e:
             tqdm.write(f"      ✗ Error creating image: {e}")

@@ -1,5 +1,6 @@
 import urllib
 import urllib.parse
+import uuid
 from datetime import datetime
 
 import requests
@@ -230,6 +231,99 @@ class OsmElement(models.Model):
 
     class Meta:
         ordering = ["osm_id"]
+
+
+ADDRESS_FIELDS = {
+    "housenumber",
+    "street",
+    "city",
+    "postcode",
+    "district",
+    "state",
+    "place",
+    "neighbourhood",
+    "suburb",
+    "hamlet",
+    "province",
+    "floor",
+}
+
+
+class Address(models.Model):
+    """Based on the OpenStreetMap tagging guidelines for addresses"""
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    housenumber = models.CharField(max_length=255, blank=True)
+    street = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+    postcode = models.CharField(max_length=255, blank=True)
+    district = models.CharField(max_length=255, blank=True)
+    state = models.CharField(max_length=255, blank=True)
+    place = models.CharField(max_length=255, blank=True)
+    neighbourhood = models.CharField(max_length=255, blank=True)
+    suburb = models.CharField(max_length=255, blank=True)
+    hamlet = models.CharField(max_length=255, blank=True)
+    province = models.CharField(max_length=255, blank=True)
+    floor = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        street_part = " ".join(filter(None, [self.housenumber, self.street]))
+        parts = filter(None, [street_part, self.city, self.state, self.postcode])
+        return ", ".join(parts) or "Address"
+
+    class Meta:
+        verbose_name_plural = "addresses"
+
+
+class Person(models.Model):
+    first_name = models.CharField(max_length=200, blank=True)
+    middle_name = models.CharField(max_length=200, blank=True)
+    last_name = models.CharField(max_length=200, blank=True)
+    suffix = models.CharField(max_length=50, blank=True, help_text="e.g. Jr., Sr., III")
+    birth_date = models.CharField(
+        max_length=50, blank=True, help_text="Birth date as EDTF string"
+    )
+    merged_into = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="merged_from",
+        help_text="If set, this person has been merged into another record",
+    )
+
+    def __str__(self):
+        parts = filter(
+            None, [self.first_name, self.middle_name, self.last_name, self.suffix]
+        )
+        return " ".join(parts) or "Unknown Person"
+
+    class Meta:
+        verbose_name_plural = "people"
+        ordering = ["last_name", "first_name"]
+
+
+class Business(models.Model):
+    """Can represent any sort of business or similar entity"""
+
+    name = models.CharField(max_length=500)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = "businesses"
+        ordering = ["name"]
+
+
+class Occupation(models.Model):
+    name = models.CharField(max_length=500)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ["name"]
 
 
 class Subject(models.Model):

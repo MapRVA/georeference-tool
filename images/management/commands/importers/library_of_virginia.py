@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 LOCAL_DEV = os.getenv("LOCAL_DEV", "False").lower() in ("true", "1", "yes")
 
 from images.models import Collection, Image, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 
@@ -237,41 +238,27 @@ class LibraryOfVirginiaScraper:
             for j, image_data in enumerate(images, 1):
                 print(f"    [{j}/{len(images)}] {image_data['title']}")
 
-                # Upload image to R2 if uploader is available
-                if LOCAL_DEV:
-                    pass
-                elif self.r2_uploader and not dry_run:
-                    print("      → Uploading to R2...")
-                    image_data["permalink"] = self.r2_uploader.upload_url(
-                        image_data["url"],
-                    )
-                elif self.r2_uploader and dry_run:
-                    print("      → Would upload to R2 (dry run)")
-                    # For dry run, generate what the R2 URL would look like
-                    mock_key = self.r2_uploader.generate_key_from_url(
-                        image_data["url"],
-                    )
-                    image_data["permalink"] = self.r2_uploader.get_public_url(mock_key)
-
                 # Check if already exists (check by original URL)
                 existing_by_original_url = Image.objects.filter(
                     original_url=image_data["original_url"]
                 ).exists()
-                # Also check by permalink in case of duplicates with different R2 URLs
-                existing_by_permalink = Image.objects.filter(
-                    permalink=image_data["permalink"]
-                ).exists()
 
-                if existing_by_original_url or existing_by_permalink:
+                if existing_by_original_url:
                     print("      → Already exists, skipping")
                     continue
 
-                if not dry_run:
+                if dry_run:
+                    if not LOCAL_DEV and self.r2_uploader:
+                        print("      → Would upload to R2 (dry run)")
+                    print("      → Would create image (dry run)")
+                    imported_count += 1
+                else:
                     try:
+                        source_url = image_data["url"]
                         image = Image.objects.create(
                             collection=collection,
                             title=image_data["title"],
-                            permalink=image_data["permalink"],
+                            permalink=source_url,
                             original_url=image_data["original_url"],
                             original_date=SOURCE_YEAR,
                             edtf_date=SOURCE_YEAR,
@@ -279,11 +266,24 @@ class LibraryOfVirginiaScraper:
                         )
                         print(f"      → Created image ID: {image.id}")
                         imported_count += 1
+
+                        # Upload original to R2 if uploader is available
+                        if not LOCAL_DEV and self.r2_uploader:
+                            print("      → Uploading to R2...")
+                            r2_url = self.r2_uploader.upload_original(
+                                image.id, source_url
+                            )
+                            if r2_url:
+                                Image.objects.filter(pk=image.id).update(
+                                    permalink=r2_url
+                                )
+                                generate_iiif_tiles.delay(image.id)
+                            else:
+                                print(
+                                    "      ⚠ Failed to upload original, keeping source URL"
+                                )
                     except Exception as e:
                         print(f"      ✗ Error creating image: {e}")
-                else:
-                    print("      → Would create image (dry run)")
-                    imported_count += 1
 
                 # Be nice to the server
                 time.sleep(0.5)

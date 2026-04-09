@@ -14,6 +14,7 @@ from django.contrib.gis.geos import Point
 from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 0.75
@@ -550,19 +551,6 @@ def handle(options):
             non_public_domain_count += 1
             continue
 
-        # Try downloading the image (and uploading it to R2 if not hotlinking)
-        if not hotlink:
-            details["permalink"] = r2_uploader.upload_url(
-                details["permalink"],
-                in_tqdm=True,
-                raise_on_err=False,
-            )
-
-        # Were we successful in downloading the image?
-        if details["permalink"] is None:
-            tqdm.write(f"      ✗ Unable to download image {image_id}, skipping")
-            continue
-
         try:
             tqdm.write(f"      → Inserting image {details['original_url']}")
 
@@ -582,10 +570,11 @@ def handle(options):
                 )
                 tqdm.write(f"      → Created pre-image ID: {image.id}")
             else:
+                source_url = details["permalink"]
                 image = Image.objects.create(
                     collection=collection,
                     title=details["title"],
-                    permalink=details["permalink"],
+                    permalink=source_url,
                     ref=details["ref"],
                     original_url=details["original_url"],
                     description=details.get("description", ""),
@@ -596,6 +585,16 @@ def handle(options):
                     source_point=details.get("source_point"),
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
+
+                # Upload original to R2 and update permalink
+                r2_url = r2_uploader.upload_original(
+                    image.id, source_url, in_tqdm=True
+                )
+                if r2_url:
+                    Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                    generate_iiif_tiles.delay(image.id)
+                else:
+                    tqdm.write("      ⚠ Failed to upload original, keeping source URL")
         except Exception as e:
             tqdm.write(f"      ✗ Error creating image: {e}")
 

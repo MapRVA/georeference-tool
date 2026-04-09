@@ -2,5 +2,8 @@
     object-fit: contain;
     max-height: 600px;
     display: block;
-    cursor: zoom-in;
+}
+
+#osd-viewer {
+    background: #f8f9fa;
 }

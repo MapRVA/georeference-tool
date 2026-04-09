@@ -16,6 +16,7 @@ import requests
 from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 
@@ -1334,71 +1335,62 @@ def handle(options):
                 tqdm.write(
                     f"      ✗ No image URL found for {record.get('title')[:30]}..., importing metadata only"
                 )
-                permalink = ""  # Empty permalink, will create record without image
+                source_url = ""  # Empty URL, will create record without image
             else:
                 tqdm.write("      ✗ No image URL found for record, skipping")
                 continue
         else:
-            permalink = record["iiif_full_url"]
+            source_url = record["iiif_full_url"]
 
-            # Only upload to R2 if we have a valid URL
-            if not hotlink and permalink:
-                # Verify this is an actual image before uploading
+            # Resolve the actual image URL if needed
+            if not hotlink and source_url:
                 try:
                     # Use a new session for verification
                     with requests.Session() as session:
                         session.headers.update({"User-Agent": "Mozilla/5.0"})
 
                         # First check if it's a IIIF presentation URL
-                        if "/delivery/iiif/presentation/" in permalink:
-                            response = session.get(permalink, timeout=10)
+                        if "/delivery/iiif/presentation/" in source_url:
+                            response = session.get(source_url, timeout=10)
                             try:
                                 data = response.json()
                                 if "service" in data and "@id" in data["service"]:
-                                    permalink = f"{data['service']['@id']}/full/max/0/default.jpg"
+                                    source_url = f"{data['service']['@id']}/full/max/0/default.jpg"
                             except Exception:
                                 pass
 
                         # Verify the content type of our URL
-                        response = session.head(permalink, timeout=10)
+                        response = session.head(source_url, timeout=10)
                         content_type = response.headers.get("Content-Type", "")
 
                         if "application/json" in content_type:
                             try:
-                                json_response = session.get(permalink, timeout=10)
+                                json_response = session.get(source_url, timeout=10)
                                 data = json_response.json()
                                 if "service" in data and "@id" in data["service"]:
-                                    permalink = f"{data['service']['@id']}/full/max/0/default.jpg"
+                                    source_url = f"{data['service']['@id']}/full/max/0/default.jpg"
                             except Exception:
                                 pass
                 except Exception:
                     pass
 
                 # Final check for proper URL format
-                if "virginiamemory.com" in permalink:
+                if "virginiamemory.com" in source_url:
                     if (
-                        "iiif/presentation" in permalink
-                        or "delivery/iiif/presentation" in permalink
+                        "iiif/presentation" in source_url
+                        or "delivery/iiif/presentation" in source_url
                     ):
                         # Extract IE and FL numbers if possible
-                        ie_match = re.search(r"IE(\d+)", permalink)
-                        fl_match = re.search(r"FL(\d+)", permalink)
+                        ie_match = re.search(r"IE(\d+)", source_url)
+                        fl_match = re.search(r"FL(\d+)", source_url)
 
                         if ie_match and fl_match:
                             ie_num = ie_match.group(1)
                             fl_num = fl_match.group(1)
-                            permalink = f"https://iiif.virginiamemory.com/iiif/2/IE{ie_num}:FL{fl_num}/full/max/0/default.jpg"
+                            source_url = f"https://iiif.virginiamemory.com/iiif/2/IE{ie_num}:FL{fl_num}/full/max/0/default.jpg"
                         elif ie_match:
                             ie_num = ie_match.group(1)
-                            permalink = f"https://iiif.virginiamemory.com/iiif/2/IE{ie_num}/full/max/0/default.jpg"
-
-                permalink = r2_uploader.upload_url(
-                    permalink, in_tqdm=True, raise_on_err=False
-                )
-
-            if permalink is None:
-                tqdm.write("✗ Unable to download image, skipping")
-                continue
+                            source_url = f"https://iiif.virginiamemory.com/iiif/2/IE{ie_num}/full/max/0/default.jpg"
 
         try:
             edtf_date = parse_date(record.get("date"), default_edtf, min_year, max_year)
@@ -1407,7 +1399,7 @@ def handle(options):
                 image = PreImage.objects.create(
                     collection=collection,
                     title=record.get("title", "No title"),
-                    permalink=permalink,
+                    permalink=source_url,
                     ref=ref,
                     description=record.get("description", ""),
                     creator=record.get("creator", ""),
@@ -1419,7 +1411,7 @@ def handle(options):
                 image = Image.objects.create(
                     collection=collection,
                     title=record.get("title", "No title"),
-                    permalink=permalink,
+                    permalink=source_url,
                     ref=ref,
                     original_url=f"https://lva.primo.exlibrisgroup.com/discovery/fulldisplay?docid={record.get('record_id')}&context=L&vid={vid}",
                     description=record.get("description", ""),
@@ -1428,8 +1420,18 @@ def handle(options):
                     edtf_date=edtf_date,
                     license=options.get("license"),
                 )
+
+                if source_url:
+                    r2_url = r2_uploader.upload_original(
+                        image.id, source_url, in_tqdm=True
+                    )
+                    if r2_url:
+                        Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                        generate_iiif_tiles.delay(image.id)
+                    else:
+                        tqdm.write("      \u26a0 Failed to upload original, keeping source URL")
         except Exception as e:
-            tqdm.write(f"✗ Error creating image: {e}")
+            tqdm.write(f"\u2717 Error creating image: {e}")
 
         sleep(POLITE_WAIT_SECS)
 
