@@ -1,5 +1,6 @@
 import json
 
+import numpy as np
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
@@ -15,16 +16,6 @@ from django_ratelimit.decorators import ratelimit
 from images.models import Image, SubjectMapping
 
 from .models import Subject, WikidataItem
-
-# Try to import CLIP dependencies (for subject similarity search)
-try:
-    import clip
-    import numpy as np
-    import torch
-
-    CLIP_AVAILABLE = True
-except ImportError:
-    CLIP_AVAILABLE = False
 
 
 def subject_autocomplete(request):
@@ -711,13 +702,6 @@ def find_similar_images_to_subject(request, subject_slug):
     For AJAX requests (X-Requested-With: XMLHttpRequest), returns just the image
     cards HTML partial for "Load More" functionality.
     """
-    if not CLIP_AVAILABLE:
-        messages.error(
-            request,
-            "Similarity search is not available. CLIP dependencies not installed.",
-        )
-        return redirect("subjects:subject_detail", subject_slug=subject_slug)
-
     # Get the target subject
     subject = get_object_or_404(Subject, slug=subject_slug)
 

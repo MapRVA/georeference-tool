@@ -17,7 +17,6 @@
 
 
 {% block extra_js %}
-{% if clip_available %}
 <script>
     // Configuration object for bulk operations and album dropdown
     window.filterConfig = {
@@ -35,7 +34,6 @@
         }
     };
 </script>
-{% endif %}
 {% vite_asset 'assets/js/pages/search.js' %}
 {% endblock %}
 
@@ -47,14 +45,6 @@
             <h1 class="mb-4">
                 <i class="fas fa-search me-2"></i>Image Search
             </h1>
-
-            {% if not clip_available %}
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>Semantic search is not available.</strong>
-                CLIP dependencies are not installed on this server.
-            </div>
-            {% else %}
 
             <!-- Search Form (narrower, centered) -->
             <div class="row justify-content-center">
@@ -312,8 +302,6 @@
                     </div>
                 {% endif %}
             </div>
-
-            {% endif %}
         </div>
     </div>
 </div>

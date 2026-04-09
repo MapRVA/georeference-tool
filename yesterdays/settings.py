@@ -266,8 +266,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CELERY_BROKER_URL = os.getenv(
     "CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//"
 )
-CELERY_RESULT_BACKEND = None  # Results stored in Image.thumbnail field directly
-CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_BACKEND = "rpc://"  # RPC over RabbitMQ for synchronous task results
+CELERY_TASK_IGNORE_RESULT = True  # Default: ignore results unless a task opts in
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -289,6 +289,9 @@ CELERY_TASK_ROUTES = {
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
     # IIIF tile generation goes to background queue
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
+    # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
+    "images.tasks.encode_text": {"queue": "urgent"},
+    "images.tasks.encode_image": {"queue": "urgent"},
 }
 
 if DIRECTORIES_ENABLED:

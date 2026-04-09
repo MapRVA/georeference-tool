@@ -37,7 +37,7 @@ from images.models import (
     Source,
 )
 from images.utils import get_confidence_breakdown, get_overall_stats
-from images.views.search import CLIP_AVAILABLE, HAS_POSTGRES_SEARCH, _get_text_embedding
+from images.views.search import HAS_POSTGRES_SEARCH, _get_text_embedding
 from subjects.models import OsmElement, Subject
 
 from .filters import FromAboveGeoreferenceFilter, GeoreferenceFilter, ImageFilter
@@ -683,12 +683,6 @@ def semantic_search_view(request):
         collection: filter by collection ID
         subject: filter by subject ID
     """
-    if not CLIP_AVAILABLE:
-        return Response(
-            {"error": "Semantic search is not available."},
-            status=503,
-        )
-
     query = request.query_params.get("q", "").strip()
     if not query:
         return Response(
