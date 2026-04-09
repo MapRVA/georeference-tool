@@ -58,6 +58,12 @@ PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
     "yes",
 )
 
+DIRECTORIES_ENABLED = os.getenv("DIRECTORIES_ENABLED", "True").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # CLIP model warmup on startup (disabled by default)
 CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
     "true",
@@ -88,9 +94,11 @@ INSTALLED_APPS = [
     "images",
     "maps",
     "activity",
-    "directories",
     "yesterdays",
 ]
+
+if DIRECTORIES_ENABLED:
+    INSTALLED_APPS.insert(-1, "directories")
 
 if PROMETHEUS_ENABLED:
     INSTALLED_APPS.insert(0, "django_prometheus")
@@ -281,10 +289,15 @@ CELERY_TASK_ROUTES = {
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
     # IIIF tile generation goes to background queue
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
-    "directories.tasks.ocr.generate_iiif_tiles": {"queue": "background"},
-    # OCR processing goes to background queue
-    "directories.tasks.ocr.run_page_ocr": {"queue": "background"},
 }
+
+if DIRECTORIES_ENABLED:
+    CELERY_TASK_ROUTES.update(
+        {
+            "directories.tasks.ocr.generate_iiif_tiles": {"queue": "background"},
+            "directories.tasks.ocr.run_page_ocr": {"queue": "background"},
+        }
+    )
 
 # Metadata refresh intervals (seconds between each refresh)
 # These control how often Celery Beat triggers each refresh task

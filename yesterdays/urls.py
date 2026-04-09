@@ -47,7 +47,11 @@ urlpatterns = [
             url=f"/album/{album_id}/", permanent=True
         )(request),
     ),
-    path("", include("directories.urls")),
+    *(
+        [path("", include("directories.urls"))]
+        if settings.DIRECTORIES_ENABLED
+        else []
+    ),
     path("subjects/", include("subjects.urls")),
     path("activity/", include("activity.urls")),
     path("", include("images.urls")),
