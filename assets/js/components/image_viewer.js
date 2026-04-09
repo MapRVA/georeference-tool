@@ -44,7 +44,8 @@ function initOSDViewer(el) {
   const viewer = OpenSeadragon({
     element: el,
     showNavigationControl: false,
-    visibilityRatio: 1,
+    visibilityRatio: 0.5,
+    maxZoomPixelRatio: 4,
     minZoomLevel: 0.5,
     defaultZoomLevel: 0,
     gestureSettingsMouse: { scrollToZoom: true },
