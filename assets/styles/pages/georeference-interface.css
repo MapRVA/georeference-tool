@@ -69,15 +69,9 @@
 }
 
 /* Image centerline (mirrors the map bearing-line style) */
-.image-container .image-centerline {
+.image-container .image-centerline,
+.image-centerline-overlay {
     display: none;
-    position: absolute;
-    top: 0;
-    left: 50%;
-    height: 100%;
-    width: 2px;
-    margin-left: -1px;
-    z-index: 3;
     pointer-events: none;
     background: repeating-linear-gradient(
         to bottom,
@@ -86,6 +80,22 @@
         var(--bs-light, #f8f9fa) 6px,
         var(--bs-light, #f8f9fa) 12px
     );
+}
+
+.image-container .image-centerline {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    height: 100%;
+    width: 2px;
+    margin-left: -1px;
+    z-index: 3;
+}
+
+/* OSD overlay: force a visible width since OSD sets width: 0px inline */
+.image-centerline-overlay {
+    min-width: 2px !important;
+    margin-left: -1px;
 }
 
 /* Map styles */

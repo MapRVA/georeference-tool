@@ -624,6 +624,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var currentDirection = null;
     var isJoystickDragging = false;
     var bearingLineEnabled = false;
+    var osdCenterlineOverlay = null;
     var contextDisplayMode = "ghost"; // Default to ghost mode
     var isHoveringContextImage = false; // Track when hovering over context images
     var activePopup = null; // Track active popup
@@ -669,6 +670,11 @@ document.addEventListener("DOMContentLoaded", function () {
         !isNaN(lng);
 
       // Sync image centerline with map bearing line visibility
+      if (osdCenterlineOverlay) {
+        osdCenterlineOverlay.style.display = bearingLineVisible
+          ? "block"
+          : "none";
+      }
       var imageCenterline = document.querySelector(".image-centerline");
       if (imageCenterline) {
         imageCenterline.style.display = bearingLineVisible ? "block" : "none";
@@ -1645,6 +1651,32 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         }
         updateBearingLine();
+      });
+    }
+
+    // Create an OSD overlay for the image centerline (fixed to the image)
+    var osdEl = document.getElementById("osd-viewer");
+    var osdViewer = osdEl && osdEl.osdViewer;
+    if (osdViewer) {
+      osdViewer.addHandler("open", function () {
+        var contentSize = osdViewer.world.getItemAt(0).getContentSize();
+
+        osdCenterlineOverlay = document.createElement("div");
+        osdCenterlineOverlay.className = "image-centerline-overlay";
+        osdCenterlineOverlay.style.display = "none";
+
+        osdViewer.addOverlay({
+          element: osdCenterlineOverlay,
+          px: contentSize.x / 2,
+          py: 0,
+          width: 0,
+          height: contentSize.y,
+        });
+
+        // Show immediately if bearing line is already enabled
+        if (bearingLineEnabled && pinPlaced && currentDirection !== null) {
+          osdCenterlineOverlay.style.display = "block";
+        }
       });
     }
 

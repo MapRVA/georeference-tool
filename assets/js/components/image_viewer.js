@@ -59,4 +59,7 @@ function initOSDViewer(el) {
   });
 
   addViewerButtons(viewer, el);
+
+  // Expose viewer so other scripts (e.g. georeference interface) can access it
+  el.osdViewer = viewer;
 }
