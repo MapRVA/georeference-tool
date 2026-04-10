@@ -17,6 +17,8 @@ images/management/commands/detect_addresses.py has hard-coded view box
     Southwest: 33.88604637384387, -117.52662447394147
     DONE
 templates/images/partials/map_display.html line 9 defaults to center_lng='-77.44' center_lat='37.53'
-    NOT DONE
+    NOT set in the file. Set here! assets/js/constants/map.js line 8
+    Change to -117.37, 33.98
+    DONE
 subjects/models.py WikidataItem has a field va_landmark_id. Change to be generic?
     NOT DONE
