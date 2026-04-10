@@ -137,15 +137,24 @@ def create_collection_if_not_exist(source, collection_info):
         return None
 
 
-def fetch_loc_results(collection_slug, start_page=1, items_per_page=150):
+def fetch_loc_results(collection_slug, start_page=1, items_per_page=150, no_collection=False):
     """Fetch results from Library of Congress API"""
-    base_url = f"https://www.loc.gov/collections/{collection_slug}/"
-    params = {
-        "fa": "location:virginia|location:richmond",  # Hard-coded search params
-        "fo": "json",
-        "c": items_per_page,
-        "sp": start_page,
-    }
+    if not no_collection:
+        base_url = f"https://www.loc.gov/collections/{collection_slug}/"
+        params = {
+            "fa": "location:virginia|location:richmond",  # Hard-coded search params
+            "fo": "json",
+            "c": items_per_page,
+            "sp": start_page,
+        }
+    else:
+        base_url = f"https://www.loc.gov/pictures/search/?q={collection_slug}+richmond+virginia&fo=json"
+        params = {
+            "q": f"{collection_slug}+richmond+virginia"
+            "fo": "json",
+            "c": items_per_page,
+            "sp": start_page,
+        }
 
     response = requests.get(base_url, params=params)
     response.raise_for_status()
@@ -164,24 +173,58 @@ def fetch_loc_results(collection_slug, start_page=1, items_per_page=150):
 
 def extract_image_data(result_item):
     """Extract relevant data from a LoC result item"""
+    """
+    {
+    "source_created": "2017-04-05T00:00:00Z",
+    "index": 1,
+    "medium": "1 photograph : color transparency ; 35 mm (slide format).",
+    "reproduction_number": "LC-DIG-mrg-00629 (digital file from original color transparency)",
+    "links": {
+        "item": "https://www.loc.gov/pictures/item/2017702743/",
+        "resource": "https://www.loc.gov/pictures/item/2017702743/resource/",
+    },
+    "title": "Santa Fe Railroad Station, 7th Street, Riverside, California",
+    "image": {
+        "alt": "digitized item thumbnail",
+        "full": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629r.jpg",
+        "square": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629_75x75px.jpg",
+        "thumb": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629_150px.jpg"
+    },
+    "created": "2019-05-06T00:00:00Z",
+    "modified": "2019-05-06T00:00:00Z",
+    "collection": [...],
+    "creator": "Margolies, John",
+    "call_number": "LC-MA05- 629 [P&P]",
+    "medium_brief": "1 photograph :",
+    "source_modified": "2018-07-06T00:00:00Z",
+    "pk": "2017702743",
+    "created_published_date": "1977.",
+    "subjects": [...]
+    },
+    """
     item_data = result_item.get("item", {})
 
     # Get title and clean up brackets if entire title is wrapped
     title = result_item.get("title", "Untitled")
     if title.startswith("[") and title.endswith("]"):
         title = title[1:-1].strip()
+    # The default search page has a dictionary of images
+    image_url = result_item.get("image_url", []) or result_item.get("image", {})
+    original_url = result_item.get("url", "") or result_item.get("links", {}).get("item", "")
+    ref = item_data.get("control_number", "") or result_item.get("pk", {})
+    id = result_item.get("id", "") or result_item.get("index", "")
 
     # Build the record dictionary
     record = {
-        "id": result_item.get("id", ""),
+        "id": id,
         "title": title,
-        "original_url": result_item.get("url", ""),
-        "ref": item_data.get("control_number", ""),
+        "original_url": original_url,
+        "ref": ref,
         "description": "",
         "creator": "",
         "original_date": "",
         "edtf_date": "",
-        "image_urls": result_item.get("image_url", []),
+        "image_urls": image_url,
         "resources": result_item.get("resources", []),
     }
 
@@ -223,6 +266,9 @@ def extract_image_data(result_item):
     elif result_item.get("date"):
         record["original_date"] = result_item["date"]
         record["edtf_date"] = parse_loc_date(result_item["date"])
+    elif result_item.get("created_published_date"):
+        record["original_date"] = result_item["created_published_date"]
+        record["edtf_date"] = parse_loc_date(result_item["created_published_date"])
 
     if record["original_date"].startswith("[") and record["original_date"].endswith(
         "]"
@@ -545,44 +591,47 @@ def get_highest_quality_image_url(record):
 
     # Then check image_urls for specific quality indicators
     image_urls = record.get("image_urls", [])
-    for url in image_urls:
-        if not url:
-            continue
+    if isinstance(image_urls, list):
+        for url in image_urls:
+            if not url:
+                continue
 
-        quality_score = 0
+            quality_score = 0
 
-        # Look for resolution indicators in the URL fragment
-        if "#h=" in url and "&w=" in url:
-            try:
-                height_str = url.split("#h=")[1].split("&")[0]
-                width_str = url.split("&w=")[1].split("&")[
-                    0
-                ]  # Handle additional params
-                height = int(height_str)
-                width = int(width_str)
-                quality_score = height * width  # Total pixels as quality metric
-            except (ValueError, IndexError):
-                pass
+            # Look for resolution indicators in the URL fragment
+            if "#h=" in url and "&w=" in url:
+                try:
+                    height_str = url.split("#h=")[1].split("&")[0]
+                    width_str = url.split("&w=")[1].split("&")[
+                        0
+                    ]  # Handle additional params
+                    height = int(height_str)
+                    width = int(width_str)
+                    quality_score = height * width  # Total pixels as quality metric
+                except (ValueError, IndexError):
+                    pass
 
-        # Look for quality indicators in the filename
-        url_lower = url.lower()
-        if any(indicator in url_lower for indicator in ["_150px", "t.gif"]):
-            # These are typically thumbnails - lower quality
-            quality_score = max(quality_score, 1)
-        elif "r.jpg" in url_lower:
-            # Medium resolution
-            quality_score = max(quality_score, 100)
-        elif "v.jpg" in url_lower:
-            # Often high resolution
-            quality_score = max(quality_score, 500)
-        # elif '.tif' in url_lower or 'master' in url_lower:
-        #     # Typically highest quality
-        #     quality_score = max(quality_score, 2000)
+            # Look for quality indicators in the filename
+            url_lower = url.lower()
+            if any(indicator in url_lower for indicator in ["_150px", "t.gif"]):
+                # These are typically thumbnails - lower quality
+                quality_score = max(quality_score, 1)
+            elif "r.jpg" in url_lower:
+                # Medium resolution
+                quality_score = max(quality_score, 100)
+            elif "v.jpg" in url_lower:
+                # Often high resolution
+                quality_score = max(quality_score, 500)
+            # elif '.tif' in url_lower or 'master' in url_lower:
+            #     # Typically highest quality
+            #     quality_score = max(quality_score, 2000)
 
-        if quality_score > best_quality_score:
-            best_quality_score = quality_score
-            best_url = url.split("#")[0]  # Remove fragment for clean URL
-
+            if quality_score > best_quality_score:
+                best_quality_score = quality_score
+                best_url = url.split("#")[0]  # Remove fragment for clean URL
+    elif isinstance(image_urls, dict):
+        # Check if image exists in descending order
+        best_url = image_urls.get("full", "") or image_urls.get("square", "") or image_urls.get("thumb", "")
     return best_url
 
 
@@ -591,11 +640,20 @@ def add_arguments(parser):
     parser.add_argument(
         "--max-items", type=int, default=None, help="Maximum number of items to process"
     )
+    parser.add_argument(
+        "--no-collection",
+        type=bool,
+        action="store_true",
+        help="Set if collection does not have a collection slug page,"
+             "such as .../collections/[collection slug]/. Instead search pictures directly like so: "
+             ".../pictures/search/?q=[collection slug]+richmond+virginia"
+    )
 
 
 def handle(options):
     """Run the Library of Congress import."""
     max_items = options["max_items"]
+    no_collection = options["no_collection"]
 
     source = create_source_if_not_exist()
     collection_info = get_collection_info()
@@ -610,11 +668,20 @@ def handle(options):
     # First, get the total count
     print(f"\nFetching results for collection: {collection_info['slug']}")
     initial_results = fetch_loc_results(
-        collection_info["slug"], start_page=1, items_per_page=150
+        collection_info["slug"],
+        start_page=1,
+        items_per_page=150,
+        no_collection,
     )
 
-    total_results = initial_results.get("pagination", {}).get("of", 0)
-    print(f"Found {total_results} total results")
+    if not no_collection:
+        total_results = initial_results.get("pagination", {}).get("of", 0)
+        print(f"Found {total_results} total results")
+    else:
+        # The JSON structure is completely different
+        num_pages = len(initial_results.get("pages", {}).get("page_list", []))
+        per_page = initial_results.get("pages", {}).get("per_page", 0)
+        total_results = num_pages * per_page
 
     if max_items:
         total_results = min(total_results, max_items)
@@ -639,7 +706,10 @@ def handle(options):
 
         try:
             results = fetch_loc_results(
-                collection_info["slug"], start_page=page, items_per_page=items_per_page
+                collection_info["slug"],
+                start_page=page,
+                items_per_page=items_per_page,
+                no_collection,
             )
         except Exception as e:
             tqdm.write(f"Error fetching page {page}: {e}")
