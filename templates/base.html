@@ -15,6 +15,7 @@
         window.DEFAULT_MAP_CENTER = {{ default_map_center }};
         window.DEFAULT_MAP_ZOOM = {{ default_map_zoom }};
         window.ADMIN_EMAIL = {% if admin_email %}"{{ admin_email }}"{% else %}null{% endif %};
+        window.MAP_LAYERS_DATA = {{ map_layers_json|safe }};
     </script>
 
     <!-- Global bundle (Alpine.js + site-wide scripts) - loads first to set up window.Alpine -->
@@ -60,7 +61,7 @@
                             <li><a class="dropdown-item" href="{% url 'images:browse_aerials' %}">From Above</a></li>
                             <li><a class="dropdown-item" href="{% url 'images:favorites' %}">Favorites</a></li>
                             <li><a class="dropdown-item" href="{% url 'maps:browse_maps' %}">Maps</a></li>
-                            <li><a class="dropdown-item" href="{% url 'directories:directory_list' %}">Directories</a></li>
+                            {% if DIRECTORIES_ENABLED %}<li><a class="dropdown-item" href="{% url 'directories:directory_list' %}">Directories</a></li>{% endif %}
                             <li><a class="dropdown-item" href="{% url 'activity:feed' %}">Activity</a></li>
                             <li><a class="dropdown-item" href="{% url 'stats' %}">Stats</a></li>
                         </ul>

@@ -214,11 +214,8 @@ def health_ready(request):
     Kubernetes readiness probe endpoint.
     Returns 200 if the app is ready to serve traffic.
     """
-    from images.views.search import CLIP_AVAILABLE, is_clip_ready
-
     checks = {
         "database": False,
-        "clip_model": False,
     }
 
     # Check database connectivity
@@ -227,12 +224,6 @@ def health_ready(request):
         checks["database"] = True
     except Exception:
         pass
-
-    # Check CLIP model (only required if CLIP is available)
-    if CLIP_AVAILABLE:
-        checks["clip_model"] = is_clip_ready()
-    else:
-        checks["clip_model"] = True  # Not required if CLIP unavailable
 
     all_ready = all(checks.values())
     status = 200 if all_ready else 503

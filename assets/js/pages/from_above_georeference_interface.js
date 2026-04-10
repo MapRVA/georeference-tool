@@ -86,19 +86,6 @@ document.addEventListener("DOMContentLoaded", function () {
   // Try to setup PMTiles protocol
   window.setupPMTilesProtocol();
 
-  // Add LayerControl to map
-  // Note: Geoman creates layers dynamically with "gm_" prefix. The LayerControl's isOverlayLayer()
-  // already recognizes these. We don't set beforeLayerId since Geoman layers are created after
-  // map load, so we rely on the fallback logic and moveLayer() to reposition overlays correctly.
-  map.addControl(
-    new LayerControl({
-      mapLayersUrl: config.urls.mapLayers,
-    }),
-    "top-right",
-  );
-  map.addControl(new maplibregl.NavigationControl());
-  map.addControl(new maplibregl.FullscreenControl());
-
   // Track polygon data
   var drawnPolygon = null;
   var gm = null;
@@ -107,168 +94,205 @@ document.addEventListener("DOMContentLoaded", function () {
   var isEditing = !config.existingPolygon; // new georefs are "edited" by default
   var confidenceSelected = false;
 
-  // Initialize Geoman after map loads
-  map.on("load", function () {
-    // Configure Geoman options - only show polygon and erase tools
-    var geomanOptions = {
-      position: "top-left",
-      controls: {
-        draw: {
-          polygon: {
-            uiEnabled: true,
-            title: "Draw Polygon (only one allowed)",
-          },
-          marker: {
-            uiEnabled: false,
-          },
-          circle_marker: {
-            uiEnabled: false,
-          },
-          text_marker: {
-            uiEnabled: false,
-          },
-          circle: {
-            uiEnabled: false,
-          },
-          ellipse: {
-            uiEnabled: false,
-          },
-          line: {
-            uiEnabled: false,
-          },
-          rectangle: {
-            uiEnabled: false,
-          },
+  // Geoman options - only show polygon and erase tools
+  var geomanOptions = {
+    position: "top-left",
+    controls: {
+      draw: {
+        polygon: {
+          uiEnabled: true,
+          title: "Draw Polygon (only one allowed)",
         },
-        edit: {
-          delete: {
-            uiEnabled: true,
-          },
-        },
-        helper: {
-          snapping: {
-            uiEnabled: false,
-          },
-        },
+        marker: { uiEnabled: false },
+        circle_marker: { uiEnabled: false },
+        text_marker: { uiEnabled: false },
+        circle: { uiEnabled: false },
+        ellipse: { uiEnabled: false },
+        line: { uiEnabled: false },
+        rectangle: { uiEnabled: false },
       },
-    };
+      edit: {
+        delete: { uiEnabled: true },
+      },
+      helper: {
+        snapping: { uiEnabled: false },
+      },
+    },
+  };
 
-    // Initialize Geoman with the map
-    try {
-      console.log("Attempting to initialize Geoman...");
+  // Named event handlers so they can be detached and re-attached across
+  // Geoman re-initializations (e.g. after style swaps).
+  function handleGmCreate(event) {
+    if (event.shape === "polygon") {
+      console.log("Polygon created:", event.feature.id);
 
-      if (!Geoman) {
-        throw new Error("Geoman library not loaded.");
+      // If there's already a polygon, remove it
+      if (
+        currentPolygonId !== null &&
+        currentPolygonId !== event.feature.id
+      ) {
+        console.log("Removing previous polygon:", currentPolygonId);
+
+        try {
+          // Try the stored reference first (works for imported features)
+          if (currentFeatureRef) {
+            if (typeof currentFeatureRef.delete === "function") {
+              currentFeatureRef.delete();
+            } else if (typeof currentFeatureRef.remove === "function") {
+              currentFeatureRef.remove();
+            }
+          } else {
+            gm.features.forEach(function (feature) {
+              if (feature.id === currentPolygonId) {
+                if (typeof feature.delete === "function") {
+                  feature.delete();
+                } else if (typeof feature.remove === "function") {
+                  feature.remove();
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("Error removing polygon:", e);
+        }
       }
 
-      // Create a new Geoman instance
-      gm = new Geoman(map, geomanOptions);
+      // Store the new polygon's ID
+      currentPolygonId = event.feature.id;
+      currentFeatureRef = event.feature;
+      isEditing = true;
 
-      console.log("Geoman initialized successfully:", gm);
+      // Update polygon data
+      updatePolygonData();
+    }
+  }
 
-      // Listen for Geoman loaded event
-      map.on("gm:loaded", async function () {
-        console.log("Geoman fully loaded");
+  function handleGmRemove(event) {
+    if (event.feature && event.feature.id === currentPolygonId) {
+      console.log("Polygon removed by user");
+      currentPolygonId = null;
+      currentFeatureRef = null;
+      updatePolygonData();
+    }
+  }
 
-        // Load existing polygon if correcting a previous georeference
-        if (config.existingPolygon) {
-          var feature = {
-            type: "Feature",
-            geometry: config.existingPolygon,
-            properties: { shape: "polygon" },
-          };
-          var imported = await gm.features.importGeoJsonFeature(feature);
-          if (imported) {
-            currentPolygonId = imported.id;
-            currentFeatureRef = imported;
-            drawnPolygon = imported.getGeoJson
-              ? imported.getGeoJson()
-              : feature;
-          }
+  function handleGmEditEnd(event) {
+    console.log("Polygon edited (vertex change)");
+    isEditing = true;
+    if (event.feature) {
+      currentFeatureRef = event.feature;
+    }
+    updatePolygonData();
+  }
 
-          // Fit map to the polygon bounds
-          var bounds = new maplibregl.LngLatBounds();
-          config.existingPolygon.coordinates[0].forEach(function (c) {
-            bounds.extend(c);
-          });
-          map.fitBounds(bounds, { padding: 50 });
+  function handleGmDragEnd(event) {
+    console.log("Polygon dragged");
+    isEditing = true;
+    if (event.feature) {
+      currentFeatureRef = event.feature;
+    }
+    updatePolygonData();
+  }
+
+  // Initialize (or re-initialize) Geoman and restore any existing polygon.
+  // Called on initial map load and after style swaps, which destroy all
+  // MapLibre sources/layers and corrupt Geoman's internal state.
+  async function initializeGeoman(polygonToRestore) {
+    // Tear down previous instance if one exists — its internal source/layer
+    // references are stale after setStyle() and init() will refuse to
+    // re-create them.
+    if (gm) {
+      // Detach handlers before destroying to avoid firing on stale features
+      map.off("gm:create", handleGmCreate);
+      map.off("gm:remove", handleGmRemove);
+      map.off("gm:editend", handleGmEditEnd);
+      map.off("gm:dragend", handleGmDragEnd);
+      try {
+        await gm.destroy();
+      } catch (e) {
+        console.warn("Error destroying previous Geoman instance:", e);
+      }
+      gm = null;
+      currentPolygonId = null;
+      currentFeatureRef = null;
+    }
+
+    if (!Geoman) {
+      throw new Error("Geoman library not loaded.");
+    }
+
+    gm = new Geoman(map, geomanOptions);
+
+    // Wait for Geoman to finish loading before importing features
+    await new Promise((resolve) => {
+      map.once("gm:loaded", resolve);
+    });
+
+    // Restore polygon if one was provided
+    if (polygonToRestore) {
+      var feature = {
+        type: "Feature",
+        geometry: polygonToRestore,
+        properties: { shape: "polygon" },
+      };
+      var imported = await gm.features.importGeoJsonFeature(feature);
+      if (imported) {
+        currentPolygonId = imported.id;
+        currentFeatureRef = imported;
+        drawnPolygon = imported.getGeoJson
+          ? imported.getGeoJson()
+          : feature;
+      }
+    }
+
+    // Attach event handlers
+    map.on("gm:create", handleGmCreate);
+    map.on("gm:remove", handleGmRemove);
+    map.on("gm:editend", handleGmEditEnd);
+    map.on("gm:dragend", handleGmDragEnd);
+  }
+
+  // Add LayerControl to map
+  // Note: Geoman creates layers dynamically with "gm_" prefix. The LayerControl's isOverlayLayer()
+  // already recognizes these. We don't set beforeLayerId since Geoman layers are created after
+  // map load, so we rely on the fallback logic and moveLayer() to reposition overlays correctly.
+  map.addControl(
+    new LayerControl({
+      onStyleSwap: async () => {
+        // setStyle() destroys all MapLibre sources/layers, but Geoman's
+        // internal state still holds stale references and its init() skips
+        // re-creation. The only reliable fix is to destroy and re-create
+        // the Geoman instance, then re-import the user's polygon.
+        var savedGeometry = drawnPolygon?.geometry || null;
+        try {
+          await initializeGeoman(savedGeometry);
+        } catch (e) {
+          console.error("Error re-initializing Geoman after style swap:", e);
+          showAlert(
+            "danger",
+            "Failed to restore polygon drawing tools after style change.",
+          );
         }
+      },
+    }),
+    "top-right",
+  );
+  map.addControl(new maplibregl.NavigationControl());
+  map.addControl(new maplibregl.FullscreenControl());
 
-        // Enforce one polygon limit
-        map.on("gm:create", function (event) {
-          if (event.shape === "polygon") {
-            console.log("Polygon created:", event.feature.id);
+  // Initialize Geoman after map loads
+  map.on("load", async function () {
+    try {
+      await initializeGeoman(config.existingPolygon || null);
 
-            // If there's already a polygon, remove it
-            if (
-              currentPolygonId !== null &&
-              currentPolygonId !== event.feature.id
-            ) {
-              console.log("Removing previous polygon:", currentPolygonId);
-
-              try {
-                // Try the stored reference first (works for imported features)
-                if (currentFeatureRef) {
-                  if (typeof currentFeatureRef.delete === "function") {
-                    currentFeatureRef.delete();
-                  } else if (typeof currentFeatureRef.remove === "function") {
-                    currentFeatureRef.remove();
-                  }
-                } else {
-                  gm.features.forEach(function (feature) {
-                    if (feature.id === currentPolygonId) {
-                      if (typeof feature.delete === "function") {
-                        feature.delete();
-                      } else if (typeof feature.remove === "function") {
-                        feature.remove();
-                      }
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn("Error removing polygon:", e);
-              }
-            }
-
-            // Store the new polygon's ID
-            currentPolygonId = event.feature.id;
-            currentFeatureRef = event.feature;
-            isEditing = true;
-
-            // Update polygon data
-            updatePolygonData();
-          }
+      // Fit map to the existing polygon bounds (only on initial load)
+      if (config.existingPolygon) {
+        var bounds = new maplibregl.LngLatBounds();
+        config.existingPolygon.coordinates[0].forEach(function (c) {
+          bounds.extend(c);
         });
-
-        // Track polygon removal
-        map.on("gm:remove", function (event) {
-          if (event.feature && event.feature.id === currentPolygonId) {
-            console.log("Polygon removed by user");
-            currentPolygonId = null;
-            currentFeatureRef = null;
-            updatePolygonData();
-          }
-        });
-
-        // Track polygon editing — Geoman converts "change" mode to "edit"
-        // in public event names, so vertex edits fire gm:editend
-        map.on("gm:editend", function (event) {
-          console.log("Polygon edited (vertex change)");
-          isEditing = true;
-          if (event.feature) {
-            currentFeatureRef = event.feature;
-          }
-          updatePolygonData();
-        });
-        map.on("gm:dragend", function (event) {
-          console.log("Polygon dragged");
-          isEditing = true;
-          if (event.feature) {
-            currentFeatureRef = event.feature;
-          }
-          updatePolygonData();
-        });
-      });
+        map.fitBounds(bounds, { padding: 50 });
+      }
     } catch (e) {
       console.error("Error initializing Geoman:", e);
       showAlert(

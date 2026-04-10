@@ -39,6 +39,7 @@ async function initViewer() {
     defaultZoomLevel: 0,
     gestureSettingsMouse: { scrollToZoom: true },
     tileSources: [pages[currentPage]],
+    drawer: "canvas",
   });
 
   addViewerButtons(viewer, el);

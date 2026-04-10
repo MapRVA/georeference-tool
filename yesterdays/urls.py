@@ -21,7 +21,6 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from maps.views import map_layers_view
 from osm_auth import views as auth_views
 from subjects import views as subject_views
 
@@ -47,7 +46,11 @@ urlpatterns = [
             url=f"/album/{album_id}/", permanent=True
         )(request),
     ),
-    path("", include("directories.urls")),
+    *(
+        [path("", include("directories.urls"))]
+        if settings.DIRECTORIES_ENABLED
+        else []
+    ),
     path("subjects/", include("subjects.urls")),
     path("activity/", include("activity.urls")),
     path("", include("images.urls")),
@@ -73,8 +76,12 @@ urlpatterns = [
         name="wikidata_lookup",
     ),
     path("api/v2/", include("api.urls")),
-    path("api/v1/map-layers/", map_layers_view, name="map_layers_api"),
-    path("maps/", include("maps.urls")),
+    path("layers/", include("maps.urls")),
+    path("maps/", RedirectView.as_view(url="/layers/", permanent=True)),
+    path(
+        "maps/<path:rest>",
+        RedirectView.as_view(url="/layers/%(rest)s", permanent=True),
+    ),
     path("admin/", admin.site.urls),
     path("auth/", include("osm_auth.urls")),
 ]

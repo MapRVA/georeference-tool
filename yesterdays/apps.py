@@ -18,7 +18,7 @@ class YesterdaysConfig(AppConfig):
             self._warmup_clip_model()
 
     def _warmup_clip_model(self):
-        from images.views.search import warmup_clip_model
+        from images.tasks import warmup_clip_model
 
         warmup_clip_model()
 

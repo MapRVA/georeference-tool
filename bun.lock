@@ -17,7 +17,7 @@
         "bootstrap": "^5.3.8",
         "chartjs-adapter-date-fns": "3.0.0",
         "maplibre-gl": "^5.19.0",
-        "openseadragon": "^6.0.1",
+        "openseadragon": "^6.0.2",
         "photoswipe": "5.4.4",
         "pmtiles": "4.4.0",
         "sass": "^1.97.3",
@@ -392,7 +392,7 @@
 
     "normalize-path": ["normalize-path@3.0.0", "", {}, "sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA=="],
 
-    "openseadragon": ["openseadragon@6.0.1", "", {}, "sha512-tXqm73FlgqkiOJ91N0vSDjHm5RVEm2RNDBP360dE5YV2XpMmawhCRWDkkVfsRg3rNe0iv32ACGUQ4jViKR542A=="],
+    "openseadragon": ["openseadragon@6.0.2", "", {}, "sha512-WNPPQWp9sHunyzkV9J2yhfxnSfDF9CfBsE6unmkdxh1uTWzFcueMvBPhmuZdY7M1v/ffJ3NdaF3Qq3jogphIbA=="],
 
     "p-map": ["p-map@7.0.4", "", {}, "sha512-tkAQEw8ysMzmkhgw8k+1U/iPhWNhykKnSk4Rd5zLoPJCuJaGRPo6YposrZgaxHKzDHdDWWZvE/Sk7hsL2X/CpQ=="],
 
