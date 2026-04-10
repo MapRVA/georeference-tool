@@ -20,5 +20,7 @@ templates/images/partials/map_display.html line 9 defaults to center_lng='-77.44
     NOT set in the file. Set here! assets/js/constants/map.js line 8
     Change to -117.37, 33.98
     DONE
+subjects/tasks.py line 115 is hard-coded: "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)"
+    NOT DONE
 subjects/models.py WikidataItem has a field va_landmark_id. Change to be generic?
     NOT DONE
