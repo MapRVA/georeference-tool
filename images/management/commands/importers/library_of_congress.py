@@ -173,35 +173,6 @@ def fetch_loc_results(collection_slug, start_page=1, items_per_page=150, no_coll
 
 def extract_image_data(result_item):
     """Extract relevant data from a LoC result item"""
-    """
-    {
-    "source_created": "2017-04-05T00:00:00Z",
-    "index": 1,
-    "medium": "1 photograph : color transparency ; 35 mm (slide format).",
-    "reproduction_number": "LC-DIG-mrg-00629 (digital file from original color transparency)",
-    "links": {
-        "item": "https://www.loc.gov/pictures/item/2017702743/",
-        "resource": "https://www.loc.gov/pictures/item/2017702743/resource/",
-    },
-    "title": "Santa Fe Railroad Station, 7th Street, Riverside, California",
-    "image": {
-        "alt": "digitized item thumbnail",
-        "full": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629r.jpg",
-        "square": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629_75x75px.jpg",
-        "thumb": "https://tile.loc.gov/storage-services/service/pnp/mrg/00600/00629_150px.jpg"
-    },
-    "created": "2019-05-06T00:00:00Z",
-    "modified": "2019-05-06T00:00:00Z",
-    "collection": [...],
-    "creator": "Margolies, John",
-    "call_number": "LC-MA05- 629 [P&P]",
-    "medium_brief": "1 photograph :",
-    "source_modified": "2018-07-06T00:00:00Z",
-    "pk": "2017702743",
-    "created_published_date": "1977.",
-    "subjects": [...]
-    },
-    """
     item_data = result_item.get("item", {})
 
     # Get title and clean up brackets if entire title is wrapped
