@@ -81,11 +81,11 @@ class SiteSettings(models.Model):
         help_text="Admin contact email, used for external API requests (e.g., Nominatim geocoder)",
     )
     default_map_longitude = models.FloatField(
-        default=-77.43916,
+        default=-117.37785664757142,
         help_text="Default map center longitude",
     )
     default_map_latitude = models.FloatField(
-        default=37.54376,
+        default=33.98007413690877,
         help_text="Default map center latitude",
     )
     default_map_zoom = models.FloatField(

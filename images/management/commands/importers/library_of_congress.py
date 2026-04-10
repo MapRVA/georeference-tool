@@ -87,7 +87,7 @@ def get_collection_info():
         "Collection display name (e.g., 'Detroit Publishing Company'): "
     )
 
-    default_description = f"Images from the {collection_name} collection at the Library of Congress, filtered for Richmond, Virginia."
+    default_description = f"Images from the {collection_name} collection at the Library of Congress, filtered for the Inland Empire, California."
     collection_description = (
         input(f"Collection description [{default_description}]: ")
         or default_description
@@ -110,7 +110,7 @@ def create_collection_if_not_exist(source, collection_info):
         return collection_info["existing_collection"]
 
     collection_name = collection_info["name"]
-    collection_url = f"https://www.loc.gov/collections/{collection_info['slug']}/?fa=location:virginia%7Clocation:richmond"
+    collection_url = f"https://www.loc.gov/collections/{collection_info['slug']}/?fa=location:california%7Clocation:riverside"
 
     # Check if collection already exists (shouldn't happen given our earlier check, but just in case)
     existing_collection = Collection.objects.filter(

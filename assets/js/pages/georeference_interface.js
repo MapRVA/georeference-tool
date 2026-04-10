@@ -257,7 +257,7 @@ document.addEventListener("DOMContentLoaded", function () {
       mapOptions.zoom = 17;
     } else {
       // No hints: default Richmond center
-      mapOptions.center = [-77.44, 37.53];
+      mapOptions.center = [-117.37, 33.98];
       mapOptions.zoom = 11.5;
     }
 

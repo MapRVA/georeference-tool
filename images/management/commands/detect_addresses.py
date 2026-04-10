@@ -19,7 +19,7 @@ from images.models import Collection, Image
 
 # Richmond, VA bounding box (west, north, east, south)
 # Format for geopy viewbox: (Point(lat, lon), Point(lat, lon)) as (southwest, northeast)
-RICHMOND_VIEWBOX = ((37.44393, -77.61976), (37.60954, -77.36673))
+RICHMOND_VIEWBOX = ((33.88604637384387, -117.52662447394147), (34.010080461413786, -117.30366739061262))
 
 # Regex pattern for street addresses with house numbers
 # Handles patterns like:

@@ -37,7 +37,7 @@ const createDefaultGeocoderApi = (email) => ({
         polygon_geojson: 1,
         addressdetails: 1,
         layer: "address",
-        viewbox: "-77.61976,37.60954,-77.36673,37.44393",
+        viewbox: "-117.51121814943878, 34.00530124508274,-117.29947444598987, 33.91357514704981",
         bounded: 1,
       });
       if (email) {
