@@ -53,5 +53,10 @@ function initOSDViewer(el) {
     drawer: "canvas",
   });
 
+  viewer.addHandler("open", function () {
+    const size = viewer.world.getItemAt(0).getContentSize();
+    el.style.aspectRatio = `${size.x} / ${size.y}`;
+  });
+
   addViewerButtons(viewer, el);
 }

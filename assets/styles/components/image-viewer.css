@@ -6,4 +6,10 @@
 
 #osd-viewer {
     background: #f8f9fa;
+    height: 600px;
+    max-height: 70vh;
+}
+
+#osd-viewer[style*="aspect-ratio"] {
+    height: auto;
 }
