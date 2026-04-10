@@ -4,10 +4,11 @@ on:
     branches:
       - trunk
       - develop
+      - mrg-collection-import
 
 env:
   IMAGE_NAME: yesterdays
-  IMAGE_REGISTRY: ghcr.io/maprva
+  IMAGE_REGISTRY: ghcr.io/josiahdub
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}
 
