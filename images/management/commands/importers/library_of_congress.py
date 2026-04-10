@@ -148,7 +148,7 @@ def fetch_loc_results(collection_slug, start_page=1, items_per_page=150, no_coll
             "sp": start_page,
         }
     else:
-        base_url = f"https://www.loc.gov/pictures/search/?q={collection_slug}+richmond+virginia&fo=json"
+        base_url = f"https://www.loc.gov/pictures/search/"
         params = {
             "q": f"{collection_slug}+richmond+virginia"
             "fo": "json",
@@ -642,7 +642,6 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--no-collection",
-        type=bool,
         action="store_true",
         help="Set if collection does not have a collection slug page,"
              "such as .../collections/[collection slug]/. Instead search pictures directly like so: "
@@ -671,7 +670,7 @@ def handle(options):
         collection_info["slug"],
         start_page=1,
         items_per_page=150,
-        no_collection,
+        no_collection=no_collection,
     )
 
     if not no_collection:
@@ -680,7 +679,7 @@ def handle(options):
     else:
         # The JSON structure is completely different
         num_pages = len(initial_results.get("pages", {}).get("page_list", []))
-        per_page = initial_results.get("pages", {}).get("per_page", 0)
+        per_page = initial_results.get("pages", {}).get("perpage", 0)
         total_results = num_pages * per_page
 
     if max_items:
@@ -709,7 +708,7 @@ def handle(options):
                 collection_info["slug"],
                 start_page=page,
                 items_per_page=items_per_page,
-                no_collection,
+                no_collection=no_collection,
             )
         except Exception as e:
             tqdm.write(f"Error fetching page {page}: {e}")
