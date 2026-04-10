@@ -8,7 +8,7 @@ Usage:
 
 The script will interactively prompt for collection details.
 """
-
+import os
 import re
 from time import sleep
 
@@ -20,6 +20,10 @@ from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 3.0  # 3 seconds as requested for LoC rate limiting
+
+
+CITY = os.getenv("CITY", "Richmond")
+STATE = os.getenv("STATE", "Virginia")
 
 
 def create_source_if_not_exist():
@@ -140,9 +144,11 @@ def create_collection_if_not_exist(source, collection_info):
 def fetch_loc_results(collection_slug, start_page=1, items_per_page=150, no_collection=False):
     """Fetch results from Library of Congress API"""
     if not no_collection:
+        city_search = f"location:{CITY.lower()}"
+        state_search = f"location:{STATE.lower()}"
         base_url = f"https://www.loc.gov/collections/{collection_slug}/"
         params = {
-            "fa": "location:virginia|location:richmond",  # Hard-coded search params
+            "fa": f"{state_search}|{city_search}",
             "fo": "json",
             "c": items_per_page,
             "sp": start_page,

@@ -121,6 +121,10 @@ export PG_SSL_MODE=disable
 # RabbitMQ Connection
 export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 
+# Deployment specific
+export CITY=Richmond
+export STATE=Virginia
+
 # Local Development Settings
 export LOCAL_DEV=0
 export ALLOW_HARDCODED_ADMIN=1
