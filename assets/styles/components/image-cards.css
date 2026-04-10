@@ -69,3 +69,10 @@
     border-color: var(--bs-primary);
     box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
 }
+
+.image-card .card-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
