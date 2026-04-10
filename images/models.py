@@ -413,6 +413,9 @@ class Image(models.Model):
                 if old.rotation != self.rotation or old.mirror != self.mirror:
                     self.transformed_permalink = None
                     self.thumbnail = None
+                    self.tile_status = ""
+                    self.tile_error = ""
+                    self.iiif_url = None
             except Image.DoesNotExist:
                 pass
 
@@ -443,6 +446,18 @@ class Image(models.Model):
         help_text="Mirror transform to apply when displaying this image",
     )
     skip_count = models.PositiveIntegerField(default=0)
+
+    # IIIF tile fields
+    tile_status = models.CharField(max_length=20, blank=True, default="")
+    tile_error = models.TextField(blank=True)
+    iiif_url = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Base URL for the IIIF Image Service (set when tiles are generated)",
+    )
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+
     source_point = gis_models.PointField(
         null=True,
         blank=True,

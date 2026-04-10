@@ -16,6 +16,7 @@ import requests
 from tqdm import tqdm
 
 from images.models import Collection, Image, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 3.0  # 3 seconds as requested for LoC rate limiting
@@ -674,28 +675,13 @@ def handle(options):
 
             sleep(POLITE_WAIT_SECS)
 
-            # Try downloading and uploading the image
-            try:
-                uploaded_url = r2_uploader.upload_url(
-                    image_url,
-                    in_tqdm=True,
-                    raise_on_err=False,
-                )
-            except Exception as e:
-                tqdm.write(f"      ✗ Error uploading image: {e}")
-                continue
-
-            if uploaded_url is None:
-                tqdm.write("      ✗ Unable to download/upload image, skipping")
-                continue
-
-            # Create the image record
+            # Create the image record with source URL as permalink
             try:
                 tqdm.write(f"      → Inserting image {record['original_url']}")
                 image = Image.objects.create(
                     collection=collection,
                     title=record["title"],
-                    permalink=uploaded_url,
+                    permalink=image_url,
                     ref=record["ref"],
                     original_url=record["original_url"],
                     description=record.get("description", ""),
@@ -706,6 +692,16 @@ def handle(options):
                 )
                 tqdm.write(f"      → Created image ID: {image.id}")
                 processed_count += 1
+
+                # Upload original to R2 and update permalink
+                r2_url = r2_uploader.upload_original(
+                    image.id, image_url, in_tqdm=True
+                )
+                if r2_url:
+                    Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                    generate_iiif_tiles.delay(image.id)
+                else:
+                    tqdm.write("      ⚠ Failed to upload original, keeping source URL")
             except Exception as e:
                 tqdm.write(f"      ✗ Error creating image: {e}")
                 continue

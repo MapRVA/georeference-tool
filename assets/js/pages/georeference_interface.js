@@ -269,13 +269,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Function to add all map sources and layers
     async function addMapSourcesAndLayers() {
-      try {
-        const image = await map.loadImage(
-          "https://maprva.org/img/surveillance-direction.png",
-        );
-        map.addImage("surveillance-direction", image.data);
-      } catch (error) {
-        console.warn("Could not load direction arrow image:", error);
+      if (!map.hasImage("surveillance-direction")) {
+        try {
+          const image = await map.loadImage(
+            "https://maprva.org/img/surveillance-direction.png",
+          );
+          map.addImage("surveillance-direction", image.data);
+        } catch (error) {
+          console.warn("Could not load direction arrow image:", error);
+        }
       }
 
       // Add subject hint markers if available (rendered first, so underneath other hints)
@@ -588,7 +590,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // always render above secondary layers.
     map.addControl(
       new LayerControl({
-        mapLayersUrl: config.urls.mapLayers,
         overlayLayerIds: [
           "subject-hints-pulse",
           "subject-hints-label",
@@ -601,6 +602,10 @@ document.addEventListener("DOMContentLoaded", function () {
           "context-image-circles",
           "context-image-directions",
         ],
+        onStyleSwap: async () => {
+          await addMapSourcesAndLayers();
+          restoreOverlayState();
+        },
       }),
       "top-right",
     );
@@ -619,6 +624,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var currentDirection = null;
     var isJoystickDragging = false;
     var bearingLineEnabled = false;
+    var osdCenterlineOverlay = null;
     var contextDisplayMode = "ghost"; // Default to ghost mode
     var isHoveringContextImage = false; // Track when hovering over context images
     var activePopup = null; // Track active popup
@@ -664,6 +670,11 @@ document.addEventListener("DOMContentLoaded", function () {
         !isNaN(lng);
 
       // Sync image centerline with map bearing line visibility
+      if (osdCenterlineOverlay) {
+        osdCenterlineOverlay.style.display = bearingLineVisible
+          ? "block"
+          : "none";
+      }
       var imageCenterline = document.querySelector(".image-centerline");
       if (imageCenterline) {
         imageCenterline.style.display = bearingLineVisible ? "block" : "none";
@@ -1167,6 +1178,25 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
+    // Restore overlay state after layers are (re-)created (used on initial load
+    // and after style swaps, which destroy all sources/layers/images).
+    function restoreOverlayState() {
+      // Sync bearing line visibility from current toggle state
+      if (bearingLineEnabled) {
+        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "visible");
+          }
+        }
+      }
+
+      // Repopulate bearing line data (source is created empty)
+      updateBearingLine();
+
+      // Re-apply context image display mode and re-attach interaction handlers
+      updateContextImagesDisplay();
+    }
+
     // Map event handlers
     map.on("load", async () => {
       await addMapSourcesAndLayers();
@@ -1178,14 +1208,7 @@ document.addEventListener("DOMContentLoaded", function () {
       updateMapSwapLink();
       map.on("moveend", updateMapSwapLink);
 
-      // Sync bearing line layer visibility from checkbox (layers exist now)
-      if (bearingLineEnabled) {
-        for (const layerId of ["bearing-line", "bearing-line-bg"]) {
-          if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, "visibility", "visible");
-          }
-        }
-      }
+      restoreOverlayState();
 
       // Recalculate bearing line on zoom/pan so it always extends off-screen
       map.on("moveend", updateBearingLine);
@@ -1628,6 +1651,32 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         }
         updateBearingLine();
+      });
+    }
+
+    // Create an OSD overlay for the image centerline (fixed to the image)
+    var osdEl = document.getElementById("osd-viewer");
+    var osdViewer = osdEl && osdEl.osdViewer;
+    if (osdViewer) {
+      osdViewer.addHandler("open", function () {
+        var contentSize = osdViewer.world.getItemAt(0).getContentSize();
+
+        osdCenterlineOverlay = document.createElement("div");
+        osdCenterlineOverlay.className = "image-centerline-overlay";
+        osdCenterlineOverlay.style.display = "none";
+
+        osdViewer.addOverlay({
+          element: osdCenterlineOverlay,
+          px: contentSize.x / 2,
+          py: 0,
+          width: 0,
+          height: contentSize.y,
+        });
+
+        // Show immediately if bearing line is already enabled
+        if (bearingLineEnabled && pinPlaced && currentDirection !== null) {
+          osdCenterlineOverlay.style.display = "block";
+        }
       });
     }
 

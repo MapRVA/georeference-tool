@@ -294,6 +294,7 @@ export function initializeMap(config) {
       "image-directions-simple",
     ],
     beforeLayerId: "image-heatmap",
+    onStyleSwap: () => setupMapDataLayers(),
   });
   const navControl = new maplibregl.NavigationControl();
   const fullscreenControl = new maplibregl.FullscreenControl();
@@ -476,15 +477,11 @@ export function initializeMap(config) {
     scaleVisibilityConfig,
   );
 
-  // Map load handler
-  map.on("load", async function () {
-    // Add geocoder if requested
-    if (includeGeocoder) {
-      addResponsiveGeocoder(map);
-    }
-
+  // Reusable function to add all image/overlay sources and layers to the map.
+  // Called on initial load and after style swaps to restore layers.
+  async function setupMapDataLayers() {
     // Load direction arrow image
-    if (directionImageUrl) {
+    if (directionImageUrl && !map.hasImage("image-direction")) {
       try {
         const image = await map.loadImage(directionImageUrl);
         map.addImage("image-direction", image.data);
@@ -496,7 +493,7 @@ export function initializeMap(config) {
     // Add vector tiles source for other images
     const tilesUrl =
       showOtherImages && allImagesUrl ? allImagesUrl : vectorTilesUrl;
-    if (tilesUrl) {
+    if (tilesUrl && !map.getSource("images")) {
       map.addSource("images", {
         type: "vector",
         tiles: [tilesUrl],
@@ -705,7 +702,7 @@ export function initializeMap(config) {
     }
 
     // Add current image as GeoJSON layer (always visible, distinct color, on top)
-    if (showOtherImages && imageId && center) {
+    if (showOtherImages && imageId && center && !map.getSource("current-image")) {
       map.addSource("current-image", {
         type: "geojson",
         data: {
@@ -758,7 +755,7 @@ export function initializeMap(config) {
     }
 
     // Add aerial georeference if provided
-    if (aerialGeoreference) {
+    if (aerialGeoreference && !map.getSource("aerial-polygon")) {
       map.addSource("aerial-polygon", {
         type: "geojson",
         data: {
@@ -786,8 +783,35 @@ export function initializeMap(config) {
           "line-width": 2.5,
         },
       });
+    }
 
-      // Fit bounds to aerial polygon
+    // Restore image layer visibility to match LayerControl state
+    if (layerControl) {
+      layerControl.applyImageLayerVisibility();
+    }
+
+    // When "Show Other Images" toggle controls visibility, re-hide layers
+    // unless the toggle checkbox is currently checked (applyImageLayerVisibility
+    // above doesn't know about the toggle and would make them visible).
+    if (showOtherImages && imageId) {
+      const toggle = document.getElementById("show-other-images-toggle");
+      if (!toggle || !toggle.checked) {
+        window.toggleOtherImages(false);
+      }
+    }
+  }
+
+  // Map load handler
+  map.on("load", async function () {
+    // Add geocoder if requested
+    if (includeGeocoder) {
+      addResponsiveGeocoder(map);
+    }
+
+    await setupMapDataLayers();
+
+    // Fit bounds to aerial polygon (only on initial load)
+    if (aerialGeoreference) {
       try {
         let coordinates = [];
         if (aerialGeoreference.type === "Polygon") {

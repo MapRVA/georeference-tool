@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}OCR – {{ page }} – Yesterdays{% endblock %}
+
+{% block extra_js %}
+    {% vite_asset 'assets/js/pages/page_ocr.js' %}
+{% endblock %}
+
+{% block content %}
+<script>
+window.pageOcrConfig = {
+    statusUrl: "{% url 'directories:ocr_status' page_uuid=page.uuid %}",
+    runUrl: "{% url 'directories:run_ocr' page_uuid=page.uuid %}",
+    saveEntriesUrl: "{% url 'directories:save_entries' page_uuid=page.uuid %}",
+    csrfToken: "{{ csrf_token }}",
+    initialStatus: "{{ page.ocr_status }}",
+    entriesLocked: {{ entries_locked|yesno:"true,false" }},
+    iiifInfoUrl: {% if iiif_info_url %}"{{ iiif_info_url }}"{% else %}null{% endif %},
+    imageUrl: "{{ page.image_url }}",
+};
+</script>
+
+<div x-data="pageOcr()">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'directories:directory_list' %}">Directories</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'directories:directory_edit' slug=directory.slug %}">{{ directory.title }}</a></li>
+                    <li class="breadcrumb-item active">OCR – Page {{ page.order|add:1 }}</li>
+                </ol>
+            </nav>
+
+            <h1 class="mb-4">OCR – {{ directory.title }}, Page {{ page.order|add:1 }}</h1>
+
+            {% if iiif_info_url or page.image_url %}
+                <div class="card mb-4">
+                    <div class="card-body p-0">
+                        <div id="osd-viewer" style="height: 60vh; width: 100%;"></div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Prompt</h5>
+                </div>
+                <div class="card-body">
+                    <textarea x-ref="prompt" class="form-control font-monospace" rows="16">{{ ocr_prompt }}</textarea>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-3">
+                    <select x-ref="model" class="form-select" style="width: auto;"{% if not ocr_models %} disabled{% endif %}>
+                        {% if ocr_models %}
+                            {% for model in ocr_models %}
+                                <option value="{{ model.identifier }}">{{ model.name }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="">No models available</option>
+                        {% endif %}
+                    </select>
+                    <button class="btn btn-primary" @click="runOcr()" :disabled="ocrRunning || entriesLocked{% if not ocr_models %} || true{% endif %}">
+                        <template x-if="!ocrRunning && !entriesLocked">
+                            <span><i class="fas fa-eye me-2"></i>Run OCR</span>
+                        </template>
+                        <template x-if="ocrRunning">
+                            <span><i class="fas fa-spinner fa-spin me-2"></i><span x-text="status === 'processing' ? 'Processing…' : 'Queued…'"></span></span>
+                        </template>
+                        <template x-if="!ocrRunning && entriesLocked">
+                            <span><i class="fas fa-lock me-2"></i>OCR locked</span>
+                        </template>
+                    </button>
+                    <span class="text-muted small align-self-center" x-show="entriesLocked">Entries have been saved — edit them individually</span>
+                </div>
+            </div>
+
+            <!-- Error display -->
+            <template x-if="status === 'failed' && ocrError">
+                <div class="alert alert-danger">
+                    <strong>OCR failed:</strong> <span x-text="ocrError"></span>
+                </div>
+            </template>
+
+            <!-- Results section: Alpine-driven tabs -->
+            <div x-show="status === 'complete' || entries.length > 0 || hydratedPrompt || llmResponse" x-data="{ activeTab: 'entries' }">
+                <div class="alert alert-warning" x-show="parseError">
+                    <strong>LLM returned invalid JSON:</strong> <span x-text="parseError"></span>
+                </div>
+
+                <!-- Tab navigation -->
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <button class="nav-link" :class="{ active: activeTab === 'entries' }" @click="activeTab = 'entries'" type="button">
+                            Entries (<span x-text="entries.length"></span>)
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" :class="{ active: activeTab === 'prompt' }" @click="activeTab = 'prompt'" type="button">Hydrated prompt</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" :class="{ active: activeTab === 'llm' }" @click="activeTab = 'llm'" type="button">LLM response</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" :class="{ active: activeTab === 'enriched' }" @click="activeTab = 'enriched'" type="button">Enriched response</button>
+                    </li>
+                </ul>
+
+                <!-- Tab: Entries (editable cards) -->
+                <div x-show="activeTab === 'entries'">
+
+                    <template x-for="(entry, index) in entries" :key="index">
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                <span class="fw-semibold small">Entry <span x-text="index + 1"></span></span>
+                                <button class="btn btn-outline-danger btn-sm" @click="removeEntry(index)" title="Remove entry">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="card-body py-2">
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Original text</label>
+                                    <input type="text" class="form-control form-control-sm font-monospace" x-model="entry.original_text">
+                                </div>
+                                <div class="mb-2" x-show="entry.notes">
+                                    <label class="form-label small mb-1">Notes</label>
+                                    <input type="text" class="form-control form-control-sm" x-model="entry.notes">
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">First name</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry.first_name">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1">Middle</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry.middle_name">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Last name</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry.last_name">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1">Occupation</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry.occupation">
+                                    </div>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1">House no.</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry['addr:housenumber']">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1">Street</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry['addr:street']">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">City</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry['addr:city']">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Business</label>
+                                        <input type="text" class="form-control form-control-sm" x-model="entry.business">
+                                    </div>
+                                </div>
+                                <details>
+                                    <summary class="small text-muted" style="cursor: pointer;">More address fields</summary>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Postcode</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:postcode']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">State</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:state']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">District</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:district']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Floor</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:floor']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Neighbourhood</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:neighbourhood']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Suburb</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:suburb']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Hamlet</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:hamlet']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Province</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:province']">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small mb-1">Place</label>
+                                            <input type="text" class="form-control form-control-sm" x-model="entry['addr:place']">
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Bottom save button for long lists -->
+                    <div class="d-flex justify-content-end gap-2 mb-3" x-show="entries.length > 3">
+                        <button class="btn btn-outline-secondary btn-sm" @click="addEntry()">
+                            <i class="fas fa-plus me-1"></i>Add entry
+                        </button>
+                        <button class="btn btn-primary" @click="saveEntries()" :disabled="saving || entries.length === 0">
+                            <template x-if="!saving">
+                                <span><i class="fas fa-save me-1"></i>Save entries</span>
+                            </template>
+                            <template x-if="saving">
+                                <span><i class="fas fa-spinner fa-spin me-1"></i>Saving…</span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab: Hydrated prompt -->
+                <div x-show="activeTab === 'prompt'">
+                    <div class="p-3 bg-light rounded font-monospace small" style="max-height: 60vh; overflow: auto;">
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <template x-for="(line, i) in (hydratedPrompt || '').split('\n')" :key="i">
+                                <tr>
+                                    <td class="text-end text-muted pe-3 user-select-none" style="width: 3em; vertical-align: top; white-space: nowrap;" x-text="i + 1"></td>
+                                    <td style="white-space: pre-wrap;" x-text="line"></td>
+                                </tr>
+                            </template>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: LLM response (verbatim) -->
+                <div x-show="activeTab === 'llm'">
+                    <div class="p-3 bg-light rounded font-monospace small" style="max-height: 60vh; overflow: auto;">
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <template x-for="(line, i) in (llmResponse || '').split('\n')" :key="i">
+                                <tr>
+                                    <td class="text-end text-muted pe-3 user-select-none" style="width: 3em; vertical-align: top; white-space: nowrap;" x-text="i + 1"></td>
+                                    <td style="white-space: pre-wrap;" x-text="line"></td>
+                                </tr>
+                            </template>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Enriched response (with bounding boxes) -->
+                <div x-show="activeTab === 'enriched'">
+                    <pre class="p-3 bg-light rounded" style="max-height: 60vh; overflow: auto; white-space: pre-wrap;" x-text="enrichedEntries"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

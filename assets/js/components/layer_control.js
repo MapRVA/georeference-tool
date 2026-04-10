@@ -1,23 +1,23 @@
 /**
  * LayerControl - A shared MapLibre control for switching between base layers and overlays
  *
- * This control provides:
- * - Base layer switching (OSM, Satellite, USGS Topo)
- * - Dynamic overlay layers loaded from the API
- * - Optional image layer toggle for map_display
+ * Base layers and overlay layers are loaded dynamically from the API.
+ * Primary layers (no collection) become base layer options.
+ * Secondary layers (in collections) become overlay options.
+ *
+ * Layer data is read from window.MAP_LAYERS_DATA (set by Django context processor).
  *
  * Usage:
  *   import { LayerControl } from './layer_control.js';
  *
  *   // Basic usage (for georeference interfaces)
- *   map.addControl(new LayerControl({ mapLayersUrl: '/api/v1/map-layers/' }), 'top-right');
+ *   map.addControl(new LayerControl(), 'top-right');
  *
  *   // With image layer toggle (for map_display)
  *   map.addControl(new LayerControl({
- *     mapLayersUrl: '/api/v1/map-layers/',
  *     showImageLayerToggle: true,
  *     overlayLayerIds: ['image-circles', 'image-directions'],
- *     beforeLayerId: 'image-directions'  // Insert overlay layers before this layer
+ *     beforeLayerId: 'image-directions'
  *   }), 'top-right');
  */
 
@@ -26,49 +26,28 @@ import "../../styles/components/layer-control.css";
 export class LayerControl {
   /**
    * @param {Object} options
-   * @param {string} options.mapLayersUrl - URL to fetch map layers from (default: '/api/v1/map-layers/')
    * @param {boolean} options.showImageLayerToggle - Whether to show the image layer toggle (default: false)
    * @param {string[]} options.overlayLayerIds - Layer IDs that should be considered overlay layers (for visibility checks)
    * @param {string} options.beforeLayerId - Insert overlay tile layers before this layer ID
    * @param {Function} options.onBaseLayerChange - Callback when base layer changes (receives layer key)
+   * @param {Function} options.onStyleSwap - Callback after a style swap completes (receives map instance)
    */
   constructor(options = {}) {
     this.options = {
-      mapLayersUrl: "/api/v1/map-layers/",
       showImageLayerToggle: false,
       overlayLayerIds: [],
       beforeLayerId: null,
       onBaseLayerChange: null,
+      onStyleSwap: null,
       ...options,
     };
 
-    this.baseLayers = {
-      osm: {
-        name: "OpenStreetMap",
-        isDefault: true,
-        setupLayer: () => {},
-        activate: () => this.showOSMLayers(),
-        deactivate: () => this.hideOSMLayers(),
-      },
-      satellite: {
-        name: "Satellite",
-        setupLayer: () => this.setupSatelliteLayer(),
-        activate: () => this.showSatelliteLayer(),
-        deactivate: () => this.hideSatelliteLayer(),
-      },
-      usgs: {
-        name: "USGS Topo",
-        setupLayer: () => this.setupUSGSLayer(),
-        activate: () => this.showUSGSLayer(),
-        deactivate: () => this.hideUSGSLayer(),
-      },
-    };
-    this.currentBaseLayer = "osm";
+    this.baseLayers = {};
+    this.currentBaseLayer = null;
     this.currentOverlayLayer = null;
     this.imageLayersVisible = true;
     this.imageDisplayStyle = "heatmap"; // "heatmap" or "simple"
     this.simpleCircleRadius = 8; // default radius for simple mode (2-10)
-    this.mapLayersLoaded = false;
     this.collectionsData = null;
     this.offcanvas = null;
     this.offcanvasInstance = null;
@@ -96,12 +75,10 @@ export class LayerControl {
     this.setupEventListeners();
 
     if (this.map.loaded()) {
-      this.setupMapLayers();
-      this.loadMapLayers();
+      this.initializeLayers();
     } else {
       this.map.on("load", () => {
-        this.setupMapLayers();
-        this.loadMapLayers();
+        this.initializeLayers();
       });
     }
 
@@ -125,16 +102,6 @@ export class LayerControl {
     this.offcanvas.setAttribute("id", offcanvasId);
     this.offcanvas.setAttribute("aria-labelledby", `${offcanvasId}-label`);
 
-    const baseLayerOptions = Object.entries(this.baseLayers)
-      .map(([key, layer]) => {
-        const activeClass = layer.isDefault ? " active" : "";
-        return `
-          <button type="button" class="list-group-item list-group-item-action layer-option${activeClass}" data-layer="${key}">
-            ${layer.name}
-          </button>`;
-      })
-      .join("");
-
     this.offcanvas.innerHTML = `
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="${offcanvasId}-label">Map Layers</h5>
@@ -142,9 +109,7 @@ export class LayerControl {
       </div>
       <div class="offcanvas-body">
         <h6 class="text-muted small text-uppercase mb-2">Base Layers</h6>
-        <div class="list-group list-group-flush base-layers-list">
-          ${baseLayerOptions}
-        </div>
+        <div class="list-group list-group-flush base-layers-list"></div>
         <hr class="my-3 border-2 opacity-50">
         <div class="overlay-layers-container"></div>
       </div>
@@ -188,69 +153,150 @@ export class LayerControl {
     this.map = undefined;
   }
 
-  setupMapLayers() {
-    Object.entries(this.baseLayers).forEach(([key, layer]) => {
-      layer.setupLayer();
+  initializeLayers() {
+    const data = window.MAP_LAYERS_DATA;
+    if (!data) {
+      console.error("MAP_LAYERS_DATA not found on window");
+      this.addErrorItem();
+      return;
+    }
+
+    if (data.primary_layers && data.primary_layers.length > 0) {
+      this.buildBaseLayers(data.primary_layers);
+    }
+
+    this.collectionsData = data.collections;
+    this.populateBaseLayerButtons();
+    this.populateCollectionSubmenus();
+    this.updateLayerLabel(null);
+  }
+
+  /**
+   * Build base layers from the API response's primary_layers array.
+   * Style-type layers with is_default use show/hide of existing style layers.
+   * XYZ-type layers use raster source/layer add/show/hide.
+   */
+  buildBaseLayers(primaryLayers) {
+    primaryLayers.forEach((layer) => {
+      const key = layer.slug;
+
+      if (layer.type === "style" && layer.is_default) {
+        this.baseLayers[key] = {
+          name: layer.name,
+          isDefault: true,
+          type: "style",
+          url: layer.url,
+          setupLayer: () => {},
+          activate: () => this.showDefaultStyleLayers(),
+          deactivate: () => this.hideDefaultStyleLayers(),
+        };
+        this.currentBaseLayer = key;
+        this.defaultStyleUrl = layer.url;
+      } else if (layer.type === "style") {
+        this.baseLayers[key] = {
+          name: layer.name,
+          isDefault: false,
+          type: "style",
+          url: layer.url,
+          setupLayer: () => {},
+          activate: () => this.activateStyle(layer.url),
+          deactivate: () => {},
+        };
+      } else if (layer.type === "xyz") {
+        const sourceId = `base-${key}`;
+        const layerId = `base-${key}-layer`;
+        this.baseLayers[key] = {
+          name: layer.name,
+          isDefault: false,
+          type: "xyz",
+          sourceId,
+          layerId,
+          setupLayer: () =>
+            this.setupRasterBaseLayer(
+              sourceId,
+              layerId,
+              layer.url,
+              layer.attribution || "",
+            ),
+          activate: () => this.activateRasterBase(layerId),
+          deactivate: () => this.deactivateRasterBase(layerId),
+        };
+      }
     });
+
+    // Fallback: if no default was set, use the first layer
+    if (!this.currentBaseLayer && primaryLayers.length > 0) {
+      const firstKey = primaryLayers[0].slug;
+      if (this.baseLayers[firstKey]) {
+        this.baseLayers[firstKey].isDefault = true;
+        this.currentBaseLayer = firstKey;
+      }
+    }
+
+    // Run setup for all base layers
+    Object.values(this.baseLayers).forEach((layer) => layer.setupLayer());
   }
 
-  setupSatelliteLayer() {
-    if (!this.map.getSource("satellite")) {
-      this.map.addSource("satellite", {
+  setupRasterBaseLayer(sourceId, layerId, url, attribution) {
+    if (!this.map.getSource(sourceId)) {
+      this.map.addSource(sourceId, {
         type: "raster",
-        tiles: [
-          "https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/tile/{z}/{y}/{x}",
-        ],
+        tiles: [url],
         tileSize: 256,
-        attribution: "Virginia Geographic Information Network (VGIN)",
+        attribution: attribution,
       });
     }
 
-    if (!this.map.getLayer("satellite-layer")) {
+    if (!this.map.getLayer(layerId)) {
       this.map.addLayer({
-        id: "satellite-layer",
+        id: layerId,
         type: "raster",
-        source: "satellite",
+        source: sourceId,
         layout: { visibility: "none" },
       });
     }
   }
 
-  setupUSGSLayer() {
-    if (!this.map.getSource("usgs")) {
-      this.map.addSource("usgs", {
-        type: "raster",
-        tiles: [
-          "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
-        ],
-        tileSize: 256,
-        attribution: "USGS National Map",
+  activateRasterBase(layerId) {
+    if (this._nonDefaultStyleActive) {
+      // Returning from a non-default style — restore default then show raster
+      this._nonDefaultStyleActive = false;
+      this._swapStyle(this.defaultStyleUrl, () => {
+        this._showRasterBase(layerId);
       });
+      return;
     }
+    this._showRasterBase(layerId);
+  }
 
-    if (!this.map.getLayer("usgs-layer")) {
-      this.map.addLayer({
-        id: "usgs-layer",
-        type: "raster",
-        source: "usgs",
-        layout: { visibility: "none" },
-      });
+  _showRasterBase(layerId) {
+    this.hideDefaultStyleLayers();
+    this.hideAllRasterBaseLayers(layerId);
+    if (this.map.getLayer(layerId)) {
+      this.moveBaseLayerBelowOverlays(layerId);
+      this.map.setLayoutProperty(layerId, "visibility", "visible");
     }
+  }
+
+  deactivateRasterBase(layerId) {
+    if (this.map.getLayer(layerId)) {
+      this.map.setLayoutProperty(layerId, "visibility", "none");
+    }
+  }
+
+  hideAllRasterBaseLayers(exceptLayerId) {
+    Object.values(this.baseLayers).forEach((bl) => {
+      if (bl.type === "xyz" && bl.layerId !== exceptLayerId) {
+        if (this.map.getLayer(bl.layerId)) {
+          this.map.setLayoutProperty(bl.layerId, "visibility", "none");
+        }
+      }
+    });
   }
 
   setupEventListeners() {
     this.triggerButton.addEventListener("click", () => {
       this.offcanvasInstance.show();
-    });
-
-    this.offcanvas.querySelectorAll(".layer-option").forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.preventDefault();
-        const layerKey = item.dataset.layer;
-        if (layerKey === this.currentBaseLayer) return;
-        this.switchToBaseLayer(layerKey);
-        this.offcanvasInstance.hide();
-      });
     });
   }
 
@@ -269,8 +315,14 @@ export class LayerControl {
     }
   }
 
-  showOSMLayers() {
-    this.hideOtherBaseLayers(["satellite-layer", "usgs-layer"]);
+  showDefaultStyleLayers() {
+    if (this._nonDefaultStyleActive) {
+      // Returning from a non-default style — restore the default style
+      this._nonDefaultStyleActive = false;
+      this._swapStyle(this.defaultStyleUrl);
+      return;
+    }
+    this.hideAllRasterBaseLayers();
     const layers = this.map.getStyle().layers;
     layers.forEach((layer) => {
       if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
@@ -279,7 +331,7 @@ export class LayerControl {
     });
   }
 
-  hideOSMLayers() {
+  hideDefaultStyleLayers() {
     const layers = this.map.getStyle().layers;
     layers.forEach((layer) => {
       if (!this.isOverlayLayer(layer.id) && !this.isCustomBaseLayer(layer.id)) {
@@ -288,34 +340,73 @@ export class LayerControl {
     });
   }
 
-  showSatelliteLayer() {
-    this.hideOSMLayers();
-    this.hideOtherBaseLayers(["usgs-layer"]);
-    if (this.map.getLayer("satellite-layer")) {
-      this.moveBaseLayerBelowOverlays("satellite-layer");
-      this.map.setLayoutProperty("satellite-layer", "visibility", "visible");
-    }
+  activateStyle(styleUrl) {
+    this._nonDefaultStyleActive = true;
+    this._swapStyle(styleUrl);
   }
 
-  hideSatelliteLayer() {
-    if (this.map.getLayer("satellite-layer")) {
-      this.map.setLayoutProperty("satellite-layer", "visibility", "none");
-    }
+  /**
+   * Swap the map style and restore overlay/raster base layers after load.
+   * Captures active overlay state before the swap and restores it after.
+   * @param {string} styleUrl - The style URL to swap to
+   * @param {Function} [afterRestore] - Optional callback after layers are restored
+   */
+  _swapStyle(styleUrl, afterRestore) {
+    // Capture state that will be lost during style swap
+    const savedOverlay = this.currentOverlayLayer;
+    const savedOverlayConfig = this._getActiveOverlayConfig();
+
+    this.map.setStyle(styleUrl);
+
+    this.map.once("style.load", async () => {
+      // Re-setup raster base layer sources/layers (destroyed by setStyle)
+      Object.values(this.baseLayers).forEach((bl) => {
+        if (bl.type === "xyz") bl.setupLayer();
+      });
+
+      // Notify consumers to re-add their layers BEFORE restoring the overlay
+      // tile layer. This ensures consumer layers (Geoman polygons, hint markers,
+      // pins, etc.) exist when switchToOverlayLayer calls getBeforeLayerId(),
+      // so the overlay raster is correctly positioned beneath them.
+      if (this.options.onStyleSwap) {
+        await this.options.onStyleSwap(this.map);
+      }
+
+      // Restore overlay tile layer if one was active
+      if (savedOverlay && savedOverlayConfig) {
+        this.currentOverlayLayer = null; // Reset so switchToOverlayLayer doesn't toggle off
+        this.switchToOverlayLayer(
+          savedOverlayConfig.layerId,
+          savedOverlayConfig.tileUrl,
+          savedOverlayConfig.title,
+          savedOverlayConfig.tileType,
+          savedOverlayConfig.attribution,
+        );
+      }
+
+      if (afterRestore) afterRestore();
+    });
   }
 
-  showUSGSLayer() {
-    this.hideOSMLayers();
-    this.hideOtherBaseLayers(["satellite-layer"]);
-    if (this.map.getLayer("usgs-layer")) {
-      this.moveBaseLayerBelowOverlays("usgs-layer");
-      this.map.setLayoutProperty("usgs-layer", "visibility", "visible");
-    }
-  }
+  /**
+   * Capture the config of the currently active overlay layer so it can be
+   * re-added after a style swap.
+   */
+  _getActiveOverlayConfig() {
+    if (!this.currentOverlayLayer) return null;
 
-  hideUSGSLayer() {
-    if (this.map.getLayer("usgs-layer")) {
-      this.map.setLayoutProperty("usgs-layer", "visibility", "none");
-    }
+    const btn = this.offcanvas.querySelector(
+      `.overlay-layer[data-layer="${this.currentOverlayLayer}"]`,
+    );
+    if (!btn) return null;
+
+    return {
+      layerId: this.currentOverlayLayer,
+      tileUrl: btn.dataset.tileUrl,
+      title: btn.textContent.trim(),
+      tileType: btn.dataset.tileType || "pmtiles",
+      attribution: btn.dataset.attribution || "",
+    };
   }
 
   /**
@@ -365,15 +456,9 @@ export class LayerControl {
   }
 
   isCustomBaseLayer(layerId) {
-    return layerId === "satellite-layer" || layerId === "usgs-layer";
-  }
-
-  hideOtherBaseLayers(layersToHide) {
-    layersToHide.forEach((layerId) => {
-      if (this.map.getLayer(layerId)) {
-        this.map.setLayoutProperty(layerId, "visibility", "none");
-      }
-    });
+    return Object.values(this.baseLayers).some(
+      (bl) => bl.type === "xyz" && bl.layerId === layerId,
+    );
   }
 
   /**
@@ -582,23 +667,28 @@ export class LayerControl {
     }
   }
 
-  async loadMapLayers() {
-    if (this.mapLayersLoaded) return;
+  populateBaseLayerButtons() {
+    const baseLayersList = this.offcanvas.querySelector(".base-layers-list");
+    baseLayersList.innerHTML = "";
 
-    try {
-      const response = await fetch(this.options.mapLayersUrl);
-      if (!response.ok)
-        throw new Error(`Failed to fetch map layers: ${response.status}`);
+    Object.entries(this.baseLayers).forEach(([key, layer]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "list-group-item list-group-item-action layer-option" +
+        (key === this.currentBaseLayer ? " active" : "");
+      btn.dataset.layer = key;
+      btn.textContent = layer.name;
 
-      const data = await response.json();
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (key === this.currentBaseLayer) return;
+        this.switchToBaseLayer(key);
+        this.offcanvasInstance.hide();
+      });
 
-      this.collectionsData = data.collections;
-      this.populateCollectionSubmenus();
-      this.mapLayersLoaded = true;
-    } catch (error) {
-      console.error("Error loading map layers:", error);
-      this.addErrorItem();
-    }
+      baseLayersList.appendChild(btn);
+    });
   }
 
   populateCollectionSubmenus() {
@@ -629,6 +719,7 @@ export class LayerControl {
         layerItem.dataset.layer = layerId;
         layerItem.dataset.tileUrl = layer.url;
         layerItem.dataset.tileType = layer.type || "pmtiles";
+        layerItem.dataset.attribution = layer.attribution || "";
         layerItem.textContent = layer.name;
 
         layerItem.addEventListener("click", (e) => {

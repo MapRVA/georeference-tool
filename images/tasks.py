@@ -1,15 +1,110 @@
+import base64
 import logging
+import threading
 from io import BytesIO
-from urllib.parse import urlparse
+from pathlib import Path
 
 import requests
 from celery import shared_task
+from django.conf import settings
+from iiif_prezi3 import (
+    Annotation,
+    AnnotationBody,
+    AnnotationPage,
+    Canvas,
+    Manifest,
+    ServiceV3,
+)
 from PIL import Image as PILImage
 
 from .models import Image
 from .utils import R2Uploader, R2UploaderError
+from yesterdays.iiif import generate_and_upload_iiif_tiles
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# CLIP model management (loaded once per worker process)
+# ---------------------------------------------------------------------------
+_clip_model = None
+_clip_preprocess = None
+_clip_device = None
+_clip_model_lock = threading.Lock()
+
+
+def _load_clip_model():
+    """Load CLIP model on first use (cached per-worker, thread-safe)."""
+    global _clip_model, _clip_preprocess, _clip_device
+
+    if _clip_model is not None:
+        return _clip_model, _clip_preprocess, _clip_device
+
+    with _clip_model_lock:
+        if _clip_model is not None:
+            return _clip_model, _clip_preprocess, _clip_device
+
+        import clip
+        import torch
+
+        _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
+        model_name = "ViT-L/14@336px"
+        local_model_dir = Path("./models").absolute()
+        _clip_model, _clip_preprocess = clip.load(
+            model_name, device=_clip_device, download_root=local_model_dir
+        )
+        logger.info("CLIP model loaded on worker (device: %s)", _clip_device)
+        return _clip_model, _clip_preprocess, _clip_device
+
+
+def warmup_clip_model():
+    """Pre-load the CLIP model into memory. Returns True if successful."""
+    try:
+        logger.info("Warming up CLIP model...")
+        _load_clip_model()
+        logger.info("CLIP model loaded successfully (device: %s)", _clip_device)
+        return True
+    except Exception as e:
+        logger.error("Failed to load CLIP model: %s", e)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# CLIP encoding tasks (routed to the urgent queue)
+# ---------------------------------------------------------------------------
+@shared_task(ignore_result=False, time_limit=60, soft_time_limit=45)
+def encode_text(text):
+    """Encode a text query into a CLIP embedding vector.
+
+    Returns the embedding as a list of floats.
+    """
+    import clip
+    import torch
+
+    model, _preprocess, device = _load_clip_model()
+    with torch.no_grad():
+        text_input = clip.tokenize([text]).to(device)
+        text_features = model.encode_text(text_input)
+        text_features /= text_features.norm(dim=-1, keepdim=True)
+    return text_features.cpu().numpy()[0].tolist()
+
+
+@shared_task(ignore_result=False, time_limit=60, soft_time_limit=45)
+def encode_image(image_b64):
+    """Encode a base64-encoded image into a CLIP embedding vector.
+
+    Accepts the image as a base64-encoded string (already sanitised by the
+    calling view). Returns the embedding as a list of floats.
+    """
+    import torch
+
+    model, preprocess, device = _load_clip_model()
+    image_bytes = base64.b64decode(image_b64)
+    pil_image = PILImage.open(BytesIO(image_bytes)).convert("RGB")
+    with torch.no_grad():
+        image_input = preprocess(pil_image).unsqueeze(0).to(device)
+        image_features = model.encode_image(image_input)
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+    return image_features.cpu().numpy()[0].tolist()
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
@@ -41,16 +136,11 @@ def process_image(self, image_id: int, quality: int = 85):
     needs_transform_cleanup = not image.has_transform and image.transformed_permalink
 
     if not needs_transform and not needs_thumbnail and not needs_transform_cleanup:
+        if image.tile_status != "complete":
+            generate_iiif_tiles.delay(image_id)
         return
 
-    base_key = get_base_key_from_permalink(image.permalink)
-    if not base_key:
-        logger.error(
-            "Could not extract hash from permalink for image %d: %s",
-            image_id,
-            image.permalink,
-        )
-        return
+    base_key = f"images/{image_id}"
 
     try:
         r2_uploader = R2Uploader()
@@ -84,7 +174,7 @@ def process_image(self, image_id: int, quality: int = 85):
                 thumb.save(thumb_bytes, "WEBP", quality=quality)
                 thumb_bytes.seek(0)
 
-                thumb_key = f"{base_key}_transformed_thumb"
+                thumb_key = f"images/{image_id}/thumbnail.webp"
                 thumb_url = r2_uploader.upload_file_content(
                     thumb_bytes.read(),
                     thumb_key,
@@ -98,6 +188,9 @@ def process_image(self, image_id: int, quality: int = 85):
                 Image.objects.filter(pk=image_id).update(
                     transformed_permalink=transformed_url,
                     thumbnail=thumb_url,
+                    tile_status="",
+                    tile_error="",
+                    iiif_url=None,
                 )
             else:
                 # Transforms removed — generate plain thumbnail, clear transformed_permalink
@@ -106,7 +199,7 @@ def process_image(self, image_id: int, quality: int = 85):
                 thumb.save(thumb_bytes, "WEBP", quality=quality)
                 thumb_bytes.seek(0)
 
-                thumb_key = f"{base_key}_thumb"
+                thumb_key = f"images/{image_id}/thumbnail.webp"
                 thumb_url = r2_uploader.upload_file_content(
                     thumb_bytes.read(),
                     thumb_key,
@@ -120,6 +213,9 @@ def process_image(self, image_id: int, quality: int = 85):
                 Image.objects.filter(pk=image_id).update(
                     transformed_permalink=None,
                     thumbnail=thumb_url,
+                    tile_status="",
+                    tile_error="",
+                    iiif_url=None,
                 )
         else:
             # Just needs a plain thumbnail (no transform involved)
@@ -128,7 +224,7 @@ def process_image(self, image_id: int, quality: int = 85):
             thumb.save(thumb_bytes, "WEBP", quality=quality)
             thumb_bytes.seek(0)
 
-            thumb_key = f"{base_key}_thumb"
+            thumb_key = f"images/{image_id}/thumbnail.webp"
             thumb_url = r2_uploader.upload_file_content(
                 thumb_bytes.read(),
                 thumb_key,
@@ -145,6 +241,18 @@ def process_image(self, image_id: int, quality: int = 85):
         raise self.retry(exc=e)
     except Exception:
         logger.exception("Failed to process image %d", image_id)
+        return
+
+    # Chain IIIF tile generation.
+    # When the display image changed (transform applied or removed), always
+    # queue — tile_status was reset above so this also serves as a safeguard
+    # against a concurrent generate_iiif_tiles marking stale tiles "complete".
+    if needs_transform or needs_transform_cleanup:
+        generate_iiif_tiles.delay(image_id)
+    else:
+        image = Image.objects.only("tile_status").get(pk=image_id)
+        if image.tile_status != "complete":
+            generate_iiif_tiles.delay(image_id)
 
 
 def _transform_changed(image_id, expected_rotation, expected_mirror):
@@ -208,17 +316,6 @@ def transform_image(img: PILImage.Image, rotation: int, mirror: str) -> PILImage
     return img
 
 
-def get_base_key_from_permalink(permalink: str) -> str | None:
-    """Extract the base hash key from a permalink URL."""
-    try:
-        parsed = urlparse(permalink)
-        path_parts = parsed.path.strip("/").split("/")
-        if path_parts:
-            return path_parts[-1]
-    except Exception:
-        pass
-    return None
-
 
 def download_image(url: str, timeout: int = 30) -> PILImage.Image | None:
     """Download an image from URL and return PIL Image."""
@@ -252,3 +349,125 @@ def create_thumbnail(img: PILImage.Image, max_dimension: int = 500) -> PILImage.
     new_height = int(height * scale_factor)
 
     return img.resize((new_width, new_height), PILImage.LANCZOS)
+
+
+def _build_image_manifest(image, iiif_base, width, height):
+    """Build a static IIIF Presentation v3 manifest for a single Image."""
+    manifest_id = f"{settings.R2_PUBLIC_URL_BASE}/images/{image.id}/manifest.json"
+
+    manifest = Manifest(
+        id=manifest_id,
+        label={"en": [image.title or f"Image {image.id}"]},
+    )
+
+    canvas_id = f"{manifest_id}#canvas"
+    canvas = Canvas(
+        id=canvas_id,
+        label={"en": [image.title or f"Image {image.id}"]},
+        height=height,
+        width=width,
+    )
+
+    body = AnnotationBody(
+        id=f"{iiif_base}/full/max/0/default.jpg",
+        type="Image",
+        format="image/jpeg",
+        height=height,
+        width=width,
+    )
+    service = ServiceV3(id=iiif_base, type="ImageService3", profile="level0")
+    body.service = [service]
+
+    anno = Annotation(
+        id=f"{canvas_id}/anno",
+        motivation="painting",
+        body=body,
+        target=canvas_id,
+    )
+    anno_page = AnnotationPage(id=f"{canvas_id}/page")
+    anno_page.add_item(anno)
+    canvas.add_item(anno_page)
+    manifest.add_item(canvas)
+
+    return manifest.json(indent=2)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    ignore_result=True,
+    time_limit=1800,
+    soft_time_limit=1500,
+)
+def generate_iiif_tiles(self, image_id):
+    """Generate IIIF tiles and a static manifest for an Image."""
+    try:
+        image = Image.objects.get(pk=image_id)
+    except Image.DoesNotExist:
+        return
+
+    # Snapshot the source URL — used for a stale-write guard after tiling.
+    source_url = image.display_permalink
+
+    Image.objects.filter(pk=image_id).update(
+        tile_status="processing",
+        tile_error="",
+    )
+
+    try:
+        r2_prefix = f"images/{image.id}/tiles"
+        width, height = generate_and_upload_iiif_tiles(
+            source_url=source_url,
+            r2_tiles_prefix=r2_prefix,
+        )
+
+        # Build and upload static IIIF manifest
+        uploader = R2Uploader()
+        iiif_base = uploader.get_public_url(r2_prefix)
+        manifest_json = _build_image_manifest(image, iiif_base, width, height)
+        manifest_key = f"images/{image.id}/manifest.json"
+        uploader.upload_file_content(
+            manifest_json.encode("utf-8"),
+            manifest_key,
+            content_type='application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+            overwrite=True,
+        )
+
+        # Stale-write guard: if the display image changed while we were
+        # tiling, discard results so the next process_image cycle re-queues
+        # tile generation from the correct source.
+        current = Image.objects.get(pk=image_id)
+        if current.display_permalink != source_url:
+            logger.info(
+                "Display image changed for image %d while tiling, "
+                "discarding stale tiles",
+                image_id,
+            )
+            Image.objects.filter(pk=image_id).update(
+                tile_status="",
+                tile_error="",
+            )
+            return
+
+        Image.objects.filter(pk=image_id).update(
+            tile_status="complete",
+            tile_error="",
+            iiif_url=iiif_base,
+            width=width,
+            height=height,
+        )
+        logger.info(
+            "IIIF tiles generated for image %d (%dx%d)",
+            image_id,
+            width,
+            height,
+        )
+
+    except Exception as exc:
+        logger.exception("Failed to generate IIIF tiles for image %d", image_id)
+        Image.objects.filter(pk=image_id).update(
+            tile_status="failed",
+            tile_error=str(exc),
+        )
+        raise self.retry(exc=exc)

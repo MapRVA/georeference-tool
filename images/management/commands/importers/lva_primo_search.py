@@ -16,6 +16,7 @@ import requests
 from tqdm import tqdm
 
 from images.models import Collection, Image, PreCollection, PreImage, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 
@@ -840,25 +841,17 @@ def handle(options):
             tqdm.write("      \u2717 No image URL found for record, skipping")
             continue
 
-        permalink = record["iiif_full_url"]
-        if not hotlink:
-            permalink = r2_uploader.upload_url(
-                permalink, in_tqdm=True, raise_on_err=False
-            )
-
-        if permalink is None:
-            tqdm.write("      \u2717 Unable to download image, skipping")
-            continue
+        source_url = record["iiif_full_url"]
 
         try:
-            tqdm.write(f"      → Inserting image {record.get('title')}")
+            tqdm.write(f"      \u2192 Inserting image {record.get('title')}")
             edtf_date = parse_date(record.get("date"), default_edtf)
 
             if hotlink:
                 image = PreImage.objects.create(
                     collection=collection,
                     title=record.get("title", "No title"),
-                    permalink=permalink,
+                    permalink=source_url,
                     ref=ref,
                     description=record.get("description", ""),
                     creator=record.get("creator", ""),
@@ -866,12 +859,12 @@ def handle(options):
                     edtf_date=edtf_date,
                     license=options.get("license"),
                 )
-                tqdm.write(f"      → Created pre-image ID: {image.id}")
+                tqdm.write(f"      \u2192 Created pre-image ID: {image.id}")
             else:
                 image = Image.objects.create(
                     collection=collection,
                     title=record.get("title", "No title"),
-                    permalink=permalink,
+                    permalink=source_url,
                     ref=ref,
                     original_url=f"https://lva.primo.exlibrisgroup.com/discovery/fulldisplay?docid={record.get('record_id')}&context=L&vid={vid}",
                     description=record.get("description", ""),
@@ -880,7 +873,16 @@ def handle(options):
                     edtf_date=edtf_date,
                     license=options.get("license"),
                 )
-                tqdm.write(f"      → Created image ID: {image.id}")
+                tqdm.write(f"      \u2192 Created image ID: {image.id}")
+
+                r2_url = r2_uploader.upload_original(
+                    image.id, source_url, in_tqdm=True
+                )
+                if r2_url:
+                    Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                    generate_iiif_tiles.delay(image.id)
+                else:
+                    tqdm.write("      \u26a0 Failed to upload original, keeping source URL")
         except Exception as e:
             tqdm.write(f"      \u2717 Error creating image: {e}")
 

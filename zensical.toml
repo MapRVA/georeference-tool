@@ -77,8 +77,13 @@ nav = [
   ]},
   {"Administration" = [
      "administration/index.md",
-     "administration/deployment.md",
      "administration/importing.md",
+  ]},
+  {"Deployment" = [
+      "deployment/index.md",
+      "deployment/helm-chart.md",
+      "deployment/auth.md",
+      "deployment/cdn.md",
   ]},
   {"Other" = [
      "other/oim-pmtiles.md",

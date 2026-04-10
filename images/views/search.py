@@ -1,11 +1,10 @@
+import base64
 import json
 import logging
 import re
-import threading
-from contextlib import ExitStack
 from io import BytesIO
-from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError, connection
@@ -18,8 +17,12 @@ from PIL import Image as PILImage
 from psycopg import sql
 
 from ..models import Image
+from ..tasks import encode_image, encode_text
 
 logger = logging.getLogger(__name__)
+
+# Timeout (seconds) for waiting on CLIP worker results
+CLIP_TASK_TIMEOUT = getattr(settings, "CLIP_TASK_TIMEOUT", 30)
 
 # Query security settings
 MAX_TEXT_QUERY_LENGTH = 500  # Reasonable limit for CLIP text queries
@@ -29,13 +32,6 @@ MAX_IMAGE_PIXELS = 89_000_000  # ~89 megapixels
 PILImage.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 MAX_DIMENSION = 10000  # Max width or height
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
-
-
-# Global variables for CLIP model (loaded on first use)
-_clip_model = None
-_clip_preprocess = None
-_clip_device = None
-_clip_model_lock = threading.Lock()
 
 
 # Try to import PostgreSQL search functions
@@ -52,90 +48,14 @@ except ImportError:
     HAS_POSTGRES_SEARCH = False
 
 
-# Import CLIP dependencies (only when needed for search)
-try:
-    import clip
-    import torch
-
-    CLIP_AVAILABLE = True
-except ImportError:
-    CLIP_AVAILABLE = False
-
-
 def search_page(request):
     """Display the semantic search interface"""
-    context = {
-        "clip_available": CLIP_AVAILABLE,
-    }
-    return render(request, "images/search.html", context)
-
-
-def _load_clip_model():
-    """Load CLIP model on first use (cached per-worker, thread-safe)"""
-    global _clip_model, _clip_preprocess, _clip_device
-
-    # Fast path: model already loaded (no lock needed)
-    if _clip_model is not None:
-        return _clip_model, _clip_preprocess, _clip_device
-
-    # Slow path: acquire lock to prevent concurrent loading
-    with _clip_model_lock:
-        # Double-check after acquiring lock (another thread may have loaded it)
-        if _clip_model is not None:
-            return _clip_model, _clip_preprocess, _clip_device
-
-        if not CLIP_AVAILABLE:
-            raise ImportError(
-                "CLIP dependencies not available. Install torch and openai-clip."
-            )
-
-        # Determine device
-        _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        model_name = "ViT-L/14@336px"
-        local_model_dir = Path("./models").absolute()
-
-        _clip_model, _clip_preprocess = clip.load(
-            model_name, device=_clip_device, download_root=local_model_dir
-        )
-
-        return _clip_model, _clip_preprocess, _clip_device
-
-
-def warmup_clip_model():
-    """
-    Pre-load the CLIP model into memory.
-    Returns True if successful, False otherwise.
-    """
-    if not CLIP_AVAILABLE:
-        logger.warning("CLIP dependencies not available, skipping warmup")
-        return False
-
-    try:
-        logger.info("Warming up CLIP model...")
-        _load_clip_model()
-        logger.info(f"CLIP model loaded successfully (device: {_clip_device})")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to load CLIP model: {e}")
-        return False
-
-
-def is_clip_ready():
-    """Check if CLIP model is loaded and ready."""
-    return _clip_model is not None
+    return render(request, "images/search.html", {})
 
 
 def _get_text_embedding(text):
-    """Generate embedding for text query"""
-    model, preprocess, device = _load_clip_model()
-
-    with torch.no_grad():
-        text_input = clip.tokenize([text]).to(device)
-        text_features = model.encode_text(text_input)
-        text_features /= text_features.norm(dim=-1, keepdim=True)
-
-    return text_features.cpu().numpy()[0].tolist()
+    """Dispatch text encoding to a Celery worker and wait for the result."""
+    return encode_text.delay(text).get(timeout=CLIP_TASK_TIMEOUT)
 
 
 def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
@@ -202,29 +122,13 @@ def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
         raise ValueError("Invalid or corrupted image file")
 
 
-def _get_image_embedding(image):
-    """Generate embedding for an image using CLIP"""
-    model, preprocess, device = _load_clip_model()
+def _get_image_embedding(sanitized_image):
+    """Dispatch image encoding to a Celery worker and wait for the result.
 
-    with ExitStack() as stack:
-        if isinstance(image, (str, Path)):
-            # If image is a file path or file object, open it
-            pil_image = stack.enter_context(PILImage.open(image))
-            pil_image = pil_image.convert("RGB")
-        elif hasattr(image, "read"):
-            # File-like object (Django UploadedFile)
-            pil_image = stack.enter_context(PILImage.open(image))
-            pil_image = pil_image.convert("RGB")
-        else:
-            # Assume it's already a PIL Image
-            pil_image = image.convert("RGB")
-
-        with torch.no_grad():
-            image_input = preprocess(pil_image).unsqueeze(0).to(device)
-            image_features = model.encode_image(image_input)
-            image_features /= image_features.norm(dim=-1, keepdim=True)
-
-        return image_features.cpu().numpy()[0].tolist()
+    The image must already be sanitised (a BytesIO of PNG data).
+    """
+    image_b64 = base64.b64encode(sanitized_image.read()).decode("ascii")
+    return encode_image.delay(image_b64).get(timeout=CLIP_TASK_TIMEOUT)
 
 
 @ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average
@@ -235,15 +139,6 @@ def semantic_search(request):
 
     Supports format=html parameter to return rendered HTML cards instead of JSON.
     """
-    if not CLIP_AVAILABLE:
-        return JsonResponse(
-            {
-                "success": False,
-                "error": "Semantic search not available. CLIP dependencies not installed.",
-            },
-            status=503,
-        )
-
     # Check if HTML format is requested
     return_html = request.GET.get("format") == "html"
 
@@ -627,13 +522,6 @@ def find_similar_images(request, image_id):
     For AJAX requests (X-Requested-With: XMLHttpRequest), returns just the image
     cards HTML partial for "Load More" functionality.
     """
-    if not CLIP_AVAILABLE:
-        messages.error(
-            request,
-            "Similarity search is not available. CLIP dependencies not installed.",
-        )
-        return redirect("images:image_detail", image_id=image_id)
-
     # Get the target image and its embedding
     target_image = get_object_or_404(Image, id=image_id)
     if not target_image.embedding:
@@ -1239,15 +1127,6 @@ def reverse_image_search(request):
     return_html = (
         request.GET.get("format") == "html" or request.POST.get("format") == "html"
     )
-
-    if not CLIP_AVAILABLE:
-        return JsonResponse(
-            {
-                "success": False,
-                "error": "Reverse image search not available. CLIP dependencies not installed.",
-            },
-            status=503,
-        )
 
     # Check if an image was uploaded
     if "image" not in request.FILES:

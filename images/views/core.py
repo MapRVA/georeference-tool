@@ -18,7 +18,7 @@ from ..models import (
     ImageRating,
     ImageSkip,
 )
-from .search import _get_text_embedding, CLIP_AVAILABLE
+from .search import _get_text_embedding
 
 # Try to import PostgreSQL search functions
 try:
@@ -538,7 +538,7 @@ def label_scales(request):
         images = images.filter(georeferences__isnull=False).distinct()
 
     if query:
-        if search_type == "semantic" and CLIP_AVAILABLE:
+        if search_type == "semantic":
             try:
                 query_embedding = _get_text_embedding(query)
                 embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"

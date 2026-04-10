@@ -58,6 +58,12 @@ PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
     "yes",
 )
 
+DIRECTORIES_ENABLED = os.getenv("DIRECTORIES_ENABLED", "True").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # CLIP model warmup on startup (disabled by default)
 CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
     "true",
@@ -81,6 +87,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "corsheaders",
+    "django_celery_results",
     "django_vite",
     "api",
     "osm_auth",
@@ -90,6 +97,9 @@ INSTALLED_APPS = [
     "activity",
     "yesterdays",
 ]
+
+if DIRECTORIES_ENABLED:
+    INSTALLED_APPS.insert(-1, "directories")
 
 if PROMETHEUS_ENABLED:
     INSTALLED_APPS.insert(0, "django_prometheus")
@@ -257,8 +267,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CELERY_BROKER_URL = os.getenv(
     "CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//"
 )
-CELERY_RESULT_BACKEND = None  # Results stored in Image.thumbnail field directly
-CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_CACHE_BACKEND = "django-cache"
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    "polling_interval": 0.1,
+}
+CELERY_RESULT_EXPIRES = 3600  # Auto-cleanup results after 1 hour
+CELERY_TASK_IGNORE_RESULT = True  # Default: ignore results unless a task opts in
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -278,7 +293,20 @@ CELERY_TASK_ROUTES = {
     # Metadata refresh tasks go to background queue
     "subjects.tasks.refresh_next_wikidata_item": {"queue": "background"},
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
+    # IIIF tile generation goes to background queue
+    "images.tasks.generate_iiif_tiles": {"queue": "background"},
+    # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
+    "images.tasks.encode_text": {"queue": "urgent"},
+    "images.tasks.encode_image": {"queue": "urgent"},
 }
+
+if DIRECTORIES_ENABLED:
+    CELERY_TASK_ROUTES.update(
+        {
+            "directories.tasks.ocr.generate_iiif_tiles": {"queue": "background"},
+            "directories.tasks.ocr.run_page_ocr": {"queue": "background"},
+        }
+    )
 
 # Metadata refresh intervals (seconds between each refresh)
 # These control how often Celery Beat triggers each refresh task
@@ -383,6 +411,13 @@ LOGIN_URL = "/auth/login/"
 # Flickr API Settings
 FLICKR_API_KEY = os.getenv("FLICKR_API_KEY")
 FLICKR_API_SECRET = os.getenv("FLICKR_API_SECRET")
+
+# R2 Storage
+R2_PUBLIC_URL_BASE = os.getenv("IMPORT_R2_PUBLIC_URL_BASE", "")
+
+# OpenRouter API (for OCR and other LLM tasks)
+OPENROUTER_KEY = os.getenv("OPENROUTER_KEY", "")
+OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 
 # Map Settings
 # Protomaps API key for map tiles

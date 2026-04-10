@@ -82,6 +82,26 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/activity_feed.js",
         ),
+        directory_create: path.resolve(
+          __dirname,
+          "./assets/js/pages/directory_create.js",
+        ),
+        directory_edit: path.resolve(
+          __dirname,
+          "./assets/js/pages/directory_edit.js",
+        ),
+        directory_view: path.resolve(
+          __dirname,
+          "./assets/js/pages/directory_view.js",
+        ),
+        page_ocr: path.resolve(
+          __dirname,
+          "./assets/js/pages/page_ocr.js",
+        ),
+        entry_validate: path.resolve(
+          __dirname,
+          "./assets/js/pages/entry_validate.js",
+        ),
       },
       output: {
         entryFileNames: `js/[name]-[hash].js`,

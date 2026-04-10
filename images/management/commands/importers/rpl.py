@@ -11,6 +11,7 @@ from django.utils.text import slugify
 from tqdm import tqdm
 
 from images.models import Collection, Image, Source
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader, R2UploaderError
 
 POLITE_WAIT_SECS = 0.75  # Be nice to the API
@@ -198,32 +199,10 @@ def process_items(
                 pbar.update(1)
                 continue
 
-            # Upload to R2 if not dry run (with retries for downloading from RPL)
+            # Set permalink: use source URL for R2 uploads (will update after creation),
+            # or generate mock URL for dry runs
             if not dry_run and r2_uploader:
-                permalink = None
-                for attempt in range(MAX_RETRIES + 1):
-                    try:
-                        permalink = r2_uploader.upload_url(image_url)
-                        break  # Success, exit retry loop
-
-                    except (R2UploaderError, requests.RequestException) as e:
-                        if attempt < MAX_RETRIES:
-                            print(
-                                f"    ⚠ Download failed for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
-                            )
-                            print("    → Retrying...")
-                            sleep(
-                                POLITE_WAIT_SECS * 2
-                            )  # Wait a bit longer before retry
-                        else:
-                            print(
-                                f"    ✗ Download failed for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}"
-                            )
-                            pbar.update(1)
-                            continue  # Skip to next item
-
-                if permalink is None:
-                    continue  # Skip this item if we couldn't download the image
+                permalink = image_url
             else:
                 mock_key = r2_uploader.generate_key_from_url(image_url)
                 permalink = r2_uploader.get_public_url(mock_key)
@@ -267,6 +246,34 @@ def process_items(
                     image = Image.objects.create(**image_data)
                     print(f"    ✓ Created image ID: {image.id}")
                     imported_count += 1
+
+                    # Upload original to R2 and update permalink
+                    if r2_uploader:
+                        r2_url = None
+                        for attempt in range(MAX_RETRIES + 1):
+                            try:
+                                r2_url = r2_uploader.upload_original(
+                                    image.id, image_url, in_tqdm=True
+                                )
+                                break
+                            except (R2UploaderError, requests.RequestException) as e:
+                                if attempt < MAX_RETRIES:
+                                    print(
+                                        f"    ⚠ Upload failed for {contentdm_id} (attempt {attempt + 1}/{MAX_RETRIES + 1}): {e}"
+                                    )
+                                    print("    → Retrying...")
+                                    sleep(POLITE_WAIT_SECS * 2)
+                                else:
+                                    print(
+                                        f"    ✗ Upload failed for {contentdm_id} after {MAX_RETRIES + 1} attempts: {e}"
+                                    )
+
+                        if r2_url:
+                            Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                            generate_iiif_tiles.delay(image.id)
+                        else:
+                            print("    ⚠ Failed to upload original, keeping source URL")
+
                 except Exception as e:
                     print(f"    ✗ Error creating image: {e}")
             else:

@@ -801,17 +801,10 @@ class TestActivityEndpoint(ApiFixturesMixin, TestCase):
 class TestSearchEndpoints(ApiFixturesMixin, TestCase):
     # -- Semantic search --
 
-    @patch("api.views.CLIP_AVAILABLE", False)
-    def test_semantic_search_unavailable(self):
-        resp = self.client.get("/api/v2/search/semantic/?q=test")
-        self.assertEqual(resp.status_code, 503)
-
-    @patch("api.views.CLIP_AVAILABLE", True)
     def test_semantic_search_missing_query(self):
         resp = self.client.get("/api/v2/search/semantic/")
         self.assertEqual(resp.status_code, 400)
 
-    @patch("api.views.CLIP_AVAILABLE", True)
     def test_semantic_search_query_too_long(self):
         resp = self.client.get(f"/api/v2/search/semantic/?q={'x' * 501}")
         self.assertEqual(resp.status_code, 400)

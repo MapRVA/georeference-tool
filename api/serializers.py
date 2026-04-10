@@ -421,6 +421,7 @@ class ImageSerializer(serializers.ModelSerializer):
             "from_above_georeferences",
             "comments",
             "detail_url",
+            "iiif_url",
         ]
 
     def get_rotation(self, obj):
