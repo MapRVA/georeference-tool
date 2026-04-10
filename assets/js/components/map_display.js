@@ -789,6 +789,16 @@ export function initializeMap(config) {
     if (layerControl) {
       layerControl.applyImageLayerVisibility();
     }
+
+    // When "Show Other Images" toggle controls visibility, re-hide layers
+    // unless the toggle checkbox is currently checked (applyImageLayerVisibility
+    // above doesn't know about the toggle and would make them visible).
+    if (showOtherImages && imageId) {
+      const toggle = document.getElementById("show-other-images-toggle");
+      if (!toggle || !toggle.checked) {
+        window.toggleOtherImages(false);
+      }
+    }
   }
 
   // Map load handler
