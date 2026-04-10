@@ -156,7 +156,7 @@ def fetch_loc_results(collection_slug, start_page=1, items_per_page=150, no_coll
     else:
         base_url = f"https://www.loc.gov/pictures/search/"
         params = {
-            "q": f"{collection_slug}+{CITY.lower()}+{STATE.lower()}"
+            "q": f"{collection_slug}+{CITY.lower()}+{STATE.lower()}",
             "fo": "json",
             "c": items_per_page,
             "sp": start_page,
