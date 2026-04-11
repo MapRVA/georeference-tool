@@ -52,7 +52,7 @@ required-environments = [
 clip = ["setuptools<81"]
 
 [tool.uv.sources]
-clip = { git = "https://github.com/openai/CLIP.git#dcba3cb" }
+clip = { git = "https://github.com/openai/CLIP.git", rev = "dcba3cb" }
 torch = [
   { index = "pytorch-cpu" },
 ]
