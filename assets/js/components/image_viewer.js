@@ -48,7 +48,7 @@ function initOSDViewer(el) {
     maxZoomPixelRatio: 4,
     minZoomLevel: 0.5,
     defaultZoomLevel: 0,
-    gestureSettingsMouse: { scrollToZoom: true },
+    gestureSettingsMouse: { scrollToZoom: false },
     tileSources: [iiifUrl],
     drawer: "canvas",
   });
