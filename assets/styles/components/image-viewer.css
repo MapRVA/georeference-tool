@@ -14,6 +14,11 @@
     height: auto;
 }
 
+#osd-viewer.fullpage {
+    height: 100%;
+    max-height: none;
+}
+
 .osd-btn-group {
     position: absolute;
     top: 10px;
