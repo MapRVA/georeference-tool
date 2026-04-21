@@ -112,7 +112,7 @@ def get_postpass_bbox():
     return getattr(
         settings,
         "METADATA_REFRESH_POSTPASS_BBOX",
-        "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
+        "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-119.367, 32.515), ST_MakePoint(-114.204, 36.471)), 4326)",
     )
 
 
