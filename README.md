@@ -6,7 +6,7 @@ A Django web application for georeferencing historical images.
 
 ## Development
 
-Please see our documentation pages for [developing](https://docs.yesterdays.maprva.org/development/) and [deploying](https://docs.yesterdays.maprva.org/administration/deployment/) Yesterdays.
+Please see our documentation pages for [developing](https://docs.yesterdays.maprva.org/development/) and [deploying](https://docs.yesterdays.maprva.org/deployment/) Yesterdays.
 
 ## License
 
