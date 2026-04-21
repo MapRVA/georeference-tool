@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from osm_auth.models import UserPreferences
 from subjects.models import Subject
 
 from ..models import (
@@ -211,6 +212,11 @@ def georeference_interface(request):
                     }
                 )
 
+    if request.user.is_authenticated:
+        user_preferences, _ = UserPreferences.objects.get_or_create(user=request.user)
+    else:
+        user_preferences = UserPreferences()
+
     context = {
         "current_image": current_image,
         "source": source,
@@ -227,6 +233,7 @@ def georeference_interface(request):
         "location_hint_json": json.dumps(location_hint),
         "subject_hints": subject_hints,
         "subject_hints_json": json.dumps(subject_hints),
+        "user_preferences": user_preferences,
     }
 
     # Remove duplicate message - template already shows appropriate message when no image available

@@ -1,0 +1,9 @@
+{% extends "oauth2_provider/application_form.html" %}
+
+{% block title %}Register an Application — Yesterdays{% endblock %}
+
+{% block app-form-title %}Register a new application{% endblock %}
+
+{% block app-form-action-url %}{% url 'oauth2_provider:register' %}{% endblock %}
+
+{% block app-form-back-url %}{% url 'oauth2_provider:list' %}{% endblock %}

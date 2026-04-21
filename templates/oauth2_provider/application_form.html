@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ application.name }} — Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <h1 class="h3 mb-4">
+            {% block app-form-title %}Edit {{ application.name }}{% endblock %}
+        </h1>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post" action="{% block app-form-action-url %}{% url 'oauth2_provider:update' application.pk %}{% endblock %}">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    {% for field in form %}
+                        <div class="mb-3">
+                            {% if field.field.widget.input_type == 'checkbox' %}
+                                <div class="form-check">
+                                    {{ field }}
+                                    <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                </div>
+                            {% else %}
+                                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                {{ field }}
+                            {% endif %}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for err in field.errors %}
+                                <div class="invalid-feedback d-block">{{ err }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% block app-form-back-url %}{% url 'oauth2_provider:detail' application.pk %}{% endblock %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

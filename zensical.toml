@@ -74,10 +74,12 @@ nav = [
   {"Development" = [
      "development/index.md",
      "development/environment.md",
+     "development/documentation.md",
   ]},
   {"Administration" = [
      "administration/index.md",
      "administration/importing.md",
+     "administration/image-management.md",
   ]},
   {"Deployment" = [
       "deployment/index.md",

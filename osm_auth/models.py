@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.db import models
 
 
 def get_display_name(self):
@@ -43,3 +44,29 @@ def get_profile_url(self):
 # Add the methods to the User model
 User.add_to_class("get_display_name", get_display_name)
 User.add_to_class("get_profile_url", get_profile_url)
+
+
+class UserPreferences(models.Model):
+    class ContextImagesDisplay(models.TextChoices):
+        HIDDEN = "hidden", "Hidden"
+        GHOST = "ghost", "Ghost"
+        CLICKABLE = "clickable", "Clickable with popups"
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="preferences",
+    )
+    georef_show_centerline = models.BooleanField(
+        default=False,
+        verbose_name="show centerline by default",
+    )
+    georef_context_images = models.CharField(
+        max_length=16,
+        choices=ContextImagesDisplay.choices,
+        default=ContextImagesDisplay.GHOST,
+        verbose_name="context image display",
+    )
+
+    def __str__(self):
+        return f"Preferences for {self.user.get_display_name()}"

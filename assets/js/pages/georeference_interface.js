@@ -669,15 +669,19 @@ document.addEventListener("DOMContentLoaded", function () {
         !isNaN(lat) &&
         !isNaN(lng);
 
-      // Sync image centerline with map bearing line visibility
+      // Sync image centerline with map bearing line visibility.
+      // Uses `visibility` rather than `display` because OSD's overlay renderer
+      // resets `display` to "block" on every repaint.
       if (osdCenterlineOverlay) {
-        osdCenterlineOverlay.style.display = bearingLineVisible
-          ? "block"
-          : "none";
+        osdCenterlineOverlay.style.visibility = bearingLineVisible
+          ? "visible"
+          : "hidden";
       }
       var imageCenterline = document.querySelector(".image-centerline");
       if (imageCenterline) {
-        imageCenterline.style.display = bearingLineVisible ? "block" : "none";
+        imageCenterline.style.visibility = bearingLineVisible
+          ? "visible"
+          : "hidden";
       }
 
       if (bearingLineVisible) {
@@ -1663,7 +1667,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         osdCenterlineOverlay = document.createElement("div");
         osdCenterlineOverlay.className = "image-centerline-overlay";
-        osdCenterlineOverlay.style.display = "none";
+        osdCenterlineOverlay.style.visibility = "hidden";
 
         osdViewer.addOverlay({
           element: osdCenterlineOverlay,
@@ -1675,7 +1679,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Show immediately if bearing line is already enabled
         if (bearingLineEnabled && pinPlaced && currentDirection !== null) {
-          osdCenterlineOverlay.style.display = "block";
+          osdCenterlineOverlay.style.visibility = "visible";
         }
       });
     }
