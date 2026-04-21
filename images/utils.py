@@ -576,7 +576,7 @@ class R2Uploader:
         except ClientError as e:
             raise R2UploaderError(f"Failed to delete R2 objects: {e}")
 
-    def upload_original(self, image_id, source_url, timeout=30, in_tqdm=False):
+    def upload_original(self, image_id, source_url, timeout=30, in_tqdm=False, max_retries=3):
         """
         Download a file from URL and upload to R2 at images/<ID>/original.<ext>.
 
@@ -585,6 +585,8 @@ class R2Uploader:
             source_url (str): URL to download the file from
             timeout (int): Timeout for downloading the source file
             in_tqdm (bool): If True, use tqdm to print messages
+            max_retries (int): Number of attempts for the source download on
+                transient failures (5xx, connection/timeout errors)
 
         Returns:
             str: Public URL of the uploaded file, or None on download failure
@@ -600,11 +602,31 @@ class R2Uploader:
 
         _print = tqdm.write if in_tqdm else print
 
-        try:
-            _print(f"  Downloading from: {source_url}")
-            response = requests.get(source_url, timeout=timeout, stream=True)
-            response.raise_for_status()
+        response = None
+        for attempt in range(max_retries):
+            try:
+                _print(f"  Downloading from: {source_url}")
+                response = requests.get(source_url, timeout=timeout, stream=True)
+                response.raise_for_status()
+                break
+            except requests.RequestException as e:
+                status = e.response.status_code if e.response is not None else None
+                is_retryable = (
+                    isinstance(e, (requests.ConnectionError, requests.Timeout))
+                    or (status is not None and 500 <= status < 600)
+                )
+                if attempt + 1 < max_retries and is_retryable:
+                    delay = 2 ** attempt
+                    _print(
+                        f"  Download failed (attempt {attempt + 1}/{max_retries}, "
+                        f"retrying in {delay}s): {e}"
+                    )
+                    time.sleep(delay)
+                    continue
+                _print(f"Failed to download from {source_url}: {e}")
+                return None
 
+        try:
             file_content = response.content
 
             # Determine content type and extension
@@ -635,9 +657,6 @@ class R2Uploader:
             _print(f"  ✓ Uploaded to R2: {public_url}")
             return public_url
 
-        except requests.RequestException as e:
-            _print(f"Failed to download from {source_url}: {e}")
-            return None
         except ClientError as e:
             raise R2UploaderError(f"Failed to upload to R2: {e}")
 

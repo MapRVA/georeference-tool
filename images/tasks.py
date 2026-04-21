@@ -136,8 +136,16 @@ def process_image(self, image_id: int, quality: int = 85):
     needs_transform = image.has_transform and not image.transformed_permalink
     needs_thumbnail = not image.thumbnail
     needs_transform_cleanup = not image.has_transform and image.transformed_permalink
+    # Legacy images predate versioned assets — their thumbnail/permalink point
+    # at unversioned URLs, so re-emit them into a claimed generation directory.
+    needs_migration = image.asset_generation == 0
 
-    if not needs_transform and not needs_thumbnail and not needs_transform_cleanup:
+    if (
+        not needs_transform
+        and not needs_thumbnail
+        and not needs_transform_cleanup
+        and not needs_migration
+    ):
         if image.tile_status != "complete":
             generate_iiif_tiles.delay(image_id)
         return
@@ -377,11 +385,12 @@ def generate_iiif_tiles(self, image_id):
     # whatever it set up and write tiles into the matching generation dir.
     generation = image.asset_generation
     if generation == 0:
-        logger.warning(
-            "generate_iiif_tiles called for image %d before any asset "
-            "generation was claimed; skipping",
+        logger.info(
+            "generate_iiif_tiles called for image %d with no asset generation; "
+            "queueing process_image to bootstrap assets",
             image_id,
         )
+        process_image.delay(image_id)
         return
 
     Image.objects.filter(pk=image_id).update(
