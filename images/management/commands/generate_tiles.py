@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from images.models import Image
-from images.tasks import generate_iiif_tiles, process_image
+from images.tasks import generate_iiif_tiles
 from images.utils import R2Uploader
 
 
@@ -105,7 +105,6 @@ class Command(BaseCommand):
                 image.permalink = new_url
                 image.save(update_fields=["permalink"])
                 migrated += 1
-                process_image.delay(image.id)
                 self.stdout.write(f"  Migrated image {image.id}")
             else:
                 failed += 1
