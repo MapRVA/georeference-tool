@@ -44,6 +44,12 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
+BEHIND_CLOUDFLARE_TUNNEL = os.getenv("BEHIND_CLOUDFLARE_TUNNEL", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS", "True").lower() in (
     "true",
@@ -89,6 +95,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_results",
     "django_vite",
+    "oauth2_provider",
     "api",
     "osm_auth",
     "subjects",
@@ -120,6 +127,12 @@ MIDDLEWARE = [
 if PROMETHEUS_ENABLED:
     MIDDLEWARE.insert(0, "django_prometheus.middleware.PrometheusBeforeMiddleware")
     MIDDLEWARE.append("django_prometheus.middleware.PrometheusAfterMiddleware")
+
+# Rewrite REMOTE_ADDR from CF-Connecting-IP so DRF throttling and any other
+# IP-based logic see the real client IP rather than the tunnel's loopback.
+# Mounted first so all downstream middleware sees the corrected value.
+if BEHIND_CLOUDFLARE_TUNNEL:
+    MIDDLEWARE.insert(0, "yesterdays.middleware.CloudflareTunnelMiddleware")
 
 ROOT_URLCONF = "yesterdays.urls"
 
@@ -295,6 +308,8 @@ CELERY_TASK_ROUTES = {
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
     # IIIF tile generation goes to background queue
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
+    "images.tasks.cleanup_old_image_assets": {"queue": "background"},
+    "images.tasks.cleanup_stale_import_slots": {"queue": "background"},
     # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
     "images.tasks.encode_text": {"queue": "urgent"},
     "images.tasks.encode_image": {"queue": "urgent"},
@@ -347,6 +362,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "subjects.tasks.refresh_next_osm_element",
         "schedule": float(METADATA_REFRESH_OSM_INTERVAL),
         "options": {"expires": METADATA_REFRESH_OSM_INTERVAL - 5},
+    },
+    "cleanup-stale-import-slots": {
+        "task": "images.tasks.cleanup_stale_import_slots",
+        "schedule": 3600.0,  # every hour
     },
 }
 
@@ -485,11 +504,38 @@ REST_FRAMEWORK = {
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.OrderingFilter",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "api.authentication.HeaderOnlyOAuth2Authentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
+    "DEFAULT_THROTTLE_RATES": {
+        "register": "1/min",
+        "token": "150/min",
+    },
+}
+
+# Django OAuth Toolkit
+OAUTH2_PROVIDER = {
+    "SCOPES": {
+        "read": "Read-only API access",
+        "import": "Import images into collections",
+    },
+    "DEFAULT_SCOPES": ["read"],
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,  # 1 hour
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 86400 * 30,  # 30 days
+    "ROTATE_REFRESH_TOKEN": True,
+    # If a rotated (already-used) refresh token is re-presented, revoke the
+    # entire token family — this is the BCP-recommended response to suspected
+    # token theft. The grace period absorbs legitimate network-glitch retries.
+    "REFRESH_TOKEN_REUSE_PROTECTION": True,
+    "REFRESH_TOKEN_GRACE_PERIOD_SECONDS": 30,
+    "PKCE_REQUIRED": True,
+    "ALLOWED_REDIRECT_URI_SCHEMES": ["http", "https"],
 }
 
 # drf-spectacular (OpenAPI schema generation)

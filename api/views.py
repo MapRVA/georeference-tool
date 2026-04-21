@@ -1,8 +1,10 @@
 import logging
+import mimetypes
 from datetime import datetime
 
 from django.contrib.auth.models import User
-from django.db import DatabaseError, connection
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import DatabaseError, connection, transaction
 from django.db.models import (
     Case,
     CharField,
@@ -19,10 +21,12 @@ from django.db.models import (
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from oauth2_provider.models import get_application_model
 from psycopg import sql
-from rest_framework import generics, viewsets
-from rest_framework.decorators import action, api_view
+from rest_framework import generics, mixins, serializers as drf_serializers, status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_gis.filters import InBBoxFilter
 
@@ -34,21 +38,31 @@ from images.models import (
     Georeference,
     GeoreferenceValidation,
     Image,
+    ImportSlot,
+    License,
     Source,
 )
-from images.utils import get_confidence_breakdown, get_overall_stats
+from images.tasks import process_image
+from images.utils import R2Uploader, get_confidence_breakdown, get_overall_stats
 from images.views.search import HAS_POSTGRES_SEARCH, _get_text_embedding
 from subjects.models import OsmElement, Subject
 
 from .filters import FromAboveGeoreferenceFilter, GeoreferenceFilter, ImageFilter
 from .pagination import GeoJsonDefaultPagination
+from .permissions import IsImporter, is_importer
+from .throttling import AppRegistrationThrottle
 from .serializers import (
+    AppRegistrationSerializer,
+    CollectionCreateSerializer,
     CollectionSerializer,
     FromAboveGeoreferenceGeoSerializer,
     GeoreferenceGeoSerializer,
     ImageListSerializer,
     ImageSerializer,
+    ImportCancelSerializer,
+    ImportCommitSerializer,
     OsmElementGeoSerializer,
+    SourceCreateSerializer,
     SourceSerializer,
     SubjectSerializer,
     UserSerializer,
@@ -112,7 +126,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return generics.get_object_or_404(self.get_queryset(), username=username)
 
 
-class SourceViewSet(viewsets.ReadOnlyModelViewSet):
+class SourceViewSet(
+    mixins.CreateModelMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
     """Archive sources containing collections of historical images."""
 
     serializer_class = SourceSerializer
@@ -120,20 +137,47 @@ class SourceViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ["name"]
     ordering = ["name"]
 
+    def get_serializer_class(self):
+        if self.action == "create":
+            return SourceCreateSerializer
+        return SourceSerializer
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsImporter()]
+        return super().get_permissions()
+
     def get_queryset(self):
+        if is_importer(self.request):
+            return Source.objects.annotate(
+                collection_count=Count("collections", distinct=True),
+                image_count=Count(
+                    "collections__images",
+                    filter=Q(collections__images__duplicate_of__isnull=True),
+                    distinct=True,
+                ),
+            )
         return Source.objects.filter(public=True).annotate(
-            collection_count=Count("collections", filter=Q(collections__public=True)),
+            collection_count=Count(
+                "collections",
+                filter=Q(collections__public=True),
+                distinct=True,
+            ),
             image_count=Count(
                 "collections__images",
                 filter=Q(
                     collections__public=True,
                     collections__images__duplicate_of__isnull=True,
                 ),
+                distinct=True,
             ),
         )
 
 
-class CollectionViewSet(viewsets.ReadOnlyModelViewSet):
+class CollectionViewSet(
+    mixins.CreateModelMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
     """Collections of historical images within an archive source."""
 
     serializer_class = CollectionSerializer
@@ -141,16 +185,24 @@ class CollectionViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ["name", "source__name"]
     ordering = ["source__name", "name"]
 
+    def get_serializer_class(self):
+        if self.action == "create":
+            return CollectionCreateSerializer
+        return CollectionSerializer
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsImporter()]
+        return super().get_permissions()
+
     def get_queryset(self):
-        qs = (
-            Collection.objects.filter(public=True, source__public=True)
-            .select_related("source")
-            .annotate(
-                image_count=Count(
-                    "images", filter=Q(images__duplicate_of__isnull=True)
-                ),
-            )
+        base = Collection.objects.select_related("source").annotate(
+            image_count=Count("images", filter=Q(images__duplicate_of__isnull=True)),
         )
+        if is_importer(self.request):
+            qs = base
+        else:
+            qs = base.filter(public=True, source__public=True)
 
         # Support nested URL: /api/v2/sources/{source_pk}/collections/
         source_pk = self.kwargs.get("source_pk")
@@ -357,6 +409,288 @@ class FromAboveGeoreferenceViewSet(viewsets.ReadOnlyModelViewSet):
                 ),
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Current user info
+# ---------------------------------------------------------------------------
+
+
+@api_view(["POST"])
+@permission_classes([])
+@throttle_classes([AppRegistrationThrottle])
+def register_app_view(request):
+    """Dynamically register an OAuth2 client (Mastodon-style /api/v1/apps).
+
+    No authentication required so apps can self-register on first contact with
+    an instance. Returns the client_secret in plaintext exactly once — the
+    server stores only a hashed copy.
+    """
+    serializer = AppRegistrationSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    Application = get_application_model()
+    app = Application(
+        name=serializer.validated_data["name"],
+        client_type=serializer.validated_data["client_type"],
+        authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+        redirect_uris=serializer.validated_data["redirect_uris"],
+        skip_authorization=False,
+        user=request.user if request.user.is_authenticated else None,
+    )
+    plaintext_secret = app.client_secret
+    try:
+        app.full_clean(exclude=["client_secret"])
+    except DjangoValidationError as e:
+        raise drf_serializers.ValidationError(e.message_dict)
+    app.save()
+
+    # Public clients can't keep a secret, so don't store one. QuerySet.update
+    # bypasses ClientSecretField.pre_save, which would otherwise hash "" into a
+    # PBKDF2 of empty string.
+    if app.client_type == Application.CLIENT_PUBLIC:
+        Application.objects.filter(pk=app.pk).update(client_secret="")
+        plaintext_secret = ""
+
+    return Response(
+        {
+            "id": app.pk,
+            "name": app.name,
+            "client_id": app.client_id,
+            "client_secret": plaintext_secret,
+            "client_type": app.client_type,
+            "redirect_uris": app.redirect_uris,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def me_view(request):
+    """Return the authenticated user's profile and permissions."""
+    user = request.user
+    osm_id = int(user.username[4:]) if user.username.startswith("osm_") else 0
+
+    # For OAuth, mirror IsImporter: capability is conditional on the token's
+    # scope, not just user.is_staff. For session auth, no scope filter applies.
+    if hasattr(request, "auth") and hasattr(request.auth, "scope"):
+        scopes = request.auth.scope.split()
+        can_import = user.is_staff and "import" in scopes
+    else:
+        scopes = []
+        can_import = user.is_staff
+
+    return Response(
+        {
+            "osm_id": osm_id,
+            "username": user.get_display_name(),
+            "is_staff": user.is_staff,
+            "can_import": can_import,
+            "scopes": scopes,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Import endpoints
+# ---------------------------------------------------------------------------
+
+
+@api_view(["GET"])
+@permission_classes([IsImporter])
+def import_upload_url_view(request):
+    """Create an import slot and return a presigned S3 upload URL.
+
+    Query parameters:
+        collection: collection ID to import into (required)
+        content_type: MIME type of the image (default: image/jpeg)
+    """
+    collection_id = request.query_params.get("collection")
+    if not collection_id:
+        return Response(
+            {"error": "The 'collection' query parameter is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        collection = Collection.objects.get(pk=int(collection_id))
+    except (Collection.DoesNotExist, ValueError):
+        return Response(
+            {"error": "Collection not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    content_type = request.query_params.get("content_type", "image/jpeg")
+    ext = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ""
+    if ext in (".jpe", ".jpeg"):
+        ext = ".jpg"
+
+    slot = ImportSlot.objects.create(
+        collection=collection,
+        created_by=request.user,
+        s3_key="",  # set below
+        content_type=content_type,
+    )
+    slot.s3_key = f"imports/{slot.slot_id}{ext}"
+    slot.save(update_fields=["s3_key"])
+
+    r2 = R2Uploader()
+    upload_url = r2.generate_presigned_put_url(
+        slot.s3_key, content_type, expiration=900
+    )
+
+    return Response({
+        "slot_id": str(slot.slot_id),
+        "upload_url": upload_url,
+        "upload_headers": {"Content-Type": content_type},
+        "cdn_url": r2.get_public_url(slot.s3_key),
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsImporter])
+def import_commit_view(request):
+    """Commit an uploaded image: verify, create Image row, move to permanent S3 key.
+
+    Accepts metadata for a single image linked to an existing ImportSlot.
+    The image must already be uploaded to S3 at the slot's presigned URL.
+    """
+    serializer = ImportCommitSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    try:
+        slot = ImportSlot.objects.get(
+            slot_id=data["slot_id"],
+            created_by=request.user,
+        )
+    except ImportSlot.DoesNotExist:
+        return Response(
+            {"error": "Import slot not found or does not belong to you."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Verify the file was actually uploaded to S3
+    r2 = R2Uploader()
+    head = r2.head_object(slot.s3_key)
+    if head is None:
+        return Response(
+            {"error": "Image has not been uploaded to S3 yet."},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    # Resolve license
+    image_license = None
+    if data["license_name"]:
+        image_license, _ = License.objects.get_or_create(
+            name__iexact=data["license_name"],
+            defaults={
+                "name": data["license_name"],
+                "display_name": data["license_name"],
+                "permalink": data["license_url"] or "",
+            },
+        )
+
+    # Determine file extension from the slot's S3 key
+    ext = ""
+    if "." in slot.s3_key:
+        ext = "." + slot.s3_key.rsplit(".", 1)[1]
+
+    # Do all DB writes inside one atomic block, with the slot row locked via
+    # SELECT FOR UPDATE so concurrent commits of the same slot_id serialize.
+    # The slot.delete() stays inside the transaction — the lock is held until
+    # the row is actually gone, so the loser of the race observes DoesNotExist.
+    #
+    # If copy_object succeeds but a later step in the block fails, the dest in
+    # R2 becomes an orphan when the transaction rolls back — sweep it in the
+    # except path. S3 DELETE is idempotent, so the sweep is a no-op if the
+    # copy never happened.
+    temp_key = slot.s3_key
+    dest_key = None
+    try:
+        with transaction.atomic():
+            slot = ImportSlot.objects.select_for_update().get(
+                slot_id=data["slot_id"],
+                created_by=request.user,
+            )
+            image = Image.objects.create(
+                collection=slot.collection,
+                title=data["title"],
+                permalink="",  # placeholder, set after S3 copy
+                original_url=data["source_url"] or None,
+                description=data["description"] or None,
+                creator=data["creator"] or None,
+                ref=data["reference_id"] or None,
+                edtf_date=data["edtf_date"],
+                license=image_license,
+                rotation=data["rotation"],
+                mirror=data["mirror"],
+            )
+            dest_key = f"images/{image.id}/original{ext}"
+            cdn_url = r2.copy_object(slot.s3_key, dest_key)
+            image.permalink = cdn_url
+            image.save(update_fields=["permalink"])
+            slot.delete()
+    except ImportSlot.DoesNotExist:
+        # Lost a race with a concurrent commit — the other request already
+        # consumed this slot.
+        return Response(
+            {"error": "Import slot not found or does not belong to you."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception:
+        if dest_key:
+            try:
+                r2.delete_file(dest_key)
+            except Exception:
+                logger.warning(
+                    "Failed to clean up orphan copy at %s", dest_key, exc_info=True
+                )
+        raise
+
+    # Post-commit: the slot row is already deleted inside the transaction;
+    # delete the S3 temp file outside. Failures are non-fatal — stragglers
+    # are reaped by cleanup_stale_import_slots.
+    try:
+        r2.delete_file(temp_key)
+    except Exception:
+        logger.warning(
+            "Failed to delete temp upload %s", temp_key, exc_info=True
+        )
+
+    # Queue background processing (thumbnails, IIIF tiles)
+    try:
+        process_image.delay(image.id)
+    except Exception:
+        logger.warning("Failed to queue process_image for image %d", image.id)
+
+    return Response(
+        {"image_id": image.id},
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsImporter])
+def import_cancel_view(request):
+    """Cancel pending import slots and clean up their temporary S3 files."""
+    serializer = ImportCancelSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    slots = ImportSlot.objects.filter(
+        slot_id__in=serializer.validated_data["slot_ids"],
+        created_by=request.user,
+    )
+
+    r2 = R2Uploader()
+    deleted_count = 0
+    for slot in slots:
+        r2.delete_file(slot.s3_key)
+        deleted_count += 1
+    slots.delete()
+
+    return Response({"deleted": deleted_count})
 
 
 # ---------------------------------------------------------------------------

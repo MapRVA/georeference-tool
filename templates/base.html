@@ -83,6 +83,9 @@
                                 <li><a class="dropdown-item" href="{% url 'user_profile' request.session.osm_username %}">
                                     <i class="fas fa-user-circle me-2"></i>Profile
                                 </a></li>
+                                <li><a class="dropdown-item" href="{% url 'settings:index' %}">
+                                    <i class="fas fa-cog me-2"></i>Settings
+                                </a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{% url 'osm_auth:logout' %}">
                                     <i class="fas fa-sign-out-alt me-2"></i>Logout

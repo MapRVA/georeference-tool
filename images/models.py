@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Count, F, Q
+from django.db.models.functions import Lower
 
 # Conditionally import SearchVectorField only if using PostgreSQL
 try:
@@ -265,6 +266,12 @@ class License(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                name="unique_license_name_ci",
+            ),
+        ]
 
 
 class Image(models.Model):
@@ -457,6 +464,14 @@ class Image(models.Model):
     )
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
+    asset_generation = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Incremented each time generated assets (transformed image, "
+            "thumbnail, IIIF tiles) are regenerated; used as a path "
+            "segment to bypass CDN caching."
+        ),
+    )
 
     source_point = gis_models.PointField(
         null=True,
@@ -692,6 +707,29 @@ class PreImage(models.Model):
         if self.original_date:
             return str(self.original_date)
         return "Unknown date"
+
+
+class ImportSlot(models.Model):
+    """Temporary slot for an image upload in progress.
+
+    Tracks a presigned S3 key that a client is authorized to upload to.
+    Once the upload is confirmed and metadata is provided, the image is
+    copied to its permanent location and a real Image row is created.
+    """
+
+    slot_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    collection = models.ForeignKey(
+        Collection, on_delete=models.CASCADE, related_name="import_slots"
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="import_slots"
+    )
+    s3_key = models.CharField(max_length=500)
+    content_type = models.CharField(max_length=100, default="image/jpeg")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"ImportSlot {self.slot_id} ({self.s3_key})"
 
 
 class Georeference(models.Model):

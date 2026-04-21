@@ -10,9 +10,32 @@ from django.contrib.auth.views import LoginView
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from osm_login_python.core import Auth
 
 from images.models import AerialGeoreference, Album, Georeference
+
+from .forms import UserPreferencesForm
+from .models import UserPreferences
+
+
+def _safe_redirect_url(request, candidate):
+    """Return candidate if it's safe to use as a post-login redirect target.
+
+    A URL is safe if it stays on the current host and uses an allowed scheme.
+    Returns None if the candidate is missing or unsafe; callers fall back to a
+    default. Prevents open-redirect attacks via attacker-controlled inputs
+    (the Referer header, ?next= query param, or session-stored URLs).
+    """
+    if not candidate:
+        return None
+    if url_has_allowed_host_and_scheme(
+        url=candidate,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return candidate
+    return None
 
 
 def get_osm_auth():
@@ -51,46 +74,55 @@ def login(request):
     for key in session_keys_to_clear:
         request.session.pop(key, None)
 
-    # Build the post-login redirect URL
-    # If logging in from a georeference page with queue context (source, collection, etc.),
-    # preserve those parameters and use current_image instead of image
-    referrer = request.META.get("HTTP_REFERER")
-    image_id = request.GET.get("image")
-    georeference_path = reverse("images:georeference_interface")
+    # Determine where to redirect after successful login.
+    # Priority: ?next= (set by LoginRequiredMixin / @login_required, e.g. when
+    # an unauthenticated user hits /oauth/authorize/) over Referer-based logic
+    # (used when the user clicked a Login button manually).
+    next_url = _safe_redirect_url(request, request.GET.get("next"))
+    if next_url:
+        request.session["login_redirect_url"] = next_url
+    else:
+        # Build the post-login redirect URL.
+        # If logging in from a georeference page with queue context (source, collection, etc.),
+        # preserve those parameters and use current_image instead of image.
+        referrer = request.META.get("HTTP_REFERER")
+        image_id = request.GET.get("image")
+        georeference_path = reverse("images:georeference_interface")
 
-    if referrer and image_id:
-        parsed = urlparse(referrer)
-        # Check if referrer is the georeference interface
-        if parsed.path == georeference_path:
-            query_params = parse_qs(parsed.query)
-            # Check if there are queue context params
-            queue_params = {"source", "collection", "album", "subject", "difficulty"}
-            has_queue_context = any(p in query_params for p in queue_params)
+        candidate = None
+        if referrer and image_id:
+            parsed = urlparse(referrer)
+            # Check if referrer is the georeference interface
+            if parsed.path == georeference_path:
+                query_params = parse_qs(parsed.query)
+                # Check if there are queue context params
+                queue_params = {"source", "collection", "album", "subject", "difficulty"}
+                has_queue_context = any(p in query_params for p in queue_params)
 
-            if has_queue_context:
-                # Use current_image to preserve queue context
-                query_params.pop("current_image", None)
-                query_params.pop("image", None)
-                query_params["current_image"] = [image_id]
-                new_query = urlencode(query_params, doseq=True)
-                redirect_url = f"{georeference_path}?{new_query}"
+                if has_queue_context:
+                    # Use current_image to preserve queue context
+                    query_params.pop("current_image", None)
+                    query_params.pop("image", None)
+                    query_params["current_image"] = [image_id]
+                    new_query = urlencode(query_params, doseq=True)
+                    redirect_url = f"{georeference_path}?{new_query}"
+                else:
+                    # No queue context, use standard image= parameter
+                    redirect_url = f"{georeference_path}?image={image_id}"
+
+                candidate = request.build_absolute_uri(redirect_url)
             else:
-                # No queue context, use standard image= parameter
-                redirect_url = f"{georeference_path}?image={image_id}"
+                candidate = referrer
+        elif image_id:
+            # No referrer but have image_id (direct link to login with image param)
+            redirect_url = f"{georeference_path}?image={image_id}"
+            candidate = request.build_absolute_uri(redirect_url)
+        elif referrer:
+            candidate = referrer
 
-            request.session["login_redirect_url"] = request.build_absolute_uri(
-                redirect_url
-            )
-        else:
-            # Referrer is not georeference page, just go back there
-            request.session["login_redirect_url"] = referrer
-    elif image_id:
-        # No referrer but have image_id (direct link to login with image param)
-        redirect_url = f"{georeference_path}?image={image_id}"
-        request.session["login_redirect_url"] = request.build_absolute_uri(redirect_url)
-    elif referrer:
-        # No image_id, just use referrer
-        request.session["login_redirect_url"] = referrer
+        safe = _safe_redirect_url(request, candidate)
+        if safe:
+            request.session["login_redirect_url"] = safe
 
     try:
         osm_auth = get_osm_auth()
@@ -126,12 +158,18 @@ def callback(request):
         messages.success(
             request, f"Successfully logged in as {user_data.get('username')}!"
         )
-        # Check if there's a login redirect URL stored
-        login_redirect_url = request.session.pop("login_redirect_url", None)
+        # Check if there's a login redirect URL stored.
+        # Re-validate at the redirect site as defense-in-depth — the session
+        # value should already be safe but we don't want to trust it blindly.
+        login_redirect_url = _safe_redirect_url(
+            request, request.session.pop("login_redirect_url", None)
+        )
         if login_redirect_url:
             return redirect(login_redirect_url)
         # Check if this was an admin login attempt
-        admin_redirect = request.session.pop("admin_login_redirect", None)
+        admin_redirect = _safe_redirect_url(
+            request, request.session.pop("admin_login_redirect", None)
+        )
         if admin_redirect:
             if django_user and django_user.is_staff:
                 return redirect(admin_redirect)
@@ -164,7 +202,7 @@ def admin_login(request):
         user = authenticate(request=request)
         if user and user.is_staff:
             auth_login(request, user)
-            next_url = request.GET.get("next", "/admin/")
+            next_url = _safe_redirect_url(request, request.GET.get("next")) or "/admin/"
             return redirect(next_url)
         elif user:
             messages.error(
@@ -186,7 +224,9 @@ def admin_login(request):
         )
         return login_view(request)
     # Store the admin redirect in session so we can redirect back after OAuth
-    request.session["admin_login_redirect"] = request.GET.get("next", "/admin/")
+    request.session["admin_login_redirect"] = (
+        _safe_redirect_url(request, request.GET.get("next")) or "/admin/"
+    )
     # Redirect to OSM OAuth login
     messages.info(
         request,
@@ -238,6 +278,26 @@ def profile(request):
         "username": request.session.get("osm_username"),
     }
     return render(request, "auth/profile.html", context)
+
+
+def settings_view(request):
+    """Display and save user preferences"""
+    if not request.user.is_authenticated:
+        messages.info(request, "Please log in to view your settings.")
+        return redirect("/")
+
+    preferences, _ = UserPreferences.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = UserPreferencesForm(request.POST, instance=preferences)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Settings saved.")
+            return redirect("settings:index")
+    else:
+        form = UserPreferencesForm(instance=preferences)
+
+    return render(request, "settings/index.html", {"form": form})
 
 
 def user_profile(request, username):

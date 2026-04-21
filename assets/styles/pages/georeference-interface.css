@@ -68,10 +68,13 @@
     padding: 0.5em 0.75em;
 }
 
-/* Image centerline (mirrors the map bearing-line style) */
+/* Image centerline (mirrors the map bearing-line style).
+ * Toggled via `visibility` (not `display`) because OSD's drawHTML forces
+ * `display: block` on overlay elements every repaint, so a `display: none`
+ * we set would be clobbered on each frame. */
 .image-container .image-centerline,
 .image-centerline-overlay {
-    display: none;
+    visibility: hidden;
     pointer-events: none;
     background: repeating-linear-gradient(
         to bottom,

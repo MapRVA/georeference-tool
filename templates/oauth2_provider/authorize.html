@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Authorize Application — Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+        {% if error %}
+            <div class="alert alert-danger">
+                <h4 class="alert-heading">
+                    <i class="fas fa-exclamation-circle me-2"></i>Error: {{ error.error }}
+                </h4>
+                <p class="mb-0">{{ error.description }}</p>
+            </div>
+        {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="card-title h3 mb-1">Authorize this application?</h2>
+                    <p class="text-muted mb-4">
+                        An application is asking to access your Yesterdays account.
+                    </p>
+
+                    <div class="alert alert-warning d-flex" role="alert">
+                        <i class="fas fa-shield-alt me-3 mt-1 fa-lg"></i>
+                        <div>
+                            <strong>Yesterdays cannot vet third-party applications.</strong>
+                            Any developer can register an application with any name.
+                            It is your responsibility to only authorize applications
+                            you trust.
+                        </div>
+                    </div>
+
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4 text-sm-end">Application name</dt>
+                        <dd class="col-sm-8">
+                            <strong>{{ application.name }}</strong>
+                            <small class="text-muted d-block">(provided by the developer)</small>
+                        </dd>
+
+                        <dt class="col-sm-4 text-sm-end">Will send your access to</dt>
+                        <dd class="col-sm-8">
+                            <code class="text-break">{{ redirect_uri }}</code>
+                            <small class="text-muted d-block">
+                                If this address is unfamiliar, do not authorize.
+                            </small>
+                        </dd>
+                    </dl>
+
+                    <p class="mb-2">This application is requesting permission to:</p>
+                    <ul class="list-group mb-4">
+                        {% for scope_name, scope_description in scope_pairs %}
+                            <li class="list-group-item">
+                                <strong>{{ scope_name }}</strong>
+                                <div class="text-muted small">{{ scope_description }}</div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+
+                    <form method="post" id="authorizationForm">
+                        {% csrf_token %}
+                        {% for field in form %}{% if field.is_hidden %}{{ field }}{% endif %}{% endfor %}
+
+                        {% if form.errors %}
+                            <div class="alert alert-danger">{{ form.errors }}</div>
+                        {% endif %}
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="submit" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>Cancel
+                            </button>
+                            <button type="submit" name="allow" value="Authorize" class="btn btn-primary">
+                                <i class="fas fa-check me-1"></i>Authorize
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

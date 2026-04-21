@@ -21,10 +21,41 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from oauth2_provider.urls import base_urlpatterns, management_urlpatterns
 from osm_auth import views as auth_views
 from subjects import views as subject_views
 
 from . import views
+from .oauth_views import S256OnlyAuthorizationView, ThrottledTokenView
+
+# Override a couple of DOT's default endpoints:
+#   - /authorize/ rejects code_challenge_method != "S256"
+#   - /token/ adds IP-based rate limiting
+_oauth_overrides = {
+    "authorize": ("authorize/", S256OnlyAuthorizationView.as_view()),
+    "token": ("token/", ThrottledTokenView.as_view()),
+}
+# Drop endpoints we don't use:
+#   - device flow (RFC 8628) — no device-grant clients
+#   - introspect (RFC 7662) — we're both auth server and resource server,
+#     so token validation happens via direct DB access, not introspection
+_oauth_excluded = {
+    "device-authorization",
+    "device",
+    "device-confirm",
+    "device-grant-status",
+    "introspect",
+}
+_oauth_base_urlpatterns = []
+for _p in base_urlpatterns:
+    _name = getattr(_p, "name", None)
+    if _name in _oauth_excluded:
+        continue
+    if _name in _oauth_overrides:
+        _route, _view = _oauth_overrides[_name]
+        _oauth_base_urlpatterns.append(path(_route, _view, name=_name))
+    else:
+        _oauth_base_urlpatterns.append(_p)
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -76,6 +107,25 @@ urlpatterns = [
         name="wikidata_lookup",
     ),
     path("api/v2/", include("api.urls")),
+    # Protocol endpoints at /oauth/ and user-facing app/token management at
+    # /settings/oauth/ share a single "oauth2_provider" namespace so that
+    # reverse lookups like {% url 'oauth2_provider:list' %} work across both.
+    # OIDC endpoints from the package are intentionally not mounted; we have
+    # no use case for federated identity (we already delegate identity to OSM
+    # upstream).
+    path(
+        "",
+        include(
+            (
+                [
+                    path("oauth/", include(_oauth_base_urlpatterns)),
+                    path("settings/oauth/", include(management_urlpatterns)),
+                ],
+                "oauth2_provider",
+            )
+        ),
+    ),
+    path("settings/", include("osm_auth.settings_urls")),
     path("layers/", include("maps.urls")),
     path("maps/", RedirectView.as_view(url="/layers/", permanent=True)),
     path(

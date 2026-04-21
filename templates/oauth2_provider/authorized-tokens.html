@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Authorized Applications — Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <h1 class="h3 mb-2">
+            <i class="fas fa-shield-alt me-2"></i>Authorized Applications
+        </h1>
+        <p class="text-muted mb-4">
+            Applications you've allowed to access your Yesterdays account. Revoke access from any you no longer use.
+        </p>
+
+        {% if authorized_tokens %}
+            <div class="card shadow-sm">
+                <ul class="list-group list-group-flush">
+                    {% for authorized_token in authorized_tokens %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-semibold">{{ authorized_token.application }}</div>
+                                    {% if authorized_token.scopes %}
+                                        <div class="small text-muted mt-1">
+                                            Permissions:
+                                            {% for scope_name, scope_description in authorized_token.scopes.items %}
+                                                <span class="badge bg-light text-dark border me-1" title="{{ scope_description }}">{{ scope_name }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <a href="{% url 'oauth2_provider:authorized-token-delete' authorized_token.pk %}" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-times me-1"></i>Revoke
+                                </a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="fas fa-shield-alt fa-2x mb-3 d-block"></i>
+                    <p class="mb-0">You haven't authorized any applications.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

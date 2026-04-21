@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}OAuth Applications — Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <h1 class="h3 mb-4">
+            <i class="fas fa-key me-2"></i>Your OAuth Applications
+        </h1>
+
+        {% if applications %}
+            <div class="card shadow-sm">
+                <ul class="list-group list-group-flush">
+                    {% for application in applications %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <a href="{% url 'oauth2_provider:detail' application.pk %}" class="fw-semibold text-decoration-none">
+                                    {{ application.name }}
+                                </a>
+                                <div class="small text-muted">
+                                    <span class="badge bg-light text-dark border">{{ application.client_type }}</span>
+                                    <code class="ms-2">{{ application.client_id }}</code>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-right text-muted"></i>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+                    <p class="mb-0">You haven't registered any applications.</p>
+                    <p class="small mb-0">
+                        Third-party tools register themselves automatically via
+                        <code>/api/v2/apps/</code>.
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

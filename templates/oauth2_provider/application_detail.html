@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ application.name }} — Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'oauth2_provider:list' %}">Your Applications</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ application.name }}</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h5 mb-0">{{ application.name }}</h2>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 text-sm-end">Client ID</dt>
+                    <dd class="col-sm-8"><code class="text-break">{{ application.client_id }}</code></dd>
+
+                    <dt class="col-sm-4 text-sm-end">Client secret</dt>
+                    <dd class="col-sm-8">
+                        <span class="text-muted">Stored as a hash. The plaintext secret was returned once at registration and cannot be retrieved.</span>
+                    </dd>
+
+                    <dt class="col-sm-4 text-sm-end">Client type</dt>
+                    <dd class="col-sm-8">{{ application.client_type }}</dd>
+
+                    <dt class="col-sm-4 text-sm-end">Grant type</dt>
+                    <dd class="col-sm-8">{{ application.authorization_grant_type }}</dd>
+
+                    <dt class="col-sm-4 text-sm-end">Redirect URIs</dt>
+                    <dd class="col-sm-8">
+                        {% if application.redirect_uris %}
+                            <ul class="list-unstyled mb-0">
+                                {% for uri in application.redirect_uris.split %}
+                                    <li><code class="text-break">{{ uri }}</code></li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <span class="text-muted">None</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{% url 'oauth2_provider:list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back
+                </a>
+                <a href="{% url 'oauth2_provider:delete' application.pk %}" class="btn btn-outline-danger">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

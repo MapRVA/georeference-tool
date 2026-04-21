@@ -7,6 +7,8 @@ from pathlib import Path
 import requests
 from celery import shared_task
 from django.conf import settings
+from django.db import transaction
+from django.db.models import F
 from iiif_prezi3 import (
     Annotation,
     AnnotationBody,
@@ -17,7 +19,7 @@ from iiif_prezi3 import (
 )
 from PIL import Image as PILImage
 
-from .models import Image
+from .models import Image, ImportSlot
 from .utils import R2Uploader, R2UploaderError
 from yesterdays.iiif import generate_and_upload_iiif_tiles
 
@@ -140,102 +142,70 @@ def process_image(self, image_id: int, quality: int = 85):
             generate_iiif_tiles.delay(image_id)
         return
 
-    base_key = f"images/{image_id}"
+    # Bump asset_generation and claim a new generation directory for every
+    # asset we're about to write. The CDN caches asset URLs for a year, so
+    # reusing the same path would serve stale content even after R2 is
+    # updated. select_for_update serializes concurrent process_image runs so
+    # each one observes a distinct value.
+    with transaction.atomic():
+        Image.objects.select_for_update().only("id").get(pk=image_id)
+        Image.objects.filter(pk=image_id).update(
+            asset_generation=F("asset_generation") + 1,
+        )
+        generation = Image.objects.values_list(
+            "asset_generation", flat=True
+        ).get(pk=image_id)
+
+    base_key = f"images/{image_id}/{generation}"
 
     try:
         r2_uploader = R2Uploader()
 
-        # Download the original image
         pil_image = download_image(image.permalink)
         if pil_image is None:
             raise Exception(f"Failed to download image from {image.permalink}")
 
-        if needs_transform or needs_transform_cleanup:
-            # Full reprocessing: either applying new transforms or cleaning up old ones
-            if image.has_transform:
-                transformed = transform_image(pil_image, image.rotation, image.mirror)
+        if image.has_transform:
+            transformed = transform_image(pil_image, image.rotation, image.mirror)
 
-                # Upload full-size transformed image
-                transformed_bytes = BytesIO()
-                transformed.save(transformed_bytes, "WEBP", quality=quality)
-                transformed_bytes.seek(0)
+            transformed_bytes = BytesIO()
+            transformed.save(transformed_bytes, "WEBP", quality=quality)
+            transformed_bytes.seek(0)
 
-                transformed_key = f"{base_key}_transformed"
-                transformed_url = r2_uploader.upload_file_content(
-                    transformed_bytes.read(),
-                    transformed_key,
-                    content_type="image/webp",
-                    overwrite=True,
-                )
-
-                # Thumbnail from the transformed image
-                thumb = create_thumbnail(transformed)
-                thumb_bytes = BytesIO()
-                thumb.save(thumb_bytes, "WEBP", quality=quality)
-                thumb_bytes.seek(0)
-
-                thumb_key = f"images/{image_id}/thumbnail.webp"
-                thumb_url = r2_uploader.upload_file_content(
-                    thumb_bytes.read(),
-                    thumb_key,
-                    content_type="image/webp",
-                    overwrite=True,
-                )
-
-                if _transform_changed(image_id, task_rotation, task_mirror):
-                    return
-
-                Image.objects.filter(pk=image_id).update(
-                    transformed_permalink=transformed_url,
-                    thumbnail=thumb_url,
-                    tile_status="",
-                    tile_error="",
-                    iiif_url=None,
-                )
-            else:
-                # Transforms removed — generate plain thumbnail, clear transformed_permalink
-                thumb = create_thumbnail(pil_image)
-                thumb_bytes = BytesIO()
-                thumb.save(thumb_bytes, "WEBP", quality=quality)
-                thumb_bytes.seek(0)
-
-                thumb_key = f"images/{image_id}/thumbnail.webp"
-                thumb_url = r2_uploader.upload_file_content(
-                    thumb_bytes.read(),
-                    thumb_key,
-                    content_type="image/webp",
-                    overwrite=True,
-                )
-
-                if _transform_changed(image_id, task_rotation, task_mirror):
-                    return
-
-                Image.objects.filter(pk=image_id).update(
-                    transformed_permalink=None,
-                    thumbnail=thumb_url,
-                    tile_status="",
-                    tile_error="",
-                    iiif_url=None,
-                )
-        else:
-            # Just needs a plain thumbnail (no transform involved)
-            thumb = create_thumbnail(pil_image)
-            thumb_bytes = BytesIO()
-            thumb.save(thumb_bytes, "WEBP", quality=quality)
-            thumb_bytes.seek(0)
-
-            thumb_key = f"images/{image_id}/thumbnail.webp"
-            thumb_url = r2_uploader.upload_file_content(
-                thumb_bytes.read(),
-                thumb_key,
+            transformed_url = r2_uploader.upload_file_content(
+                transformed_bytes.read(),
+                f"{base_key}/transformed.webp",
                 content_type="image/webp",
                 overwrite=True,
             )
 
-            if _transform_changed(image_id, task_rotation, task_mirror):
-                return
+            thumb_source = transformed
+        else:
+            transformed_url = None
+            thumb_source = pil_image
 
-            Image.objects.filter(pk=image_id).update(thumbnail=thumb_url)
+        thumb = create_thumbnail(thumb_source)
+        thumb_bytes = BytesIO()
+        thumb.save(thumb_bytes, "WEBP", quality=quality)
+        thumb_bytes.seek(0)
+
+        thumb_url = r2_uploader.upload_file_content(
+            thumb_bytes.read(),
+            f"{base_key}/thumbnail.webp",
+            content_type="image/webp",
+            overwrite=True,
+        )
+
+        if _transform_changed(image_id, task_rotation, task_mirror):
+            return
+
+        Image.objects.filter(pk=image_id).update(
+            transformed_permalink=transformed_url,
+            thumbnail=thumb_url,
+            tile_status="",
+            tile_error="",
+            iiif_url=None,
+        )
 
     except R2UploaderError as e:
         raise self.retry(exc=e)
@@ -243,16 +213,7 @@ def process_image(self, image_id: int, quality: int = 85):
         logger.exception("Failed to process image %d", image_id)
         return
 
-    # Chain IIIF tile generation.
-    # When the display image changed (transform applied or removed), always
-    # queue — tile_status was reset above so this also serves as a safeguard
-    # against a concurrent generate_iiif_tiles marking stale tiles "complete".
-    if needs_transform or needs_transform_cleanup:
-        generate_iiif_tiles.delay(image_id)
-    else:
-        image = Image.objects.only("tile_status").get(pk=image_id)
-        if image.tile_status != "complete":
-            generate_iiif_tiles.delay(image_id)
+    generate_iiif_tiles.delay(image_id)
 
 
 def _transform_changed(image_id, expected_rotation, expected_mirror):
@@ -351,9 +312,11 @@ def create_thumbnail(img: PILImage.Image, max_dimension: int = 500) -> PILImage.
     return img.resize((new_width, new_height), PILImage.LANCZOS)
 
 
-def _build_image_manifest(image, iiif_base, width, height):
+def _build_image_manifest(image, iiif_base, width, height, generation):
     """Build a static IIIF Presentation v3 manifest for a single Image."""
-    manifest_id = f"{settings.R2_PUBLIC_URL_BASE}/images/{image.id}/manifest.json"
+    manifest_id = (
+        f"{settings.R2_PUBLIC_URL_BASE}/images/{image.id}/{generation}/manifest.json"
+    )
 
     manifest = Manifest(
         id=manifest_id,
@@ -410,13 +373,24 @@ def generate_iiif_tiles(self, image_id):
     # Snapshot the source URL — used for a stale-write guard after tiling.
     source_url = image.display_permalink
 
+    # process_image is the canonical bumper of asset_generation; we just read
+    # whatever it set up and write tiles into the matching generation dir.
+    generation = image.asset_generation
+    if generation == 0:
+        logger.warning(
+            "generate_iiif_tiles called for image %d before any asset "
+            "generation was claimed; skipping",
+            image_id,
+        )
+        return
+
     Image.objects.filter(pk=image_id).update(
         tile_status="processing",
         tile_error="",
     )
 
     try:
-        r2_prefix = f"images/{image.id}/tiles"
+        r2_prefix = f"images/{image.id}/{generation}/tiles"
         width, height = generate_and_upload_iiif_tiles(
             source_url=source_url,
             r2_tiles_prefix=r2_prefix,
@@ -425,8 +399,10 @@ def generate_iiif_tiles(self, image_id):
         # Build and upload static IIIF manifest
         uploader = R2Uploader()
         iiif_base = uploader.get_public_url(r2_prefix)
-        manifest_json = _build_image_manifest(image, iiif_base, width, height)
-        manifest_key = f"images/{image.id}/manifest.json"
+        manifest_json = _build_image_manifest(
+            image, iiif_base, width, height, generation
+        )
+        manifest_key = f"images/{image.id}/{generation}/manifest.json"
         uploader.upload_file_content(
             manifest_json.encode("utf-8"),
             manifest_key,
@@ -464,6 +440,11 @@ def generate_iiif_tiles(self, image_id):
             height,
         )
 
+        # Queue a delayed sweep of prior generation directories. The delay
+        # gives any in-flight viewers time to finish loading assets from the
+        # previous generation before they disappear.
+        cleanup_old_image_assets.apply_async(args=[image_id], countdown=300)
+
     except Exception as exc:
         logger.exception("Failed to generate IIIF tiles for image %d", image_id)
         Image.objects.filter(pk=image_id).update(
@@ -471,3 +452,71 @@ def generate_iiif_tiles(self, image_id):
             tile_error=str(exc),
         )
         raise self.retry(exc=exc)
+
+
+@shared_task(ignore_result=True)
+def cleanup_old_image_assets(image_id):
+    """Delete R2 objects under previous generation directories for an image.
+
+    Reads the authoritative ``asset_generation`` from the DB at run time so
+    rapid successive regenerations can't race into deleting the valid current
+    generation — any invocation keeps whatever is current at the moment it
+    runs. Top-level files (e.g. ``images/{id}/original.jpg``) are preserved;
+    only keys under a numeric ``{N}/`` subdirectory other than the current
+    generation are deleted.
+    """
+    try:
+        image = Image.objects.only("id", "asset_generation").get(pk=image_id)
+    except Image.DoesNotExist:
+        return
+
+    keep_generation = image.asset_generation
+    if keep_generation == 0:
+        return
+
+    prefix = f"images/{image_id}/"
+    keep_subprefix = f"{prefix}{keep_generation}/"
+
+    r2 = R2Uploader()
+    to_delete = []
+    for key in r2.iter_keys(prefix):
+        if key.startswith(keep_subprefix):
+            continue
+        first_segment, _, _ = key[len(prefix):].partition("/")
+        if first_segment.isdigit():
+            to_delete.append(key)
+
+    if not to_delete:
+        return
+
+    r2.delete_files(to_delete)
+    logger.info(
+        "Cleaned up %d stale asset objects for image %d (keeping generation %d)",
+        len(to_delete),
+        image_id,
+        keep_generation,
+    )
+
+
+@shared_task
+def cleanup_stale_import_slots():
+    """Delete import slots older than 24 hours and their temporary S3 files."""
+    from django.utils import timezone
+    from datetime import timedelta
+
+    cutoff = timezone.now() - timedelta(hours=24)
+    stale_slots = ImportSlot.objects.filter(created_at__lt=cutoff)
+    count = stale_slots.count()
+
+    if count == 0:
+        return "No stale import slots found."
+
+    try:
+        r2 = R2Uploader()
+        for slot in stale_slots:
+            r2.delete_file(slot.s3_key)
+    except R2UploaderError:
+        logger.warning("Failed to clean up some S3 files for stale import slots", exc_info=True)
+
+    stale_slots.delete()
+    return f"Cleaned up {count} stale import slot(s)."
