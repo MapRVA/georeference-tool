@@ -24,17 +24,12 @@ function makeButton({ icon, title, onClick }) {
 }
 
 function setViewerInteractive(viewer, enabled) {
-  const settings = {
-    scrollToZoom: enabled,
-    clickToZoom: enabled,
-    dblClickToZoom: enabled,
-    pinchToZoom: enabled,
-    flickEnabled: enabled,
-  };
-  Object.assign(viewer.gestureSettingsMouse, settings);
-  Object.assign(viewer.gestureSettingsTouch, settings);
-  viewer.panHorizontal = enabled;
-  viewer.panVertical = enabled;
+  viewer.setMouseNavEnabled(enabled);
+  // OSD sets touch-action: none on both canvas and container; restore it when locked
+  // so swipe/scroll gestures fall through to the page.
+  const touchAction = enabled ? "none" : "auto";
+  if (viewer.canvas) viewer.canvas.style.touchAction = touchAction;
+  if (viewer.container) viewer.container.style.touchAction = touchAction;
 }
 
 export function addViewerButtons(viewer, container) {
