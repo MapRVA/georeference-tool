@@ -313,6 +313,8 @@ CELERY_TASK_ROUTES = {
     # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
     "images.tasks.encode_text": {"queue": "urgent"},
     "images.tasks.encode_image": {"queue": "urgent"},
+    # OSM avatar mirroring goes to background queue
+    "osm_auth.tasks.download_osm_avatar": {"queue": "background"},
 }
 
 if DIRECTORIES_ENABLED:

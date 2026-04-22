@@ -14,8 +14,14 @@
 
         <div class="card">
             <div class="card-header">
-                <h3 class="mb-0">
-                    <i class="fas fa-user-circle me-2"></i>{{ display_name }}
+                <h3 class="mb-0 d-flex align-items-center">
+                    {% with profile_picture_url=profile_user.get_profile_picture_url %}
+                        {% if profile_picture_url %}
+                            <img src="{{ profile_picture_url }}" alt="" class="rounded-circle me-2" style="height: 1.2em; width: 1.2em; object-fit: cover;">
+                        {% else %}
+                            <i class="fas fa-user-circle me-2"></i>
+                        {% endif %}
+                    {% endwith %}{{ display_name }}
                 </h3>
             </div>
             <div class="card-body">

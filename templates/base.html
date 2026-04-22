@@ -72,11 +72,15 @@
                     {% if request.session.is_authenticated %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                {% if request.session.osm_user_data.img_url %}
-                                    <img src="{{ request.session.osm_user_data.img_url }}" alt="Profile" class="rounded-circle me-1" style="height: 1.5em; width: 1.5em; object-fit: cover;">
-                                {% else %}
-                                    <i class="fas fa-user me-1"></i>
-                                {% endif %}
+                                {% with profile_picture_url=request.user.get_profile_picture_url %}
+                                    {% if profile_picture_url %}
+                                        <img src="{{ profile_picture_url }}" alt="Profile" class="rounded-circle me-1" style="height: 1.5em; width: 1.5em; object-fit: cover;">
+                                    {% elif request.session.osm_user_data.img_url %}
+                                        <img src="{{ request.session.osm_user_data.img_url }}" alt="Profile" class="rounded-circle me-1" style="height: 1.5em; width: 1.5em; object-fit: cover;">
+                                    {% else %}
+                                        <i class="fas fa-user me-1"></i>
+                                    {% endif %}
+                                {% endwith %}
                                 {{ request.session.osm_username }}
                             </a>
                             <ul class="dropdown-menu">
