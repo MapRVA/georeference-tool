@@ -40,6 +40,7 @@ from images.models import (
     Image,
     ImportSlot,
     License,
+    SiteSettings,
     Source,
 )
 from images.tasks import process_image
@@ -715,6 +716,7 @@ def stats_view(request):
     )
     return Response(
         {
+            "name": SiteSettings.load().site_title,
             "total_sources": stats["total_sources"],
             "total_collections": stats["total_collections"],
             "total_images": stats["total_images"],
