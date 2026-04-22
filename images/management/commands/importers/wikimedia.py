@@ -15,12 +15,12 @@ class Command(BaseCommand):
     help = "Interactively import images from Wikimedia Commons into the Yesterdays database."
 
     def add_arguments(self, parser):
-        parser.add_argument("--max-items", type=int, default=None, help="Max items to process")
+        parser.add_argument("--max-items", type=int, default=100, help="Max items to process")
         parser.add_argument("--query", type=str, help="Initial search query hint")
 
     def handle(self, *args, **options):
         source = self.get_or_create_wikimedia_source()
-        collection_info = self.get_collection_info(options.get('query'))
+        collection_info = self.get_collection_info()
         collection = self.create_collection_if_not_exist(source, collection_info)
 
         if not collection:
@@ -35,48 +35,96 @@ class Command(BaseCommand):
             name="Wikimedia Commons",
             defaults={
                 "url": "https://commons.wikimedia.org/",
+                "slug": "wikimedia-commons",
                 "description": "A media repository that is part of the Wikimedia Foundation.",
                 "public": True,
             },
         )
         return source
 
-    def get_collection_info(self, initial_query=None):
+    def get_collection_info(self) -> dict:
+        """Interactive prompt to get collection information from user"""
         print("\n=== Wikimedia Commons Collection Import ===")
-        category = input(f"Wikimedia Category (e.g., 'Images from Brück & Sohn'): ")
-        query = input(f"Search filter query within category [{initial_query or 'riverside'}]: ") or (
-                    initial_query or "riverside")
+        print("Please provide the following collection information:")
 
-        # Build a pseudo-slug for tracking
-        slug = f"wm-{category.lower().replace(' ', '-')}"
-
-        name = input(f"Collection display name: ")
-        default_desc = f"Images from Wikimedia Category: {category}, filtered for {query}."
-        description = input(f"Description [{default_desc}]: ") or default_desc
-
-        return {
-            "category": category,
-            "query": query,
-            "name": name,
-            "description": description,
-            "slug": slug
-        }
-
-    def create_collection_if_not_exist(self, source, info):
-        collection, created = Collection.objects.get_or_create(
-            source=source,
-            name=info['name'],
-            defaults={
-                "url": f"https://commons.wikimedia.org/wiki/Category:{info['category'].replace(' ', '_')}",
-                "description": info['description'],
-                "public": False,
-            }
+        collection_slug = input(
+            "Collection URL slug (e.g., 'brueck-und-sohn'): "
         )
-        return collection
+
+        # Check if a collection with this slug already exists in our database
+        source = Source.objects.filter(name="Wikimedia Commons").first()
+        if source:
+            # Look for existing collection that would have the same final name
+            existing_collections = Collection.objects.filter(
+                source=source,
+            )
+
+            # Find collection that likely matches this slug
+            matching_collection = None
+            for collection in existing_collections:
+                if collection.slug == collection_slug:
+                    matching_collection = collection
+                    break
+
+            if matching_collection:
+                print("\n⚠️  Found existing collection that may match this slug:")
+                print(f"  Name: {matching_collection.name}")
+                print(f"  URL: {matching_collection.url}")
+                print(f"  Description: {matching_collection.description}")
+                print(f"  Public: {'Yes' if matching_collection.public else 'No'}")
+                print(f"  Images: {matching_collection.images.count()}")
+
+                if input("\nUse this existing collection? [y/N] ").strip().lower() == "y":
+                    return {
+                        "slug": collection_slug,
+                        "name": matching_collection.name,
+                        "description": matching_collection.description,
+                        "existing_collection": matching_collection,
+                    }
+
+    def create_collection_if_not_exist(self, source, collection_info) -> Collection:
+        """Get or create a collection based on collection info"""
+        # Check if we already have an existing collection from the info gathering
+        if "existing_collection" in collection_info:
+            print(
+                f"  ✓ Using existing collection: {collection_info['existing_collection'].name}"
+            )
+            return collection_info["existing_collection"]
+
+        collection_name = collection_info["name"]
+        collection_url = f"https://commons.wikimedia.org/wiki/Commons:{collection_info['name']}"
+
+        # Check if collection already exists (shouldn't happen given our earlier check, but just in case)
+        existing_collection = Collection.objects.filter(
+            source=source, name=collection_name
+        ).first()
+        if existing_collection:
+            print(f"  ✓ Using existing collection: {existing_collection.name}")
+            return existing_collection
+
+        # Show collection details to user for confirmation
+        print("\n  Collection Details:")
+        print(f"  Name: {collection_name}")
+        print(f"  Source: {source.name}")
+        print(f"  URL: {collection_url}")
+        print(f"  Description: {collection_info['description']}")
+
+        if input("\n  Create this collection? [y/N] ").strip().lower() == "y":
+            collection = Collection.objects.create(
+                source=source,
+                name=collection_name,
+                url=collection_url,
+                description=collection_info["description"],
+                public=False,
+            )
+            print(f"Created PRIVATE collection: {collection.name}")
+            return collection
+        else:
+            return None
 
     def fetch_wikimedia_page(self, query, category, continue_token=None):
         api_url = "https://commons.wikimedia.org/w/api.php"
-        search_str = f'{query} incategory:"{category}"'
+        search_str = f'{query} in category:"{category}"'
 
         params = {
             "action": "query",
@@ -100,7 +148,7 @@ class Command(BaseCommand):
         processed_count = 0
         continue_token = None
 
-        with tqdm(total=max_items or 1000, desc="Importing") as pbar:
+        with tqdm(total=max_items, desc="Importing") as pbar:
             while True:
                 data = self.fetch_wikimedia_page(info['query'], info['category'], continue_token)
                 pages = data.get("query", {}).get("pages", {}).values()
