@@ -144,83 +144,82 @@ def fetch_wikimedia_page(query, category, continue_token=None):
 
 def handle_import(collection, query, license_, max_items, r2_uploader):
     processed_count = 0
+    page_num = 1
     continue_token = None
 
-    with tqdm(total=max_items, desc="Importing") as pbar:
-        while True:
-            data = fetch_wikimedia_page(query, collection.name, continue_token)
-            pages = data.get("query", {}).get("pages", {}).values()
+    while True:
+        data = fetch_wikimedia_page(query, collection.name, continue_token)
+        pages = data.get("query", {}).get("pages", {}).values()
+        for page in tqdm(pages, desc=f"Page {page_num}"):
+            if max_items and processed_count >= max_items:
+                return
 
-            for page in pages:
-                if max_items and processed_count >= max_items:
-                    return
+            img_info = page.get("imageinfo", [{}])[0]
+            metadata = img_info.get("extmetadata", {})
 
-                img_info = page.get("imageinfo", [{}])[0]
-                metadata = img_info.get("extmetadata", {})
+            ref = str(page.get("pageid"))
+            if Image.objects.filter(ref=ref).exists():
+                continue
 
-                ref = str(page.get("pageid"))
-                if Image.objects.filter(ref=ref).exists():
-                    continue
+            file_url = img_info.get("url")
+            title = page.get("title", "").replace("File:", "")
+            if "Brück" in title:
+                # Extracting title from Brueck und Sohn file name
+                match = re.search(r'-\d{4}-(.+?)-Brück', title)
+                if match:
+                    title = match.group(1)
+                else:
+                    tqdm.write(f"      ⚠ Failed to extract title: {title}")
 
-                file_url = img_info.get("url")
-                title = page.get("title", "").replace("File:", "")
-                if "Brück" in title:
-                    # Extracting title from Brueck und Sohn file name
-                    match = re.search(r'-\d{4}-(.+?)-Brück', title)
-                    if match:
-                        title = match.group(1)
-                    else:
-                        tqdm.write(f"      ⚠ Failed to extract title: {title}")
+            # Metadata Extraction
+            description = metadata.get("ImageDescription", {}).get("value", "")
+            # Clean HTML tags often found in Wikimedia descriptions
+            description = re.sub('<[^<]+?>', '', description)
+            lat = metadata.get("GPSLatitude", {}).get("value", "")
+            if lat:
+                description += f"\nLatitude: {lat}"
+            lon = metadata.get("GPSLongitude", {}).get("value", "")
+            if lon:
+                description += f"\nLongitude: {lon}"
 
-                # Metadata Extraction
-                description = metadata.get("ImageDescription", {}).get("value", "")
-                # Clean HTML tags often found in Wikimedia descriptions
-                description = re.sub('<[^<]+?>', '', description)
-                lat = metadata.get("GPSLatitude", {}).get("value", "")
-                if lat:
-                    description += f"\nLatitude: {lat}"
-                lon = metadata.get("GPSLongitude", {}).get("value", "")
-                if lon:
-                    description += f"\nLongitude: {lon}"
+            creator = metadata.get("Artist", {}).get("value", "")
+            creator = re.sub('<[^<]+?>', '', creator)
+            creator = creator.replace("&amp;", "&")
 
-                creator = metadata.get("Artist", {}).get("value", "")
-                creator = re.sub('<[^<]+?>', '', creator)
-                creator = creator.replace("&amp;", "&")
+            original_date = metadata.get("DateTimeOriginal", {}).get("value", "")
+            # Placeholder for the parse_loc_date style logic if needed
+            edtf_date = original_date
 
-                original_date = metadata.get("DateTimeOriginal", {}).get("value", "")
-                # Placeholder for the parse_loc_date style logic if needed
-                edtf_date = original_date
+            try:
+                image = Image.objects.create(
+                    collection=collection,
+                    title=title[:255],
+                    permalink=file_url,
+                    ref=ref,
+                    original_url=f"https://commons.wikimedia.org/entity/M{ref}",
+                    description=description,
+                    creator=creator,
+                    original_date=original_date,
+                    edtf_date=edtf_date,
+                    license=license_,
+                )
+                tqdm.write(f"      → Created image ID: {image.id}")
 
-                try:
-                    image = Image.objects.create(
-                        collection=collection,
-                        title=title[:255],
-                        permalink=file_url,
-                        ref=ref,
-                        original_url=f"https://commons.wikimedia.org/entity/M{ref}",
-                        description=description,
-                        creator=creator,
-                        original_date=original_date,
-                        edtf_date=edtf_date,
-                        license=license_,
-                    )
-                    tqdm.write(f"      → Created image ID: {image.id}")
+                # R2 Upload & Tiling
+                r2_url = r2_uploader.upload_original(image.id, file_url, in_tqdm=True)
+                if r2_url:
+                    Image.objects.filter(pk=image.id).update(permalink=r2_url)
+                    generate_iiif_tiles.delay(image.id)
+                else:
+                    tqdm.write("      ⚠ Failed to upload original, keeping source URL")
 
-                    # R2 Upload & Tiling
-                    r2_url = r2_uploader.upload_original(image.id, file_url, in_tqdm=True)
-                    if r2_url:
-                        Image.objects.filter(pk=image.id).update(permalink=r2_url)
-                        generate_iiif_tiles.delay(image.id)
-                    else:
-                        tqdm.write("      ⚠ Failed to upload original, keeping source URL")
+                processed_count += 1
+                sleep(POLITE_WAIT_SECS)
 
-                    processed_count += 1
-                    pbar.update(1)
-                    sleep(POLITE_WAIT_SECS)
+            except Exception as e:
+                print(f"Error importing {title}: {e}")
 
-                except Exception as e:
-                    print(f"Error importing {title}: {e}")
-
-            continue_token = data.get("continue")
-            if not continue_token:
-                break
+        continue_token = data.get("continue")
+        page_num += 1
+        if not continue_token:
+            break
