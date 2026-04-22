@@ -9,11 +9,13 @@ from images.utils import R2Uploader
 
 POLITE_WAIT_SECS = 2.0  # Wikimedia is generally faster than LoC but still requires respect
 
+headers = {"User-Agent": "Yesterdays/1.0 (https://maprva.org)"}
+
 def add_arguments(parser):
     parser.add_argument("--max-items", type=int, default=100, help="Max items to process")
     parser.add_argument("--query", type=str, help="Initial search query hint")
 
-def handle(*args, **options):
+def handle(options):
     source = get_or_create_wikimedia_source()
     collection_info = get_collection_info()
     collection = create_collection_if_not_exist(source, collection_info)
@@ -22,8 +24,9 @@ def handle(*args, **options):
         print("Collection creation cancelled.")
         return
 
+    query = options["query"]
     r2_uploader = R2Uploader()
-    handle_import(collection, collection_info, options['max_items'], r2_uploader)
+    handle_import(collection, query, options['max_items'], r2_uploader)
 
 def get_or_create_wikimedia_source():
     source, created = Source.objects.get_or_create(
@@ -119,7 +122,7 @@ def create_collection_if_not_exist(source, collection_info) -> Collection:
 
 def fetch_wikimedia_page(query, category, continue_token=None):
     api_url = "https://commons.wikimedia.org/w/api.php"
-    search_str = f'{query} in category:"{category}"'
+    search_str = f'{query} incategory:"Images_from_{category}"'
 
     params = {
         "action": "query",
@@ -135,17 +138,17 @@ def fetch_wikimedia_page(query, category, continue_token=None):
     if continue_token:
         params.update(continue_token)
 
-    response = requests.get(api_url, params=params)
+    response = requests.get(api_url, params=params, headers=headers)
     response.raise_for_status()
     return response.json()
 
-def handle_import(collection, info, max_items, r2_uploader):
+def handle_import(collection, query, max_items, r2_uploader):
     processed_count = 0
     continue_token = None
 
     with tqdm(total=max_items, desc="Importing") as pbar:
         while True:
-            data = fetch_wikimedia_page(info['query'], info['category'], continue_token)
+            data = fetch_wikimedia_page(query, collection.name, continue_token)
             pages = data.get("query", {}).get("pages", {}).values()
 
             for page in pages:
@@ -173,7 +176,7 @@ def handle_import(collection, info, max_items, r2_uploader):
 
                 original_date = metadata.get("DateTimeOriginal", {}).get("value", "")
                 # Placeholder for the parse_loc_date style logic if needed
-                edtf_date = None
+                edtf_date = original_date
 
                 try:
                     image = Image.objects.create(
