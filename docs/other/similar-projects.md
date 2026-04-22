@@ -1,9 +1,7 @@
 # Similar Projects
 
 There are many other photo georeferencing projects out there! And many of them are awesome.
-
 Below is a list of external projects similar to Yesterdays.
-The Yesterdays community does not necessarily endorse any of these projects.
 
 - [1940s.nyc](https://1940s.nyc) (proprietary), a visualization of photos taken by the Works Progress Administration in from 1939-1941. Includes user-submitted "stories".
 - [80s.nyc](https://80s.nyc/) (BSD-2-Clause, [source](https://github.com/bdon/80s.nyc)), "Street view of 1980s New York" including 100k street segments and 800k building photos.
