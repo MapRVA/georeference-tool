@@ -545,5 +545,3 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "2.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
-GDAL_LIBRARY_PATH = "/usr/local/gdal-3.11.5/lib/libgdal.dylib"
-GEOS_LIBRARY_PATH = "/usr/local/geos-3.14.1/lib/libgeos_c.1.20.5.dylib"
