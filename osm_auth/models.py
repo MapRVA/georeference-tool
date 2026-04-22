@@ -70,3 +70,15 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user.get_display_name()}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    profile_picture_url = models.URLField(blank=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.get_display_name()}"
