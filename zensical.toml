@@ -88,6 +88,7 @@ nav = [
       "deployment/cdn.md",
   ]},
   {"Other" = [
+     "other/similar-projects.md",
      "other/oim-pmtiles.md",
   ]}
 ]
