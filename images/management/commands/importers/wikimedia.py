@@ -26,7 +26,7 @@ def handle(options):
 
     query = options["query"]
     r2_uploader = R2Uploader()
-    handle_import(collection, query, options['max_items'], r2_uploader)
+    handle_import(collection, query, options.get("license"), options['max_items'], r2_uploader)
 
 def get_or_create_wikimedia_source():
     source, created = Source.objects.get_or_create(
@@ -142,7 +142,7 @@ def fetch_wikimedia_page(query, category, continue_token=None):
     response.raise_for_status()
     return response.json()
 
-def handle_import(collection, query, max_items, r2_uploader):
+def handle_import(collection, query, license_, max_items, r2_uploader):
     processed_count = 0
     continue_token = None
 
@@ -189,6 +189,7 @@ def handle_import(collection, query, max_items, r2_uploader):
                         creator=creator,
                         original_date=original_date,
                         edtf_date=edtf_date,
+                        license=license_,
                     )
 
                     # R2 Upload & Tiling
