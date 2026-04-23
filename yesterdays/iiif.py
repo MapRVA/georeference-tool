@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import time
 
 import pyvips
 import requests
@@ -14,6 +15,55 @@ CONTENT_TYPES = {
     ".jpeg": "image/jpeg",
     ".json": "application/ld+json",
 }
+
+
+def _download_with_resume(
+    source_url, dest_path, max_attempts=5, timeout=120, chunk_size=1024 * 1024
+):
+    """Download *source_url* to *dest_path*, resuming on transient failures.
+
+    Retries broken streams (ChunkedEncodingError, ConnectionError, Timeout) up
+    to ``max_attempts`` times. Each retry issues a ``Range`` request from the
+    byte offset already on disk, so only the missing tail is re-fetched. Falls
+    back to a full re-download if the server doesn't honor Range (200 OK
+    instead of 206 Partial Content).
+    """
+    retryable = (
+        requests.ConnectionError,
+        requests.Timeout,
+        requests.exceptions.ChunkedEncodingError,
+    )
+    for attempt in range(max_attempts):
+        written = os.path.getsize(dest_path) if os.path.exists(dest_path) else 0
+        headers = {"Range": f"bytes={written}-"} if written > 0 else {}
+        try:
+            resp = requests.get(
+                source_url, timeout=timeout, stream=True, headers=headers
+            )
+            resp.raise_for_status()
+            if headers and resp.status_code != 206:
+                # Server ignored Range — restart from scratch.
+                written = 0
+                mode = "wb"
+            else:
+                mode = "ab" if written > 0 else "wb"
+            with open(dest_path, mode) as f:
+                for chunk in resp.iter_content(chunk_size=chunk_size):
+                    f.write(chunk)
+            return
+        except retryable as e:
+            if attempt + 1 >= max_attempts:
+                raise
+            delay = min(2 ** attempt, 30)
+            logger.warning(
+                "IIIF download failed at byte %d (attempt %d/%d, retrying in %ds): %s",
+                written,
+                attempt + 1,
+                max_attempts,
+                delay,
+                e,
+            )
+            time.sleep(delay)
 
 
 def generate_and_upload_iiif_tiles(source_url, r2_tiles_prefix):
@@ -37,13 +87,9 @@ def generate_and_upload_iiif_tiles(source_url, r2_tiles_prefix):
     iiif_id_url = uploader.get_public_url(r2_parent)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Download the source image
+        # Download the source image (resumes across transient network failures).
         source_path = os.path.join(tmpdir, "source")
-        resp = requests.get(source_url, timeout=120, stream=True)
-        resp.raise_for_status()
-        with open(source_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                f.write(chunk)
+        _download_with_resume(source_url, source_path)
 
         # Generate IIIF tiles
         tile_dir = os.path.join(tmpdir, dir_basename)

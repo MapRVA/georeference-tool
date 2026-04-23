@@ -528,7 +528,7 @@ OAUTH2_PROVIDER = {
         "import": "Import images into collections",
     },
     "DEFAULT_SCOPES": ["read"],
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,  # 1 hour
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600 * 8,  # 8 hours
     "REFRESH_TOKEN_EXPIRE_SECONDS": 86400 * 30,  # 30 days
     "ROTATE_REFRESH_TOKEN": True,
     # If a rotated (already-used) refresh token is re-presented, revoke the
