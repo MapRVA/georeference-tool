@@ -23,8 +23,14 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from oauth2_provider.models import get_application_model
 from psycopg import sql
-from rest_framework import generics, mixins, serializers as drf_serializers, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework import generics, mixins, status, viewsets
+from rest_framework import serializers as drf_serializers
+from rest_framework.decorators import (
+    action,
+    api_view,
+    permission_classes,
+    throttle_classes,
+)
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -51,7 +57,6 @@ from subjects.models import OsmElement, Subject
 from .filters import FromAboveGeoreferenceFilter, GeoreferenceFilter, ImageFilter
 from .pagination import GeoJsonDefaultPagination
 from .permissions import IsImporter, is_importer
-from .throttling import AppRegistrationThrottle
 from .serializers import (
     AppRegistrationSerializer,
     CollectionCreateSerializer,
@@ -69,6 +74,7 @@ from .serializers import (
     SubjectSerializer,
     UserSerializer,
 )
+from .throttling import AppRegistrationThrottle
 
 
 class RemappingOrderingFilter(OrderingFilter):
@@ -542,12 +548,14 @@ def import_upload_url_view(request):
         slot.s3_key, content_type, expiration=900
     )
 
-    return Response({
-        "slot_id": str(slot.slot_id),
-        "upload_url": upload_url,
-        "upload_headers": {"Content-Type": content_type},
-        "cdn_url": r2.get_public_url(slot.s3_key),
-    })
+    return Response(
+        {
+            "slot_id": str(slot.slot_id),
+            "upload_url": upload_url,
+            "upload_headers": {"Content-Type": content_type},
+            "cdn_url": r2.get_public_url(slot.s3_key),
+        }
+    )
 
 
 @api_view(["POST"])
@@ -657,9 +665,7 @@ def import_commit_view(request):
     try:
         r2.delete_file(temp_key)
     except Exception:
-        logger.warning(
-            "Failed to delete temp upload %s", temp_key, exc_info=True
-        )
+        logger.warning("Failed to delete temp upload %s", temp_key, exc_info=True)
 
     # Queue background processing (thumbnails, IIIF tiles)
     try:
@@ -763,7 +769,7 @@ def image_replace_view(request, id):
 
             prefix = f"images/{image.id}/"
             for key in r2.iter_keys(prefix):
-                remainder = key[len(prefix):]
+                remainder = key[len(prefix) :]
                 if "/" in remainder:
                     continue
                 if remainder.startswith("original"):
