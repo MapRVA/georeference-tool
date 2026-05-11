@@ -384,11 +384,6 @@ METADATA_REFRESH_POSTPASS_URL = os.getenv(
 METADATA_REFRESH_POSTPASS_TIMEOUT = int(
     os.getenv("METADATA_REFRESH_POSTPASS_TIMEOUT", "60")
 )
-# Bounding box for OSM queries (Virginia and surrounding area)
-METADATA_REFRESH_POSTPASS_BBOX = os.getenv(
-    "METADATA_REFRESH_POSTPASS_BBOX",
-    "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
-)
 
 # OSM Authentication Settings
 OSM_URL = os.getenv("OSM_URL", "https://www.openstreetmap.org")
