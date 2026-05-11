@@ -46,8 +46,7 @@ function initOSDViewer(el) {
     showNavigationControl: false,
     visibilityRatio: 0.5,
     maxZoomPixelRatio: 4,
-    minZoomLevel: 0.5,
-    defaultZoomLevel: 1,
+    minZoomImageRatio: 1,
     tileSources: [iiifUrl],
     drawer: "canvas",
   });
