@@ -20,6 +20,8 @@ from django.utils import timezone
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from images.models import SiteSettings
+
 from .models import OsmElement, Subject, WikidataItem
 
 logger = logging.getLogger(__name__)
@@ -108,11 +110,13 @@ def get_postpass_timeout():
 
 
 def get_postpass_bbox():
-    """Get the bounding box clause for Postpass queries."""
-    return getattr(
-        settings,
-        "METADATA_REFRESH_POSTPASS_BBOX",
-        "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
+    """Build the bounding box SQL clause for Postpass queries from SiteSettings."""
+    site_settings = SiteSettings.load()
+    return (
+        f"ST_SetSRID(ST_MakeBox2D("
+        f"ST_MakePoint({site_settings.default_subject_bbox_west}, {site_settings.default_subject_bbox_south}), "
+        f"ST_MakePoint({site_settings.default_subject_bbox_east}, {site_settings.default_subject_bbox_north})"
+        f"), 4326)"
     )
 
 

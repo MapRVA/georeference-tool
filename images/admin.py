@@ -1057,6 +1057,30 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 "description": "Default center and zoom level for maps across the site",
             },
         ),
+        (
+            "Default Search Bounding Box",
+            {
+                "fields": (
+                    "default_search_bbox_west",
+                    "default_search_bbox_south",
+                    "default_search_bbox_east",
+                    "default_search_bbox_north",
+                ),
+                "description": "Default bounding box used by the geocoder and other location-based search features",
+            },
+        ),
+        (
+            "Default Subject Bounding Box",
+            {
+                "fields": (
+                    "default_subject_bbox_west",
+                    "default_subject_bbox_south",
+                    "default_subject_bbox_east",
+                    "default_subject_bbox_north",
+                ),
+                "description": "Default bounding box used when refreshing OSM metadata for subjects (typically wider than the search bbox to cover the broader region)",
+            },
+        ),
     )
 
 

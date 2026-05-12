@@ -17,6 +17,7 @@ from images.models import AerialGeoreference, Album, Georeference
 
 from .forms import UserPreferencesForm
 from .models import UserPreferences
+from .tasks import download_osm_avatar
 
 
 def _safe_redirect_url(request, candidate):
@@ -155,6 +156,9 @@ def callback(request):
         django_user = authenticate(request=request)
         if django_user:
             auth_login(request, django_user)
+            avatar_url = user_data.get("img_url")
+            if avatar_url:
+                download_osm_avatar.delay(django_user.pk, avatar_url)
         messages.success(
             request, f"Successfully logged in as {user_data.get('username')}!"
         )

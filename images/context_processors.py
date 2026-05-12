@@ -65,6 +65,12 @@ def site_settings(request):
             site_settings_model.default_map_latitude,
         ],
         "default_map_zoom": site_settings_model.default_map_zoom,
+        "default_search_bbox": [
+            site_settings_model.default_search_bbox_west,
+            site_settings_model.default_search_bbox_south,
+            site_settings_model.default_search_bbox_east,
+            site_settings_model.default_search_bbox_north,
+        ],
         "admin_email": site_settings_model.admin_email,
         "tile_version": get_tile_version(),
         "DIRECTORIES_ENABLED": settings.DIRECTORIES_ENABLED,

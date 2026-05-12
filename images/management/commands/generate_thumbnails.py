@@ -8,6 +8,7 @@ from PIL import Image as PILImage
 from PIL import ImageOps
 
 from images.models import Image
+from images.tasks import process_image
 from images.utils import R2Uploader, R2UploaderError
 
 
@@ -127,7 +128,19 @@ class Command(BaseCommand):
         failed_count = 0
 
         for image in images_queryset:
-            thumbnail_key = self.get_thumbnail_key(image.id)
+            # Legacy images (pre-versioned-assets) have no generation directory
+            # to write into. Delegate to process_image, which will migrate
+            # them (bumping asset_generation 0 -> 1) as part of generating a
+            # versioned thumbnail.
+            if r2_uploader and image.asset_generation == 0:
+                process_image.delay(image.id)
+                self.stdout.write(
+                    f"Queued process_image for legacy image {image.id} (asset_generation=0)"
+                )
+                processed_count += 1
+                continue
+
+            thumbnail_key = self.get_thumbnail_key(image.id, image.asset_generation)
 
             self.stdout.write(f"Processing image {image.id}: {image.permalink}")
             self.stdout.write(f"  Thumbnail key: {thumbnail_key}")
@@ -165,9 +178,12 @@ class Command(BaseCommand):
                             self.style.SUCCESS(f"Uploaded to R2: {public_url}")
                         )
 
-                        # Update the Image model with the thumbnail URL
-                        image.thumbnail = public_url
-                        image.save(update_fields=["thumbnail"])
+                        # Update the thumbnail URL via .update() to skip the
+                        # post_save signal, which would queue process_image
+                        # and (for any image that needs work) bump
+                        # asset_generation. Writing in-place at the current
+                        # generation is intentional — no CDN cache bust.
+                        Image.objects.filter(pk=image.id).update(thumbnail=public_url)
 
                         # Reset BytesIO for potential local save
                         thumbnail_bytes.seek(0)
@@ -204,14 +220,15 @@ class Command(BaseCommand):
         self.stdout.write(f"Failed: {failed_count}")
         self.stdout.write(f"Total: {total_images}")
 
-    def get_thumbnail_key(self, image_id: int) -> str:
+    def get_thumbnail_key(self, image_id: int, generation: int) -> str:
         """
-        Generate a unique thumbnail key using the image ID.
+        Generate the versioned thumbnail key for an image at its current
+        asset generation.
 
         Example:
-            image_id=42 -> images/42/thumbnail.webp
+            image_id=42, generation=3 -> images/42/3/thumbnail.webp
         """
-        return f"images/{image_id}/thumbnail.webp"
+        return f"images/{image_id}/{generation}/thumbnail.webp"
 
     def download_image(self, url: str, timeout: int = 30):
         """Download an image from URL and return PIL Image"""

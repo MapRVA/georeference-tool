@@ -567,6 +567,10 @@ class ImportCancelSerializer(serializers.Serializer):
     )
 
 
+class ImageReplaceSerializer(serializers.Serializer):
+    slot_id = serializers.UUIDField()
+
+
 class AppRegistrationSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     redirect_uris = serializers.CharField(

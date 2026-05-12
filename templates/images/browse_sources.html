@@ -19,6 +19,12 @@
     .progress {
         border-radius: 4px;
     }
+    .source-card .card-text {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 </style>
 {% endblock %}
 
@@ -33,7 +39,7 @@
         <div class="row">
             {% for source in sources %}
                 <div class="col-lg-6 col-xl-4 mb-4">
-                    <div class="card h-100 shadow-sm">
+                    <div class="card source-card h-100 shadow-sm">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <a href="{{ source.get_absolute_url }}" class="text-decoration-none">
@@ -43,7 +49,7 @@
                         </div>
                         <div class="card-body">
                             {% if source.description %}
-                                <p class="card-text text-muted">{{ source.description|truncatewords:20 }}</p>
+                                <p class="card-text text-muted">{{ source.description|truncatechars:200 }}</p>
                             {% endif %}
 
                             <div class="row text-center mb-3">

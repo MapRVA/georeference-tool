@@ -28,6 +28,11 @@ urlpatterns = [
     path("import/upload-url/", views.import_upload_url_view, name="api-import-upload-url"),
     path("import/commit/", views.import_commit_view, name="api-import-commit"),
     path("import/cancel/", views.import_cancel_view, name="api-import-cancel"),
+    path(
+        "images/<int:id>/replace/",
+        views.image_replace_view,
+        name="api-image-replace",
+    ),
     path("stats/", views.stats_view, name="api-stats"),
     path("activity/", views.activity_view, name="api-activity"),
     path("search/semantic/", views.semantic_search_view, name="api-semantic-search"),

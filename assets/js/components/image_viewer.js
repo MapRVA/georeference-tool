@@ -46,9 +46,7 @@ function initOSDViewer(el) {
     showNavigationControl: false,
     visibilityRatio: 0.5,
     maxZoomPixelRatio: 4,
-    minZoomLevel: 0.5,
-    defaultZoomLevel: 1,
-    gestureSettingsMouse: { scrollToZoom: false },
+    minZoomImageRatio: 1,
     tileSources: [iiifUrl],
     drawer: "canvas",
   });
@@ -56,6 +54,15 @@ function initOSDViewer(el) {
   viewer.addHandler("open", function () {
     const size = viewer.world.getItemAt(0).getContentSize();
     el.style.aspectRatio = `${size.x} / ${size.y}`;
+    // The aspect-ratio change resizes the container; wait for layout, then
+    // re-fit so the image meets the edges instead of leaving margin.
+    requestAnimationFrame(() => {
+      viewer.viewport.resize(
+        new OpenSeadragon.Point(el.clientWidth, el.clientHeight),
+        false,
+      );
+      viewer.viewport.goHome(true);
+    });
   });
 
   addViewerButtons(viewer, el);

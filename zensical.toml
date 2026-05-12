@@ -22,7 +22,7 @@ site_description = "Documentation for Yesterdays, a platform for georeferencing 
 # The site_author attribute. This is used in the HTML head element.
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_author
-site_author = "<your name here>"
+site_author = "Yesterdays Contributors"
 
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
@@ -88,6 +88,7 @@ nav = [
       "deployment/cdn.md",
   ]},
   {"Other" = [
+     "other/similar-projects.md",
      "other/oim-pmtiles.md",
   ]}
 ]
@@ -365,6 +366,7 @@ toggle.name = "Switch to system preference"
 #link = "https://github.com/user/repo"
 
 [project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
 [project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.pymdownx.superfences]
 [project.markdown_extensions.pymdownx.tabbed]

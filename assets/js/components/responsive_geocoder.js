@@ -9,7 +9,7 @@
  * Usage:
  *   import { addResponsiveGeocoder } from './responsive_geocoder.js';
  *
- *   // With default Nominatim geocoder API (Richmond area)
+ *   // With default Nominatim geocoder API (uses admin-configured search bbox)
  *   addResponsiveGeocoder(map);
  *
  *   // With custom geocoder API
@@ -24,10 +24,7 @@ import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../styles/components/geocoder-overrides.css";
 import maplibregl from "maplibre-gl";
 
-/**
- * Default Nominatim geocoder API for Richmond area
- */
-const createDefaultGeocoderApi = (email) => ({
+const createDefaultGeocoderApi = (email, bbox) => ({
   forwardGeocode: async (config) => {
     const features = [];
     try {
@@ -37,7 +34,7 @@ const createDefaultGeocoderApi = (email) => ({
         polygon_geojson: 1,
         addressdetails: 1,
         layer: "address",
-        viewbox: "-77.61976,37.60954,-77.36673,37.44393",
+        viewbox: bbox.join(","),
         bounded: 1,
       });
       if (email) {
@@ -75,7 +72,7 @@ const createDefaultGeocoderApi = (email) => ({
  *
  * @param {maplibregl.Map} map - The MapLibre map instance
  * @param {Object} options - Configuration options
- * @param {Object} options.geocoderApi - Custom geocoder API (default: Nominatim for Richmond area)
+ * @param {Object} options.geocoderApi - Custom geocoder API (default: Nominatim using SiteSettings search bbox)
  * @param {number} options.breakpoint - Screen width breakpoint in pixels (default: 1000)
  * @param {string} options.placeholder - Placeholder text for the search input (default: "Search places")
  * @param {string} options.position - Map control position (default: "top-left")
@@ -83,7 +80,10 @@ const createDefaultGeocoderApi = (email) => ({
  */
 export function addResponsiveGeocoder(map, options = {}) {
   const {
-    geocoderApi = createDefaultGeocoderApi(window.ADMIN_EMAIL),
+    geocoderApi = createDefaultGeocoderApi(
+      window.ADMIN_EMAIL,
+      window.DEFAULT_SEARCH_BBOX,
+    ),
     breakpoint = 1000,
     placeholder = "Search places",
     position = "top-left",

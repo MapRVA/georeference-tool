@@ -550,12 +550,14 @@ def label_scales(request):
                     with connection.cursor() as cursor:
                         # Find images with embeddings and order by similarity
                         sql = """
-                            SELECT id, (embedding::vector <=> %s::vector) as distance
+                            SELECT id, (embedding::vector(768) <=> %s::vector(768)) as distance
                             FROM images_image
                             WHERE id = ANY(%s) AND embedding IS NOT NULL
-                            ORDER BY distance
+                            ORDER BY embedding::vector(768) <=> %s::vector(768)
                         """
-                        cursor.execute(sql, [embedding_str, base_image_ids])
+                        cursor.execute(
+                            sql, [embedding_str, base_image_ids, embedding_str]
+                        )
                         result_ids = [row[0] for row in cursor.fetchall()]
 
                     if not result_ids:

@@ -15,11 +15,7 @@ from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
 from tqdm import tqdm
 
-from images.models import Collection, Image
-
-# Richmond, VA bounding box (west, north, east, south)
-# Format for geopy viewbox: (Point(lat, lon), Point(lat, lon)) as (southwest, northeast)
-RICHMOND_VIEWBOX = ((37.44393, -77.61976), (37.60954, -77.36673))
+from images.models import Collection, Image, SiteSettings
 
 # Regex pattern for street addresses with house numbers
 # Handles patterns like:
@@ -146,6 +142,19 @@ class Command(BaseCommand):
                 self.style.WARNING("DRY RUN - no changes will be saved\n")
             )
 
+        site_settings = SiteSettings.load()
+        # geopy viewbox: (southwest, northeast) as (lat, lon) tuples
+        viewbox = (
+            (
+                site_settings.default_search_bbox_south,
+                site_settings.default_search_bbox_west,
+            ),
+            (
+                site_settings.default_search_bbox_north,
+                site_settings.default_search_bbox_east,
+            ),
+        )
+
         # Initialize geocoder with rate limiting (2 seconds between calls)
         # Use a longer timeout to reduce transient failures
         geolocator = Nominatim(user_agent="YesterdaysMapRVA", timeout=10)
@@ -207,7 +216,9 @@ class Command(BaseCommand):
                             )
                     else:
                         # Geocode the address
-                        location = self.geocode_address(geocode, address, progress_bar)
+                        location = self.geocode_address(
+                            geocode, address, progress_bar, viewbox
+                        )
 
                         if location:
                             # Cache the result
@@ -381,14 +392,15 @@ class Command(BaseCommand):
 
         return None
 
-    def geocode_address(self, geocode, address, progress_bar, max_retries=3):
+    def geocode_address(self, geocode, address, progress_bar, viewbox, max_retries=3):
         """
-        Geocode an address using Nominatim, restricted to Richmond VA area.
+        Geocode an address using Nominatim, restricted to the configured search bbox.
 
         Args:
             geocode: Rate-limited geocode function
             address: Address string to geocode
             progress_bar: tqdm progress bar for output
+            viewbox: ((south_lat, west_lon), (north_lat, east_lon)) tuple
             max_retries: Number of times to retry on transient failures
 
         Returns:
@@ -410,7 +422,7 @@ class Command(BaseCommand):
             try:
                 location = geocode(
                     full_address,
-                    viewbox=RICHMOND_VIEWBOX,
+                    viewbox=viewbox,
                     bounded=True,  # Restrict results to viewbox
                     exactly_one=True,
                 )

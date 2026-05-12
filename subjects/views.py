@@ -870,7 +870,7 @@ def find_similar_images_to_subject(request, subject_slug):
             query_sql = f"""
                 SELECT
                     id,
-                    (embedding::vector <=> %s::vector) as distance
+                    (embedding::vector(768) <=> %s::vector(768)) as distance
                 FROM images_image
                 WHERE {where_clause}
                 AND id IN (
@@ -880,12 +880,12 @@ def find_similar_images_to_subject(request, subject_slug):
                     JOIN images_source s ON c.source_id = s.id
                     WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
                 )
-                ORDER BY distance, id ASC
+                ORDER BY embedding::vector(768) <=> %s::vector(768), id ASC
                 LIMIT %s OFFSET %s
             """
             cursor.execute(
                 query_sql,
-                [embedding_str] + where_params + [per_page, offset],
+                [embedding_str] + where_params + [embedding_str, per_page, offset],
             )
             page_results = cursor.fetchall()
 

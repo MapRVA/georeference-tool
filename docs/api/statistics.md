@@ -39,6 +39,7 @@ Returns current site-wide statistics. This is a simple, non-paginated response.
 
 ```json
 {
+    "name": "Yesterdays",
     "total_sources": 5,
     "total_collections": 49,
     "total_images": 35184,
@@ -56,6 +57,7 @@ Returns current site-wide statistics. This is a simple, non-paginated response.
 
 | Field | Type | Description |
 |---|---|---|
+| `name` | string | Site title configured for this instance |
 | `total_sources` | integer | Number of public sources |
 | `total_collections` | integer | Number of public collections |
 | `total_images` | integer | Total eligible images (excludes duplicates) |

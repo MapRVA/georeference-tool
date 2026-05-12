@@ -391,7 +391,13 @@ class R2Uploader:
                 raise R2UploaderError(f"Error checking file existence: {e}")
 
     def upload_url(
-        self, source_url, overwrite=False, timeout=30, in_tqdm=False, raise_on_err=True
+        self,
+        source_url,
+        overwrite=False,
+        timeout=30,
+        in_tqdm=False,
+        raise_on_err=True,
+        cache_control="public, max-age=31536000",
     ):
         """
         Download a file from URL and upload to R2 bucket
@@ -403,6 +409,7 @@ class R2Uploader:
             timeout (int): Timeout for downloading the source file
             in_tqdm (bool): If True, use tqdm to print messages
             raise_on_err (bool): If True, raise an Exception when there is a download error
+            cache_control (str): Cache-Control header to set on the uploaded object
 
         Returns:
             str: Public URL of the uploaded file
@@ -451,7 +458,7 @@ class R2Uploader:
                 key,
                 ExtraArgs={
                     "ContentType": content_type,
-                    "CacheControl": "public, max-age=31536000",  # Cache for 1 year
+                    "CacheControl": cache_control,
                 },
             )
 
@@ -476,7 +483,12 @@ class R2Uploader:
             raise R2UploaderError(f"Unexpected error during upload: {e}")
 
     def upload_file_content(
-        self, file_content, key, content_type=None, overwrite=False
+        self,
+        file_content,
+        key,
+        content_type=None,
+        overwrite=False,
+        cache_control="public, max-age=31536000",
     ):
         """
         Upload file content directly to R2 bucket
@@ -486,6 +498,7 @@ class R2Uploader:
             key (str): S3 key (path) where to store the file in the bucket
             content_type (str): MIME type of the file (optional)
             overwrite (bool): Whether to overwrite existing files
+            cache_control (str): Cache-Control header to set on the uploaded object
 
         Returns:
             str: Public URL of the uploaded file
@@ -513,7 +526,7 @@ class R2Uploader:
                 key,
                 ExtraArgs={
                     "ContentType": content_type,
-                    "CacheControl": "public, max-age=31536000",  # Cache for 1 year
+                    "CacheControl": cache_control,
                 },
             )
 

@@ -41,9 +41,18 @@ def get_profile_url(self):
     return None
 
 
+def get_profile_picture_url(self):
+    """Return the mirrored R2 profile picture URL, or None if not yet stored."""
+    profile = UserProfile.objects.filter(user=self).first()
+    if profile and profile.profile_picture_url:
+        return profile.profile_picture_url
+    return None
+
+
 # Add the methods to the User model
 User.add_to_class("get_display_name", get_display_name)
 User.add_to_class("get_profile_url", get_profile_url)
+User.add_to_class("get_profile_picture_url", get_profile_picture_url)
 
 
 class UserPreferences(models.Model):
@@ -70,3 +79,15 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user.get_display_name()}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    profile_picture_url = models.URLField(blank=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.get_display_name()}"

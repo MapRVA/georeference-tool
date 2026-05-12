@@ -313,6 +313,8 @@ CELERY_TASK_ROUTES = {
     # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
     "images.tasks.encode_text": {"queue": "urgent"},
     "images.tasks.encode_image": {"queue": "urgent"},
+    # OSM avatar mirroring goes to background queue
+    "osm_auth.tasks.download_osm_avatar": {"queue": "background"},
 }
 
 if DIRECTORIES_ENABLED:
@@ -381,11 +383,6 @@ METADATA_REFRESH_POSTPASS_URL = os.getenv(
 )
 METADATA_REFRESH_POSTPASS_TIMEOUT = int(
     os.getenv("METADATA_REFRESH_POSTPASS_TIMEOUT", "60")
-)
-# Bounding box for OSM queries (Virginia and surrounding area)
-METADATA_REFRESH_POSTPASS_BBOX = os.getenv(
-    "METADATA_REFRESH_POSTPASS_BBOX",
-    "ST_SetSRID(ST_MakeBox2D(ST_MakePoint(-84.72, 35.90), ST_MakePoint(-74.97, 39.71)), 4326)",
 )
 
 # OSM Authentication Settings
@@ -526,7 +523,7 @@ OAUTH2_PROVIDER = {
         "import": "Import images into collections",
     },
     "DEFAULT_SCOPES": ["read"],
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,  # 1 hour
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600 * 8,  # 8 hours
     "REFRESH_TOKEN_EXPIRE_SECONDS": 86400 * 30,  # 30 days
     "ROTATE_REFRESH_TOKEN": True,
     # If a rotated (already-used) refresh token is re-presented, revoke the
