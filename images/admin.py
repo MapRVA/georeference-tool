@@ -23,6 +23,7 @@ from .models import (
     SiteSettings,
     Source,
     SubjectMapping,
+    SubjectMappingActivity,
 )
 
 
@@ -942,6 +943,55 @@ class SubjectMappingAdmin(admin.ModelAdmin):
         return "None"
 
     subject_wikidata.short_description = "Wikidata"
+
+
+@admin.register(SubjectMappingActivity)
+class SubjectMappingActivityAdmin(admin.ModelAdmin):
+    list_display = ("user_display", "action", "image_link", "subject_title", "created_at")
+    list_filter = ("action", "created_at")
+    search_fields = (
+        "user__username",
+        "user__first_name",
+        "image__title",
+        "subject__title",
+    )
+    readonly_fields = (
+        "user",
+        "image",
+        "subject",
+        "action",
+        "previous_order",
+        "new_order",
+        "group",
+        "created_at",
+    )
+    autocomplete_fields = ["image", "subject", "user"]
+    ordering = ("-created_at",)
+
+    def user_display(self, obj):
+        return obj.user.get_display_name() if obj.user else None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
+
+    def image_link(self, obj):
+        if not obj.image:
+            return None
+        return format_html(
+            '<a href="{}">{}</a>',
+            obj.image.get_absolute_url(),
+            obj.image.title if obj.image.title else f"Image {obj.image.id}",
+        )
+
+    image_link.short_description = "Image"
+
+    def subject_title(self, obj):
+        return obj.subject.title if obj.subject else None
+
+    subject_title.short_description = "Subject"
+
+    def has_add_permission(self, request):
+        return False
 
 
 class CommentAdminForm(forms.ModelForm):

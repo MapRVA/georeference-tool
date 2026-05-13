@@ -11,7 +11,9 @@
         {% elif event_type == 'validation' %}
             {% include 'activity/partials/validation_card.html' with validation=event %}
         {% elif event_type == 'subject' %}
-            {% include 'activity/partials/subject_card.html' with subject=event %}
+            {% include 'activity/partials/subject_card.html' with group=event %}
+        {% elif event_type == 'new_subject' %}
+            {% include 'activity/partials/new_subject_card.html' with introduction=event %}
         {% endif %}
     </div>
 {% endfor %}

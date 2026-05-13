@@ -923,6 +923,52 @@ def _serialize_activity_event(event_type, obj, timestamp):
                 "count": obj.count,
             },
         }
+    elif event_type == "subject":
+        images = []
+        for member in obj.members.all():
+            if member.image:
+                images.append(
+                    {
+                        "id": member.image.id,
+                        "title": member.image.title,
+                        "thumbnail": member.image.thumbnail,
+                    }
+                )
+        data = {
+            "user": obj.user.get_display_name(),
+            "action": obj.action,
+            "count": obj.count,
+            "started_at": obj.started_at,
+            "ended_at": obj.ended_at,
+            "subject_id": obj.subject_id,
+            "subject_title": obj.subject.title if obj.subject else None,
+            "images": images,
+        }
+        if obj.action == "reordered":
+            first_member = obj.members.all()[0] if images else None
+            if first_member is not None:
+                data["previous_order"] = first_member.previous_order
+                data["new_order"] = first_member.new_order
+        return {
+            "type": "subject_activity_group",
+            "timestamp": timestamp,
+            "data": data,
+        }
+    elif event_type == "new_subject":
+        rep_image = obj.subject.get_representative_image()
+        return {
+            "type": "subject_introduction",
+            "timestamp": timestamp,
+            "data": {
+                "user": obj.user.get_display_name() if obj.user else None,
+                "subject_id": obj.subject_id,
+                "subject_title": obj.subject.title,
+                "representative_image_id": rep_image.id if rep_image else None,
+                "representative_image_thumbnail": rep_image.thumbnail
+                if rep_image
+                else None,
+            },
+        }
 
 
 @api_view(["GET"])
@@ -932,8 +978,8 @@ def activity_view(request):
     Query parameters:
         before: ISO 8601 timestamp -- return events before this time (for pagination)
         types: comma-separated event types to include
-               (georeference_group, comment, user_milestone, sitewide_milestone).
-               Defaults to all.
+               (georeference_group, comment, user_milestone, sitewide_milestone,
+               subject_activity_group, subject_introduction). Defaults to all.
         limit: number of events to return (default 20, max 100)
     """
     # Map API type names (matching response) to internal event type names
@@ -942,6 +988,8 @@ def activity_view(request):
         "comment": "comment",
         "user_milestone": "milestone",
         "sitewide_milestone": "sitewide",
+        "subject_activity_group": "subject",
+        "subject_introduction": "new_subject",
     }
 
     before = None
@@ -1202,10 +1250,10 @@ def semantic_search_view(request):
             # Paginated results
             query_sql = sql.SQL(
                 "SELECT id,"
-                " (embedding::vector <=> %(embedding)s::vector) AS distance"
+                " (embedding::vector(768) <=> %(embedding)s::vector(768)) AS distance"
                 " FROM images_image"
                 " WHERE {where}"
-                " ORDER BY embedding::vector <=> %(embedding)s::vector, id"
+                " ORDER BY embedding::vector(768) <=> %(embedding)s::vector(768), id"
                 " LIMIT %(limit)s OFFSET %(offset)s"
             ).format(where=where_clause)
 

@@ -10,20 +10,30 @@ from images.models import (
     AerialGeoreferenceValidation,
     Comment,
     GeoreferenceValidation,
-    SubjectMapping,
+    SubjectMappingActivity,
 )
 
 from .models import (
     GeoreferenceGroup,
     GeoreferenceGroupMember,
     SitewideMilestone,
+    SubjectIntroduction,
+    SubjectMappingActivityGroup,
     UserMilestone,
 )
 
 ITEMS_PER_PAGE = 20
 FETCH_LIMIT = 50  # Fetch this many of each type to ensure we have enough
-ALL_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "validation", "subject"}
-DEFAULT_EVENT_TYPES = {"group", "comment", "milestone", "sitewide"}
+ALL_EVENT_TYPES = {
+    "group",
+    "comment",
+    "milestone",
+    "sitewide",
+    "validation",
+    "subject",
+    "new_subject",
+}
+DEFAULT_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "new_subject"}
 
 
 def activity_feed(request):
@@ -105,6 +115,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     sitewide_filter = {}
     validation_filter = {}
     subject_filter = {}
+    new_subject_filter = {}
 
     if before:
         group_filter["ended_at__lt"] = before
@@ -112,7 +123,8 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         milestone_filter["reached_at__lt"] = before
         sitewide_filter["reached_at__lt"] = before
         validation_filter["validated_at__lt"] = before
-        subject_filter["created_at__lt"] = before
+        subject_filter["ended_at__lt"] = before
+        new_subject_filter["created_at__lt"] = before
 
     events = []
 
@@ -172,13 +184,28 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         events.extend(("validation", v, v.validated_at) for v in aerial_validations)
     
     if "subject" in event_types:
-        subject_mappings = (
-            SubjectMapping.objects.filter(**subject_filter)
-            .select_related("image", "subject")
+        subject_groups = (
+            SubjectMappingActivityGroup.objects.filter(**subject_filter)
+            .select_related("user", "subject")
+            .prefetch_related(
+                Prefetch(
+                    "members",
+                    queryset=SubjectMappingActivity.objects.select_related(
+                        "image"
+                    ).order_by("-created_at"),
+                )
+            )
+            .order_by("-ended_at")[:FETCH_LIMIT]
+        )
+        events.extend(("subject", g, g.ended_at) for g in subject_groups)
+
+    if "new_subject" in event_types:
+        introductions = (
+            SubjectIntroduction.objects.filter(**new_subject_filter)
+            .select_related("user", "image", "subject")
             .order_by("-created_at")[:FETCH_LIMIT]
         )
-        events.extend(("subject", s, s.created_at) for s in subject_mappings)
-
+        events.extend(("new_subject", i, i.created_at) for i in introductions)
 
     # Sort by timestamp descending and take the requested limit
     events.sort(key=lambda e: e[2], reverse=True)

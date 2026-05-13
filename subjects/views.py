@@ -10,12 +10,80 @@ from django.db.models.functions import Lower
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from images.models import Image, SubjectMapping
+from activity.models import (
+    GROUPING_WINDOW,
+    SubjectIntroduction,
+    SubjectMappingActivityGroup,
+)
+from images.models import Image, SubjectMapping, SubjectMappingActivity
 
 from .models import Subject, WikidataItem
+
+
+def _record_subject_activity(
+    *, user, image, subject, action, previous_order=None, new_order=None
+):
+    """Record a SubjectMappingActivity and attach it to a group.
+
+    Adds and removes are bunched into a group with matching (user, subject,
+    action) whose `ended_at` is within GROUPING_WINDOW. Reorders always
+    create their own count=1 group.
+    """
+    now = timezone.now()
+
+    if action == SubjectMappingActivity.ACTION_REORDERED:
+        group = SubjectMappingActivityGroup.objects.create(
+            user=user,
+            subject=None,
+            action=action,
+            started_at=now,
+            ended_at=now,
+            count=1,
+        )
+    else:
+        latest_group = (
+            SubjectMappingActivityGroup.objects.filter(
+                user=user, subject=subject, action=action
+            )
+            .order_by("-ended_at")
+            .first()
+        )
+        if latest_group and (now - latest_group.ended_at) < GROUPING_WINDOW:
+            latest_group.ended_at = now
+            latest_group.count += 1
+            latest_group.save(update_fields=["ended_at", "count"])
+            group = latest_group
+        else:
+            group = SubjectMappingActivityGroup.objects.create(
+                user=user,
+                subject=subject,
+                action=action,
+                started_at=now,
+                ended_at=now,
+                count=1,
+            )
+
+    activity = SubjectMappingActivity.objects.create(
+        user=user,
+        image=image,
+        subject=subject,
+        action=action,
+        previous_order=previous_order,
+        new_order=new_order,
+        group=group,
+    )
+
+    if action == SubjectMappingActivity.ACTION_ADDED and subject is not None:
+        SubjectIntroduction.objects.get_or_create(
+            subject=subject,
+            defaults={"user": user, "image": image, "created_at": now},
+        )
+
+    return activity
 
 
 def subject_autocomplete(request):
@@ -185,6 +253,12 @@ def bulk_add_subject_to_images(request):
                         subject=subject,
                         order=max_order + 1,
                     )
+                    _record_subject_activity(
+                        user=request.user,
+                        image=image,
+                        subject=subject,
+                        action=SubjectMappingActivity.ACTION_ADDED,
+                    )
                     added_count += 1
 
                 except Image.DoesNotExist:
@@ -287,6 +361,12 @@ def add_subject_to_image(request, image_id):
         subject_mapping = SubjectMapping.objects.create(
             image=image, subject=subject, order=max_order + 1
         )
+        _record_subject_activity(
+            user=request.user,
+            image=image,
+            subject=subject,
+            action=SubjectMappingActivity.ACTION_ADDED,
+        )
 
         # Render the subject card partial for live insertion
         html = render_to_string(
@@ -326,12 +406,17 @@ def remove_subject_from_image(request, subject_mapping_id):
         # Find the specific subject mapping by its ID
         subject_relation = get_object_or_404(SubjectMapping, id=subject_mapping_id)
         subject_title = subject_relation.subject.title
-
-        # Although we're not using the image for lookup, it's good practice
-        # to ensure it exists, though get_object_or_404 handles this implicitly.
-        # image = subject_relation.image
+        removed_image = subject_relation.image
+        removed_subject = subject_relation.subject
 
         subject_relation.delete()
+
+        _record_subject_activity(
+            user=request.user,
+            image=removed_image,
+            subject=removed_subject,
+            action=SubjectMappingActivity.ACTION_REMOVED,
+        )
 
         return JsonResponse(
             {
@@ -408,8 +493,12 @@ def reorder_subjects(request, image_id):
             )
 
         with transaction.atomic():
-            # Get all subject relations for this image
-            subject_relations = SubjectMapping.objects.filter(image=image)
+            # Get all subject relations for this image, in their current order
+            subject_relations = list(
+                SubjectMapping.objects.filter(image=image).order_by(
+                    "order", "subject__title"
+                )
+            )
 
             # Create a map of ID to instance
             relation_map = {
@@ -426,12 +515,27 @@ def reorder_subjects(request, image_id):
                     status=400,
                 )
 
+            previous_subject_ids = [r.subject_id for r in subject_relations]
+            new_subject_ids = [
+                relation_map[str(rid)].subject_id for rid in ordered_ids
+            ]
+
             # Update the order field based on the new order
             for index, subject_relation_id in enumerate(ordered_ids):
                 relation = relation_map.get(str(subject_relation_id))
                 if relation:
                     relation.order = index
                     relation.save(update_fields=["order"])
+
+            if previous_subject_ids != new_subject_ids:
+                _record_subject_activity(
+                    user=request.user,
+                    image=image,
+                    subject=None,
+                    action=SubjectMappingActivity.ACTION_REORDERED,
+                    previous_order=previous_subject_ids,
+                    new_order=new_subject_ids,
+                )
 
         return JsonResponse(
             {"success": True, "message": "Subject order updated successfully."}

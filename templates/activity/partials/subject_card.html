@@ -1,18 +1,25 @@
 {% load activity_tags %}
-<div class="card mb-3">
+{% with member=group.members.all|first %}
+<div class="card mb-3" x-data="{ expanded: {% if group.count == 1 %}true{% else %}false{% endif %} }">
     <div class="card-body">
         <div class="d-flex align-items-start">
             <div class="me-3">
-                <span class="badge bg-primary rounded-circle p-2">
-                    <i class="fas fa-tag"></i>
+                <span class="badge {% if group.action == 'removed' %}bg-danger{% elif group.action == 'reordered' %}bg-secondary{% else %}bg-primary{% endif %} rounded-circle p-2">
+                    {% if group.action == 'removed' %}
+                        <i class="fas fa-times"></i>
+                    {% elif group.action == 'reordered' %}
+                        <i class="fas fa-arrows-left-right"></i>
+                    {% else %}
+                        <i class="fas fa-tag"></i>
+                    {% endif %}
                 </span>
             </div>
 
             <div class="flex-grow-1">
-                {% if subject.image %}
-                    <a href="{% url 'images:image_detail' subject.image.id %}" class="float-sm-end ms-sm-3 mb-2 mb-sm-0 d-none d-sm-block">
-                        <img src="{% if subject.image.thumbnail %}{{ subject.image.thumbnail }}{% else %}{{ subject.image.display_permalink }}{% endif %}"
-                             alt="{{ subject.image.title|default:'Image' }}"
+                {% if group.count == 1 and member.image %}
+                    <a href="{% url 'images:image_detail' member.image.id %}" class="float-sm-end ms-sm-3 mb-2 mb-sm-0 d-none d-sm-block">
+                        <img src="{% if member.image.thumbnail %}{{ member.image.thumbnail }}{% else %}{{ member.image.display_permalink }}{% endif %}"
+                             alt="{{ member.image.title|default:'Image' }}"
                              class="rounded activity-thumbnail-lg"
                              loading="lazy">
                     </a>
@@ -21,33 +28,161 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="mb-1">
-                            Subject 
-                            <a href="{{ subject.subject.get_absolute_url }}" class="text-decoration-none fw-bold">
-                                {{ subject.subject.title|capfirst }}
+                            <a href="{% url 'user_profile' group.user.get_display_name %}" class="text-decoration-none">
+                                {{ group.user.get_display_name }}
                             </a>
-                            added to
-                            <a href="{% url 'images:image_detail' subject.image.id %}" class="text-decoration-none">
-                                {{ subject.image.title|default:"an image"|truncatechars:40 }}
-                            </a>
+                            {% if group.action == 'added' %}
+                                added subject
+                                {% if group.subject %}
+                                    <a href="{{ group.subject.get_absolute_url }}" class="text-decoration-none fw-bold">
+                                        {{ group.subject.title|capfirst }}
+                                    </a>
+                                {% else %}
+                                    <span class="fst-italic text-muted">a deleted subject</span>
+                                {% endif %}
+                                {% if group.count == 1 %}
+                                    to
+                                    <a href="{% url 'images:image_detail' member.image.id %}" class="text-decoration-none">
+                                        {{ member.image.title|default:"an image"|truncatechars:40 }}
+                                    </a>
+                                {% else %}
+                                    to <strong>{{ group.count }}</strong> images
+                                {% endif %}
+                            {% elif group.action == 'removed' %}
+                                removed subject
+                                {% if group.subject %}
+                                    <a href="{{ group.subject.get_absolute_url }}" class="text-decoration-none fw-bold">
+                                        {{ group.subject.title|capfirst }}
+                                    </a>
+                                {% else %}
+                                    <span class="fst-italic text-muted">a deleted subject</span>
+                                {% endif %}
+                                {% if group.count == 1 %}
+                                    from
+                                    <a href="{% url 'images:image_detail' member.image.id %}" class="text-decoration-none">
+                                        {{ member.image.title|default:"an image"|truncatechars:40 }}
+                                    </a>
+                                {% else %}
+                                    from <strong>{{ group.count }}</strong> images
+                                {% endif %}
+                            {% else %}
+                                reordered subjects on
+                                <a href="{% url 'images:image_detail' member.image.id %}" class="text-decoration-none">
+                                    {{ member.image.title|default:"an image"|truncatechars:40 }}
+                                </a>
+                            {% endif %}
                         </h6>
                         <small class="text-muted">
-                            <i class="fas fa-clock me-1"></i>{{ subject.created_at|timeago }}
+                            <i class="fas fa-clock me-1"></i>{{ group.ended_at|timeago }}
                         </small>
                     </div>
 
-                    {% if subject.image %}
+                    {% if group.count == 1 and member.image %}
                         <div class="ms-3 flex-shrink-0 d-sm-none">
-                            <a href="{% url 'images:image_detail' subject.image.id %}" class="d-block">
-                                <img src="{% if subject.image.thumbnail %}{{ subject.image.thumbnail }}{% else %}{{ subject.image.display_permalink }}{% endif %}"
-                                     alt="{{ subject.image.title|default:'Image' }}"
+                            <a href="{% url 'images:image_detail' member.image.id %}" class="d-block">
+                                <img src="{% if member.image.thumbnail %}{{ member.image.thumbnail }}{% else %}{{ member.image.display_permalink }}{% endif %}"
+                                     alt="{{ member.image.title|default:'Image' }}"
                                      class="rounded activity-thumbnail"
                                      loading="lazy">
                             </a>
                         </div>
                     {% endif %}
                 </div>
-                
-                </div>
+
+                {% if group.action == 'reordered' %}
+                    <div class="mt-2 p-2 bg-body-secondary rounded small overflow-hidden">
+                        <div class="mb-1">
+                            <span class="text-muted">Before:</span>
+                            {% for sid, subj in member.previous_order|subjects_in_order %}
+                                {% if subj %}
+                                    <a href="{{ subj.get_absolute_url }}" class="text-decoration-none">{{ subj.title|capfirst }}</a>{% if not forloop.last %},{% endif %}
+                                {% else %}
+                                    <span class="fst-italic text-muted">deleted subject</span>{% if not forloop.last %},{% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div>
+                            <span class="text-muted">After:</span>
+                            {% for sid, subj in member.new_order|subjects_in_order %}
+                                {% if subj %}
+                                    <a href="{{ subj.get_absolute_url }}" class="text-decoration-none">{{ subj.title|capfirst }}</a>{% if not forloop.last %},{% endif %}
+                                {% else %}
+                                    <span class="fst-italic text-muted">deleted subject</span>{% if not forloop.last %},{% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if group.count > 1 %}
+                    <!-- Collapsed: Preview thumbnails -->
+                    <div x-show="!expanded" class="mt-3">
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for m in group.members.all|slice:":5" %}
+                                {% if m.image %}
+                                    <a href="{% url 'images:image_detail' m.image.id %}">
+                                        <img src="{% if m.image.thumbnail %}{{ m.image.thumbnail }}{% else %}{{ m.image.display_permalink }}{% endif %}"
+                                             alt="{{ m.image.title|default:'Image' }}"
+                                             class="rounded georef-preview-thumbnail"
+                                             loading="lazy">
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                            {% if group.count > 5 %}
+                                <div class="d-flex align-items-center justify-content-center text-muted georef-preview-more">
+                                    +{{ group.count|add:"-5" }} more
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Expanded: Full list -->
+                    <div x-show="expanded" x-cloak class="mt-3">
+                        {% if group.count >= 10 %}
+                            <div class="mb-2">
+                                <button class="btn btn-outline-secondary btn-sm" @click="expanded = false">
+                                    <i class="fas fa-chevron-up me-1"></i>Show less
+                                </button>
+                            </div>
+                        {% endif %}
+                        <div class="d-flex flex-column gap-2">
+                            {% for m in group.members.all %}
+                                {% if m.image %}
+                                    <div class="card">
+                                        <div class="card-body py-2">
+                                            <a href="{% url 'images:image_detail' m.image.id %}" class="d-block rounded overflow-hidden float-start me-3 georef-card-thumbnail">
+                                                <img src="{% if m.image.thumbnail %}{{ m.image.thumbnail }}{% else %}{{ m.image.display_permalink }}{% endif %}"
+                                                     alt="{{ m.image.title|default:'Image' }}"
+                                                     loading="lazy">
+                                            </a>
+                                            <h6 class="card-title mb-1">
+                                                <a href="{% url 'images:image_detail' m.image.id %}" class="text-decoration-none text-body">
+                                                    {{ m.image.title|default:"Untitled"|truncatechars:60 }}
+                                                </a>
+                                            </h6>
+                                            <p class="card-text small text-muted mb-2">
+                                                {{ m.image.collection.source.name }} &middot; {{ m.image.collection.name }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mt-2">
+                        <button class="btn btn-outline-secondary btn-sm" @click="expanded = !expanded">
+                            <span x-show="!expanded">
+                                <i class="fas fa-chevron-down me-1"></i>Show all {{ group.count }} images
+                            </span>
+                            <span x-show="expanded" x-cloak>
+                                <i class="fas fa-chevron-up me-1"></i>Show less
+                            </span>
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
+{% endwith %}
