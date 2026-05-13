@@ -1071,6 +1071,76 @@ class SubjectMapping(models.Model):
         ordering = ["image", "order", "subject__title"]
 
 
+SUBJECT_MAPPING_ACTION_ADDED = "added"
+SUBJECT_MAPPING_ACTION_REMOVED = "removed"
+SUBJECT_MAPPING_ACTION_REORDERED = "reordered"
+SUBJECT_MAPPING_ACTION_CHOICES = [
+    (SUBJECT_MAPPING_ACTION_ADDED, "Added"),
+    (SUBJECT_MAPPING_ACTION_REMOVED, "Removed"),
+    (SUBJECT_MAPPING_ACTION_REORDERED, "Reordered"),
+]
+
+
+class SubjectMappingActivity(models.Model):
+    """Audit log of subject changes (additions, removals, reorders) on images."""
+
+    ACTION_ADDED = SUBJECT_MAPPING_ACTION_ADDED
+    ACTION_REMOVED = SUBJECT_MAPPING_ACTION_REMOVED
+    ACTION_REORDERED = SUBJECT_MAPPING_ACTION_REORDERED
+    ACTION_CHOICES = SUBJECT_MAPPING_ACTION_CHOICES
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="subject_mapping_activities",
+        help_text="User who made the change",
+    )
+    image = models.ForeignKey(
+        Image,
+        on_delete=models.CASCADE,
+        related_name="subject_mapping_activities",
+    )
+    subject = models.ForeignKey(
+        "subjects.Subject",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mapping_activities",
+        help_text="Subject added or removed (null for reorder activities)",
+    )
+    action = models.CharField(max_length=20, choices=SUBJECT_MAPPING_ACTION_CHOICES)
+    previous_order = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="List of subject IDs in their order before a reorder (reorder only)",
+    )
+    new_order = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="List of subject IDs in their order after a reorder (reorder only)",
+    )
+    group = models.ForeignKey(
+        "activity.SubjectMappingActivityGroup",
+        on_delete=models.CASCADE,
+        related_name="members",
+        null=True,
+        blank=True,
+        help_text="The activity group this activity belongs to",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def __str__(self):
+        return f"{self.user} {self.action} on image {self.image_id}"
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["image", "-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+
 class Comment(models.Model):
     """Comments on images"""
 

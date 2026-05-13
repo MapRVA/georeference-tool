@@ -4,6 +4,8 @@ from .models import (
     GeoreferenceGroup,
     GeoreferenceGroupMember,
     SitewideMilestone,
+    SubjectIntroduction,
+    SubjectMappingActivityGroup,
     UserMilestone,
 )
 
@@ -105,6 +107,58 @@ class SitewideMilestoneAdmin(admin.ModelAdmin):
     list_filter = ("count", "reached_at")
     readonly_fields = ("count", "reached_at")
     ordering = ("-reached_at",)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SubjectIntroduction)
+class SubjectIntroductionAdmin(admin.ModelAdmin):
+    list_display = ("subject", "user_display", "image", "created_at")
+    list_filter = ("created_at",)
+    search_fields = (
+        "subject__title",
+        "user__username",
+        "user__first_name",
+        "image__title",
+    )
+    readonly_fields = ("subject", "user", "image", "created_at")
+    ordering = ("-created_at",)
+
+    def user_display(self, obj):
+        return obj.user.get_display_name() if obj.user else None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SubjectMappingActivityGroup)
+class SubjectMappingActivityGroupAdmin(admin.ModelAdmin):
+    list_display = ("user_display", "action", "subject", "count", "started_at", "ended_at")
+    list_filter = (UserDisplayNameFilter, "action", "started_at", "ended_at")
+    search_fields = (
+        "user__username",
+        "user__first_name",
+        "subject__title",
+    )
+    readonly_fields = (
+        "user",
+        "subject",
+        "action",
+        "started_at",
+        "ended_at",
+        "count",
+    )
+    ordering = ("-ended_at",)
+
+    def user_display(self, obj):
+        return obj.user.get_display_name() if obj.user else None
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__first_name"
 
     def has_add_permission(self, request):
         return False

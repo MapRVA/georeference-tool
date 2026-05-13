@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 from images.utils import render_markdown_safe
+from subjects.models import Subject
 
 register = template.Library()
 
@@ -54,3 +55,16 @@ def timeago(value):
         return "1 day ago"
     else:
         return f"{days} days ago"
+
+
+@register.filter
+def subjects_in_order(ids):
+    """Resolve a list of subject IDs to Subject objects, preserving order.
+
+    Returns a list of (id, subject_or_None) tuples so templates can render a
+    fallback for subjects that have since been deleted.
+    """
+    if not ids:
+        return []
+    subjects_by_id = Subject.objects.in_bulk(ids)
+    return [(sid, subjects_by_id.get(sid)) for sid in ids]

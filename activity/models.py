@@ -4,6 +4,13 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 
+from images.models import (
+    SUBJECT_MAPPING_ACTION_ADDED,
+    SUBJECT_MAPPING_ACTION_CHOICES,
+    SUBJECT_MAPPING_ACTION_REMOVED,
+    SUBJECT_MAPPING_ACTION_REORDERED,
+)
+
 GROUPING_WINDOW = timedelta(hours=3)
 MILESTONE_THRESHOLDS = getattr(
     settings,
@@ -125,4 +132,86 @@ class SitewideMilestone(models.Model):
         ordering = ["-reached_at"]
         indexes = [
             models.Index(fields=["-reached_at"]),
+        ]
+
+
+class SubjectIntroduction(models.Model):
+    """Records when a subject was first attached to any image on the site."""
+
+    subject = models.OneToOneField(
+        "subjects.Subject",
+        on_delete=models.CASCADE,
+        related_name="introduction",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_introductions",
+        help_text="User who introduced the subject (null for pre-tracking records)",
+    )
+    image = models.ForeignKey(
+        "images.Image",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_introductions",
+        help_text="First image the subject was attached to",
+    )
+    created_at = models.DateTimeField(db_index=True)
+
+    def __str__(self):
+        return f"{self.subject} introduced at {self.created_at}"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class SubjectMappingActivityGroup(models.Model):
+    """A burst of subject-mapping changes by one user on one subject.
+
+    Groups together adds (or removes) of the same subject by the same user
+    that happen within a short time window, so that bulk operations show
+    as a single activity card. Reorder activities each get their own
+    count=1 group (they are not collapsed).
+    """
+
+    ACTION_ADDED = SUBJECT_MAPPING_ACTION_ADDED
+    ACTION_REMOVED = SUBJECT_MAPPING_ACTION_REMOVED
+    ACTION_REORDERED = SUBJECT_MAPPING_ACTION_REORDERED
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="subject_mapping_activity_groups",
+    )
+    subject = models.ForeignKey(
+        "subjects.Subject",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mapping_activity_groups",
+        help_text="Subject involved in the group (null for reorder groups)",
+    )
+    action = models.CharField(max_length=20, choices=SUBJECT_MAPPING_ACTION_CHOICES)
+    started_at = models.DateTimeField(
+        help_text="Timestamp of the first activity in this group"
+    )
+    ended_at = models.DateTimeField(
+        db_index=True,
+        help_text="Timestamp of the most recent activity in this group",
+    )
+    count = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        if self.subject:
+            return f"{self.user} {self.action} {self.subject} ({self.count})"
+        return f"{self.user} {self.action} ({self.count})"
+
+    class Meta:
+        ordering = ["-ended_at"]
+        indexes = [
+            models.Index(fields=["-ended_at"]),
+            models.Index(fields=["user", "subject", "action", "-ended_at"]),
         ]
