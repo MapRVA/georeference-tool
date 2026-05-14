@@ -1,17 +1,19 @@
 """Maintain the ``<urn:yesterdays:subjects>`` named graph in Oxigraph.
 
 The graph is small - one marker triple per Subject that has a linked
-WikidataItem - and exists so that SPARQL queries can join across Wikidata
-data and our own notion of "which entities are Subjects in this project."
+WikidataItem *and* at least one image tagged with it - and exists so
+that SPARQL queries can join across Wikidata data and our own notion
+of "which entities are Subjects with images in this project."
 
 Triples have the shape::
 
     <http://www.wikidata.org/entity/Q12345> a <urn:yesterdays:Subject> .
 
-The graph rebuilds wholesale (it's tiny) on demand. Django signals issue
-targeted INSERT/DELETE on Subject save/delete so the graph stays warm
-between rebuilds. Signal failures are logged and swallowed - they must
-not break Subject saves, and the next rebuild fixes any drift.
+The graph rebuilds wholesale (it's tiny) on demand. Django signals on
+Subject and SubjectMapping save/delete issue targeted INSERT/DELETE so
+the graph stays warm between rebuilds. Signal failures are logged and
+swallowed - they must not break user writes, and the next rebuild
+fixes any drift.
 """
 
 import logging
@@ -39,17 +41,21 @@ def _marker_triple(qid):
 def rebuild_project_graph(client=None):
     """Wholesale-rebuild the project graph from the current Subject rows.
 
-    Cheap because the graph is tiny (one triple per Subject with a linked
-    WikidataItem). Idempotent. Returns the count of marker triples written.
+    Cheap because the graph is tiny (one triple per Subject that both
+    has a linked WikidataItem and at least one image mapping).
+    Idempotent. Returns the count of marker triples written.
     """
     owns_client = client is None
     if owns_client:
         client = OxigraphClient()
     try:
         qids = list(
-            Subject.objects.filter(wikidata_item__isnull=False).values_list(
-                "wikidata_item__wikidata_id", flat=True
+            Subject.objects.filter(
+                wikidata_item__isnull=False,
+                image_mappings__isnull=False,
             )
+            .distinct()
+            .values_list("wikidata_item__wikidata_id", flat=True)
         )
 
         triples = []
@@ -79,6 +85,22 @@ def rebuild_project_graph(client=None):
     finally:
         if owns_client:
             client.close()
+
+
+def sync_subject_marker(subject, client=None):
+    """Add or remove ``subject``'s marker based on whether it qualifies.
+
+    A Subject qualifies for a marker iff it has a linked WikidataItem
+    *and* at least one image mapping. This is the single source of
+    truth that both signal handlers (Subject + SubjectMapping) call.
+    """
+    if not subject.wikidata_item_id:
+        return
+    qid = subject.wikidata_item.wikidata_id
+    if subject.image_mappings.exists():
+        upsert_subject_marker(qid, client=client)
+    else:
+        remove_subject_marker(qid, client=client)
 
 
 def upsert_subject_marker(qid, client=None):
@@ -136,9 +158,7 @@ def _safe_update(update, client, action):
 
 @receiver(post_save, sender=Subject)
 def _on_subject_saved(sender, instance, **kwargs):
-    if not instance.wikidata_item_id:
-        return
-    upsert_subject_marker(instance.wikidata_item.wikidata_id)
+    sync_subject_marker(instance)
 
 
 @receiver(post_delete, sender=Subject)
@@ -150,3 +170,28 @@ def _on_subject_deleted(sender, instance, **kwargs):
     except Exception:
         return
     remove_subject_marker(qid)
+
+
+def _import_subject_mapping():
+    """Lazy import to avoid a circular at app-init time."""
+    from images.models import SubjectMapping
+
+    return SubjectMapping
+
+
+def _on_subject_mapping_saved(sender, instance, **kwargs):
+    sync_subject_marker(instance.subject)
+
+
+def _on_subject_mapping_deleted(sender, instance, **kwargs):
+    # The Subject row may already be gone (cascade); a missing Subject
+    # means our marker is being removed by ``_on_subject_deleted`` anyway.
+    subject = Subject.objects.filter(pk=instance.subject_id).first()
+    if subject is None:
+        return
+    sync_subject_marker(subject)
+
+
+SubjectMapping = _import_subject_mapping()
+post_save.connect(_on_subject_mapping_saved, sender=SubjectMapping)
+post_delete.connect(_on_subject_mapping_deleted, sender=SubjectMapping)
