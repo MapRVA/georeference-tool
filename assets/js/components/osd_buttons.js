@@ -70,7 +70,6 @@ export function addViewerButtons(viewer, container) {
       icon: "fa-lock",
       title: "Lock view",
       onClick: () => {
-        viewer.viewport.goHome();
         setViewerInteractive(viewer, false);
         unlockedGroup.style.display = "none";
         lockedGroup.style.display = "flex";
