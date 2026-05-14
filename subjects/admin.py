@@ -5,7 +5,15 @@ from django.shortcuts import get_object_or_404
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from .models import Address, Business, Occupation, OsmElement, Person, Subject, WikidataItem
+from .models import (
+    Address,
+    Business,
+    Occupation,
+    OsmElement,
+    Person,
+    Subject,
+    WikidataItem,
+)
 
 
 @admin.register(WikidataItem)

@@ -313,6 +313,10 @@ CELERY_TASK_ROUTES = {
     # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
     "images.tasks.encode_text": {"queue": "urgent"},
     "images.tasks.encode_image": {"queue": "urgent"},
+    # First-time Wikidata closure hydration fires off a request thread
+    # right after a new WikidataItem is saved; the user is waiting on the
+    # subject to populate, so this one stays on the urgent queue.
+    "subjects.tasks.hydrate_wikidata_item": {"queue": "urgent"},
     # OSM avatar mirroring goes to background queue
     "osm_auth.tasks.download_osm_avatar": {"queue": "background"},
 }
@@ -384,6 +388,10 @@ METADATA_REFRESH_POSTPASS_URL = os.getenv(
 METADATA_REFRESH_POSTPASS_TIMEOUT = int(
     os.getenv("METADATA_REFRESH_POSTPASS_TIMEOUT", "60")
 )
+
+# Oxigraph SPARQL store for the Wikidata subject mirror
+OXIGRAPH_URL = os.getenv("OXIGRAPH_URL", "http://localhost:7878")
+OXIGRAPH_TIMEOUT = int(os.getenv("OXIGRAPH_TIMEOUT", "60"))
 
 # OSM Authentication Settings
 OSM_URL = os.getenv("OSM_URL", "https://www.openstreetmap.org")

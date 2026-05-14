@@ -15,6 +15,7 @@ import requests
 from celery import shared_task
 from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
+from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 from requests.adapters import HTTPAdapter
@@ -23,6 +24,12 @@ from urllib3.util.retry import Retry
 from images.models import SiteSettings
 
 from .models import OsmElement, Subject, WikidataItem
+from .wikidata_closure import (
+    SEED_METADATA_FIELDS,
+    ClosureLoadError,
+    commit_closure_to_oxigraph,
+    fetch_seed_data,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,36 +65,65 @@ def create_request_session():
 
 
 def _do_refresh_wikidata_item(item):
-    """
-    Perform the actual refresh of a WikidataItem.
+    """Re-pull a WikidataItem's closure from WDQS and refresh its named graphs.
+
+    One CONSTRUCT to WDQS gives us the seed's metadata fields and its
+    closure neighbourhood; the seed row gets the metadata, each entity's
+    Oxigraph named graph gets atomically swapped, and ancestors discovered
+    along the way are linked back to the seed's Subject via
+    ``discovered_via``.
     """
 
     logger.info(f"Refreshing WikidataItem {item.wikidata_id}")
 
-    # Mark as fetched immediately to prevent concurrent tasks from picking this up
-    item.metadata_last_fetched = timezone.now()
-    item.save(update_fields=["metadata_last_fetched"])
+    # Bump the freshness timestamp up front so a concurrent Beat tick
+    # doesn't pick the same row while we're talking to WDQS. Targeted
+    # UPDATE avoids the full-row save that ``item.save()`` does.
+    now = timezone.now()
+    WikidataItem.objects.filter(pk=item.pk).update(sparql_last_loaded_at=now)
+    item.sparql_last_loaded_at = now
 
     try:
-        success = item.populate_from_wikidata()
-
-        if success:
-            item.metadata_fetch_failures = 0
-            item.save()
-            logger.info(f"Successfully refreshed WikidataItem {item.wikidata_id}")
-            return {"status": "success", "wikidata_id": item.wikidata_id}
-        else:
-            item.metadata_fetch_failures = F("metadata_fetch_failures") + 1
-            item.save(update_fields=["metadata_fetch_failures"])
-            logger.warning(f"No data returned for WikidataItem {item.wikidata_id}")
-            return {"status": "no_data", "wikidata_id": item.wikidata_id}
-
-    except Exception as e:
+        data = fetch_seed_data(item.wikidata_id)
+    except requests.RequestException as e:
         WikidataItem.objects.filter(pk=item.pk).update(
-            metadata_fetch_failures=F("metadata_fetch_failures") + 1,
+            sparql_fetch_failures=F("sparql_fetch_failures") + 1,
         )
-        logger.error(f"Error refreshing WikidataItem {item.wikidata_id}: {e}")
+        logger.error(f"WDQS fetch failed for {item.wikidata_id}: {e}")
         return {"status": "error", "wikidata_id": item.wikidata_id, "message": str(e)}
+    except ClosureLoadError as e:
+        WikidataItem.objects.filter(pk=item.pk).update(
+            sparql_fetch_failures=F("sparql_fetch_failures") + 1,
+        )
+        logger.warning(f"No closure returned for {item.wikidata_id}: {e}")
+        return {"status": "no_data", "wikidata_id": item.wikidata_id}
+
+    try:
+        seed_subject = item.subject
+    except Subject.DoesNotExist:
+        seed_subject = None
+
+    try:
+        with transaction.atomic():
+            item._apply_seed_metadata(data["metadata"])
+            item.sparql_last_loaded_at = timezone.now()
+            item.sparql_fetch_failures = 0
+            item.save(update_fields=list(SEED_METADATA_FIELDS))
+            commit_closure_to_oxigraph(
+                item.wikidata_id,
+                data["groups"],
+                data["labels"],
+                discovered_via=seed_subject,
+            )
+    except requests.RequestException as e:
+        WikidataItem.objects.filter(pk=item.pk).update(
+            sparql_fetch_failures=F("sparql_fetch_failures") + 1,
+        )
+        logger.error(f"Oxigraph update failed for {item.wikidata_id}: {e}")
+        return {"status": "error", "wikidata_id": item.wikidata_id, "message": str(e)}
+
+    logger.info(f"Successfully refreshed WikidataItem {item.wikidata_id}")
+    return {"status": "success", "wikidata_id": item.wikidata_id}
 
 
 # =============================================================================
@@ -172,10 +208,6 @@ def _do_populate_osm_for_subject(subject):
         logger.info(f"Linked {len(osm_ids)} OSM element(s) to {subject.title}")
 
         return {"status": "success", "subject": subject.title, "osm_ids": osm_ids}
-
-    except Exception as e:
-        logger.error(f"Error populating OSM for {subject.title}: {e}")
-        return {"status": "error", "subject": subject.title, "message": str(e)}
 
     finally:
         session.close()
@@ -269,10 +301,6 @@ def _do_refresh_osm_for_subject(subject):
             "deleted": deleted_count,
         }
 
-    except Exception as e:
-        logger.error(f"Error refreshing OSM for {subject.title}: {e}")
-        return {"status": "error", "subject": subject.title, "message": str(e)}
-
     finally:
         session.close()
 
@@ -332,7 +360,7 @@ def fetch_osm_features(
 
 
 def get_next_stale_wikidata_item():
-    """Find the next WikidataItem that needs refreshing."""
+    """Find the next WikidataItem whose Oxigraph closure needs refreshing."""
 
     stale_hours = get_stale_threshold_hours()
     max_failures = get_max_failures()
@@ -340,11 +368,11 @@ def get_next_stale_wikidata_item():
 
     return (
         WikidataItem.objects.filter(
-            Q(metadata_last_fetched__isnull=True)
-            | Q(metadata_last_fetched__lt=stale_threshold),
-            metadata_fetch_failures__lt=max_failures,
+            Q(sparql_last_loaded_at__isnull=True)
+            | Q(sparql_last_loaded_at__lt=stale_threshold),
+            sparql_fetch_failures__lt=max_failures,
         )
-        .order_by("metadata_last_fetched")
+        .order_by("sparql_last_loaded_at")
         .first()
     )
 
@@ -408,6 +436,23 @@ def refresh_next_wikidata_item():
         return {"status": "idle", "message": "No stale items"}
 
     # Perform the refresh inline (not queued) since Beat controls the rate
+    return _do_refresh_wikidata_item(item)
+
+
+@shared_task(ignore_result=True)
+def hydrate_wikidata_item(wikidata_id):
+    """Load a single WikidataItem's closure into Oxigraph.
+
+    Enqueued from ``WikidataItem.save()`` on the urgent queue after the
+    cheap entity-JSON validation has already created the row. Same body
+    as the Beat-driven refresher; if this task is dropped or fails, the
+    Beat tick will eventually pick the row up (it still has
+    ``sparql_last_loaded_at IS NULL``).
+    """
+    item = WikidataItem.objects.filter(wikidata_id=wikidata_id).first()
+    if item is None:
+        logger.warning(f"hydrate_wikidata_item: no row for {wikidata_id}")
+        return {"status": "missing", "wikidata_id": wikidata_id}
     return _do_refresh_wikidata_item(item)
 
 

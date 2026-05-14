@@ -18,3 +18,26 @@
 .maplibregl-popup-tip {
     border-top-color: var(--bs-body-bg) !important;
 }
+
+/* Autocomplete dropdown: Bootstrap's dropdown-menu is display:none by
+   default, so we re-enable it via x-show but need to override here. */
+.subject-search-dropdown[x-cloak] {
+    display: none !important;
+}
+
+.subject-search-dropdown {
+    display: block;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1050;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.subject-search-dropdown .dropdown-header {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 1rem 0.25rem;
+}

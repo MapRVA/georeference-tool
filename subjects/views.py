@@ -1,13 +1,15 @@
 import json
+import logging
 
 import numpy as np
+import requests
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import connection, models, transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
-from django.http import JsonResponse
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -22,6 +24,17 @@ from activity.models import (
 from images.models import Image, SubjectMapping, SubjectMappingActivity
 
 from .models import Subject, WikidataItem
+from .oxigraph import OxigraphClient
+from .project_graph import PROJECT_GRAPH_IRI, SUBJECT_CLASS_IRI
+from .sparql_safety import (
+    UnsafeSparqlInput,
+    sparql_string_literal,
+    sparql_wikidata_entity_iri,
+    validate_qid,
+)
+from .wikidata_closure import WIKIDATA_ENTITY_IRI_BASE, iri_to_qid
+
+logger = logging.getLogger(__name__)
 
 
 def _record_subject_activity(
@@ -113,6 +126,144 @@ def subject_autocomplete(request):
         results.append(result)
 
     return JsonResponse(results, safe=False)
+
+
+# SPARQL CONSTRUCT for the subjects half of the browse-page autocomplete.
+# Uses LCASE+CONTAINS for case-insensitive substring match against English
+# labels in the per-entity graphs.
+_BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY = """\
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX project: <urn:yesterdays:>
+
+SELECT ?subject ?label WHERE {{
+  GRAPH <{project_graph}> {{ ?subject a <{subject_class}> . }}
+  ?subject rdfs:label ?label .
+  FILTER(LANG(?label) = "en")
+  FILTER(CONTAINS(LCASE(STR(?label)), LCASE({q_literal})))
+}}
+ORDER BY ?label
+LIMIT 10
+"""
+
+# Top-of-hierarchy Wikidata classes that appear in nearly every entity's
+# P31/P279* closure but are too abstract to be useful filters. They get
+# stripped out of the category autocomplete.
+_AUTOCOMPLETE_CATEGORY_DENYLIST = (
+    "Q35120",  # entity
+    "Q488383",  # object
+    "Q4406616",  # concrete object
+    "Q830077",  # subject (philosophy)
+    "Q99527517",  # collective entity
+    "Q124711467",  # immaterial entity
+    "Q58415929",  # spatio-temporal entity
+    "Q27096235",  # artificial geographic entity
+    "Q27096213",  # geographic entity
+    "Q7048977",  # abstract entity
+    "Q53617407",  # material entity
+    "Q123349660",  # geolocatable entity
+    "Q386724",  # work
+    "Q17537576",  # creative work
+    "Q15621286",  # intellectual work
+)
+
+_AUTOCOMPLETE_CATEGORY_DENYLIST_SPARQL = ", ".join(
+    f"<{WIKIDATA_ENTITY_IRI_BASE}{qid}>" for qid in _AUTOCOMPLETE_CATEGORY_DENYLIST
+)
+
+# Categories: ancestors of any Subject via P31/P279*, ranked by how many
+# subjects classify under each. The `FILTER NOT EXISTS` clause drops
+# ancestors that are themselves Subjects so they don't appear in both halves
+# of the dropdown.
+_BROWSE_AUTOCOMPLETE_CATEGORIES_QUERY = """\
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX project: <urn:yesterdays:>
+
+SELECT ?ancestor ?label (COUNT(DISTINCT ?subject) AS ?n) WHERE {{
+  GRAPH <{project_graph}> {{ ?subject a <{subject_class}> . }}
+  ?subject (wdt:P31?/wdt:P279*|wdt:P1716) ?ancestor .
+  FILTER(?ancestor NOT IN ({category_denylist}))
+  FILTER NOT EXISTS {{
+    GRAPH <{project_graph}> {{ ?ancestor a <{subject_class}> . }}
+  }}
+  ?ancestor rdfs:label ?label .
+  FILTER(LANG(?label) = "en")
+  FILTER(CONTAINS(LCASE(STR(?label)), LCASE({q_literal})))
+}}
+GROUP BY ?ancestor ?label
+ORDER BY DESC(?n) ?label
+LIMIT 10
+"""
+
+
+def browse_autocomplete(request):
+    """JSON autocomplete for the subject browse page.
+
+    Returns both ``subjects`` (Wikidata-entity Subjects whose label matches)
+    and ``categories`` (ancestors via P31/P279* of any Subject whose label
+    matches, ranked by subject-count). Subjects are returned with their
+    Django slug so the frontend can navigate directly; categories with
+    their Q-ID so the frontend can apply a ``?category=`` filter.
+    """
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"categories": [], "subjects": []})
+
+    try:
+        q_literal = sparql_string_literal(q)
+    except UnsafeSparqlInput as e:
+        return HttpResponseBadRequest(f"invalid q: {e}")
+
+    sparql_format_args = {
+        "project_graph": PROJECT_GRAPH_IRI,
+        "subject_class": SUBJECT_CLASS_IRI,
+        "q_literal": q_literal,
+        "category_denylist": _AUTOCOMPLETE_CATEGORY_DENYLIST_SPARQL,
+    }
+    subjects_query = _BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY.format(**sparql_format_args)
+    categories_query = _BROWSE_AUTOCOMPLETE_CATEGORIES_QUERY.format(
+        **sparql_format_args
+    )
+
+    try:
+        with OxigraphClient() as client:
+            subject_rows = client.select(subjects_query)
+            category_rows = client.select(categories_query)
+    except requests.RequestException as e:
+        logger.warning("Oxigraph autocomplete query failed: %s", e)
+        subject_rows = []
+        category_rows = []
+
+    matched_qids = [iri_to_qid(row["subject"]) for row in subject_rows]
+    subjects_by_qid = {
+        s.wikidata_item.wikidata_id: s
+        for s in Subject.objects.select_related("wikidata_item").filter(
+            wikidata_item__wikidata_id__in=matched_qids
+        )
+    }
+    subjects_data = []
+    for qid in matched_qids:
+        s = subjects_by_qid.get(qid)
+        if s is None:
+            continue
+        subjects_data.append(
+            {
+                "slug": s.slug,
+                "title": s.title,
+                "wikidata_id": qid,
+            }
+        )
+
+    categories_data = [
+        {
+            "qid": iri_to_qid(row["ancestor"]),
+            "label": row["label"],
+            "subject_count": int(row["n"]),
+        }
+        for row in category_rows
+    ]
+
+    return JsonResponse({"categories": categories_data, "subjects": subjects_data})
 
 
 def wikidata_lookup(request):
@@ -516,9 +667,7 @@ def reorder_subjects(request, image_id):
                 )
 
             previous_subject_ids = [r.subject_id for r in subject_relations]
-            new_subject_ids = [
-                relation_map[str(rid)].subject_id for rid in ordered_ids
-            ]
+            new_subject_ids = [relation_map[str(rid)].subject_id for rid in ordered_ids]
 
             # Update the order field based on the new order
             for index, subject_relation_id in enumerate(ordered_ids):
@@ -603,6 +752,44 @@ def browse_subjects(request):
             else 0,
         }
 
+    # Apply category filter via the Oxigraph mirror: find Q-IDs of Subjects
+    # whose class closure (P31/P279*) includes the selected category, then
+    # restrict the queryset to those rows.
+    category_qid = (request.GET.get("category") or "").strip()
+    selected_category = None
+    if category_qid:
+        try:
+            validate_qid(category_qid)
+            category_iri = sparql_wikidata_entity_iri(category_qid)
+        except UnsafeSparqlInput:
+            return HttpResponseBadRequest("invalid category")
+
+        category_query = (
+            f"PREFIX wdt: <http://www.wikidata.org/prop/direct/>\n"
+            f"PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
+            f"SELECT DISTINCT ?subject ?categoryLabel WHERE {{\n"
+            f"  GRAPH <{PROJECT_GRAPH_IRI}> "
+            f"{{ ?subject a <{SUBJECT_CLASS_IRI}> . }}\n"
+            f"  ?subject (wdt:P31?/wdt:P279*|wdt:P1716) {category_iri} .\n"
+            f"  OPTIONAL {{ {category_iri} rdfs:label ?categoryLabel . "
+            f'FILTER(LANG(?categoryLabel) = "en") }}\n'
+            f"}}"
+        )
+        try:
+            with OxigraphClient() as client:
+                rows = client.select(category_query)
+        except requests.RequestException as e:
+            logger.warning("Oxigraph category filter query failed: %s", e)
+            rows = []
+
+        matching_qids = {iri_to_qid(row["subject"]) for row in rows}
+        category_label = next(
+            (row["categoryLabel"] for row in rows if "categoryLabel" in row),
+            category_qid,
+        )
+        selected_category = {"qid": category_qid, "label": category_label}
+        subjects = subjects.filter(wikidata_item__wikidata_id__in=matching_qids)
+
     # Apply search filter
     query = request.GET.get("filter", "").strip()
     if query:
@@ -635,6 +822,7 @@ def browse_subjects(request):
         "has_more": has_more,
         "per_page": PER_PAGE,
         "overall_stats": overall_stats,
+        "selected_category": selected_category,
     }
     return render(request, "subjects/browse_subjects.html", context)
 

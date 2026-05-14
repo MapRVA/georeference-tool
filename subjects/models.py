@@ -6,11 +6,14 @@ from datetime import datetime
 import requests
 from django.contrib.gis.db import models as gis_models
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from images.models import Image, TopRatedImageView
 
 
 class WikidataItem(models.Model):
@@ -52,6 +55,31 @@ class WikidataItem(models.Model):
     metadata_fetch_failures = models.PositiveIntegerField(
         default=0,
         help_text="Consecutive fetch failures (resets on success)",
+    )
+
+    # SPARQL mirror tracking - separate cadence from the JSON metadata fetch
+    # above. Populated when we load this entity's RDF into its Oxigraph named
+    # graph.
+    sparql_last_loaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this entity's RDF was last loaded into Oxigraph",
+    )
+    sparql_fetch_failures = models.PositiveIntegerField(
+        default=0,
+        help_text="Consecutive SPARQL mirror load failures (resets on success)",
+    )
+    discovered_via = models.ForeignKey(
+        "Subject",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "For ancestor entities pulled in by the closure walk, the Subject "
+            "whose graph first surfaced this entity. Null for entities that "
+            "are themselves Subjects."
+        ),
     )
 
     def __str__(self):
@@ -174,18 +202,46 @@ class WikidataItem(models.Model):
             return True
         return False
 
+    def _apply_seed_metadata(self, meta):
+        """Apply a dict from extract_seed_metadata onto self in-place."""
+        self.title = meta["title"]
+        self.description = meta["description"]
+        self.wikipedia_url = meta["wikipedia_url"]
+        self.architect = meta["architect"]
+        self.image_url = meta["image_url"]
+        if meta["inception"]:
+            self.inception = meta["inception"]
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         if is_new:
-            # On creation, title is required. We use wikidata_id as a placeholder.
+            # On creation, title is required. Placeholder until SPARQL fills it.
             if not self.title:
                 self.title = self.wikidata_id
-            self.populate_from_wikidata()
+            # Sync path is only the cheap entity-JSON fetch: confirms the
+            # Q-ID resolves and gives us a label/description to return to
+            # the caller. The P31?/P279* ancestor walk + Oxigraph load is
+            # deferred to ``hydrate_wikidata_item`` on the urgent queue.
+            # ``sparql_last_loaded_at`` stays NULL so the Beat refresher
+            # picks the row up too if that task never runs.
+            if not self.populate_from_wikidata():
+                raise ValidationError(
+                    f"No Wikidata entity found for {self.wikidata_id}"
+                )
 
         super().save(*args, **kwargs)
 
+        if is_new:
+            from .tasks import hydrate_wikidata_item
+
+            qid = self.wikidata_id
+            transaction.on_commit(lambda: hydrate_wikidata_item.delay(qid))
+
     class Meta:
         ordering = ["title"]
+        indexes = [
+            models.Index(fields=["sparql_last_loaded_at"]),
+        ]
 
 
 class OsmElement(models.Model):
@@ -332,13 +388,11 @@ class Subject(models.Model):
     title = models.CharField(max_length=500, help_text="Name/title of the subject")
     slug = models.SlugField(unique=True)
     description = models.TextField(help_text="Admin-written description of the subject")
-    wikidata_item = models.ForeignKey(
+    wikidata_item = models.OneToOneField(
         WikidataItem,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="subjects",
-        help_text="Optional linked Wikidata item",
+        related_name="subject",
+        help_text="Linked Wikidata item",
     )
     representative_image = models.ForeignKey(
         "images.Image",
@@ -375,7 +429,6 @@ class Subject(models.Model):
         Priority: representative_image field, then top-rated, then lowest ID.
         Returns None only if no images are mapped to this subject.
         """
-        from images.models import Image, TopRatedImageView
 
         if self.representative_image_id is not None:
             return self.representative_image

@@ -30,6 +30,7 @@ dependencies = [
     "osm-login-python~=2.1.0",
     "pillow==12.0.0",
     "psycopg[binary]~=3.3.3",
+    "pyoxigraph>=0.5.8",
     "pytesseract>=0.3.13",
     "pyvips>=3.1.1",
     "requests~=2.33.1",

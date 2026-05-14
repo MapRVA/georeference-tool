@@ -21,7 +21,12 @@
     window.VECTOR_TILES_URL = "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}".replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
     window.subjectBrowserConfig = {
         perPage: {{ per_page }},
-        hasMore: {% if has_more %}true{% else %}false{% endif %}
+        hasMore: {% if has_more %}true{% else %}false{% endif %},
+        autocompleteUrl: "{% url 'subjects:browse_autocomplete' %}",
+        selectedCategory: {% if selected_category %}{
+            qid: "{{ selected_category.qid|escapejs }}",
+            label: "{{ selected_category.label|escapejs }}"
+        }{% else %}null{% endif %}
     };
 </script>
 {% vite_asset 'assets/js/pages/browse_subjects.js' %}
@@ -40,13 +45,68 @@
 
         <div x-data="subjectBrowser()">
             <div class="mb-4">
-                <input type="search" class="form-control form-control-lg"
-                       placeholder="Filter subjects..."
-                       x-model="query"
-                       @input.debounce.300ms="search()">
+                <div class="position-relative subject-search">
+                    <input type="search" class="form-control form-control-lg"
+                           placeholder="Filter subjects..."
+                           x-model="query"
+                           @input.debounce.300ms="onInput()"
+                           @focus="onFocus()"
+                           @keydown.escape.stop="showDropdown = false"
+                           autocomplete="off">
+
+                    <div class="dropdown-menu w-100 mt-1 shadow-sm subject-search-dropdown"
+                         x-show="showDropdown && (suggestions.categories.length > 0 || suggestions.subjects.length > 0)"
+                         x-cloak
+                         @click.outside="showDropdown = false"
+                         x-transition.opacity>
+
+                        <template x-if="suggestions.categories.length > 0">
+                            <div>
+                                <h6 class="dropdown-header mb-0">Categories</h6>
+                                <template x-for="cat in suggestions.categories" :key="cat.qid">
+                                    <button type="button"
+                                            class="dropdown-item d-flex justify-content-between align-items-center"
+                                            @click="selectCategory(cat)">
+                                        <span x-text="cat.label"></span>
+                                        <span class="badge bg-secondary rounded-pill ms-2"
+                                              x-text="cat.subject_count"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="suggestions.categories.length > 0 && suggestions.subjects.length > 0">
+                            <hr class="dropdown-divider">
+                        </template>
+
+                        <template x-if="suggestions.subjects.length > 0">
+                            <div>
+                                <h6 class="dropdown-header mb-0">Subjects</h6>
+                                <template x-for="subj in suggestions.subjects" :key="subj.slug">
+                                    <a class="dropdown-item"
+                                       :href="'/subjects/' + subj.slug + '/'"
+                                       x-text="subj.title"></a>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="selectedCategory" x-cloak class="mt-2">
+                    <span class="badge bg-primary d-inline-flex align-items-center gap-2 p-2 fs-6 fw-normal">
+                        <i class="fas fa-filter" aria-hidden="true"></i>
+                        <span>Showing subjects classified as</span>
+                        <strong x-text="selectedCategory && selectedCategory.label"></strong>
+                        <button type="button"
+                                class="btn-close btn-close-white ms-1"
+                                style="font-size: 0.65em;"
+                                @click="clearCategory()"
+                                aria-label="Clear category filter"></button>
+                    </span>
+                </div>
             </div>
 
-            <div class="row" x-ref="subjectGrid">
+            <div class="row" id="subject-grid">
                 {% include "subjects/partials/browse_subject_cards.html" %}
             </div>
 
