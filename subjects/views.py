@@ -90,7 +90,11 @@ def _record_subject_activity(
         group=group,
     )
 
-    if action == SubjectMappingActivity.ACTION_ADDED and subject is not None:
+    if (
+        action == SubjectMappingActivity.ACTION_ADDED
+        and subject is not None
+        and SubjectMapping.objects.filter(subject=subject).count() == 1
+    ):
         SubjectIntroduction.objects.get_or_create(
             subject=subject,
             defaults={"user": user, "image": image, "created_at": now},
