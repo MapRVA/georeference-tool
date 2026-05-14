@@ -306,6 +306,7 @@ CELERY_TASK_ROUTES = {
     # Metadata refresh tasks go to background queue
     "subjects.tasks.refresh_next_wikidata_item": {"queue": "background"},
     "subjects.tasks.refresh_next_osm_element": {"queue": "background"},
+    "subjects.tasks.reconcile_project_graph": {"queue": "background"},
     # IIIF tile generation goes to background queue
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
     "images.tasks.cleanup_old_image_assets": {"queue": "background"},
@@ -372,6 +373,11 @@ CELERY_BEAT_SCHEDULE = {
     "cleanup-stale-import-slots": {
         "task": "images.tasks.cleanup_stale_import_slots",
         "schedule": 3600.0,  # every hour
+    },
+    "reconcile-project-graph": {
+        "task": "subjects.tasks.reconcile_project_graph",
+        "schedule": 900.0,  # every 15 minutes
+        "options": {"expires": 870},
     },
 }
 

@@ -24,6 +24,7 @@ from urllib3.util.retry import Retry
 from images.models import SiteSettings
 
 from .models import OsmElement, Subject, WikidataItem
+from .project_graph import rebuild_project_graph
 from .wikidata_closure import (
     SEED_METADATA_FIELDS,
     ClosureLoadError,
@@ -480,3 +481,15 @@ def refresh_next_osm_element():
 
     logger.debug("No OSM elements to populate or refresh")
     return {"status": "idle", "message": "No elements to process"}
+
+
+@shared_task(ignore_result=True)
+def reconcile_project_graph():
+    """Wholesale-rebuild the Oxigraph project graph from Subject rows.
+
+    The project graph is maintained incrementally by post_save/post_delete
+    signals, but those don't backfill after a fresh Oxigraph volume or
+    cover signal failures. This periodic reconcile self-heals any drift.
+    """
+    count = rebuild_project_graph()
+    return {"status": "success", "markers": count}
