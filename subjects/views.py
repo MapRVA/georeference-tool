@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import connection, models, transaction
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,7 +23,7 @@ from activity.models import (
 )
 from images.models import Image, SubjectMapping, SubjectMappingActivity
 
-from .models import Subject, WikidataItem
+from .models import Subject, SubjectAncestor, WikidataItem
 from .oxigraph import OxigraphClient
 from .project_graph import PROJECT_GRAPH_IRI, SUBJECT_CLASS_IRI
 from .sparql_safety import (
@@ -32,7 +32,7 @@ from .sparql_safety import (
     sparql_wikidata_entity_iri,
     validate_qid,
 )
-from .wikidata_closure import WIKIDATA_ENTITY_IRI_BASE, iri_to_qid
+from .wikidata_closure import iri_to_qid
 
 logger = logging.getLogger(__name__)
 
@@ -170,54 +170,20 @@ _AUTOCOMPLETE_CATEGORY_DENYLIST = (
     "Q15621286",  # intellectual work
 )
 
-_AUTOCOMPLETE_CATEGORY_DENYLIST_SPARQL = ", ".join(
-    f"<{WIKIDATA_ENTITY_IRI_BASE}{qid}>" for qid in _AUTOCOMPLETE_CATEGORY_DENYLIST
-)
-
-# Categories: ancestors of any Subject via the class chain (wdt:P31?/P279*),
-# brand (wdt:P1716), direct part-of (wdt:P361), or a pq:P361 qualifier on any
-# statement (which is how Wikidata models e.g. "contributing property to
-# historic district" — the part-of fact lives as a qualifier on the
-# heritage-designation claim, not as a top-level truthy edge). Ranked by how
-# many subjects classify under each. The `FILTER NOT EXISTS` clause drops
-# ancestors that are themselves Subjects so they don't appear in both halves
-# of the dropdown.
-_BROWSE_AUTOCOMPLETE_CATEGORIES_QUERY = """\
-PREFIX wdt: <http://www.wikidata.org/prop/direct/>
-PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX project: <urn:yesterdays:>
-
-SELECT ?ancestor ?label (COUNT(DISTINCT ?subject) AS ?n) WHERE {{
-  GRAPH <{project_graph}> {{ ?subject a <{subject_class}> . }}
-  {{
-    ?subject (wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361) ?ancestor .
-  }} UNION {{
-    ?subject ?stmt_pred ?stmt .
-    ?stmt pq:P361 ?ancestor .
-  }}
-  FILTER(?ancestor NOT IN ({category_denylist}))
-  FILTER NOT EXISTS {{
-    GRAPH <{project_graph}> {{ ?ancestor a <{subject_class}> . }}
-  }}
-  ?ancestor rdfs:label ?label .
-  FILTER(LANG(?label) = "en")
-  FILTER(CONTAINS(LCASE(STR(?label)), LCASE({q_literal})))
-}}
-GROUP BY ?ancestor ?label
-ORDER BY DESC(?n) ?label
-LIMIT 10
-"""
-
 
 def browse_autocomplete(request):
     """JSON autocomplete for the subject browse page.
 
     Returns both ``subjects`` (Wikidata-entity Subjects whose label matches)
-    and ``categories`` (ancestors via P31/P279* of any Subject whose label
-    matches, ranked by subject-count). Subjects are returned with their
-    Django slug so the frontend can navigate directly; categories with
-    their Q-ID so the frontend can apply a ``?category=`` filter.
+    and ``categories`` (ancestors of any Subject whose label matches,
+    ranked by subject-count). Subjects are returned with their Django slug
+    so the frontend can navigate directly; categories with their Q-ID so
+    the frontend can apply a ``?category=`` filter.
+
+    Subjects come from Oxigraph; categories come from the ``SubjectAncestor``
+    materialization in Postgres (indexed substring match against the
+    mirrored English label in ``WikidataItem.title``, no SPARQL property-
+    path traversal per request).
     """
     q = (request.GET.get("q") or "").strip()
     if len(q) < 2:
@@ -228,25 +194,18 @@ def browse_autocomplete(request):
     except UnsafeSparqlInput as e:
         return HttpResponseBadRequest(f"invalid q: {e}")
 
-    sparql_format_args = {
-        "project_graph": PROJECT_GRAPH_IRI,
-        "subject_class": SUBJECT_CLASS_IRI,
-        "q_literal": q_literal,
-        "category_denylist": _AUTOCOMPLETE_CATEGORY_DENYLIST_SPARQL,
-    }
-    subjects_query = _BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY.format(**sparql_format_args)
-    categories_query = _BROWSE_AUTOCOMPLETE_CATEGORIES_QUERY.format(
-        **sparql_format_args
+    subjects_query = _BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY.format(
+        project_graph=PROJECT_GRAPH_IRI,
+        subject_class=SUBJECT_CLASS_IRI,
+        q_literal=q_literal,
     )
 
     try:
         with OxigraphClient() as client:
             subject_rows = client.select(subjects_query)
-            category_rows = client.select(categories_query)
     except requests.RequestException as e:
-        logger.warning("Oxigraph autocomplete query failed: %s", e)
+        logger.warning("Oxigraph autocomplete subjects query failed: %s", e)
         subject_rows = []
-        category_rows = []
 
     matched_qids = [iri_to_qid(row["subject"]) for row in subject_rows]
     subjects_by_qid = {
@@ -268,13 +227,24 @@ def browse_autocomplete(request):
             }
         )
 
+    # ``ancestor__subject__isnull=True`` excludes ancestors that are
+    # themselves project Subjects — they belong in the subjects half of
+    # the dropdown, not the categories half. Equivalent to the old
+    # ``FILTER NOT EXISTS { GRAPH <project_graph> { ?ancestor a Subject } }``.
     categories_data = [
         {
-            "qid": iri_to_qid(row["ancestor"]),
-            "label": row["label"],
-            "subject_count": int(row["n"]),
+            "qid": row["ancestor__wikidata_id"],
+            "label": row["ancestor__title"],
+            "subject_count": row["n"],
         }
-        for row in category_rows
+        for row in (
+            SubjectAncestor.objects.filter(ancestor__title__icontains=q)
+            .exclude(ancestor__wikidata_id__in=_AUTOCOMPLETE_CATEGORY_DENYLIST)
+            .filter(ancestor__subject__isnull=True)
+            .values("ancestor__wikidata_id", "ancestor__title")
+            .annotate(n=Count("subject", distinct=True))
+            .order_by("-n", "ancestor__title")[:10]
+        )
     ]
 
     return JsonResponse({"categories": categories_data, "subjects": subjects_data})

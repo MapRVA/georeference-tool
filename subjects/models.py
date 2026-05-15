@@ -5,6 +5,7 @@ from datetime import datetime
 
 import requests
 from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.urls import reverse
@@ -241,6 +242,18 @@ class WikidataItem(models.Model):
         ordering = ["title"]
         indexes = [
             models.Index(fields=["sparql_last_loaded_at"]),
+            # Trigram index on the English label backs the autocomplete
+            # categories query, which uses ``title__icontains`` to find
+            # matching ancestors. Django's ``__icontains`` translates to
+            # ``ILIKE '%q%'`` on Postgres, which a GIN index with
+            # ``gin_trgm_ops`` accelerates from a full scan to an indexed
+            # lookup. Requires the ``pg_trgm`` extension (already enabled
+            # by ``images/migrations/0035_enhance_search_vector.py``).
+            GinIndex(
+                fields=["title"],
+                name="wikidataitem_title_trgm",
+                opclasses=["gin_trgm_ops"],
+            ),
         ]
 
 
@@ -447,3 +460,40 @@ class Subject(models.Model):
 
     class Meta:
         ordering = ["title"]
+
+
+class SubjectAncestor(models.Model):
+    """Materialized ``Subject -> WikidataItem`` ancestor relation.
+
+    A flat projection of each Subject's category-relevant ancestors, derived
+    from the same SPARQL paths the autocomplete used to traverse on the fly
+    (``wdt:P31?/wdt:P279*``, ``wdt:P1716``, ``wdt:P361``, ``pq:P361`` on any
+    of the Subject's statements). Refreshed per-subject after each Oxigraph
+    closure load; query-time aggregation/substring-match runs against this
+    table with proper indexes instead of via SPARQL property paths.
+    """
+
+    subject = models.ForeignKey(
+        "Subject",
+        on_delete=models.CASCADE,
+        related_name="ancestors",
+    )
+    ancestor = models.ForeignKey(
+        "WikidataItem",
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subject", "ancestor"],
+                name="subjectancestor_unique_pair",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["ancestor"]),
+        ]
+
+    def __str__(self):
+        return f"{self.subject_id} -> {self.ancestor_id}"

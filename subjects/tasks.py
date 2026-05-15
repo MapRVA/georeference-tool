@@ -24,7 +24,9 @@ from urllib3.util.retry import Retry
 from images.models import SiteSettings
 
 from .models import OsmElement, Subject, WikidataItem
+from .oxigraph import OxigraphClient
 from .project_graph import rebuild_project_graph
+from .subject_ancestors import update_subject_ancestors
 from .wikidata_closure import (
     SEED_METADATA_FIELDS,
     ClosureLoadError,
@@ -122,6 +124,21 @@ def _do_refresh_wikidata_item(item):
         )
         logger.error(f"Oxigraph update failed for {item.wikidata_id}: {e}")
         return {"status": "error", "wikidata_id": item.wikidata_id, "message": str(e)}
+
+    # Project the seed's category ancestors into Postgres. Best-effort:
+    # if this fails we keep the successful Oxigraph commit, and the next
+    # refresh of the same Subject will re-attempt the projection.
+    if seed_subject is not None:
+        try:
+            with OxigraphClient() as client:
+                update_subject_ancestors(seed_subject, client)
+        except requests.RequestException as e:
+            logger.warning(
+                "SubjectAncestor refresh failed for %s: %s — "
+                "will retry on next refresh of this Subject",
+                item.wikidata_id,
+                e,
+            )
 
     logger.info(f"Successfully refreshed WikidataItem {item.wikidata_id}")
     return {"status": "success", "wikidata_id": item.wikidata_id}
