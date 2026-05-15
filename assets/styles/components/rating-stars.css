@@ -174,8 +174,10 @@
 .modal-rating-stars {
     display: flex;
     justify-content: center;
-    gap: 0.25rem;
+    gap: 0.1em;
     padding: 1rem 0;
+    font-size: 2rem;
+    font-size: min(2.75rem, calc((100vw - 1rem) / 10));
     touch-action: none; /* Prevent scrolling during drag */
     user-select: none;
     -webkit-user-select: none;
@@ -189,13 +191,12 @@
 }
 
 .modal-rating-star {
-    font-size: 2.75rem;
     cursor: pointer;
     transition:
         transform 0.1s ease,
         color 0.15s ease;
     color: #ddd;
-    padding: 0.5rem;
+    padding: 0.18em;
     margin: 0;
 }
 
