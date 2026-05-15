@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 WDQS_ENDPOINT = "https://query.wikidata.org/sparql"
 WIKIDATA_ENTITY_IRI_BASE = "http://www.wikidata.org/entity/"
+# Wikidata statement nodes are IRIs like
+# ``http://www.wikidata.org/entity/statement/Q42-D8404CDA-25E4-...``;
+# the leading ``Q``-segment names the entity that asserts the claim.
+WIKIDATA_STATEMENT_IRI_BASE = "http://www.wikidata.org/entity/statement/"
 USER_AGENT = (
     "GeoreferenceTool/1.0 (https://github.com/mapRVA/georeference-tool; sparql-mirror)"
 )
@@ -55,8 +59,27 @@ EN_WIKIPEDIA_PREFIX = "https://en.wikipedia.org/"
 def closure_query(qid):
     """Build the CONSTRUCT for the seed + its closure neighbourhood.
 
-    Four UNION branches:
-      - Seed: all triples about the seed itself.
+    Six UNION branches:
+      - Seed: all triples about the seed itself. Includes both the truthy
+        ``wdt:*`` predicates and the reified ``p:*`` links to statement
+        nodes, which the next branch follows.
+      - Seed statement bodies: for every ``wd:{{qid}} p:Pxxx ?stmt`` triple,
+        emit all triples about ``?stmt``. This is what carries qualifiers
+        (``pq:*``), the typed main value (``ps:*``), rank (``wikibase:rank``)
+        and the link to a reference node (``prov:wasDerivedFrom``).
+        Statement-node triples are routed into the seed's named graph by
+        ``parse_closure`` so SPARQL queries can traverse
+        ``?subject p:Pxxx ?stmt . ?stmt pq:Pxxx ?qval`` without crossing
+        graphs.
+      - Statement-referenced entities: labels and class edges for entities
+        pointed to by the seed's statement nodes (``ps:*`` main values and
+        ``pq:*`` qualifiers). Without this, an entity reached only via a
+        qualifier — e.g., the historic district named in a ``pq:P361`` on a
+        ``p:P1435`` heritage-designation claim — has no English label in
+        Oxigraph, and the category autocomplete's qualifier-path UNION arm
+        silently drops it. Restricted to the same label / class-edge set as
+        the ancestor branch — we don't pull each qualifier-target's full
+        statement body.
       - Ancestors via P31?/P279*: only labels and class edges (wdt:P31,
         wdt:P279). The predicate filter avoids pulling each ancestor's
         full statement body, which we don't need for class navigation.
@@ -65,7 +88,8 @@ def closure_query(qid):
         This gives us labels and class edges for brands (wdt:P1716),
         architects (wdt:P84), locations (wdt:P131), etc., so they're
         available as autocomplete categories and for display without a
-        second round trip.
+        second round trip. Their reified statements are *not* pulled —
+        widening to those would balloon the closure.
       - Seed's English Wikipedia sitelink: emits the article URL via
         ``schema:about``/``schema:isPartOf`` triples. The article URL has
         the article as subject (not the entity), so it's skipped by
@@ -76,10 +100,10 @@ def closure_query(qid):
     both read English labels exclusively, so multilingual support would
     require changes well beyond the literal filter here.
 
-    WDQS exposes truthy `wdt:` predicates only (no reified statements), so
-    qualifiers and references don't come along. That's fine here - we use
-    the seed's wdt:P18 / P84 / P571 values directly to populate the
-    matching ``WikidataItem`` fields, in lieu of a separate JSON fetch.
+    Reference bodies (``pr:*`` triples on reference nodes) are not pulled —
+    the ``prov:wasDerivedFrom`` link comes along, but following it to the
+    citation details would require another branch and a value-node-aware
+    parser. Add later if a query needs it.
     """
     validate_qid(qid)
     return f"""\
@@ -97,6 +121,24 @@ CONSTRUCT {{
   {{
     BIND(wd:{qid} AS ?entity)
     ?entity ?p ?o .
+  }} UNION {{
+    wd:{qid} ?seed_p ?entity .
+    FILTER(STRSTARTS(STR(?seed_p), "http://www.wikidata.org/prop/P"))
+    ?entity ?p ?o .
+    FILTER(!isLiteral(?o) || lang(?o) = "en" || lang(?o) = "")
+  }} UNION {{
+    wd:{qid} ?stmt_link ?stmt .
+    FILTER(STRSTARTS(STR(?stmt_link), "http://www.wikidata.org/prop/P"))
+    ?stmt ?ref_pred ?entity .
+    FILTER(STRSTARTS(STR(?ref_pred), "http://www.wikidata.org/prop/statement/") ||
+           STRSTARTS(STR(?ref_pred), "http://www.wikidata.org/prop/qualifier/"))
+    FILTER(isIRI(?entity))
+    FILTER(STRSTARTS(STR(?entity), "http://www.wikidata.org/entity/Q"))
+    FILTER(?entity != wd:{qid})
+    ?entity ?p ?o .
+    FILTER(?p IN (rdfs:label, skos:altLabel, schema:description,
+                  wdt:P31, wdt:P279))
+    FILTER(!isLiteral(?o) || lang(?o) = "en" || lang(?o) = "")
   }} UNION {{
     wd:{qid} wdt:P31?/wdt:P279* ?entity .
     FILTER(?entity != wd:{qid})
@@ -143,9 +185,13 @@ def parse_closure(turtle_bytes):
     """Parse closure Turtle, group by Wikidata entity IRI, collect labels.
 
     Returns ``(groups, labels)``:
-      - ``groups``: ``{entity_iri: [pyoxigraph.Triple, ...]}`` - only triples
-        whose subject is a Wikidata entity IRI. Statement nodes, blank nodes,
-        and anything else in the response are dropped.
+      - ``groups``: ``{entity_iri: [pyoxigraph.Triple, ...]}`` - triples
+        keyed by the named graph they belong in. Entity-subject triples
+        go under the entity's own IRI; statement-node triples go under
+        the owning entity's IRI (parsed out of the statement IRI's
+        ``Q``-prefix), so a SPARQL query can traverse
+        ``?entity p:Pxxx ?stmt . ?stmt pq:Pxxx ?qval`` without crossing
+        graphs. Blank nodes, value nodes, and reference nodes are dropped.
       - ``labels``: ``{qid: english_label}`` - one per entity, for populating
         a freshly-created ``WikidataItem.title`` without an extra fetch.
     """
@@ -156,13 +202,30 @@ def parse_closure(turtle_bytes):
         if not isinstance(subj, pyoxigraph.NamedNode):
             continue
         iri = subj.value
+
+        # Statement nodes (``entity/statement/Q{n}-{uuid}``) share the
+        # entity IRI base but are routed into the owning entity's graph,
+        # not their own. Check this before the entity-base branch since
+        # the statement prefix is a superset of the entity prefix.
+        if iri.startswith(WIKIDATA_STATEMENT_IRI_BASE):
+            suffix = iri.removeprefix(WIKIDATA_STATEMENT_IRI_BASE)
+            owning_qid = suffix.split("-", 1)[0]
+            try:
+                validate_qid(owning_qid)
+            except UnsafeSparqlInput:
+                continue
+            graph_iri = f"{WIKIDATA_ENTITY_IRI_BASE}{owning_qid}"
+            groups.setdefault(graph_iri, []).append(
+                pyoxigraph.Triple(quad.subject, quad.predicate, quad.object)
+            )
+            continue
+
         if not iri.startswith(WIKIDATA_ENTITY_IRI_BASE):
             continue
         # Reject anything whose suffix isn't a Q-ID before it lands in
         # ``groups`` and gets f-stringed into the ``GRAPH <iri>`` clause
-        # in ``build_atomic_update``. Also drops statement nodes
-        # (entity/statement/...) and properties (P31) that share the
-        # entity-IRI prefix but aren't graph subjects we want.
+        # in ``build_atomic_update``. Drops properties (P31) that share
+        # the entity-IRI prefix but aren't graph subjects we want.
         qid = iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
         try:
             validate_qid(qid)

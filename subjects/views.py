@@ -174,18 +174,28 @@ _AUTOCOMPLETE_CATEGORY_DENYLIST_SPARQL = ", ".join(
     f"<{WIKIDATA_ENTITY_IRI_BASE}{qid}>" for qid in _AUTOCOMPLETE_CATEGORY_DENYLIST
 )
 
-# Categories: ancestors of any Subject via P31/P279*, ranked by how many
-# subjects classify under each. The `FILTER NOT EXISTS` clause drops
+# Categories: ancestors of any Subject via the class chain (wdt:P31?/P279*),
+# brand (wdt:P1716), direct part-of (wdt:P361), or a pq:P361 qualifier on any
+# statement (which is how Wikidata models e.g. "contributing property to
+# historic district" — the part-of fact lives as a qualifier on the
+# heritage-designation claim, not as a top-level truthy edge). Ranked by how
+# many subjects classify under each. The `FILTER NOT EXISTS` clause drops
 # ancestors that are themselves Subjects so they don't appear in both halves
 # of the dropdown.
 _BROWSE_AUTOCOMPLETE_CATEGORIES_QUERY = """\
 PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX project: <urn:yesterdays:>
 
 SELECT ?ancestor ?label (COUNT(DISTINCT ?subject) AS ?n) WHERE {{
   GRAPH <{project_graph}> {{ ?subject a <{subject_class}> . }}
-  ?subject (wdt:P31?/wdt:P279*|wdt:P1716) ?ancestor .
+  {{
+    ?subject (wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361) ?ancestor .
+  }} UNION {{
+    ?subject ?stmt_pred ?stmt .
+    ?stmt pq:P361 ?ancestor .
+  }}
   FILTER(?ancestor NOT IN ({category_denylist}))
   FILTER NOT EXISTS {{
     GRAPH <{project_graph}> {{ ?ancestor a <{subject_class}> . }}
@@ -770,11 +780,16 @@ def browse_subjects(request):
 
         category_query = (
             f"PREFIX wdt: <http://www.wikidata.org/prop/direct/>\n"
+            f"PREFIX pq: <http://www.wikidata.org/prop/qualifier/>\n"
             f"PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
             f"SELECT DISTINCT ?subject ?categoryLabel WHERE {{\n"
             f"  GRAPH <{PROJECT_GRAPH_IRI}> "
             f"{{ ?subject a <{SUBJECT_CLASS_IRI}> . }}\n"
-            f"  ?subject (wdt:P31?/wdt:P279*|wdt:P1716) {category_iri} .\n"
+            f"  {{ ?subject (wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361) "
+            f"{category_iri} . }}\n"
+            f"  UNION\n"
+            f"  {{ ?subject ?stmt_pred ?stmt . "
+            f"?stmt pq:P361 {category_iri} . }}\n"
             f"  OPTIONAL {{ {category_iri} rdfs:label ?categoryLabel . "
             f'FILTER(LANG(?categoryLabel) = "en") }}\n'
             f"}}"
