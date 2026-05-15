@@ -909,7 +909,7 @@ class SubjectMappingAdmin(admin.ModelAdmin):
         "order",
         "created_at",
     )
-    list_filter = ("created_at", "subject__wikidata_item")
+    list_filter = ("created_at",)
     search_fields = (
         "image__title",
         "subject__title",

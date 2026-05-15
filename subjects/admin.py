@@ -247,9 +247,10 @@ class SubjectAdmin(admin.ModelAdmin):
         "wikidata_item_link",
         "osm_element_count",
         "image_count",
+        "ancestor_count",
         "created_at",
     )
-    list_filter = ("created_at", "wikidata_item")
+    list_filter = ("created_at",)
     search_fields = (
         "title",
         "description",
@@ -312,3 +313,8 @@ class SubjectAdmin(admin.ModelAdmin):
         return obj.image_mappings.count()
 
     image_count.short_description = "Images"
+
+    def ancestor_count(self, obj):
+        return obj.ancestors.count()
+
+    ancestor_count.short_description = "Ancestors"
