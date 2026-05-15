@@ -16,7 +16,10 @@ import { initImageViewer } from "../components/image_viewer.js";
 import { OSM_STYLE_URL } from "../constants/map.js";
 import { LayerControl } from "../components/layer_control.js";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
-import { deduplicateFeatures, buildPopupWrapper } from "../components/map_popup.js";
+import {
+  deduplicateFeatures,
+  buildPopupWrapper,
+} from "../components/map_popup.js";
 
 // Get colors from Bootstrap's CSS custom properties
 const dangerColor =
@@ -684,11 +687,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       if (bearingLineVisible) {
-        // Compute distance from map center to corner so the line always extends off-screen
-        var bounds = map.getBounds();
-        var center = map.getCenter();
-        var cornerDist = center.distanceTo(bounds.getNorthEast());
-        var totalDist = cornerDist * 2;
+        // 5000 km should be plenty...
+        var totalDist = 5000000;
 
         // Interpolate points along the great circle so the line curves correctly
         // when zoomed out on a Mercator projection
@@ -1212,9 +1212,6 @@ document.addEventListener("DOMContentLoaded", function () {
       map.on("moveend", updateMapSwapLink);
 
       restoreOverlayState();
-
-      // Recalculate bearing line on zoom/pan so it always extends off-screen
-      map.on("moveend", updateBearingLine);
     });
 
     map.on("click", function (e) {
