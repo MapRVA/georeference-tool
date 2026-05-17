@@ -153,6 +153,7 @@
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
                             <h5 class="mb-0"><i class="fas fa-map me-2"></i>{% if polygonal_georeference and not image.is_georeferenced %}Aerial Georeference{% else %}Current Georeference{% endif %}</h5>
+                            {% if image.get_georeference %}
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="show-other-images-toggle" autocomplete="off">
                                 <label class="form-check-label" for="show-other-images-toggle">
@@ -162,6 +163,7 @@
                                     </span>
                                 </label>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -169,7 +171,7 @@
                             {% if image.get_georeference %}
                                 {% include 'images/partials/map_display.html' with image_id=image.id map_id='image-detail-map' height='40vh' center_lat=image.get_georeference.point.y center_lng=image.get_georeference.point.x zoom_level=16 aerial_georeference=polygonal_georeference show_other_images=True current_image_direction=image.get_georeference.direction %}
                             {% elif polygonal_georeference %}
-                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference show_other_images=True %}
+                                {% include 'images/partials/map_display.html' with map_id='image-detail-map' height='40vh' aerial_georeference=polygonal_georeference disable_image_points=True %}
                             {% endif %}
                         </div>
                     </div>
@@ -311,6 +313,22 @@
                                 {% endif %}
                             </dd>
                         </dl>
+
+                        {% if image.thumbnail or image.permalink %}
+                            <div class="dropdown mt-3">
+                                <button class="btn btn-outline-secondary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-download me-1"></i>Download
+                                </button>
+                                <ul class="dropdown-menu w-100">
+                                    {% if image.thumbnail %}
+                                        <li><a class="dropdown-item" href="{{ image.thumbnail }}" download>Thumbnail (WebP)</a></li>
+                                    {% endif %}
+                                    {% if image.permalink %}
+                                        <li><a class="dropdown-item" href="{{ image.permalink }}" download>Original</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
 
