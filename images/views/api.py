@@ -422,9 +422,22 @@ def _generate_tile(
         )
         where_params.append(source_id)
     if subject_id:
+        # Include images mapped to this subject OR to any descendant subject
+        # (one whose materialized ancestor set in subjects_subjectancestor
+        # contains this subject's WikidataItem).
         where_conditions.append(
-            "image_id IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = %s)"
+            """image_id IN (
+                SELECT image_id FROM images_subjectmapping
+                WHERE subject_id = %s
+                   OR subject_id IN (
+                       SELECT sa.subject_id
+                       FROM subjects_subjectancestor sa
+                       JOIN subjects_subject s ON s.id = %s
+                       WHERE sa.ancestor_id = s.wikidata_item_id
+                   )
+            )"""
         )
+        where_params.append(subject_id)
         where_params.append(subject_id)
     if album_id:
         where_conditions.append(

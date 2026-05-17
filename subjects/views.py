@@ -816,6 +816,17 @@ def subject_detail(request, subject_slug):
     """Detail view for a specific subject showing its images"""
     subject = get_object_or_404(Subject, slug=subject_slug)
 
+    # Treat descendant subjects (those whose ancestors include this subject's
+    # WikidataItem) as more-specific instances of this subject — their images
+    # are folded into the listing here.
+    relevant_subject_ids = list(
+        Subject.objects.filter(
+            Q(pk=subject.pk) | Q(ancestors__ancestor=subject.wikidata_item)
+        )
+        .values_list("pk", flat=True)
+        .distinct()
+    )
+
     # Get filter parameters from URL
     georeference_status = (
         request.GET.get("georeference_status", "").split(",")
@@ -836,10 +847,11 @@ def subject_detail(request, subject_slug):
     )
     no_subjects = request.GET.get("no_subjects") == "true"
 
-    # Get images associated with this subject (only from public collections, excluding duplicates)
+    # Get images associated with this subject or its descendants (only from
+    # public collections, excluding duplicates)
     images = (
         Image.objects.filter(
-            subject_mappings__subject=subject,
+            subject_mappings__subject_id__in=relevant_subject_ids,
             collection__public=True,
             collection__source__public=True,
             duplicate_of__isnull=True,
@@ -922,11 +934,11 @@ def subject_detail(request, subject_slug):
 
     # Get counts before filtering for statistics
     all_images = Image.objects.filter(
-        subject_mappings__subject=subject,
+        subject_mappings__subject_id__in=relevant_subject_ids,
         duplicate_of__isnull=True,
         collection__public=True,
         collection__source__public=True,
-    )
+    ).distinct()
     total_images = all_images.count()
     georeferenced_images = (
         all_images.filter(georeferences__isnull=False).distinct().count()
