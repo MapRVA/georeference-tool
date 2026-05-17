@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from celery.signals import worker_process_init
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "yesterdays.settings")
@@ -18,3 +19,17 @@ app.autodiscover_tasks()
 
 # Explicitly include tasks from the main project
 app.autodiscover_tasks(["yesterdays"])
+
+
+@worker_process_init.connect
+def _warmup_clip_on_worker_init(**_):
+    # Fires inside each prefork child after fork, before any task is
+    # dispatched. AppConfig.ready() runs in the Celery main process after
+    # children are already forked, so the warmup there never reaches them.
+    from django.conf import settings
+
+    if not getattr(settings, "CLIP_WARMUP_ENABLED", False):
+        return
+    from images.tasks import warmup_clip_model
+
+    warmup_clip_model()
