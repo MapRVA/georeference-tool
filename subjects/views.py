@@ -736,48 +736,43 @@ def browse_subjects(request):
             else 0,
         }
 
-    # Apply category filter via the Oxigraph mirror: find Q-IDs of Subjects
-    # whose class closure (P31/P279*) includes the selected category, then
-    # restrict the queryset to those rows.
+    # Apply category filter via the SubjectAncestor materialization. If the
+    # category Q-ID is itself a project Subject, include it too and pin it
+    # to the top of the page (it won't be in its own ancestor table).
     category_qid = (request.GET.get("category") or "").strip()
     selected_category = None
     if category_qid:
         try:
             validate_qid(category_qid)
-            category_iri = sparql_wikidata_entity_iri(category_qid)
         except UnsafeSparqlInput:
             return HttpResponseBadRequest("invalid category")
 
-        category_query = (
-            f"PREFIX wdt: <http://www.wikidata.org/prop/direct/>\n"
-            f"PREFIX pq: <http://www.wikidata.org/prop/qualifier/>\n"
-            f"PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
-            f"SELECT DISTINCT ?subject ?categoryLabel WHERE {{\n"
-            f"  GRAPH <{PROJECT_GRAPH_IRI}> "
-            f"{{ ?subject a <{SUBJECT_CLASS_IRI}> . }}\n"
-            f"  {{ ?subject (wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361) "
-            f"{category_iri} . }}\n"
-            f"  UNION\n"
-            f"  {{ ?subject ?stmt_pred ?stmt . "
-            f"?stmt pq:P361 {category_iri} . }}\n"
-            f"  OPTIONAL {{ {category_iri} rdfs:label ?categoryLabel . "
-            f'FILTER(LANG(?categoryLabel) = "en") }}\n'
-            f"}}"
-        )
-        try:
-            with OxigraphClient() as client:
-                rows = client.select(category_query)
-        except requests.RequestException as e:
-            logger.warning("Oxigraph category filter query failed: %s", e)
-            rows = []
+        matching_subject_ids = SubjectAncestor.objects.filter(
+            ancestor__wikidata_id=category_qid,
+        ).values("subject_id")
 
-        matching_qids = {iri_to_qid(row["subject"]) for row in rows}
-        category_label = next(
-            (row["categoryLabel"] for row in rows if "categoryLabel" in row),
-            category_qid,
+        category_item = WikidataItem.objects.filter(wikidata_id=category_qid).first()
+        category_label = (
+            category_item.title
+            if category_item and category_item.title
+            else category_qid
         )
         selected_category = {"qid": category_qid, "label": category_label}
-        subjects = subjects.filter(wikidata_item__wikidata_id__in=matching_qids)
+
+        subjects = (
+            subjects.filter(
+                Q(pk__in=matching_subject_ids)
+                | Q(wikidata_item__wikidata_id=category_qid),
+            )
+            .annotate(
+                _category_self=Case(
+                    When(wikidata_item__wikidata_id=category_qid, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("_category_self", "-total_images", "title")
+        )
 
     # Apply search filter
     query = request.GET.get("filter", "").strip()
