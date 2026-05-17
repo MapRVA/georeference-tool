@@ -23,13 +23,18 @@ app.autodiscover_tasks(["yesterdays"])
 
 @worker_process_init.connect
 def _warmup_clip_on_worker_init(**_):
-    # Fires inside each prefork child after fork, before any task is
-    # dispatched. AppConfig.ready() runs in the Celery main process after
-    # children are already forked, so the warmup there never reaches them.
+    # Fires inside each prefork child after fork. We discard any model
+    # state inherited from the parent and force a fresh load: the JIT
+    # ScriptModule's C++ thread pools and compile caches don't initialize
+    # cleanly across fork, so inference on the inherited object stalls
+    # the first time it runs.
     from django.conf import settings
 
     if not getattr(settings, "CLIP_WARMUP_ENABLED", False):
         return
-    from images.tasks import warmup_clip_model
+    import images.tasks
 
-    warmup_clip_model()
+    images.tasks._clip_model = None
+    images.tasks._clip_preprocess = None
+    images.tasks._clip_device = None
+    images.tasks.warmup_clip_model()
