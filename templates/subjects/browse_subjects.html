@@ -60,6 +60,21 @@
                          @click.outside="showDropdown = false"
                          x-transition.opacity>
 
+                        <template x-if="suggestions.subjects.length > 0">
+                            <div>
+                                <h6 class="dropdown-header mb-0">Subjects</h6>
+                                <template x-for="subj in suggestions.subjects" :key="subj.slug">
+                                    <a class="dropdown-item"
+                                       :href="'/subjects/' + subj.slug + '/'"
+                                       x-text="subj.title"></a>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="suggestions.categories.length > 0 && suggestions.subjects.length > 0">
+                            <hr class="dropdown-divider">
+                        </template>
+
                         <template x-if="suggestions.categories.length > 0">
                             <div>
                                 <h6 class="dropdown-header mb-0">Categories</h6>
@@ -71,21 +86,6 @@
                                         <span class="badge bg-secondary rounded-pill ms-2"
                                               x-text="cat.subject_count"></span>
                                     </button>
-                                </template>
-                            </div>
-                        </template>
-
-                        <template x-if="suggestions.categories.length > 0 && suggestions.subjects.length > 0">
-                            <hr class="dropdown-divider">
-                        </template>
-
-                        <template x-if="suggestions.subjects.length > 0">
-                            <div>
-                                <h6 class="dropdown-header mb-0">Subjects</h6>
-                                <template x-for="subj in suggestions.subjects" :key="subj.slug">
-                                    <a class="dropdown-item"
-                                       :href="'/subjects/' + subj.slug + '/'"
-                                       x-text="subj.title"></a>
                                 </template>
                             </div>
                         </template>
