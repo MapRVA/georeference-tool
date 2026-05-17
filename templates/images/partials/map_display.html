@@ -35,7 +35,11 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 
     // Build vector tiles URL
-    {% if show_other_images and image_id %}
+    {% if disable_image_points %}
+    const vectorTilesUrl = null;
+    const singleImageUrl = null;
+    const allImagesUrl = null;
+    {% elif show_other_images and image_id %}
     const baseUrlParams = new URLSearchParams();
     {% if enable_scale_filter %}
     baseUrlParams.append('enable_scale_filter', 'true');
