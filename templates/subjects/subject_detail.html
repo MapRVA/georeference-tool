@@ -7,7 +7,7 @@
 	<meta property="og:title" content="{{ subject.title }} – Yesterdays">
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
-	<meta property="og:description" content="{% if subject.wikidata_item.description %}{{ subject.wikidata_item.description }}{% else %}Browse {{ total_images }} image{{ total_images|pluralize }} featuring {{ subject.title }}.{% endif %}">
+	<meta property="og:description" content="{% if wikidata_facts.description %}{{ wikidata_facts.description }}{% else %}Browse {{ total_images }} image{{ total_images|pluralize }} featuring {{ subject.title }}.{% endif %}">
 	{% if representative_image %}
 	<meta property="og:image" content="{{ representative_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ representative_image.title }}">
@@ -74,8 +74,8 @@
                                     {% else %}
                                     <div class="col-12">
                                     {% endif %}
-                                        {% if subject.wikidata_item.description %}
-                                            <p class="card-text text-muted mb-2">{{ subject.wikidata_item.description }}</p>
+                                        {% if wikidata_facts.description %}
+                                            <p class="card-text text-muted mb-2">{{ wikidata_facts.description }}</p>
                                         {% endif %}
 
                                         <div class="mb-2">
@@ -96,10 +96,10 @@
                                             </div>
                                         {% endif %}
 
-                                        {% if subject.wikidata_item.inception %}
+                                        {% if wikidata_facts.inception %}
                                             <div class="mb-2">
                                                 <small class="text-muted d-block">Built:</small>
-                                                {{ subject.wikidata_item.inception|date:"Y" }}
+                                                {{ wikidata_facts.inception|date:"Y" }}
                                             </div>
                                         {% endif %}
 
