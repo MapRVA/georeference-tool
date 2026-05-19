@@ -23,7 +23,7 @@ from images.models import (
     Source,
     SubjectMapping,
 )
-from subjects.models import OsmElement, Subject
+from subjects.models import OsmElement, Subject, WikidataItem
 
 POLYGON_COORDS = (
     (-77.44, 37.53),
@@ -150,10 +150,15 @@ class ApiFixturesMixin:
             img.refresh_from_db()
 
         # -- Subject + mapping --
+        cls.wikidata_item = WikidataItem.objects.create(
+            wikidata_id="Q1",
+            title="Main Street",
+        )
         cls.subject = Subject.objects.create(
             title="Main Street",
             slug="main-street",
             description="A major thoroughfare.",
+            wikidata_item=cls.wikidata_item,
         )
         SubjectMapping.objects.create(image=cls.img1, subject=cls.subject)
         cls.osm_element = OsmElement.objects.create(
@@ -562,10 +567,15 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
     def test_geometry_empty_subject(self):
         """Geometry endpoint returns empty FeatureCollection for subject with no OSM elements."""
         # Create a subject with an image mapping but no OsmElements
+        wd2 = WikidataItem.objects.create(
+            wikidata_id="Q2",
+            title="Empty Subject",
+        )
         subj2 = Subject.objects.create(
             title="Empty Subject",
             slug="empty",
             description="No geometry.",
+            wikidata_item=wd2,
         )
         SubjectMapping.objects.create(image=self.img2, subject=subj2)
         resp = self.client.get(f"/api/v2/subjects/{subj2.pk}/geometry/")
