@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -475,11 +476,12 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
     }
     media_type = media_types.get(ext, "image/jpeg")
 
-    # Use json_object mode instead of json_schema to avoid grammar
-    # compilation limits.  json_schema's constrained decoding creates
-    # 2^N states for N optional fields; with 18 optional fields that
-    # exceeds Anthropic's grammar size cap.  json_object guarantees
-    # syntactically valid JSON while the prompt describes the schema.
+    # Use json_object mode rather than json_schema. Anthropic's structured
+    # outputs require additionalProperties=false and impose hard caps (24
+    # optional params, 16 union-type params) that the per-Directory entry
+    # shape (~18 nullable fields) cannot fit. json_object guarantees
+    # syntactically valid JSON while the prompt describes the schema; the
+    # response-healing plugin recovers from imperfect formatting.
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -503,6 +505,7 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
                 }
             ],
             "response_format": {"type": "json_object"},
+            "plugins": [{"id": "response-healing"}],
         },
         timeout=openrouter_timeout,
     )
@@ -515,23 +518,40 @@ def _do_page_ocr(page, prompt, model_identifier, openrouter_timeout=120):
         raise RuntimeError(f"OpenRouter error: {error_msg}")
     llm_content: str = result["choices"][0]["message"]["content"] or ""
     logger.info(
-        "OpenRouter response for page %s: finish_reason=%s, content length=%d",
+        "OpenRouter response for page %s: provider=%s, model=%s, "
+        "finish_reason=%s, native_finish_reason=%s, usage=%s, content length=%d, "
+        "image bytes=%d",
         page.uuid,
+        result.get("provider"),
+        result.get("model"),
         result["choices"][0].get("finish_reason"),
+        result["choices"][0].get("native_finish_reason"),
+        result.get("usage"),
         len(llm_content),
+        len(image_data),
     )
     if not llm_content:
         logger.error("OpenRouter returned empty content: %s", json.dumps(result))
 
-    # Strip markdown fences (```json ... ```) that some models add
+    # Extract a JSON document from the response, which may include preamble
+    # text, fenced code blocks, or both. Tries (in order): a ```json ... ```
+    # fence anywhere in the text, then a slice from the first { or [ to the
+    # matching last } or ]. Falls through to the raw content if neither
+    # pattern matches — json.loads below will surface the error.
     stripped = llm_content.strip()
-    if stripped.startswith("```"):
-        first_newline = stripped.find("\n")
-        if first_newline != -1:
-            stripped = stripped[first_newline + 1 :]
-        if stripped.endswith("```"):
-            stripped = stripped[:-3]
-        llm_content = stripped.strip()
+    fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", stripped, re.DOTALL)
+    if fence_match:
+        llm_content = fence_match.group(1).strip()
+    else:
+        obj_start = stripped.find("{")
+        arr_start = stripped.find("[")
+        starts = [i for i in (obj_start, arr_start) if i >= 0]
+        if starts:
+            start = min(starts)
+            end_char = "}" if stripped[start] == "{" else "]"
+            end = stripped.rfind(end_char)
+            if end > start:
+                llm_content = stripped[start : end + 1]
 
     # Parse the LLM output.  We handle both a top-level {"entries": [...]}
     # wrapper and a bare array for robustness.
