@@ -387,9 +387,20 @@ class Image(models.Model):
         # Validate EDTF date format if provided
         if self.edtf_date:
             try:
-                parse_edtf(self.edtf_date)
+                parsed = parse_edtf(self.edtf_date)
             except EDTFParseException as e:
                 raise ValidationError({"edtf_date": f"Invalid EDTF format: {str(e)}"})
+            if isinstance(parsed.lower_strict(), float) or isinstance(
+                parsed.upper_strict(), float
+            ):
+                raise ValidationError(
+                    {
+                        "edtf_date": (
+                            f'EDTF date "{self.edtf_date}" is open-ended; both '
+                            "a start and end date are required."
+                        )
+                    }
+                )
 
         # Prevent chains of duplicates
         if self.duplicate_of:
@@ -429,12 +440,19 @@ class Image(models.Model):
         if self.edtf_date:
             try:
                 edtf_date = parse_edtf(self.edtf_date)
-                self.start_decdate = edtf_date.lower_strict()[0]
-                self.fuzzy_start_decdate = edtf_date.lower_fuzzy()[0]
-                self.end_decdate = edtf_date.upper_strict()[0]
-                self.fuzzy_end_decdate = edtf_date.upper_fuzzy()[0]
             except EDTFParseException as e:
                 raise ValidationError(f'Invalid EDTF date "{self.edtf_date}": {str(e)}')
+            lower = edtf_date.lower_strict()
+            upper = edtf_date.upper_strict()
+            if isinstance(lower, float) or isinstance(upper, float):
+                raise ValidationError(
+                    f'EDTF date "{self.edtf_date}" is open-ended; both a start '
+                    "and end date are required."
+                )
+            self.start_decdate = lower[0]
+            self.fuzzy_start_decdate = edtf_date.lower_fuzzy()[0]
+            self.end_decdate = upper[0]
+            self.fuzzy_end_decdate = edtf_date.upper_fuzzy()[0]
         else:
             self.start_decdate = None
             self.fuzzy_start_decdate = None

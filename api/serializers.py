@@ -4,6 +4,8 @@ from urllib.parse import urlsplit
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
+from edtf import parse_edtf
+from edtf.parser.edtf_exceptions import EDTFParseException
 from oauth2_provider.settings import oauth2_settings
 from oauth2_provider.validators import AllowedURIValidator
 from rest_framework import serializers
@@ -548,13 +550,17 @@ class ImportCommitSerializer(serializers.Serializer):
     )
 
     def validate_edtf_date(self, value):
-        from edtf import parse_edtf
-        from edtf.parser.edtf_exceptions import EDTFParseException
-
         try:
-            parse_edtf(value)
+            parsed = parse_edtf(value)
         except EDTFParseException:
             raise serializers.ValidationError(f"Invalid EDTF date: {value}")
+        if isinstance(parsed.lower_strict(), float) or isinstance(
+            parsed.upper_strict(), float
+        ):
+            raise serializers.ValidationError(
+                f'EDTF date "{value}" is open-ended; both a start and end '
+                "date are required."
+            )
         return value
 
     def validate_license_name(self, value):
