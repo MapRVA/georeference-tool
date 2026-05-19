@@ -23,12 +23,13 @@ from iiif_prezi3 import (
 )
 
 from images.utils import R2Uploader
-from subjects.models import ADDRESS_FIELDS, Address, Business, Occupation, Person
+from subjects.models import Business, Occupation, Person
 
 from .models import (
+    ADDRESS_FIELDS,
+    Address,
     Directory,
     Entry,
-    EntryAddressLink,
     EntryBusinessLink,
     EntryComment,
     EntryHistory,
@@ -53,13 +54,15 @@ def _build_entry_snapshot(entry):
         snapshot["middle_name"] = p.middle_name
         snapshot["last_name"] = p.last_name
 
-    address_link = entry.address_links.first()
-    if address_link:
-        a = address_link.address
-        for field in ADDRESS_FIELDS:
-            val = getattr(a, field, "")
-            if val:
-                snapshot[f"addr:{field}"] = val
+    addresses = []
+    for a in entry.addresses.all():
+        addr_snap = {f: getattr(a, f) for f in ADDRESS_FIELDS if getattr(a, f)}
+        if a.type:
+            addr_snap["type"] = a.type
+        if addr_snap:
+            addresses.append(addr_snap)
+    if addresses:
+        snapshot["addresses"] = addresses
 
     business_link = entry.business_links.first()
     if business_link:
@@ -70,6 +73,42 @@ def _build_entry_snapshot(entry):
         snapshot["occupation"] = occupation_link.occupation.name
 
     return snapshot
+
+
+def _extract_addresses(entry_data):
+    """Parse address(es) from an entry payload, accepting either shape.
+
+    Two payload shapes are supported, so OCR producers and clients can use
+    whichever is convenient:
+
+    - **Nested** ``addresses=[{type, housenumber, street, …}, …]`` — multiple
+      addresses per entry, with optional ``type`` labels.
+    - **Flat** ``addr:housenumber``, ``addr:street``, … keys at the top
+      level — yields a single address with empty ``type``.
+
+    Returns a list of dicts suitable for ``Address.objects.create(entry=…, **d)``.
+    """
+    if isinstance(entry_data.get("addresses"), list):
+        out = []
+        for addr in entry_data["addresses"]:
+            if not isinstance(addr, dict):
+                continue
+            fields = {
+                f: str(addr.get(f, "")).strip() for f in ADDRESS_FIELDS if addr.get(f)
+            }
+            addr_type = str(addr.get("type", "") or "").strip()
+            if fields or addr_type:
+                out.append({"type": addr_type, **fields})
+        return out
+
+    fields = {
+        key[5:]: str(val).strip()
+        for key, val in entry_data.items()
+        if key.startswith("addr:") and key[5:] in ADDRESS_FIELDS and val
+    }
+    if fields:
+        return [{"type": "", **fields}]
+    return []
 
 
 def _queue_tile_generation(page):
@@ -92,7 +131,7 @@ def entry_validate(request, entry_uuid=None):
         .select_related("page__directory")
         .prefetch_related(
             "person_links__person",
-            "address_links__address",
+            "addresses",
             "business_links__business",
             "occupation_links__occupation",
         )
@@ -130,11 +169,22 @@ def entry_validate(request, entry_uuid=None):
         entry_data["middle_name"] = p.middle_name
         entry_data["last_name"] = p.last_name
 
-    address_link = entry.address_links.first()
-    if address_link:
-        a = address_link.address
+    addresses_list = []
+    for a in entry.addresses.all():
+        addr_dict = {"type": a.type or ""}
         for field in ADDRESS_FIELDS:
             val = getattr(a, field, "")
+            if val:
+                addr_dict[field] = val
+        addresses_list.append(addr_dict)
+    entry_data["addresses"] = addresses_list
+
+    # Backward-compat: surface the first address as flat addr:* keys so the
+    # existing single-address validation UI keeps working without changes.
+    first_addr = entry.addresses.first()
+    if first_addr:
+        for field in ADDRESS_FIELDS:
+            val = getattr(first_addr, field, "")
             if val:
                 entry_data[f"addr:{field}"] = val
 
@@ -233,7 +283,7 @@ def entry_update(request, entry_uuid):
     entry = get_object_or_404(
         Entry.objects.prefetch_related(
             "person_links__person",
-            "address_links__address",
+            "addresses",
             "business_links__business",
             "occupation_links__occupation",
         ),
@@ -271,26 +321,32 @@ def entry_update(request, entry_uuid):
                     created_by=user,
                 )
 
-        # Update or create address
-        addr_fields = {
-            key[5:]: str(val).strip()
-            for key, val in data.items()
-            if key.startswith("addr:") and key[5:] in ADDRESS_FIELDS
-        }
-        if addr_fields:
-            link = entry.address_links.first()
-            if link:
-                for k, v in addr_fields.items():
-                    setattr(link.address, k, v)
-                link.address.save()
-            else:
-                address = Address.objects.create(**addr_fields)
-                EntryAddressLink.objects.create(
-                    entry=entry,
-                    address=address,
-                    method=LinkMethod.USER,
-                    created_by=user,
-                )
+        # Update addresses. Two payload shapes are accepted:
+        #   - Nested ``addresses=[…]`` fully replaces the entry's addresses.
+        #   - Flat ``addr:*`` keys update the first address in place,
+        #     preserving any additional ones — this keeps the existing
+        #     single-address validation UI working unchanged.
+        if isinstance(data.get("addresses"), list):
+            entry.addresses.all().delete()
+            for addr_payload in _extract_addresses(data):
+                Address.objects.create(entry=entry, **addr_payload)
+        else:
+            addr_keys_present = any(
+                key.startswith("addr:") and key[5:] in ADDRESS_FIELDS for key in data
+            )
+            if addr_keys_present:
+                addr_fields = {
+                    key[5:]: str(val).strip()
+                    for key, val in data.items()
+                    if key.startswith("addr:") and key[5:] in ADDRESS_FIELDS
+                }
+                first = entry.addresses.first()
+                if first:
+                    for k, v in addr_fields.items():
+                        setattr(first, k, v)
+                    first.save()
+                elif any(addr_fields.values()):
+                    Address.objects.create(entry=entry, **addr_fields)
 
         # Update or create business
         if "business" in data:
@@ -327,7 +383,7 @@ def entry_update(request, entry_uuid):
         # Refresh prefetched relations before building snapshot
         entry = Entry.objects.prefetch_related(
             "person_links__person",
-            "address_links__address",
+            "addresses",
             "business_links__business",
             "occupation_links__occupation",
         ).get(pk=entry.pk)
@@ -373,25 +429,6 @@ def add_entry_comment(request, entry_uuid):
     return JsonResponse({"success": True, "comment_id": comment.id}, status=201)
 
 
-def address_detail(request, address_uuid):
-    address = get_object_or_404(Address, uuid=address_uuid)
-    entries = (
-        Entry.objects.filter(address_links__address=address)
-        .select_related("page__directory")
-        .prefetch_related(
-            "person_links__person",
-            "address_links__address",
-            "business_links__business",
-            "occupation_links__occupation",
-        )
-    )
-    return render(
-        request,
-        "subjects/address_detail.html",
-        {"address": address, "entries": entries},
-    )
-
-
 def directory_list(request):
     directories = Directory.objects.all()
     return render(
@@ -419,7 +456,7 @@ def directory_view(request, slug):
 
     entries = Entry.objects.filter(page_id__in=page_ids).prefetch_related(
         "person_links__person",
-        "address_links__address",
+        "addresses",
         "business_links__business",
         "occupation_links__occupation",
         "history",
@@ -446,9 +483,11 @@ def directory_view(request, slug):
                 "last_name": p.last_name,
                 "birth_date": p.birth_date,
             }
-        for link in entry.address_links.all():
-            entry_data["address"] = str(link.address)
-            entry_data["address_uuid"] = str(link.address.uuid)
+        addresses = list(entry.addresses.all())
+        if addresses:
+            entry_data["addresses"] = [
+                {"type": a.type or "", "text": str(a)} for a in addresses
+            ]
         for link in entry.business_links.all():
             entry_data["business"] = link.business.name
         for link in entry.occupation_links.all():
@@ -555,21 +594,17 @@ def ocr_status(request, page_uuid):
 
 
 def _delete_page_entries(page):
-    """Delete all entries for a page and clean up orphaned Person/Address records."""
-    entries = Entry.objects.filter(page=page).prefetch_related(
-        "person_links", "address_links"
-    )
+    """Delete all entries for a page and clean up orphaned Person records.
+
+    Addresses cascade with their Entry — no orphan cleanup needed.
+    """
+    entries = Entry.objects.filter(page=page).prefetch_related("person_links")
     person_ids = []
-    address_ids = []
     for entry in entries:
         person_ids.extend(link.person_id for link in entry.person_links.all())
-        address_ids.extend(link.address_id for link in entry.address_links.all())
     entries.delete()
-    # Clean up persons/addresses not referenced by any other entry link
     if person_ids:
         Person.objects.filter(pk__in=person_ids, entry_links__isnull=True).delete()
-    if address_ids:
-        Address.objects.filter(pk__in=address_ids, entry_links__isnull=True).delete()
 
 
 @staff_member_required
@@ -614,30 +649,8 @@ def save_entries(request, page_uuid):
                     method=LinkMethod.OCR,
                 )
 
-            addr_fields = {
-                key[5:]: str(val).strip()
-                for key, val in entry_data.items()
-                if key.startswith("addr:") and key[5:] in ADDRESS_FIELDS and val
-            }
-            if addr_fields:
-                # Try to match an existing address by housenumber + street
-                lookup = {}
-                if addr_fields.get("housenumber"):
-                    lookup["housenumber"] = addr_fields["housenumber"]
-                if addr_fields.get("street"):
-                    lookup["street"] = addr_fields["street"]
-                existing = Address.objects.filter(**lookup).first() if lookup else None
-                if existing:
-                    address = existing
-                    method = LinkMethod.AUTO
-                else:
-                    address = Address.objects.create(**addr_fields)
-                    method = LinkMethod.OCR
-                EntryAddressLink.objects.create(
-                    entry=entry,
-                    address=address,
-                    method=method,
-                )
+            for addr_payload in _extract_addresses(entry_data):
+                Address.objects.create(entry=entry, **addr_payload)
 
             if entry_data.get("business"):
                 biz_name = str(entry_data["business"]).strip()

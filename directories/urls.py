@@ -5,11 +5,6 @@ from . import views
 app_name = "directories"
 
 urlpatterns = [
-    path(
-        "address/<uuid:address_uuid>/",
-        views.address_detail,
-        name="address_detail",
-    ),
     path("directories/entry/", views.entry_validate, name="entry_validate"),
     path(
         "directories/entry/<uuid:entry_uuid>/",

@@ -6,7 +6,6 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import (
-    Address,
     Business,
     Occupation,
     OsmElement,
@@ -192,12 +191,6 @@ class WikidataItemAdmin(admin.ModelAdmin):
         return '<span style="color: #999; font-style: italic;">Save item first</span>'
 
     refresh_button.short_description = "Actions"
-
-
-@admin.register(Address)
-class AddressAdmin(admin.ModelAdmin):
-    list_display = ["housenumber", "street", "city", "state", "postcode"]
-    search_fields = ["housenumber", "street", "city", "state", "postcode"]
 
 
 @admin.register(Person)

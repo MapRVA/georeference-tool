@@ -1,6 +1,5 @@
 import urllib
 import urllib.parse
-import uuid
 from datetime import datetime
 
 import requests
@@ -300,48 +299,6 @@ class OsmElement(models.Model):
 
     class Meta:
         ordering = ["osm_id"]
-
-
-ADDRESS_FIELDS = {
-    "housenumber",
-    "street",
-    "city",
-    "postcode",
-    "district",
-    "state",
-    "place",
-    "neighbourhood",
-    "suburb",
-    "hamlet",
-    "province",
-    "floor",
-}
-
-
-class Address(models.Model):
-    """Based on the OpenStreetMap tagging guidelines for addresses"""
-
-    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    housenumber = models.CharField(max_length=255, blank=True)
-    street = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=255, blank=True)
-    postcode = models.CharField(max_length=255, blank=True)
-    district = models.CharField(max_length=255, blank=True)
-    state = models.CharField(max_length=255, blank=True)
-    place = models.CharField(max_length=255, blank=True)
-    neighbourhood = models.CharField(max_length=255, blank=True)
-    suburb = models.CharField(max_length=255, blank=True)
-    hamlet = models.CharField(max_length=255, blank=True)
-    province = models.CharField(max_length=255, blank=True)
-    floor = models.CharField(max_length=255, blank=True)
-
-    def __str__(self):
-        street_part = " ".join(filter(None, [self.housenumber, self.street]))
-        parts = filter(None, [street_part, self.city, self.state, self.postcode])
-        return ", ".join(parts) or "Address"
-
-    class Meta:
-        verbose_name_plural = "addresses"
 
 
 class Person(models.Model):

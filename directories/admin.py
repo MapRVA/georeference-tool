@@ -5,9 +5,9 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import (
+    Address,
     Directory,
     Entry,
-    EntryAddressLink,
     EntryBusinessLink,
     EntryOccupationLink,
     EntryPersonLink,
@@ -85,10 +85,10 @@ class EntryPersonLinkInline(admin.TabularInline):
     autocomplete_fields = ["person"]
 
 
-class EntryAddressLinkInline(admin.TabularInline):
-    model = EntryAddressLink
+class AddressInline(admin.TabularInline):
+    model = Address
     extra = 0
-    autocomplete_fields = ["address"]
+    fields = ("type", "housenumber", "street", "city", "state", "postcode")
 
 
 class EntryBusinessLinkInline(admin.TabularInline):
@@ -110,7 +110,7 @@ class EntryAdmin(admin.ModelAdmin):
     autocomplete_fields = ["page"]
     inlines = [
         EntryPersonLinkInline,
-        EntryAddressLinkInline,
+        AddressInline,
         EntryBusinessLinkInline,
         EntryOccupationLinkInline,
     ]

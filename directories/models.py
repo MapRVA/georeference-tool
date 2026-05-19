@@ -6,7 +6,22 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.urls import reverse
 
-from subjects.models import Address, Business, Occupation, Person
+from subjects.models import Business, Occupation, Person
+
+ADDRESS_FIELDS = {
+    "housenumber",
+    "street",
+    "city",
+    "postcode",
+    "district",
+    "state",
+    "place",
+    "neighbourhood",
+    "suburb",
+    "hamlet",
+    "province",
+    "floor",
+}
 
 
 class OCRModel(models.Model):
@@ -120,6 +135,52 @@ class Entry(models.Model):
         return f"Entry {self.pk} in {self.page}"
 
 
+class Address(models.Model):
+    """An address as transcribed from a single directory entry.
+
+    Addresses are per-Entry transcription artifacts: one Entry can carry
+    multiple addresses (e.g. "h 124 Broad; bus 215 Main"), and shared
+    real-world identity is established later via links to external
+    elements rather than by deduplicating rows. Field names mirror
+    OpenStreetMap's ``addr:*`` tagging convention so address bundles map
+    cleanly onto OSM/OHM elements.
+    """
+
+    entry = models.ForeignKey(
+        Entry,
+        on_delete=models.CASCADE,
+        related_name="addresses",
+    )
+    type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Free-text role label, e.g. "home", "work"',
+    )
+    housenumber = models.CharField(max_length=255, blank=True)
+    street = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+    postcode = models.CharField(max_length=255, blank=True)
+    district = models.CharField(max_length=255, blank=True)
+    state = models.CharField(max_length=255, blank=True)
+    place = models.CharField(max_length=255, blank=True)
+    neighbourhood = models.CharField(max_length=255, blank=True)
+    suburb = models.CharField(max_length=255, blank=True)
+    hamlet = models.CharField(max_length=255, blank=True)
+    province = models.CharField(max_length=255, blank=True)
+    floor = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name_plural = "addresses"
+        indexes = [
+            models.Index(fields=["street", "housenumber"]),
+        ]
+
+    def __str__(self):
+        street_part = " ".join(filter(None, [self.housenumber, self.street]))
+        parts = filter(None, [street_part, self.city, self.state, self.postcode])
+        return ", ".join(parts) or "Address"
+
+
 class EntryHistory(models.Model):
     """Audit log for changes to an Entry."""
 
@@ -209,32 +270,6 @@ class EntryPersonLink(models.Model):
 
     def __str__(self):
         return f"Entry {self.entry_id} ↔ {self.person}"
-
-
-class EntryAddressLink(models.Model):
-    entry = models.ForeignKey(
-        Entry, on_delete=models.CASCADE, related_name="address_links"
-    )
-    address = models.ForeignKey(
-        Address, on_delete=models.CASCADE, related_name="entry_links"
-    )
-    method = models.CharField(
-        max_length=10, choices=LinkMethod.choices, default=LinkMethod.OCR
-    )
-    confidence = models.FloatField(null=True, blank=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = [("entry", "address")]
-
-    def __str__(self):
-        return f"Entry {self.entry_id} ↔ {self.address}"
 
 
 class EntryBusinessLink(models.Model):

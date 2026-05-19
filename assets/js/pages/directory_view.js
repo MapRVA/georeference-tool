@@ -9,7 +9,7 @@ const pageUuids = JSON.parse(el.dataset.pageUuids || "[]");
 let viewer = null;
 let pages = [];
 let currentPage = 0;
-let overlays = [];  // overlay DOM elements for the current page
+let overlays = []; // overlay DOM elements for the current page
 
 async function initViewer() {
   const res = await fetch(manifestUrl);
@@ -28,7 +28,10 @@ async function initViewer() {
   if (pages.length === 0) return;
 
   const params = new URLSearchParams(window.location.search);
-  const startPage = Math.max(0, Math.min(parseInt(params.get("page") || "1", 10) - 1, pages.length - 1));
+  const startPage = Math.max(
+    0,
+    Math.min(parseInt(params.get("page") || "1", 10) - 1, pages.length - 1),
+  );
   currentPage = startPage;
 
   viewer = OpenSeadragon({
@@ -71,7 +74,10 @@ function renderOverlays() {
   entries.forEach((entry, i) => {
     if (entry.x == null) return;
     const rect = viewer.viewport.imageToViewportRectangle(
-      entry.x, entry.y, entry.w, entry.h,
+      entry.x,
+      entry.y,
+      entry.w,
+      entry.h,
     );
     const el = document.createElement("div");
     el.className = "annotation-overlay";
@@ -93,7 +99,8 @@ function highlightEntry(index) {
 
   // Deselect all overlays and list items
   overlays.forEach((el) => el.classList.remove("active"));
-  document.querySelectorAll("#entries-container .list-group-item")
+  document
+    .querySelectorAll("#entries-container .list-group-item")
     .forEach((li) => li.classList.remove("entry-selected"));
   selectedIndex = -1;
 
@@ -107,7 +114,9 @@ function highlightEntry(index) {
     overlay.classList.add("active");
   }
 
-  const item = document.querySelector(`#entries-container .list-group-item[data-entry-index="${index}"]`);
+  const item = document.querySelector(
+    `#entries-container .list-group-item[data-entry-index="${index}"]`,
+  );
   if (item) {
     item.classList.add("entry-selected");
   }
@@ -118,7 +127,10 @@ function highlightEntry(index) {
   const entry = entriesData[currentPage + 1]?.[index];
   if (entry?.x != null) {
     const rect = viewer.viewport.imageToViewportRectangle(
-      entry.x, entry.y, entry.w, entry.h,
+      entry.x,
+      entry.y,
+      entry.w,
+      entry.h,
     );
     viewer.viewport.fitBounds(
       new OpenSeadragon.Rect(
@@ -194,17 +206,17 @@ function renderEntry(e, index) {
   if (e.business) {
     parts.push(esc(e.business));
   }
-  if (e.address) {
-    if (e.address_uuid) {
-      parts.push(`<a href="/address/${esc(e.address_uuid)}/">${esc(e.address)}</a>`);
-    } else {
-      parts.push(esc(e.address));
+  if (e.addresses && e.addresses.length > 0) {
+    for (const addr of e.addresses) {
+      const label = addr.type ? `${addr.type}: ${addr.text}` : addr.text;
+      parts.push(esc(label));
     }
   }
 
-  const summary = parts.length > 0
-    ? parts.join('<span class="mx-2 text-muted">|</span>')
-    : `<span class="text-muted">Entry #${e.id}</span>`;
+  const summary =
+    parts.length > 0
+      ? parts.join('<span class="mx-2 text-muted">|</span>')
+      : `<span class="text-muted">Entry #${e.id}</span>`;
 
   const original = e.original_text
     ? `<div class="font-monospace small text-muted">${esc(e.original_text)}</div>`
@@ -218,7 +230,8 @@ function renderEntry(e, index) {
     ? `<a href="/directories/entry/${e.uuid}/" class="ms-2 text-muted validate-link" title="${entryTitle}" onclick="event.stopPropagation();">${entryIcon}</a>`
     : "";
 
-  const clickable = e.x != null ? ` style="cursor: pointer;" data-entry-index="${index}"` : "";
+  const clickable =
+    e.x != null ? ` style="cursor: pointer;" data-entry-index="${index}"` : "";
 
   return `<li class="list-group-item d-flex align-items-start${e.x != null ? " entry-has-bbox" : ""}"${clickable}><div class="flex-fill">${summary}${original}</div>${validateLink}</li>`;
 }
@@ -244,7 +257,8 @@ function showEntries(pageNumber) {
   withMid.sort((a, b) => a.mid - b.mid);
 
   const widths = withMid.map((s) => s.entry.w || 1);
-  const medianW = widths.slice().sort((a, b) => a - b)[Math.floor(widths.length / 2)] || 1;
+  const medianW =
+    widths.slice().sort((a, b) => a - b)[Math.floor(widths.length / 2)] || 1;
 
   // Walk sorted midpoints; start a new column when the gap exceeds half the median width
   const colMap = new Map();
@@ -274,13 +288,17 @@ function showEntries(pageNumber) {
       highlightEntry(idx);
     });
     li.addEventListener("mouseenter", () => {
-      const overlay = overlays.find((el) => parseInt(el.dataset.entryIndex) === idx);
+      const overlay = overlays.find(
+        (el) => parseInt(el.dataset.entryIndex) === idx,
+      );
       if (overlay && !overlay.classList.contains("active")) {
         overlay.classList.add("hover");
       }
     });
     li.addEventListener("mouseleave", () => {
-      const overlay = overlays.find((el) => parseInt(el.dataset.entryIndex) === idx);
+      const overlay = overlays.find(
+        (el) => parseInt(el.dataset.entryIndex) === idx,
+      );
       if (overlay) {
         overlay.classList.remove("hover");
       }
