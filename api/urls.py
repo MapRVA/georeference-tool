@@ -9,6 +9,7 @@ router.register("sources", views.SourceViewSet, basename="source")
 router.register("collections", views.CollectionViewSet, basename="collection")
 router.register("images", views.ImageViewSet, basename="image")
 router.register("subjects", views.SubjectViewSet, basename="subject")
+router.register("licenses", views.LicenseViewSet, basename="license")
 router.register("georeferences", views.GeoreferenceViewSet, basename="georeference")
 router.register(
     "from-above-georeferences",
@@ -25,7 +26,9 @@ urlpatterns = [
     ),
     path("auth/me/", views.me_view, name="api-auth-me"),
     path("apps/", views.register_app_view, name="api-apps-register"),
-    path("import/upload-url/", views.import_upload_url_view, name="api-import-upload-url"),
+    path(
+        "import/upload-url/", views.import_upload_url_view, name="api-import-upload-url"
+    ),
     path("import/commit/", views.import_commit_view, name="api-import-commit"),
     path("import/cancel/", views.import_cancel_view, name="api-import-cancel"),
     path(

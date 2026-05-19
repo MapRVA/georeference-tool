@@ -68,6 +68,7 @@ from .serializers import (
     ImageSerializer,
     ImportCancelSerializer,
     ImportCommitSerializer,
+    LicenseSerializer,
     OsmElementGeoSerializer,
     SourceCreateSerializer,
     SourceSerializer,
@@ -316,6 +317,14 @@ class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
         elements = OsmElement.objects.filter(subject_id=pk)
         serializer = OsmElementGeoSerializer(elements, many=True)
         return Response(serializer.data)
+
+
+class LicenseViewSet(viewsets.ReadOnlyModelViewSet):
+    """Licenses recognized by this instance, used when importing images."""
+
+    serializer_class = LicenseSerializer
+    queryset = License.objects.all().order_by("name")
+    pagination_class = None
 
 
 class GeoreferenceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -590,17 +599,10 @@ def import_commit_view(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Resolve license
+    # Resolve license (serializer already verified it exists)
     image_license = None
     if data["license_name"]:
-        image_license, _ = License.objects.get_or_create(
-            name__iexact=data["license_name"],
-            defaults={
-                "name": data["license_name"],
-                "display_name": data["license_name"],
-                "permalink": data["license_url"] or "",
-            },
-        )
+        image_license = License.objects.get(name__iexact=data["license_name"])
 
     # Determine file extension from the slot's S3 key
     ext = ""
@@ -632,6 +634,7 @@ def import_commit_view(request):
                 description=data["description"] or None,
                 creator=data["creator"] or None,
                 ref=data["reference_id"] or None,
+                original_date=data["original_date"],
                 edtf_date=data["edtf_date"],
                 license=image_license,
                 rotation=data["rotation"],

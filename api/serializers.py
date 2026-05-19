@@ -4,7 +4,6 @@ from urllib.parse import urlsplit
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
-
 from oauth2_provider.settings import oauth2_settings
 from oauth2_provider.validators import AllowedURIValidator
 from rest_framework import serializers
@@ -21,6 +20,7 @@ def _is_loopback_host(host):
     except ValueError:
         return False
 
+
 from images.models import (
     AerialGeoreference,
     AerialGeoreferenceValidation,
@@ -33,7 +33,6 @@ from images.models import (
     Source,
 )
 from subjects.models import OsmElement, Subject, WikidataItem
-
 
 # ---------------------------------------------------------------------------
 # Users
@@ -149,7 +148,7 @@ class CollectionSummarySerializer(serializers.ModelSerializer):
 class LicenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = License
-        fields = ["display_name", "permalink"]
+        fields = ["name", "display_name", "permalink"]
 
 
 class WikidataItemSerializer(serializers.ModelSerializer):
@@ -528,6 +527,7 @@ class CollectionCreateSerializer(serializers.ModelSerializer):
 class ImportCommitSerializer(serializers.Serializer):
     slot_id = serializers.UUIDField()
     title = serializers.CharField(max_length=500)
+    original_date = serializers.CharField(max_length=50)
     edtf_date = serializers.CharField(max_length=50)
     source_url = serializers.URLField(required=False, allow_blank=True, default="")
     description = serializers.CharField(required=False, allow_blank=True, default="")
@@ -539,9 +539,6 @@ class ImportCommitSerializer(serializers.Serializer):
     )
     license_name = serializers.CharField(
         required=False, allow_blank=True, max_length=500, default=""
-    )
-    license_url = serializers.URLField(
-        required=False, allow_blank=True, allow_null=True, default=None
     )
     rotation = serializers.ChoiceField(
         choices=[0, 90, 180, 270], required=False, default=0
@@ -558,6 +555,13 @@ class ImportCommitSerializer(serializers.Serializer):
             parse_edtf(value)
         except EDTFParseException:
             raise serializers.ValidationError(f"Invalid EDTF date: {value}")
+        return value
+
+    def validate_license_name(self, value):
+        if not value:
+            return value
+        if not License.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError(f"License '{value}' is not recognized.")
         return value
 
 
@@ -583,9 +587,7 @@ class AppRegistrationSerializer(serializers.Serializer):
     def validate_redirect_uris(self, value):
         uris = value.strip().split()
         if not uris:
-            raise serializers.ValidationError(
-                "At least one redirect URI is required."
-            )
+            raise serializers.ValidationError("At least one redirect URI is required.")
 
         allowed_schemes = {
             s.lower() for s in oauth2_settings.ALLOWED_REDIRECT_URI_SCHEMES
