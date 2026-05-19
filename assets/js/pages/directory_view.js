@@ -1,5 +1,6 @@
 import OpenSeadragon from "openseadragon";
 import { addViewerButtons } from "../components/osd_buttons";
+import "../../styles/components/image-viewer.css";
 
 const el = document.getElementById("osd-viewer");
 const manifestUrl = el.dataset.manifest;
@@ -37,18 +38,29 @@ async function initViewer() {
   viewer = OpenSeadragon({
     element: el,
     showNavigationControl: false,
-    visibilityRatio: 1,
-    minZoomLevel: 0.5,
-    defaultZoomLevel: 0,
-    gestureSettingsMouse: { scrollToZoom: true },
+    visibilityRatio: 0.5,
+    maxZoomPixelRatio: 4,
+    minZoomImageRatio: 1,
     tileSources: [pages[currentPage]],
     drawer: "canvas",
   });
 
   addViewerButtons(viewer, el);
 
-  // Render overlays once the tile source is loaded and coordinates are valid
-  viewer.addHandler("open", renderOverlays);
+  viewer.addHandler("open", () => {
+    const size = viewer.world.getItemAt(0).getContentSize();
+    el.style.aspectRatio = `${size.x} / ${size.y}`;
+    // The aspect-ratio change resizes the container; wait for layout, then
+    // re-fit so the image meets the edges and overlays project correctly.
+    requestAnimationFrame(() => {
+      viewer.viewport.resize(
+        new OpenSeadragon.Point(el.clientWidth, el.clientHeight),
+        false,
+      );
+      viewer.viewport.goHome(true);
+      renderOverlays();
+    });
+  });
 
   updatePageControls();
   showEntries(currentPage + 1);
