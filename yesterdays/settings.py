@@ -77,6 +77,11 @@ CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
     "yes",
 )
 
+# pgvector HNSW search depth. Sets the per-query hnsw.ef_search parameter and
+# also caps how deep semantic-search pagination can go (the index can only rank
+# this many candidates per query). pgvector hard-caps ef_search at 1000.
+HNSW_EF_SEARCH = int(os.getenv("HNSW_EF_SEARCH", "1000"))
+
 # Application definition
 
 INSTALLED_APPS = [

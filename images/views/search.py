@@ -7,7 +7,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import DatabaseError, connection
+from django.db import DatabaseError, connection, transaction
 from django.db.models import Func
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -283,7 +283,11 @@ def semantic_search(request):
         # Use raw SQL for vector similarity search
         # Note: This requires pgvector extension to be installed
 
-        with connection.cursor() as cursor:
+        with transaction.atomic(), connection.cursor() as cursor:
+            # Raise pgvector's HNSW search depth from its default of 40.
+            # Scoped to this transaction via SET LOCAL.
+            cursor.execute("SET LOCAL hnsw.ef_search = %s", [settings.HNSW_EF_SEARCH])
+
             # Build dynamic WHERE conditions and separate parameters
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
@@ -349,6 +353,9 @@ def semantic_search(request):
                 """).format(where_clause=sql.SQL(where_clause))
                 cursor.execute(count_sql, where_params)
                 total_count = cursor.fetchone()[0]
+                # HNSW can only rank ef_search candidates per query, so deeper
+                # results aren't reachable even if more matching rows exist.
+                total_count = min(total_count, settings.HNSW_EF_SEARCH)
             else:
                 total_count = None
 
@@ -468,9 +475,7 @@ def semantic_search(request):
             # COUNT was skipped; we fetched limit+1 to detect more rows
             has_more = has_more_from_fetch
         else:
-            # Use both total_count check AND actual results length to be safe
-            # (handles edge cases where items are filtered out)
-            has_more = (page * limit) < total_count and len(search_results) >= limit
+            has_more = (page * limit) < total_count
 
         if return_html:
             # Return rendered HTML partial
@@ -568,7 +573,11 @@ def find_similar_images(request, image_id):
         offset = 0
 
     try:
-        with connection.cursor() as cursor:
+        with transaction.atomic(), connection.cursor() as cursor:
+            # Raise pgvector's HNSW search depth from its default of 40.
+            # Scoped to this transaction via SET LOCAL.
+            cursor.execute("SET LOCAL hnsw.ef_search = %s", [settings.HNSW_EF_SEARCH])
+
             # Build WHERE conditions
             where_conditions = ["embedding IS NOT NULL", "id != %s"]
             where_params = [target_image.id]
@@ -648,6 +657,9 @@ def find_similar_images(request, image_id):
             """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
+            # HNSW can only rank ef_search candidates per query, so deeper
+            # results aren't reachable even if more matching rows exist.
+            total_count = min(total_count, settings.HNSW_EF_SEARCH)
 
             # SQL-level pagination - only fetch the IDs we need for this page
             query_sql = sql.SQL("""
@@ -1080,9 +1092,7 @@ def text_search(request):
             # COUNT was skipped; we fetched limit+1 to detect more rows
             has_more = has_more_from_fetch
         else:
-            # Use both total_count check AND actual results length to be safe
-            # (handles edge cases where items are filtered out)
-            has_more = (page * limit) < total_count and len(search_results) >= limit
+            has_more = (page * limit) < total_count
 
         if return_html:
             # Return rendered HTML partial
@@ -1293,7 +1303,11 @@ def reverse_image_search(request):
             )
 
         # Use raw SQL for vector similarity search
-        with connection.cursor() as cursor:
+        with transaction.atomic(), connection.cursor() as cursor:
+            # Raise pgvector's HNSW search depth from its default of 40.
+            # Scoped to this transaction via SET LOCAL.
+            cursor.execute("SET LOCAL hnsw.ef_search = %s", [settings.HNSW_EF_SEARCH])
+
             # Build dynamic WHERE conditions and separate parameters
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
@@ -1359,6 +1373,9 @@ def reverse_image_search(request):
                 """).format(where_clause=sql.SQL(where_clause))
                 cursor.execute(count_sql, where_params)
                 total_count = cursor.fetchone()[0]
+                # HNSW can only rank ef_search candidates per query, so deeper
+                # results aren't reachable even if more matching rows exist.
+                total_count = min(total_count, settings.HNSW_EF_SEARCH)
             else:
                 total_count = None
 
@@ -1478,9 +1495,7 @@ def reverse_image_search(request):
             # COUNT was skipped; we fetched limit+1 to detect more rows
             has_more = has_more_from_fetch
         else:
-            # Use both total_count check AND actual results length to be safe
-            # (handles edge cases where items are filtered out)
-            has_more = (page * limit) < total_count and len(search_results) >= limit
+            has_more = (page * limit) < total_count
 
         if return_html:
             # Return rendered HTML partial
