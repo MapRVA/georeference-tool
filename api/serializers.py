@@ -518,7 +518,7 @@ class CollectionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Collection
         fields = ["id", "name", "slug", "source", "url", "description", "public"]
-        read_only_fields = ["id", "slug"]
+        read_only_fields = ["id"]
         extra_kwargs = {
             "url": {"required": False, "default": ""},
             "description": {"required": False, "default": ""},
