@@ -136,6 +136,7 @@ def browse_sources(request):
                 collection__source=source,
                 collection__public=True,
                 duplicate_of__isnull=True,
+                will_not_georef=False,
             )
             .filter(
                 Q(georeferences__isnull=False)
@@ -189,18 +190,20 @@ def source_detail(request, slug):
         ).count()
         collection.georeferenced_images = (
             collection.images.filter(
-                duplicate_of__isnull=True, georeferences__isnull=False
+                duplicate_of__isnull=True,
+                will_not_georef=False,
+                georeferences__isnull=False,
             )
             .distinct()
             .count()
         )
-        will_not_georef_images = collection.images.filter(
+        collection.will_not_georef_images = collection.images.filter(
             duplicate_of__isnull=True, will_not_georef=True
         ).count()
         collection.pending_images = (
             collection.total_images
             - collection.georeferenced_images
-            - will_not_georef_images
+            - collection.will_not_georef_images
         )
 
     # Overall source statistics (only from public collections, excluding duplicates)
@@ -212,11 +215,18 @@ def source_detail(request, slug):
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
+            will_not_georef=False,
             georeferences__isnull=False,
         )
         .distinct()
         .count()
     )
+    will_not_georef_images = Image.objects.filter(
+        collection__source=source,
+        collection__public=True,
+        duplicate_of__isnull=True,
+        will_not_georef=True,
+    ).count()
 
     # Get top-rated image for Open Graph metadata
     top_rated_entry = (
@@ -244,14 +254,8 @@ def source_detail(request, slug):
         "collections": collections,
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
-        "pending_images": total_images
-        - georeferenced_images
-        - Image.objects.filter(
-            collection__source=source,
-            collection__public=True,
-            duplicate_of__isnull=True,
-            will_not_georef=True,
-        ).count(),
+        "pending_images": total_images - georeferenced_images - will_not_georef_images,
+        "will_not_georef_images": will_not_georef_images,
         "completion_percentage": (georeferenced_images / total_images * 100)
         if total_images > 0
         else 0,
@@ -367,9 +371,12 @@ def collection_detail(request, source_slug, collection_slug):
     all_images = collection.images.filter(duplicate_of__isnull=True)
     total_images = all_images.distinct().count()
 
-    # Count images as georeferenced if they have point georeferences OR aerials with polygon georeferences
+    # Count images as georeferenced if they have point georeferences OR aerials
+    # with polygon georeferences. Exclude will_not_georef so the buckets stay
+    # mutually exclusive (matches Image.georeference_status precedence).
     georeferenced_images = (
-        all_images.filter(
+        all_images.filter(will_not_georef=False)
+        .filter(
             Q(georeferences__isnull=False)
             | Q(aerial=True, aerial_georeferences__isnull=False)
         )
@@ -411,6 +418,7 @@ def collection_detail(request, source_slug, collection_slug):
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
         "pending_images": total_images - georeferenced_images - will_not_georef_images,
+        "will_not_georef_images": will_not_georef_images,
         "completion_percentage": (
             georeferenced_images / (total_images - will_not_georef_images) * 100
         )

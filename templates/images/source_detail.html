@@ -89,20 +89,29 @@
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card bg-warning text-white">
-                    <div class="card-body text-center py-2">
-                        <div class="h4 mb-0">{{ pending_images }}</div>
-                        <small>Available</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
                 <div class="card bg-success text-white">
                     <div class="card-body text-center py-2">
                         <div class="h4 mb-0">{{ georeferenced_images }}</div>
                         <small>Georeferenced</small>
                     </div>
                 </div>
+            </div>
+            <div class="col-6 col-md-3">
+                {% if pending_images > 0 %}
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center py-2">
+                            <div class="h4 mb-0">{{ pending_images }}</div>
+                            <small>Available</small>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body text-center py-2">
+                            <div class="h4 mb-0">{{ will_not_georef_images }}</div>
+                            <small>Skipped</small>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
 
@@ -147,8 +156,13 @@
                                     <small class="text-muted">Images</small>
                                 </div>
                                 <div class="col-4 border-end">
-                                    <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
-                                    <small class="text-muted">Available</small>
+                                    {% if collection.pending_images > 0 %}
+                                        <div class="h5 text-warning mb-0">{{ collection.pending_images }}</div>
+                                        <small class="text-muted">Available</small>
+                                    {% else %}
+                                        <div class="h5 text-secondary mb-0">{{ collection.will_not_georef_images }}</div>
+                                        <small class="text-muted">Skipped</small>
+                                    {% endif %}
                                 </div>
                                 <div class="col-4">
                                     <div class="h5 text-success mb-0">{{ collection.georeferenced_images }}</div>

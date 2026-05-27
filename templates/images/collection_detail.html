@@ -111,12 +111,21 @@
                 </div>
             </div>
             <div class="col-4 col-md-4">
-                <div class="card bg-warning text-white h-100">
-                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                        <div class="h4 mb-0">{{ pending_images }}</div>
-                        <small>Available</small>
+                {% if pending_images > 0 %}
+                    <div class="card bg-warning text-white h-100">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <div class="h4 mb-0">{{ pending_images }}</div>
+                            <small>Available</small>
+                        </div>
                     </div>
-                </div>
+                {% else %}
+                    <div class="card bg-secondary text-white h-100">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <div class="h4 mb-0">{{ will_not_georef_images }}</div>
+                            <small>Skipped</small>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
 
