@@ -550,7 +550,7 @@
                             {% else %}
                                 <div class="alert alert-info mb-3">
                                     <i class="fas fa-info-circle me-2"></i>
-                                    This image has been georeferenced.
+                                    This image has been georeferenced. <a href="{% url 'osm_auth:login' %}">Login with OpenStreetMap</a> to submit a correction.
                                 </div>
                             {% endif %}
                         {% endif %}
