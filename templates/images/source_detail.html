@@ -156,18 +156,20 @@
                                 </div>
                             </div>
 
-                            {% if collection.total_images > 0 %}
-                                <div class="progress mb-3" style="height: 0.5em;">
-                                    {% widthratio collection.georeferenced_images collection.total_images 100 as collection_completion_percent %}
-                                    <div class="progress-bar bg-success"
-                                         style="width: {{ collection_completion_percent }}%"
-                                         title="{{ collection.georeferenced_images }} of {{ collection.total_images }} georeferenced">
+                            {% with georef_pool=collection.georeferenced_images|add:collection.pending_images %}
+                                {% if georef_pool > 0 %}
+                                    <div class="progress mb-3" style="height: 0.5em;">
+                                        {% widthratio collection.georeferenced_images georef_pool 100 as collection_completion_percent %}
+                                        <div class="progress-bar bg-success"
+                                             style="width: {{ collection_completion_percent }}%"
+                                             title="{{ collection.georeferenced_images }} of {{ georef_pool }} georeferenced">
+                                        </div>
                                     </div>
-                                </div>
-                                <small class="text-muted">
-                                    {{ collection_completion_percent }}% complete
-                                </small>
-                            {% endif %}
+                                    <small class="text-muted">
+                                        {{ collection_completion_percent }}% complete
+                                    </small>
+                                {% endif %}
+                            {% endwith %}
                         </div>
                         <div class="card-footer bg-body border-top-0">
                             <div class="d-flex justify-content-between">

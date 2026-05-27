@@ -131,7 +131,7 @@
                     <div class="progress" style="height: 10px;">
                         <div class="progress-bar bg-success"
                              style="width: {{ completion_percentage }}%"
-                             title="{{ georeferenced_images }} of {{ total_images }} georeferenced">
+                             title="{{ georeferenced_images }} of {{ georeferenced_images|add:pending_images }} georeferenced">
                         </div>
                     </div>
                 </div>

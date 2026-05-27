@@ -405,8 +405,10 @@ def collection_detail(request, source_slug, collection_slug):
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
         "pending_images": total_images - georeferenced_images - will_not_georef_images,
-        "completion_percentage": (georeferenced_images / total_images * 100)
-        if total_images > 0
+        "completion_percentage": (
+            georeferenced_images / (total_images - will_not_georef_images) * 100
+        )
+        if (total_images - will_not_georef_images) > 0
         else 0,
         "top_rated_image": top_rated_image,
         "rendered_description": rendered_description,
