@@ -1,9 +1,9 @@
 {% for subject in subjects %}
     <div class="col-lg-6 col-xl-4 mb-4 subject-card-wrapper">
         <div class="card h-100 shadow-sm">
-            {% if subject.representative and subject.representative.thumbnail %}
+            {% if subject.representative_image and subject.representative_image.thumbnail %}
                 <a href="{{ subject.get_absolute_url }}" class="d-block">
-                    <img src="{{ subject.representative.thumbnail }}"
+                    <img src="{{ subject.representative_image.thumbnail }}"
                          alt="{{ subject.title }}"
                          class="card-img-top"
                          loading="lazy"

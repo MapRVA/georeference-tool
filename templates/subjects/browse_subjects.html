@@ -8,7 +8,7 @@
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
 	<meta property="og:description" content="Explore {{ overall_stats.total_subjects }} subject{{ overall_stats.total_subjects|pluralize }} totalling {{ overall_stats.total_images }} image{{ overall_stats.total_images|pluralize }}.">
-	{% with subjects.0.representative as og_image %}{% if og_image %}
+	{% with subjects.0.representative_image as og_image %}{% if og_image %}
 	<meta property="og:image" content="{{ og_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ og_image.title }}">
 	{% endif %}{% endwith %}

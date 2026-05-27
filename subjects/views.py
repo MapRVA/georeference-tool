@@ -692,7 +692,7 @@ def browse_subjects(request):
 
     subjects = (
         Subject.objects.all()
-        .select_related("wikidata_item")
+        .select_related("wikidata_item", "representative_image")
         .annotate(
             total_images=models.Count(
                 "image_mappings",
@@ -790,10 +790,8 @@ def browse_subjects(request):
     has_more = len(subject_list) > PER_PAGE
     subject_list = subject_list[:PER_PAGE]
 
-    # Calculate pending_images and attach representative images
     for subject in subject_list:
         subject.pending_images = subject.total_images - subject.georeferenced_images
-        subject.representative = subject.get_representative_image()
 
     if is_ajax:
         return render(

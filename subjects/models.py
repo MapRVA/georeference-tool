@@ -13,8 +13,6 @@ from django.utils.text import slugify
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from images.models import Image, TopRatedImageView
-
 
 class WikidataItem(models.Model):
     """Wikidata item with cached metadata"""
@@ -394,26 +392,21 @@ class Subject(models.Model):
         return reverse("subjects:subject_detail", kwargs={"subject_slug": self.slug})
 
     def get_representative_image(self):
-        """Return the best representative image for this subject.
+        """Return the representative image for this subject, or None.
 
-        Priority: representative_image field, then top-rated, then lowest ID.
-        Returns None only if no images are mapped to this subject.
+        ``representative_image`` is kept populated by signals on
+        ``SubjectMapping`` (set on first mapping, re-elected on delete), so
+        the field is the source of truth. The mapping fallback handles the
+        edge case of a Subject with mappings but a null FK (e.g., a row
+        predating the backfill).
         """
-
         if self.representative_image_id is not None:
             return self.representative_image
 
-        mapped_image_ids = self.image_mappings.values_list("image_id", flat=True)
-
-        top_rated = (
-            TopRatedImageView.objects.filter(image_id__in=mapped_image_ids)
-            .order_by("-sort_value", "-avg_rating", "-vote_count", "image_id")
-            .first()
+        first_mapping = (
+            self.image_mappings.select_related("image").order_by("order", "id").first()
         )
-        if top_rated:
-            return Image.objects.get(pk=top_rated.image_id)
-
-        return Image.objects.filter(pk__in=mapped_image_ids).order_by("id").first()
+        return first_mapping.image if first_mapping else None
 
     class Meta:
         ordering = ["title"]
