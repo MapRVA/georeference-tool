@@ -411,10 +411,7 @@ export function initSubjectEditor() {
     const csrfToken = document.querySelector(
       '[name="csrfmiddlewaretoken"]',
     )?.value;
-    const url = urls.setRepresentativePattern.replace(
-      "/0/",
-      `/${subjectId}/`,
-    );
+    const url = urls.setRepresentativePattern.replace("/0/", `/${subjectId}/`);
 
     starButton.disabled = true;
     const originalIcon = starButton.innerHTML;
@@ -440,24 +437,20 @@ export function initSubjectEditor() {
       .then((data) => {
         if (data.success) {
           showAlert("success", data.message);
-          // Update star button styles: this one becomes active, others reset
-          document.querySelectorAll(`.set-representative[data-subject-id="${subjectId}"]`).forEach((btn) => {
-            btn.classList.remove("btn-warning");
-            btn.classList.add("btn-outline-secondary");
-          });
-          starButton.classList.remove("btn-outline-secondary");
-          starButton.classList.add("btn-warning");
+          const card = starButton.closest(".subject-card");
+          // Hide the "set representative" option now that this image is the representative
+          starButton.closest("li")?.remove();
 
           // Swap thumbnail in the subject card
-          if (data.thumbnail) {
-            const card = starButton.closest(".subject-card");
+          if (data.thumbnail && card) {
             const existingImg = card.querySelector(".card-img-top");
             if (existingImg) {
               if (existingImg.tagName === "IMG") {
                 existingImg.src = data.thumbnail;
               } else {
                 // Replace placeholder div with an img inside a link
-                const subjectUrl = card.querySelector(".card-body a")?.href || "#";
+                const subjectUrl =
+                  card.querySelector(".card-body a")?.href || "#";
                 const link = document.createElement("a");
                 link.href = subjectUrl;
                 link.className = "d-block";
@@ -472,7 +465,10 @@ export function initSubjectEditor() {
       })
       .catch((error) => {
         console.error("Error:", error);
-        showAlert("danger", `Error setting representative image: ${error.message}`);
+        showAlert(
+          "danger",
+          `Error setting representative image: ${error.message}`,
+        );
       })
       .finally(() => {
         starButton.disabled = false;

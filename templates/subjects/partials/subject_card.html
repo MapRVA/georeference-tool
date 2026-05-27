@@ -28,13 +28,24 @@
             </h6>
         </div>
         {% if request.user.is_authenticated %}
-        <div class="position-absolute top-0 end-0 p-1 subject-card-control d-flex gap-1">
-            <button type="button" class="btn btn-sm set-representative{% if subject_relation.subject.representative_image_id == image.id %} btn-warning{% else %} btn-outline-secondary{% endif %}" data-subject-id="{{ subject_relation.subject.id }}" title="Set as representative image">
-                <i class="fas fa-star"></i>
+        <div class="position-absolute top-0 end-0 p-1 subject-card-control dropdown">
+            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="Actions">
+                <i class="fas fa-ellipsis-v"></i>
             </button>
-            <button type="button" class="btn btn-danger btn-sm remove-subject" data-subject-relation-id="{{ subject_relation.id }}" title="Remove subject">
-                <i class="fas fa-times"></i>
-            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                {% if subject_relation.subject.representative_image_id != image.id %}
+                <li>
+                    <button type="button" class="dropdown-item set-representative" data-subject-id="{{ subject_relation.subject.id }}">
+                        <i class="fas fa-star fa-fw me-2"></i>Set as representative
+                    </button>
+                </li>
+                {% endif %}
+                <li>
+                    <button type="button" class="dropdown-item text-danger remove-subject" data-subject-relation-id="{{ subject_relation.id }}">
+                        <i class="fas fa-times fa-fw me-2"></i>Remove subject
+                    </button>
+                </li>
+            </ul>
         </div>
         {% endif %}
     </div>

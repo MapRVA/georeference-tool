@@ -5,16 +5,7 @@
     transition: opacity 0.15s ease-in-out;
 }
 
-.subject-card:hover .subject-card-control {
+.subject-card:hover .subject-card-control,
+.subject-card .subject-card-control.show {
     opacity: 1;
-}
-
-.subject-card .set-representative.btn-outline-secondary {
-    background-color: var(--bs-body-bg);
-    color: var(--bs-body-color) !important;
-}
-
-.subject-card .set-representative.btn-outline-secondary:hover {
-    background-color: var(--bs-body-bg);
-    color: var(--bs-warning) !important;
 }
