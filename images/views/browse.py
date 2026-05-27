@@ -128,7 +128,6 @@ def browse_sources(request):
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
-            will_not_georef=False,
         ).count()
         # Count images as georeferenced if they have point georeferences
         # OR aerials with polygon georeferences
@@ -137,7 +136,6 @@ def browse_sources(request):
                 collection__source=source,
                 collection__public=True,
                 duplicate_of__isnull=True,
-                will_not_georef=False,
             )
             .filter(
                 Q(georeferences__isnull=False)
@@ -146,7 +144,15 @@ def browse_sources(request):
             .distinct()
             .count()
         )
-        source.pending_images = source.total_images - source.georeferenced_images
+        will_not_georef_images = Image.objects.filter(
+            collection__source=source,
+            collection__public=True,
+            duplicate_of__isnull=True,
+            will_not_georef=True,
+        ).count()
+        source.pending_images = (
+            source.total_images - source.georeferenced_images - will_not_georef_images
+        )
 
     # Get overall statistics using shared utility function
     overall_stats = get_overall_stats()

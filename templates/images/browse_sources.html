@@ -67,15 +67,17 @@
                                 </div>
                             </div>
 
-                            {% if source.total_images > 0 %}
-                                <div class="progress mb-3" style="height: 8px;">
-                                    {% widthratio source.georeferenced_images source.total_images 100 as completion_percent %}
-                                    <div class="progress-bar bg-success"
-                                         style="width: {{ completion_percent }}%"
-                                         title="{{ source.georeferenced_images }} of {{ source.total_images }} georeferenced">
+                            {% with georef_pool=source.georeferenced_images|add:source.pending_images %}
+                                {% if georef_pool > 0 %}
+                                    <div class="progress mb-3" style="height: 8px;">
+                                        {% widthratio source.georeferenced_images georef_pool 100 as completion_percent %}
+                                        <div class="progress-bar bg-success"
+                                             style="width: {{ completion_percent }}%"
+                                             title="{{ source.georeferenced_images }} of {{ georef_pool }} georeferenced">
+                                        </div>
                                     </div>
-                                </div>
-                            {% endif %}
+                                {% endif %}
+                            {% endwith %}
                         </div>
                         {% if source.pending_images > 0 %}
                             <div class="card-footer bg-body border-top-0">
