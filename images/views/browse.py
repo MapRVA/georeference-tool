@@ -145,14 +145,16 @@ def browse_sources(request):
             .distinct()
             .count()
         )
-        will_not_georef_images = Image.objects.filter(
+        source.will_not_georef_images = Image.objects.filter(
             collection__source=source,
             collection__public=True,
             duplicate_of__isnull=True,
             will_not_georef=True,
         ).count()
         source.pending_images = (
-            source.total_images - source.georeferenced_images - will_not_georef_images
+            source.total_images
+            - source.georeferenced_images
+            - source.will_not_georef_images
         )
 
     # Get overall statistics using shared utility function
@@ -192,7 +194,10 @@ def source_detail(request, slug):
             collection.images.filter(
                 duplicate_of__isnull=True,
                 will_not_georef=False,
-                georeferences__isnull=False,
+            )
+            .filter(
+                Q(georeferences__isnull=False)
+                | Q(aerial=True, aerial_georeferences__isnull=False)
             )
             .distinct()
             .count()

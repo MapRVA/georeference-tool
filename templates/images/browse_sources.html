@@ -62,8 +62,8 @@
                                     <small class="text-muted">Images</small>
                                 </div>
                                 <div class="col-4">
-                                    <div class="h4 text-success mb-0">{{ source.georeferenced_images }}</div>
-                                    <small class="text-muted">Georeferenced</small>
+                                    <div class="h4 text-success mb-0">{{ source.georeferenced_images|add:source.will_not_georef_images }}</div>
+                                    <small class="text-muted">Done</small>
                                 </div>
                             </div>
 

@@ -103,29 +103,20 @@
                 </div>
             </div>
             <div class="col-4 col-md-4">
-                <div class="card bg-success text-white h-100">
+                <div class="card bg-warning text-white h-100">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                        <div class="h4 mb-0">{{ georeferenced_images }}</div>
-                        <small>Geo&shy;referenced</small>
+                        <div class="h4 mb-0">{{ pending_images }}</div>
+                        <small>Available</small>
                     </div>
                 </div>
             </div>
             <div class="col-4 col-md-4">
-                {% if pending_images > 0 %}
-                    <div class="card bg-warning text-white h-100">
-                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                            <div class="h4 mb-0">{{ pending_images }}</div>
-                            <small>Available</small>
-                        </div>
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <div class="h4 mb-0">{{ georeferenced_images|add:will_not_georef_images }}</div>
+                        <small>Done</small>
                     </div>
-                {% else %}
-                    <div class="card bg-secondary text-white h-100">
-                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                            <div class="h4 mb-0">{{ will_not_georef_images }}</div>
-                            <small>Skipped</small>
-                        </div>
-                    </div>
-                {% endif %}
+                </div>
             </div>
         </div>
 
@@ -135,7 +126,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="mb-0">Georeferencing Progress</h6>
-                        <span class="text-muted">{{ completion_percentage|floatformat:1 }}% complete</span>
+                        <span class="text-muted">{{ completion_percentage|floatformat:1 }}% complete{% if will_not_georef_images > 0 %} ({{ will_not_georef_images }} skipped){% endif %}</span>
                     </div>
                     <div class="progress" style="height: 10px;">
                         <div class="progress-bar bg-success"
