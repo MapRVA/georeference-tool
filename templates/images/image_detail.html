@@ -62,7 +62,8 @@
             removeFromAlbum: '{% url "images:remove_image_from_album" %}',
             reorderSubjects: '{% url "subjects:reorder_subjects" image.id %}',
             addComment: '/{{ image.id }}/add-comment/',
-            rate: '/{{ image.id }}/rate/'
+            rate: '/{{ image.id }}/rate/',
+            queueFeaturedImage: '{% url "images:queue_featured_image" image.id %}'
         }
     };
 </script>
@@ -698,6 +699,11 @@
                                 {% endif %}
                             </button>
 
+                            <!-- Queue for Image of the Day -->
+                            <button type="button" class="btn btn-outline-info btn-sm w-100 mb-2" data-bs-toggle="modal" data-bs-target="#queueFeaturedImageModal">
+                                <i class="fas fa-calendar-day me-1"></i>Queue for Featured Image
+                            </button>
+
                             <a href="/admin/images/image/{{ image.id }}/change/" class="btn btn-outline-secondary btn-sm w-100">
                                 <i class="fas fa-edit me-1"></i>Edit in Admin
                             </a>
@@ -856,6 +862,40 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-comment me-1"></i>Submit Comment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Queue for Featued Image Modal (staff only) -->
+{% if user.is_staff %}
+<div class="modal fade" id="queueFeaturedImageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Queue for Image of the Day</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="queueFeaturedImageForm">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="featuredImageDay" class="form-label">Date <span class="text-muted">(optional)</span></label>
+                        <input type="date" class="form-control" id="featuredImageDay" name="day">
+                        <div class="form-text">Leave blank to use the next open day in the queue. Choosing a date pins the image to that day.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="featuredImageNote" class="form-label">Note <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="featuredImageNote" name="note" rows="3" maxlength="500"
+                                  placeholder="Add an optional note about this entry..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-calendar-day me-1"></i>Add to Queue
                     </button>
                 </div>
             </form>

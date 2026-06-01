@@ -23,6 +23,20 @@ urlpatterns = [
         views.aerial_georeference_interface,
         name="aerial_georeference_interface",
     ),
+    # Image of the Day queue (staff)
+    path(
+        "featured-image/queue/", views.featured_image_queue, name="featured_image_queue"
+    ),
+    path(
+        "featured-image/<int:pk>/edit/",
+        views.featured_image_edit,
+        name="featured_image_edit",
+    ),
+    path(
+        "featured-image/users/autocomplete/",
+        views.user_autocomplete,
+        name="featured_image_user_autocomplete",
+    ),
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("stats/", views.image_stats, name="image_stats"),
@@ -72,6 +86,11 @@ urlpatterns = [
         "<int:image_id>/from-above/",
         views.mark_aerial,
         name="mark_aerial",
+    ),
+    path(
+        "<int:image_id>/queue-featured-image/",
+        views.queue_featured_image,
+        name="queue_featured_image",
     ),
     path("admin/label-scales/", views.label_scales, name="label_scales"),
     path("admin/update-scale/", views.update_image_scale, name="update_image_scale"),

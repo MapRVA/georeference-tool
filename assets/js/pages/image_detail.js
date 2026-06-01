@@ -566,6 +566,62 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Queue for Image of the Day (staff only)
+  const queueFeaturedImageForm = document.getElementById(
+    "queueFeaturedImageForm",
+  );
+  if (queueFeaturedImageForm) {
+    queueFeaturedImageForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const formData = new FormData(queueFeaturedImageForm);
+      const day = (formData.get("day") || "").trim();
+      const note = (formData.get("note") || "").trim();
+      const csrfToken = formData.get("csrfmiddlewaretoken");
+
+      const submitBtn = queueFeaturedImageForm.querySelector(
+        'button[type="submit"]',
+      );
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML =
+        '<i class="fas fa-spinner fa-spin me-1"></i>Queuing...';
+      submitBtn.disabled = true;
+
+      fetch(config.urls.queueFeaturedImage, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        body: JSON.stringify({ day: day, note: note }),
+      })
+        .then((response) =>
+          response.json().then((data) => ({ ok: response.ok, data: data })),
+        )
+        .then((result) => {
+          if (!result.ok || !result.data.success) {
+            throw new Error(result.data.error || "Error queuing image");
+          }
+          showAlert(
+            "success",
+            result.data.message || "Queued for Image of the Day.",
+          );
+          queueFeaturedImageForm.reset();
+          const modal = bootstrap.Modal.getInstance(
+            document.getElementById("queueFeaturedImageModal"),
+          );
+          if (modal) modal.hide();
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          showAlert("danger", `Error: ${error.message}`);
+        })
+        .finally(() => {
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        });
+    });
+  }
+
   // Force FontAwesome to use CSS mode instead of SVG
   if (window.FontAwesome) {
     window.FontAwesome.config = {

@@ -94,9 +94,10 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/directory_view.js",
         ),
-        page_ocr: path.resolve(
+        page_ocr: path.resolve(__dirname, "./assets/js/pages/page_ocr.js"),
+        featured_image_edit: path.resolve(
           __dirname,
-          "./assets/js/pages/page_ocr.js",
+          "./assets/js/pages/featured_image_edit.js",
         ),
         entry_validate: path.resolve(
           __dirname,

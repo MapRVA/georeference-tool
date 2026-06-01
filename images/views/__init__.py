@@ -42,6 +42,12 @@ from .core import (
     submit_rating,
     update_image_scale,
 )
+from .featured_image import (
+    featured_image_edit,
+    featured_image_queue,
+    queue_featured_image,
+    user_autocomplete,
+)
 from .georeference import (
     aerial_georeference_image,
     aerial_georeference_interface,

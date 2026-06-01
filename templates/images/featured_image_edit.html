@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}Edit Queued Image – Yesterdays{% endblock %}
+
+{% block extra_js %}
+{% vite_asset 'assets/js/pages/featured_image_edit.js' %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'images:featured_image_queue' %}">Image of the Day Queue</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-calendar-day me-2"></i>Edit Queued Image</h5>
+            </div>
+            <div class="card-body">
+                <!-- Read-only context about the entry -->
+                <div class="d-flex align-items-center mb-4">
+                    {% if entry.image.thumbnail or entry.image.permalink %}
+                    <img src="{{ entry.image.thumbnail|default:entry.image.permalink }}"
+                         alt="{{ entry.image.title }}"
+                         class="rounded me-3"
+                         style="width: 80px; height: 80px; object-fit: cover;">
+                    {% endif %}
+                    <div>
+                        <a href="{{ entry.image.get_absolute_url }}" class="h6 d-block mb-1">{{ entry.image.title }}</a>
+                        <div class="text-muted small">
+                            {{ entry.day|date:"l, F j, Y" }}
+                            {% if entry.locked %}
+                            <span class="badge bg-warning text-dark ms-1"><i class="fas fa-lock me-1"></i>Locked</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="featured-image-locked" name="locked" {% if entry.locked %}checked{% endif %}>
+                        <label class="form-check-label" for="featured-image-locked">
+                            <i class="fas fa-lock me-1"></i>Lock to a specific day
+                        </label>
+                        <div class="form-text">Locked images stay on their day and don't shift when the queue changes. Unlocking frees the image from a specific date and returns it to the flow.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="featured-image-day" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="featured-image-day" name="day"
+                               value="{{ entry.day|date:'Y-m-d' }}"
+                               {% if not entry.locked %}disabled{% endif %}>
+                        <div class="form-text">The day this image is pinned to. Available only while locked.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="featured-image-note" class="form-label">Note <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="featured-image-note" name="note" rows="3" maxlength="500"
+                                  placeholder="Add an optional note about this entry...">{{ entry.note|default:'' }}</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="featured-image-user-search" class="form-label">Assigned user <span class="text-muted">(optional)</span></label>
+                        <input type="text" class="form-control" id="featured-image-user-search"
+                               data-autocomplete-url="{% url 'images:featured_image_user_autocomplete' %}"
+                               placeholder="Search by name or username..."
+                               value="{% if entry.user %}{{ entry.user.get_display_name }}{% endif %}"
+                               autocomplete="off">
+                        <input type="hidden" id="featured-image-user-id" name="user_id" value="{% if entry.user %}{{ entry.user.id }}{% endif %}">
+                        <div class="form-text">
+                            Start typing to search for a user.
+                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="featured-image-user-clear">Clear assignment</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'images:featured_image_queue' %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

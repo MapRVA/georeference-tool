@@ -1,3 +1,4 @@
+import datetime
 import uuid
 
 from django.contrib.admin.utils import quote
@@ -7,7 +8,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Count, F, Q
 from django.db.models.functions import Lower
 
@@ -21,6 +22,7 @@ except ImportError:
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from edtf import parse_edtf
 from edtf.parser.edtf_exceptions import EDTFParseException
@@ -1384,3 +1386,253 @@ class TopRatedImageView(models.Model):
     class Meta:
         managed = False
         db_table = "images_top_rated_view"
+
+
+class ImageOfTheDay(models.Model):
+    """Queues an Image to be featured on one specific calendar day.
+
+    The queue is normally a contiguous run of days: an unlocked entry's
+    ``day`` is just a function of where it sits in line, so inserting or
+    removing an entry re-flows the days of the entries around it.
+
+    A *locked* entry is pinned to its ``day``. It stops participating in the
+    flow and its day becomes "claimed" — unlocked entries hop over it when
+    they slide, and a direct insert onto a claimed day raises. Locked entries
+    are the stationary anchors; unlocked entries are the water flowing around
+    them. An entry must be unlocked before its day can change or it can be
+    removed from the queue.
+    """
+
+    image = models.ForeignKey(
+        Image,
+        on_delete=models.CASCADE,
+        related_name="featured_days",
+        help_text="The image to feature. An image may be reused on other days.",
+    )
+    day = models.DateField(
+        help_text="Calendar day (in the site's timezone) this image is featured on"
+    )
+    locked = models.BooleanField(
+        default=False,
+        help_text=(
+            "When locked, this image is pinned to its day: it will not slide "
+            "when the queue is reordered, and its day is claimed until unlocked."
+        ),
+    )
+    note = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="Optional note about this queue entry",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="image_of_the_day_entries",
+        help_text="Optional user associated with this queue entry",
+    )
+
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.day:%Y-%m-%d}: {self.image.title}"
+
+    class Meta:
+        ordering = ["day"]
+        verbose_name = "Image of the Day"
+        verbose_name_plural = "Images of the Day"
+        constraints = [
+            # One image per day. Deferred so the bulk day-shifts in place()
+            # and delete() can transiently overlap and only be validated once,
+            # at COMMIT — making the reflow order-independent.
+            models.UniqueConstraint(
+                fields=["day"],
+                name="unique_image_of_the_day",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["locked"]),
+        ]
+
+    # -- Day arithmetic -----------------------------------------------------
+
+    @staticmethod
+    def _next_free_day(after, locked_days):
+        """The first day strictly after ``after`` not claimed by a lock."""
+        candidate = after + datetime.timedelta(days=1)
+        while candidate in locked_days:
+            candidate += datetime.timedelta(days=1)
+        return candidate
+
+    @classmethod
+    def next_available_day(cls, start=None):
+        """First day >= ``start`` (default: today) with no image queued.
+
+        Used as the default insertion point — appending to the end of the
+        queue, or filling the first gap a lock has left open.
+        """
+        start = start or timezone.localdate()
+        taken = set(cls.objects.filter(day__gte=start).values_list("day", flat=True))
+        candidate = start
+        while candidate in taken:
+            candidate += datetime.timedelta(days=1)
+        return candidate
+
+    @classmethod
+    def for_today(cls):
+        """The entry featured today, or None."""
+        return cls.objects.filter(day=timezone.localdate()).first()
+
+    # -- Queue operations ---------------------------------------------------
+
+    @classmethod
+    def place(cls, image, day=None, locked=False, note=None, user=None):
+        """Insert ``image`` into the queue on ``day`` (default: the end).
+
+        Unlocked entries on or after ``day`` ripple forward to the next free
+        slot, hopping over days claimed by locked entries, so the queue stays
+        contiguous around its anchors. Raises ``ValidationError`` if ``day``
+        is already claimed by a locked entry.
+        """
+        if day is None:
+            day = cls.next_available_day()
+
+        locked_days = set(cls.objects.filter(locked=True).values_list("day", flat=True))
+        if day in locked_days:
+            raise ValidationError(
+                f"{day:%Y-%m-%d} is claimed by a locked image; "
+                "unlock it to use that day."
+            )
+
+        with transaction.atomic():
+            displaced = list(
+                cls.objects.select_for_update()
+                .filter(locked=False, day__gte=day)
+                .order_by("day")
+            )
+            entry = cls.objects.create(
+                image=image, day=day, locked=locked, note=note, user=user
+            )
+            cursor = day
+            for moved in displaced:
+                cursor = cls._next_free_day(cursor, locked_days)
+                moved.day = cursor
+                moved.save(update_fields=["day", "updated"])
+        return entry
+
+    @classmethod
+    def move(cls, entry, new_day, note=None, user=None):
+        """Relocate ``entry`` to ``new_day`` and pin it there (locked).
+
+        The entry's current day is vacated — later unlocked entries slide back
+        to close the gap — and ``new_day`` is then claimed as a locked anchor,
+        rippling any unlocked entries already at or after it. Raises
+        ``ValidationError`` if ``new_day`` is claimed by another locked entry.
+        Returns the new entry (it is recreated, so its pk changes).
+        """
+        image = entry.image
+        with transaction.atomic():
+            # Unlock first so delete() will vacate the slot and slide others
+            # back into it; the lock is reapplied when we re-place below.
+            if entry.locked:
+                cls.objects.filter(pk=entry.pk).update(locked=False)
+                entry.locked = False
+            entry.delete()
+            return cls.place(
+                image, day=new_day, locked=True, note=note, user=user
+            )
+
+    @classmethod
+    def _compact(cls):
+        """Pack upcoming unlocked entries into the earliest free days, in order.
+
+        Days are assigned from today forward, skipping locked anchors, so any
+        gap is closed and the queue stays dense. Past entries are left alone.
+        """
+        today = timezone.localdate()
+        locked_days = set(
+            cls.objects.filter(locked=True, day__gte=today).values_list(
+                "day", flat=True
+            )
+        )
+        upcoming = list(
+            cls.objects.select_for_update()
+            .filter(locked=False, day__gte=today)
+            .order_by("day")
+        )
+        cursor = today - datetime.timedelta(days=1)
+        for entry in upcoming:
+            cursor = cls._next_free_day(cursor, locked_days)
+            if entry.day != cursor:
+                entry.day = cursor
+                entry.save(update_fields=["day", "updated"])
+
+    @classmethod
+    def unlock(cls, entry, note=None, user=None):
+        """Unlock ``entry`` and slide it to the first open day in the queue.
+
+        Unlocking frees the image from its claimed date, so it rejoins the
+        flow and drops into the earliest available day — moving to an earlier
+        gap if one exists — with the rest of the upcoming queue compacting
+        around it.
+        """
+        with transaction.atomic():
+            entry.note = note
+            entry.user = user
+            entry.locked = False
+            entry.save(update_fields=["note", "user", "locked", "updated"])
+            cls._compact()
+
+    def clean(self):
+        """A locked entry's day is claimed and may not be changed."""
+        super().clean()
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).first()
+            if previous and previous.locked and previous.day != self.day:
+                raise ValidationError(
+                    {
+                        "day": (
+                            "This image is locked to its day. Unlock it "
+                            "before moving it to another day."
+                        )
+                    }
+                )
+
+    def delete(self, *args, **kwargs):
+        """Remove from the queue, sliding later unlocked entries back.
+
+        Locked entries must be unlocked first. Removing an unlocked entry
+        frees its day; every later unlocked entry then slides back to the
+        earliest free slot, closing the gap around any locked anchors.
+        """
+        if self.locked:
+            raise ValidationError(
+                "This image is locked to its day. Unlock it before "
+                "removing it from the queue."
+            )
+
+        cls = type(self)
+        day = self.day
+        with transaction.atomic():
+            locked_days = set(
+                cls.objects.filter(locked=True).values_list("day", flat=True)
+            )
+            later = list(
+                cls.objects.select_for_update()
+                .filter(locked=False, day__gt=day)
+                .order_by("day")
+            )
+            result = super().delete(*args, **kwargs)
+            cursor = day - datetime.timedelta(days=1)
+            for moved in later:
+                cursor = cls._next_free_day(cursor, locked_days)
+                if cursor >= moved.day:
+                    # Already compact from here on; nothing left to pull back.
+                    break
+                moved.day = cursor
+                moved.save(update_fields=["day", "updated"])
+        return result

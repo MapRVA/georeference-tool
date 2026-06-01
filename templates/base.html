@@ -67,6 +67,17 @@
                             <li><a class="dropdown-item" href="{% url 'stats' %}">Stats</a></li>
                         </ul>
                     </li>
+                    {% if user.is_staff %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Admin
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'images:featured_image_queue' %}">Featured Image Queue</a></li>
+                            <li><a class="dropdown-item" href="{% url 'admin:index' %}">Admin Panel</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
                 </ul>
 
                 <ul class="navbar-nav ms-auto">
