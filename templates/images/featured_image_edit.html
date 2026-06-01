@@ -68,11 +68,27 @@
 
                     <div class="mb-4">
                         <label for="featured-image-user-search" class="form-label">Assigned user <span class="text-muted">(optional)</span></label>
-                        <input type="text" class="form-control" id="featured-image-user-search"
-                               data-autocomplete-url="{% url 'images:featured_image_user_autocomplete' %}"
-                               placeholder="Search by name or username..."
-                               value="{% if entry.user %}{{ entry.user.get_display_name }}{% endif %}"
-                               autocomplete="off">
+                        <div class="position-relative">
+                            <span class="position-absolute top-50 translate-middle-y d-flex align-items-center" style="left: 0.5rem; pointer-events: none; z-index: 5;">
+                                {% with avatar=entry.user.get_profile_picture_url %}
+                                <img id="featured-image-user-avatar" src="{{ avatar|default:'' }}" alt=""
+                                     class="rounded-circle" style="height: 1.5em; width: 1.5em; object-fit: cover;{% if not avatar %}display: none;{% endif %}">
+                                <!-- The icon is wrapped in a span the JS toggles: FontAwesome's
+                                     SVG mode replaces the inner <i>, so toggling the <i> directly
+                                     would target a stale, detached element. The span survives. -->
+                                <span id="featured-image-user-avatar-fallback" class="align-items-center justify-content-center"
+                                      style="width: 1.5em; height: 1.5em;{% if avatar %}display: none;{% else %}display: inline-flex;{% endif %}">
+                                    <i class="fas fa-user-circle text-muted" style="font-size: 1.5em;"></i>
+                                </span>
+                                {% endwith %}
+                            </span>
+                            <input type="text" class="form-control" id="featured-image-user-search"
+                                   style="padding-left: 2.25rem;"
+                                   data-autocomplete-url="{% url 'images:featured_image_user_autocomplete' %}"
+                                   placeholder="Search by name or username..."
+                                   value="{% if entry.user %}{{ entry.user.get_display_name }}{% endif %}"
+                                   autocomplete="off">
+                        </div>
                         <input type="hidden" id="featured-image-user-id" name="user_id" value="{% if entry.user %}{{ entry.user.id }}{% endif %}">
                         <div class="form-text">
                             Start typing to search for a user.
@@ -80,11 +96,11 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center">
-                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteFromQueueModal">
+                    <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-stretch align-items-sm-center gap-2">
+                        <button type="button" class="btn btn-outline-danger order-2 order-sm-1" data-bs-toggle="modal" data-bs-target="#deleteFromQueueModal">
                             <i class="fas fa-trash me-1"></i>Delete From Queue
                         </button>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex flex-column flex-sm-row gap-2 order-1 order-sm-2">
                             <a href="{% url 'images:featured_image_queue' %}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i>Save Changes

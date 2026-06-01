@@ -21,6 +21,58 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const autocompleteUrl = searchInput.dataset.autocompleteUrl;
 
+  // Keep the avatar in the field's prefix in sync with the selected user.
+  const avatarImg = document.getElementById("featured-image-user-avatar");
+  const avatarFallback = document.getElementById(
+    "featured-image-user-avatar-fallback",
+  );
+  const setAvatar = (url) => {
+    if (!avatarImg || !avatarFallback) return;
+    if (url) {
+      avatarImg.src = url;
+      avatarImg.style.display = "";
+      avatarFallback.style.display = "none";
+    } else {
+      avatarImg.style.display = "none";
+      // inline-flex (not "") so the span keeps centering the icon in its box.
+      avatarFallback.style.display = "inline-flex";
+    }
+  };
+
+  // The avatar prefix only makes sense at rest. While searching it's hidden and
+  // the input's extra left padding (set in the template) is dropped, so the
+  // field reads as a normal text box.
+  const avatarWrap = avatarImg ? avatarImg.parentElement : null;
+  const paddedLeft = searchInput.style.paddingLeft;
+  const showAvatarPrefix = (show) => {
+    if (avatarWrap) {
+      // The wrap uses d-flex (display: flex !important), so an inline
+      // display:none can't hide it — toggle the Bootstrap classes instead.
+      avatarWrap.classList.toggle("d-flex", show);
+      avatarWrap.classList.toggle("d-none", !show);
+    }
+    searchInput.style.paddingLeft = show ? paddedLeft : "";
+  };
+
+  // The committed selection — what the field reverts to if the admin clicks in
+  // to search but doesn't pick a new user. Seeded from the rendered values.
+  let committed = {
+    id: userIdInput.value || "",
+    name: searchInput.value || "",
+    picture:
+      (avatarImg &&
+        avatarImg.style.display !== "none" &&
+        avatarImg.getAttribute("src")) ||
+      "",
+  };
+
+  const applyCommitted = () => {
+    searchInput.value = committed.name;
+    userIdInput.value = committed.id;
+    showAvatarPrefix(true);
+    setAvatar(committed.picture || null);
+  };
+
   const userAutocomplete = new autoComplete({
     selector: "#featured-image-user-search",
     placeHolder: "Search by name or username...",
@@ -41,9 +93,15 @@ document.addEventListener("DOMContentLoaded", function () {
     resultItem: {
       highlight: true,
       element: (item, data) => {
-        item.style =
-          "display: flex; justify-content: space-between; align-items: center;";
+        item.style = "display: flex; align-items: center;";
+        // Image and standin share one identical box, so the gap to the
+        // username (me-2 on the box) is the same whether or not there's a pic.
+        const avatarInner = data.value.picture
+          ? `<img src="${data.value.picture}" alt="" class="rounded-circle" style="height: 100%; width: 100%; object-fit: cover;">`
+          : `<i class="fas fa-user-circle text-muted" style="font-size: 1.5em;"></i>`;
+        const avatar = `<span class="me-2 d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 1.5em; height: 1.5em;">${avatarInner}</span>`;
         item.innerHTML = `
+          ${avatar}
           <span>${data.match}</span>
           <small class="text-muted ms-2">${data.value.username}</small>`;
       },
@@ -53,23 +111,38 @@ document.addEventListener("DOMContentLoaded", function () {
       input: {
         selection: (event) => {
           const selection = event.detail.selection.value;
-          userAutocomplete.input.value = selection.name;
-          userIdInput.value = selection.id;
+          committed = {
+            id: String(selection.id),
+            name: selection.name,
+            picture: selection.picture || "",
+          };
+          applyCommitted();
+          searchInput.blur();
         },
       },
     },
   });
 
-  // Typing by hand invalidates any prior selection until a new one is picked,
-  // so we never submit a stale user id that doesn't match the visible text.
-  searchInput.addEventListener("input", function () {
-    userIdInput.value = "";
+  // Clicking in clears the visible text so the admin can search from scratch,
+  // and suppresses the avatar (they're either typing a search or have nothing
+  // selected). The committed user id is left intact, so submitting mid-search
+  // still saves the current assignment rather than wiping it.
+  searchInput.addEventListener("focus", function () {
+    searchInput.value = "";
+    showAvatarPrefix(false);
+  });
+
+  // Leaving the field without picking a new user restores the committed one.
+  // The short delay lets a result click commit its selection first (the blur
+  // fires before the selection event when a result is clicked).
+  searchInput.addEventListener("blur", function () {
+    setTimeout(applyCommitted, 150);
   });
 
   if (clearBtn) {
     clearBtn.addEventListener("click", function () {
-      searchInput.value = "";
-      userIdInput.value = "";
+      committed = { id: "", name: "", picture: "" };
+      applyCommitted();
       searchInput.focus();
     });
   }

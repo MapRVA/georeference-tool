@@ -93,7 +93,12 @@ def user_autocomplete(request):
     ).order_by("first_name", "username")[:10]
 
     results = [
-        {"id": u.id, "name": u.get_display_name(), "username": u.username}
+        {
+            "id": u.id,
+            "name": u.get_display_name(),
+            "username": u.username,
+            "picture": u.get_profile_picture_url(),
+        }
         for u in users
     ]
     return JsonResponse(results, safe=False)
