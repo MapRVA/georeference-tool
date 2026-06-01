@@ -33,6 +33,11 @@ urlpatterns = [
         name="featured_image_edit",
     ),
     path(
+        "featured-image/<int:pk>/delete/",
+        views.featured_image_delete,
+        name="featured_image_delete",
+    ),
+    path(
         "featured-image/users/autocomplete/",
         views.user_autocomplete,
         name="featured_image_user_autocomplete",

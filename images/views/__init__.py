@@ -43,6 +43,7 @@ from .core import (
     update_image_scale,
 )
 from .featured_image import (
+    featured_image_delete,
     featured_image_edit,
     featured_image_queue,
     queue_featured_image,

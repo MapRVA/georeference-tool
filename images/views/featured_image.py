@@ -156,3 +156,18 @@ def featured_image_edit(request, pk):
         return redirect("images:featured_image_queue")
 
     return render(request, "images/featured_image_edit.html", {"entry": entry})
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+def featured_image_delete(request, pk):
+    """Remove a queued entry, sliding the upcoming queue back to close the gap."""
+    entry = get_object_or_404(ImageOfTheDay, pk=pk)
+    # This is an explicit, confirmed removal, so unlock a locked anchor first
+    # (delete() refuses to remove a locked entry directly).
+    if entry.locked:
+        ImageOfTheDay.objects.filter(pk=entry.pk).update(locked=False)
+        entry.locked = False
+    entry.delete()
+    messages.success(request, "Removed from the queue.")
+    return redirect("images:featured_image_queue")
