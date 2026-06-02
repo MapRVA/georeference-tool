@@ -8,9 +8,11 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models import Count, F, Q
 from django.db.models.functions import Lower
+
+from .utils import render_markdown_safe
 
 # Conditionally import SearchVectorField only if using PostgreSQL
 try:
@@ -890,8 +892,6 @@ class Georeference(models.Model):
         return f"Georeference for {self.image} by {by_user}"
 
     def save(self, *args, **kwargs):
-        from .utils import render_markdown_safe
-
         self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
         super().save(*args, **kwargs)
 
@@ -976,8 +976,6 @@ class AerialGeoreference(models.Model):
         return f"Aerial Georeference for {self.image} by {by_user}"
 
     def save(self, *args, **kwargs):
-        from .utils import render_markdown_safe
-
         self.confidence_notes_html = render_markdown_safe(self.confidence_notes)
         super().save(*args, **kwargs)
 
@@ -1035,8 +1033,6 @@ class AerialGeoreferenceValidation(models.Model):
         return f"{self.validation} validation by {self.validated_by.username}"
 
     def save(self, *args, **kwargs):
-        from .utils import render_markdown_safe
-
         self.notes_html = render_markdown_safe(self.notes)
         super().save(*args, **kwargs)
 
@@ -1080,8 +1076,6 @@ class GeoreferenceValidation(models.Model):
         return f"{self.validation} validation by {self.validated_by.username}"
 
     def save(self, *args, **kwargs):
-        from .utils import render_markdown_safe
-
         self.notes_html = render_markdown_safe(self.notes)
         super().save(*args, **kwargs)
 
@@ -1234,8 +1228,6 @@ class Comment(models.Model):
         return f"Comment by {self.commented_by.username}: {preview}..."
 
     def save(self, *args, **kwargs):
-        from .utils import render_markdown_safe
-
         self.text_html = render_markdown_safe(self.text)
         super().save(*args, **kwargs)
 
@@ -1297,7 +1289,6 @@ def _compute_is_searchable(image):
 @receiver(post_save, sender=Source)
 def update_searchable_on_source_change(sender, instance, **kwargs):
     """When a Source's public status changes, update all images in its collections."""
-    from django.db import connection
 
     # Use raw SQL because Django's update() doesn't allow joined field references
     with connection.cursor() as cursor:
@@ -1471,6 +1462,11 @@ class ImageOfTheDay(models.Model):
         blank=True,
         help_text="Optional note about this queue entry",
     )
+    note_html = models.TextField(
+        blank=True,
+        editable=False,
+        help_text="Cached rendered HTML of note",
+    )
     user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -1485,6 +1481,16 @@ class ImageOfTheDay(models.Model):
 
     def __str__(self):
         return f"{self.day:%Y-%m-%d}: {self.image.title}"
+
+    def save(self, *args, **kwargs):
+        self.note_html = render_markdown_safe(self.note)
+        # note_html is derived from note, so whenever a partial save writes
+        # note we must persist the rebuilt note_html alongside it — otherwise
+        # the cached HTML silently stays stale in the database.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "note" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "note_html"}
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["day"]

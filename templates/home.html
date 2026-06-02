@@ -48,10 +48,10 @@
             </div>
             <div class="card-footer text-body-secondary d-flex justify-content-between align-items-start gap-3">
                 <div>
-                    {% if featured_entry.note %}
+                    {% if featured_entry.note_html %}
                     <figure class="mb-0">
                         <blockquote class="{% if featured_entry.user %}mb-3{% else %}mb-0{% endif %}">
-                            <p class="mb-0">{{ featured_entry.note }}</p>
+                            <p class="mb-0">{{ featured_entry.note_html|safe }}</p>
                         </blockquote>
                         {% if featured_entry.user %}
                         <figcaption class="blockquote-footer text-end mb-0">
