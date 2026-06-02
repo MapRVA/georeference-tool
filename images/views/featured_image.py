@@ -17,12 +17,15 @@ from images.models import Image, ImageOfTheDay
 @staff_member_required
 def featured_image_queue(request):
     """Staff-facing list of images queued for the Image of the Day."""
-    entries = ImageOfTheDay.objects.select_related(
-        "image", "image__collection", "user"
-    ).order_by("day")
+    today = timezone.localdate()
+    entries = (
+        ImageOfTheDay.objects.select_related("image", "image__collection", "user")
+        .filter(day__gte=today)
+        .order_by("day")
+    )
     context = {
         "entries": entries,
-        "today": timezone.localdate(),
+        "today": today,
     }
     return render(request, "images/featured_image_queue.html", context)
 
