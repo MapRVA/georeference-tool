@@ -3,8 +3,8 @@
 Georeferences are the map placements that our community has contributed.
 There are two types:
 
-- **Point georeferences** — the location of the "camera".
-- **From-above georeferences** — a polygon outlining the area covered by an image taken from high up, such as from an airplane.
+- **Point georeferences**: the location of the "camera".
+- **From-above georeferences**: a polygon outlining the area covered by an image taken from high up, such as from an airplane.
 
 Both endpoints return [GeoJSON](https://geojson.org/) FeatureCollections.
 

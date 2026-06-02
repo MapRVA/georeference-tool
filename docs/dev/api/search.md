@@ -60,7 +60,7 @@ Uses a [CLIP](https://en.wikipedia.org/wiki/Contrastive_Language-Image_Pre-train
         {
             "id": 657,
             "title": "St. Johns Church area 1",
-            "permalink": "https://yesterdays.maprva.org/657/",
+            "permalink": "https://cdn.maprva.org/71086e03d2fefa626a0e",
             "thumbnail": "https://cdn.maprva.org/71086e03d2fefa626a0e_thumb",
             "original_date": "1965",
             "date_display": "1965",
@@ -134,7 +134,7 @@ Results are ranked by how closely the query matches, with the best matches first
         {
             "id": 1067,
             "title": "E. Broad Street",
-            "permalink": "https://yesterdays.maprva.org/1067/",
+            "permalink": "https://cdn.maprva.org/09035fe9fe8c4411ccfc",
             "thumbnail": "https://cdn.maprva.org/09035fe9fe8c4411ccfc_thumb",
             "original_date": "1941-1949",
             "date_display": "1941-1949",
@@ -239,7 +239,7 @@ Both endpoints return a response with the following structure:
 |---|---|---|
 | `id` | integer | Image ID |
 | `title` | string | Image title |
-| `permalink` | string | Link to the image on the Yesterdays website |
+| `permalink` | string | Direct URL to the image file (the transformed version if a rotation or mirror has been applied) |
 | `thumbnail` | string | URL to a thumbnail |
 | `original_date` | string | Date as recorded by the source |
 | `date_display` | string | Human-friendly date display |

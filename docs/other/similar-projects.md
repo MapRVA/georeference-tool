@@ -1,6 +1,7 @@
 # Similar Projects
 
-There are many other photo georeferencing projects out there! And many of them are awesome.
+There are many other photo georeferencing projects out there!
+And many of them are awesome.
 Below is a list of external projects similar to Yesterdays.
 
 - [1940s.nyc](https://1940s.nyc) (proprietary), a visualization of photos taken by the Works Progress Administration in from 1939-1941. Includes user-submitted "stories".

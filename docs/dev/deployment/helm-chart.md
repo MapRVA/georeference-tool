@@ -49,7 +49,7 @@ For a complete list, please see [the upstream `values.yaml`](https://github.com/
 ### `osm`
 
 The `osm` key contains values related to OpenStreetMap authentication.
-See [here](/deployment/osm/) for instructions on how to get these values.
+See [here](/deployment/auth/) for instructions on how to get these values.
 Generate your own `clientSecret`, we recommend generating a 30-character password using a password generator.
 
 ```yaml

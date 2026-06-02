@@ -3,13 +3,13 @@
 ## Email
 
 You may email [Jacob Hall](mailto:email@jacobhall.net), the primary developer of Yesterdays.
-They host [yesterdays.maprva.org](https://) and would love to hear from you.
+They host [yesterdays.maprva.org](https://yesterdays.maprva.org) and would love to hear from you.
 
 ## Slack
 
 Yesterdays is a growing community of people interested in discovering their regions' history through historical imagery.
 We invite you to join our channel, `#yesterdays`, in the [OpenStreetMap US Slack](https://openstreetmap.us/slack/).
-Registration is free, and we will be glad to hear from you.
+Registration is free and we will be glad to hear from you.
 
 ## GitHub
 

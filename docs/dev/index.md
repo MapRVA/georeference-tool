@@ -2,6 +2,12 @@
 
 First of all, thank you for your interest in developing to Yesterdays!
 
+## Accessing our API
+
+Yesterdays provides much our data via an API for free.
+You are most welcome to build applications atop our platform.
+Please see our [API docs](api) for more information.
+
 ## Feature requests and bug reports
 
 You are most welcome to submit feature requests or bug reports of any kind.

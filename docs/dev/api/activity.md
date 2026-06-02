@@ -8,7 +8,7 @@ This endpoint gives you a live feed of recent activity on Yesterdays. For overal
 GET /api/v2/activity/
 ```
 
-Returns a stream of recent activity on the site, including georeference contributions, comments, and milestones.
+Returns a stream of recent activity on the site, including georeference contributions, comments, milestones, and subject tagging activity.
 
 ### Example request
 
@@ -98,7 +98,7 @@ Returns a stream of recent activity on the site, including georeference contribu
 
 ### Event types
 
-The feed contains four types of events:
+The feed contains six types of events:
 
 #### `georeference_group`
 
@@ -143,12 +143,46 @@ The exact milestones are set by the site administrator and are subject to change
 |---|---|---|
 | `count` | integer | The milestone reached |
 
+#### `subject_introduction`
+
+A subject was attached to an image for the first time on the site.
+Fires exactly once per subject (the first time it appears on any image).
+
+| Field | Type | Description |
+|---|---|---|
+| `user` | string | OpenStreetMap username of the contributor who first added the subject (may be `null` for pre-tracking records) |
+| `subject_id` | integer | ID of the introduced subject |
+| `subject_title` | string | Title of the introduced subject |
+| `representative_image_id` | integer | ID of the subject's current representative image (may be `null` if the subject has no images) |
+| `representative_image_thumbnail` | string | Thumbnail URL of the representative image (may be `null`) |
+
+#### `subject_activity_group`
+
+A group of subject changes made by one user on one subject within a short
+window: subjects added, subjects removed, or a single reorder operation.
+Consecutive adds (or removes) of the same subject by the same user are
+collapsed into one event so bulk operations don't flood the feed. Reorder
+operations are always reported with `count: 1`.
+
+| Field | Type | Description |
+|---|---|---|
+| `user` | string | OpenStreetMap username of the contributor who made the change |
+| `action` | string | One of `added`, `removed`, or `reordered` |
+| `count` | integer | Number of subject changes in this group |
+| `started_at` | string | When the first change in the group happened |
+| `ended_at` | string | When the most recent change in the group happened |
+| `subject_id` | integer | ID of the affected subject (`null` for `reordered`) |
+| `subject_title` | string | Title of the affected subject (`null` for `reordered` or if the subject has since been deleted) |
+| `images` | array | Affected images (id, title, thumbnail). One entry per change in the group |
+| `previous_order` | array | List of subject IDs in their previous order (only for `reordered`) |
+| `new_order` | array | List of subject IDs in their new order (only for `reordered`) |
+
 ### Query parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `before` | string | — | ISO 8601 timestamp. Return only events before this time. Use this for pagination by passing the `timestamp` of the last event you received. |
-| `types` | string | all | Comma-separated list of event types to include: `georeference_group`, `comment`, `user_milestone`, `sitewide_milestone`. |
+| `types` | string | all | Comma-separated list of event types to include: `georeference_group`, `comment`, `user_milestone`, `sitewide_milestone`, `subject_activity_group`, `subject_introduction`. |
 | `limit` | integer | 20 | Number of events to return (max 100). |
 
 ### Examples

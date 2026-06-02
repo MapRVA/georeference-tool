@@ -59,33 +59,39 @@ nav = [
      "usage/search.md",
      "usage/subjects.md",
   ]},
-  {"API" = [
-     "api/index.md",
-     "api/sources.md",
-     "api/collections.md",
-     "api/images.md",
-     "api/users.md",
-     "api/georeferences.md",
-     "api/search.md",
-     "api/subjects.md",
-     "api/activity.md",
-     "api/statistics.md",
-  ]},
-  {"Development" = [
-     "development/index.md",
-     "development/environment.md",
-     "development/documentation.md",
+  {"For Developers" = [
+    {"Overview" = "dev/index.md"},
+    {"API" = [
+        {"Overview" = "dev/api/index.md"},
+        {"Authentication" = "dev/api/authentication.md"},
+        {"Apps" = "dev/api/apps.md"},
+        {"Sources" = "dev/api/sources.md"},
+        {"Collections" = "dev/api/collections.md"},
+        {"Images" = "dev/api/images.md"},
+        {"Licenses" = "dev/api/licenses.md"},
+        {"Users" = "dev/api/users.md"},
+        {"Georeferences" = "dev/api/georeferences.md"},
+        {"Search" = "dev/api/search.md"},
+        {"Subjects" = "dev/api/subjects.md"},
+        {"Activity" = "dev/api/activity.md"},
+        {"Statistics" = "dev/api/statistics.md"},
+    ]},
+    {"Contributing" = [
+        {"Overview" = "dev/contributing/index.md"},
+        {"Environment" = "dev/contributing/environment.md"},
+        {"Documentation" = "dev/contributing/documentation.md"},
+    ]},
+    {"Deployment" = [
+        {"Overview" = "dev/deployment/index.md"},
+        {"Helm Chart" = "dev/deployment/helm-chart.md"},
+        {"Authentication" = "dev/deployment/auth.md"},
+        {"Hosting Images" = "dev/deployment/hosting-images.md"},
+    ]},
   ]},
   {"Administration" = [
      "administration/index.md",
      "administration/importing.md",
      "administration/image-management.md",
-  ]},
-  {"Deployment" = [
-      "deployment/index.md",
-      "deployment/helm-chart.md",
-      "deployment/auth.md",
-      "deployment/cdn.md",
   ]},
   {"Other" = [
      "other/similar-projects.md",
@@ -368,6 +374,9 @@ toggle.name = "Switch to system preference"
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
 [project.markdown_extensions.pymdownx.superfences]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true

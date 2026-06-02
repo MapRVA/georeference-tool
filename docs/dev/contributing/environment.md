@@ -5,14 +5,14 @@ Here's what you need to run Yesterdays locally:
 - [`uv`](https://docs.astral.sh/uv/),
 - [`bun`](https://bun.com/),
 - a PostgreSQL instance with the pgvector and PostGIS extensions,
-- a RabbitMQ instance for running background tasks (optional).
+- a RabbitMQ instance for running background tasks (optional),
+- an Oxigraph instance for caching and querying Wikidata relationships (optional).
 
 Please follow the instructions below to set these up in your development environment.
 
 ## Run Database
 
-The recommended way to run your database is using podman and
-[MapRVA/cnpg-postgis-pgvector](https://github.com/MapRVA/cnpg-postgis-pgvector).
+The recommended way to run your database is using the [MapRVA/cnpg-postgis-pgvector](https://github.com/MapRVA/cnpg-postgis-pgvector) container.
 
 === "podman"
 
@@ -87,12 +87,43 @@ Yesterdays uses Celery with RabbitMQ to manage background processing tasks.
 To run background tasks, you'll also need to start a Celery worker and (optionally) the beat scheduler for periodic tasks:
 
 ```sh
-# Run the background worker in one terminal
+# Run an background worker in one terminal
 uv run celery -A yesterdays worker --loglevel=info -Q background
+
+# Run an urgent worker in another terminal (for searches)
+uv run celery -A yesterdays worker --loglevel=info -Q urgent
 
 # Run the beat scheduler (for queuing periodic tasks) in another terminal
 uv run celery -A yesterdays beat --loglevel=info
 ```
+
+## (Optional) Run Graph Database
+
+Yesterdays uses a graph database, Oxigraph, to cache and query Wikidata relationships for our [subjects](/usage/subjects/). This example uses a volume to persist the database between restarts, similar to the PostgreSQL example above:
+
+=== "podman"
+
+    ```
+    podman run -d \
+        --name oxigraph \
+        -p 127.0.0.1:7878:7878 \
+        -v oxigraph-data:/data \
+        --restart=unless-stopped \
+        ghcr.io/oxigraph/oxigraph:0.5.8 \
+        serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+    ```
+
+=== "docker"
+
+    ```
+    docker run -d \
+        --name oxigraph \
+        -p 127.0.0.1:7878:7878 \
+        -v oxigraph-data:/data \
+        --restart=unless-stopped \
+        ghcr.io/oxigraph/oxigraph:0.5.8 \
+        serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+    ```
 
 ## Set up environment variables
 
@@ -164,12 +195,6 @@ uv run manage.py runserver
 ```
 
 The site should now be live at http://localhost:8000
-
-## Load a collection
-
-```
-uv run manage.py import library_of_virginia --area A
-```
 
 ## Admin creds
 

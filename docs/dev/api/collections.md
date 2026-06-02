@@ -102,6 +102,96 @@ GET /api/v2/collections/{id}/
     data <- resp_body_json(resp)
     ```
 
+## Create a collection
+
+```
+POST /api/v2/collections/
+```
+
+Creates a new collection inside an existing [source](sources.md).
+Import tools need to call this if they want to upload to a new collection.
+
+**Requires** an OAuth2 bearer token with the `import` scope, on a user with contributor (staff) status.
+See [Authentication](authentication.md).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Name of the collection (max 200 characters). |
+| `slug` | string | yes | URL-friendly identifier, unique within the source. |
+| `source` | integer | yes | ID of the source this collection belongs to. |
+| `url` | string | no | Link to the collection in the original archive. |
+| `description` | string | no | Description of the collection. |
+| `public` | boolean | no | If `true`, images committed into this collection are immediately visible to anonymous users. Defaults to `false` so newly-created collections stay hidden until you've populated them and reviewed metadata. |
+
+### Example request
+
+=== "curl"
+
+    ```bash
+    curl -X POST "https://yesterdays.maprva.org/api/v2/collections/" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Edith K. Shelton Photograph Collection",
+        "slug": "edith-k-shelton-photograph-collection",
+        "source": 2,
+        "url": "https://valentine.example/shelton",
+        "description": "35mm slides taken by Edith K. Shelton..."
+      }'
+    ```
+
+=== "Python"
+
+    ```python
+    import requests
+
+    resp = requests.post(
+        "https://yesterdays.maprva.org/api/v2/collections/",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+        json={
+            "name": "Edith K. Shelton Photograph Collection",
+            "slug": "edith-k-shelton-photograph-collection",
+            "source": 2,
+            "url": "https://valentine.example/shelton",
+            "description": "35mm slides taken by Edith K. Shelton...",
+        },
+    )
+    resp.raise_for_status()
+    collection = resp.json()
+    ```
+
+=== "R"
+
+    ```r
+    library(httr2)
+
+    resp <- request("https://yesterdays.maprva.org/api/v2/collections/") |>
+      req_auth_bearer_token(TOKEN) |>
+      req_body_json(list(
+        name        = "Edith K. Shelton Photograph Collection",
+        slug        = "edith-k-shelton-photograph-collection",
+        source      = 2,
+        url         = "https://valentine.example/shelton",
+        description = "35mm slides taken by Edith K. Shelton..."
+      )) |>
+      req_perform()
+    collection <- resp_body_json(resp)
+    ```
+
+### Example response (201 Created)
+
+```json
+{
+    "id": 118,
+    "name": "Edith K. Shelton Photograph Collection",
+    "slug": "edith-k-shelton-photograph-collection",
+    "source": 2,
+    "url": "https://valentine.example/shelton",
+    "description": "35mm slides taken by Edith K. Shelton...",
+    "public": false
+}
+```
+
 ## Fields
 
 | Field | Type | Description |
@@ -112,6 +202,7 @@ GET /api/v2/collections/{id}/
 | `url` | string | Link to the collection in the original archive |
 | `description` | string | Description of the collection |
 | `source` | object | The [source](sources.md) this collection belongs to (id, name, slug) |
+| `public` | boolean | Whether this collection is visible to non-admin users |
 | `image_count` | integer | Number of images in this collection |
 | `images_url` | string | API link to browse this collection's images |
 

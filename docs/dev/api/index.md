@@ -79,6 +79,7 @@ You can also just open these URLs in your browser — they work the same way.
 | [`/api/v2/sources/`](sources.md) | Institutions that contributed images |
 | [`/api/v2/collections/`](collections.md) | Groups of images within each source |
 | [`/api/v2/images/`](images.md) | The images themselves |
+| [`/api/v2/licenses/`](licenses.md) | Licenses recognized when importing images |
 | [`/api/v2/subjects/`](subjects.md) | Buildings, people, and other tagged subjects |
 | [`/api/v2/georeferences/`](georeferences.md) | Point locations as GeoJSON |
 | [`/api/v2/from-above-georeferences/`](georeferences.md#from-above-georeferences) | Polygon coverage areas as GeoJSON |

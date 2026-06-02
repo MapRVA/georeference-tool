@@ -139,6 +139,89 @@ This returns the same format as the [collections endpoint](collections.md).
     data <- resp_body_json(resp)
     ```
 
+## Create a source
+
+```
+POST /api/v2/sources/
+```
+
+Creates a new archive source on this instance. Import tools should call this when the institution an image came from isn't already represented.
+
+**Requires** an OAuth2 bearer token with the `import` scope, on a user with contributor (staff) status. See [Authentication](authentication.md).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Name of the institution (max 200 characters). |
+| `slug` | string | yes | URL-friendly identifier, unique across all sources. |
+| `url` | string | yes | URL of the institution's website. |
+| `description` | string | yes | Description of the source. |
+| `public` | boolean | no | If `true`, the source and its images are immediately visible to non-admin users. Defaults to `false` so freshly-created sources stay hidden until you've populated them and reviewed metadata. |
+
+### Example request
+
+=== "curl"
+
+    ```bash
+    curl -X POST "https://yesterdays.maprva.org/api/v2/sources/" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Library of Virginia",
+        "slug": "library-of-virginia",
+        "url": "https://www.lva.virginia.gov/",
+        "description": "The Library of Virginia is the archival agency..."
+      }'
+    ```
+
+=== "Python"
+
+    ```python
+    import requests
+
+    resp = requests.post(
+        "https://yesterdays.maprva.org/api/v2/sources/",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+        json={
+            "name": "Library of Virginia",
+            "slug": "library-of-virginia",
+            "url": "https://www.lva.virginia.gov/",
+            "description": "The Library of Virginia is the archival agency...",
+        },
+    )
+    resp.raise_for_status()
+    source = resp.json()
+    ```
+
+=== "R"
+
+    ```r
+    library(httr2)
+
+    resp <- request("https://yesterdays.maprva.org/api/v2/sources/") |>
+      req_auth_bearer_token(TOKEN) |>
+      req_body_json(list(
+        name        = "Library of Virginia",
+        slug        = "library-of-virginia",
+        url         = "https://www.lva.virginia.gov/",
+        description = "The Library of Virginia is the archival agency..."
+      )) |>
+      req_perform()
+    source <- resp_body_json(resp)
+    ```
+
+### Example response (201 Created)
+
+```json
+{
+    "id": 12,
+    "name": "Library of Virginia",
+    "slug": "library-of-virginia",
+    "url": "https://www.lva.virginia.gov/",
+    "description": "The Library of Virginia is the archival agency...",
+    "public": false
+}
+```
+
 ## Fields
 
 | Field | Type | Description |
@@ -148,6 +231,7 @@ This returns the same format as the [collections endpoint](collections.md).
 | `slug` | string | URL-friendly name |
 | `url` | string | Link to the institution's website |
 | `description` | string | Description of the source |
+| `public` | boolean | Whether this source is visible to non-admin users |
 | `collection_count` | integer | Number of public collections from this source |
 | `image_count` | integer | Total number of images from this source |
 | `collections_url` | string | API link to this source's collections |
