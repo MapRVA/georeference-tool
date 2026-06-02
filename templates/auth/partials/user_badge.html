@@ -1,0 +1,25 @@
+{% comment %}
+Profile picture + display name for a user.
+
+Usage:
+- Basic: {% include 'auth/partials/user_badge.html' with user=entry.user %}
+- Custom size: {% include 'auth/partials/user_badge.html' with user=entry.user size='2em' %}
+- Linked to OSM profile: {% include 'auth/partials/user_badge.html' with user=entry.user link=True %}
+
+Parameters:
+- user (required): the User object to display.
+- size (optional): CSS size for the avatar (default '1.5em').
+- link (optional): if True, wraps the badge in a link to the user's OSM profile.
+{% endcomment %}
+{% with profile_picture_url=user.get_profile_picture_url avatar_size=size|default:'1.5em' %}
+{% if link and user.get_profile_url %}<a href="{{ user.get_profile_url }}" class="d-inline-flex align-items-center text-decoration-none">{% else %}<span class="d-inline-flex align-items-center">{% endif %}
+    {% if profile_picture_url %}
+        <img src="{{ profile_picture_url }}" alt="Profile" class="rounded-circle me-2" style="height: {{ avatar_size }}; width: {{ avatar_size }}; object-fit: cover;">
+    {% else %}
+        <span class="me-2 d-inline-flex align-items-center justify-content-center" style="width: {{ avatar_size }}; height: {{ avatar_size }};">
+            <i class="fas fa-user-circle" style="font-size: {{ avatar_size }};"></i>
+        </span>
+    {% endif %}
+    {{ user.get_display_name }}
+{% if link and user.get_profile_url %}</a>{% else %}</span>{% endif %}
+{% endwith %}

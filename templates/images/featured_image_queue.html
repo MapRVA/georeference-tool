@@ -46,7 +46,7 @@
                             {% if entry.note %}{{ entry.note|truncatechars:80 }}{% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td class="text-nowrap">
-                            {% if entry.user %}{{ entry.user.get_display_name }}{% else %}<span class="text-muted">—</span>{% endif %}
+                            {% if entry.user %}{% include 'auth/partials/user_badge.html' with user=entry.user %}{% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td class="text-end">
                             <a href="{% url 'images:featured_image_edit' entry.pk %}" class="btn btn-sm btn-outline-secondary">
