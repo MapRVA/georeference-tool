@@ -1,4 +1,10 @@
-/* Activity feed page styles */
+/* Activity feed styles — single source of truth, shared by the full feed
+   page (activity/feed.html) and the homepage embed
+   (activity/partials/feed_embed.html). */
+
+/* Comment cards render user markdown; pull in the shared markdown styles so
+   the feed is fully styled from this one stylesheet. */
+@import "../components/markdown.css";
 
 /* Square thumbnail for activity card previews (mobile) */
 .activity-thumbnail {
@@ -36,4 +42,19 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* Homepage embed: each activity event is itself a Bootstrap card, but here we
+   render the events as rows of a flush list group. Flatten each event's outer
+   card so the rows read as a clean separated list instead of cards within a
+   card — list-group-flush supplies the between-row separators. Colored
+   milestone backgrounds (bg-warning/bg-primary) survive via the background
+   utility's own !important, becoming full-bleed highlight rows. Scoped to the
+   embed so the full feed page is untouched. */
+.activity-feed-embed .list-group-item > .card {
+    margin-bottom: 0 !important;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background-color: transparent;
 }

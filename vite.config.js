@@ -37,6 +37,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(__dirname, "./assets/index.js"),
+        home: path.resolve(__dirname, "./assets/js/pages/home.js"),
         image_detail: path.resolve(
           __dirname,
           "./assets/js/pages/image_detail.js",
@@ -81,6 +82,10 @@ export default defineConfig({
         activity_feed: path.resolve(
           __dirname,
           "./assets/js/pages/activity_feed.js",
+        ),
+        activity_css: path.resolve(
+          __dirname,
+          "./assets/styles/pages/activity.css",
         ),
         directory_create: path.resolve(
           __dirname,

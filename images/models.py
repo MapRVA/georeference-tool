@@ -127,6 +127,38 @@ class SiteSettings(models.Model):
         default=39.71,
         help_text="Northernmost latitude for the default subject bounding box",
     )
+    home_feed_item_count = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Number of recent activity items to show in the homepage feed embed",
+    )
+    home_feed_show_georeferences = models.BooleanField(
+        default=True,
+        help_text="Show georeference activity in the homepage feed embed",
+    )
+    home_feed_show_comments = models.BooleanField(
+        default=True,
+        help_text="Show comments in the homepage feed embed",
+    )
+    home_feed_show_user_milestones = models.BooleanField(
+        default=True,
+        help_text="Show user milestones in the homepage feed embed",
+    )
+    home_feed_show_site_milestones = models.BooleanField(
+        default=True,
+        help_text="Show sitewide milestones in the homepage feed embed",
+    )
+    home_feed_show_validations = models.BooleanField(
+        default=False,
+        help_text="Show georeference validations in the homepage feed embed",
+    )
+    home_feed_show_subjects = models.BooleanField(
+        default=False,
+        help_text="Show subject mapping activity in the homepage feed embed",
+    )
+    home_feed_show_new_subjects = models.BooleanField(
+        default=True,
+        help_text="Show new subject introductions in the homepage feed embed",
+    )
 
     class Meta:
         verbose_name = "Site Settings"
@@ -134,6 +166,20 @@ class SiteSettings(models.Model):
 
     def __str__(self):
         return "Site Settings"
+
+    @property
+    def home_feed_event_types(self):
+        """Set of activity event-type keys enabled for the homepage feed embed."""
+        enabled = {
+            "group": self.home_feed_show_georeferences,
+            "comment": self.home_feed_show_comments,
+            "milestone": self.home_feed_show_user_milestones,
+            "sitewide": self.home_feed_show_site_milestones,
+            "validation": self.home_feed_show_validations,
+            "subject": self.home_feed_show_subjects,
+            "new_subject": self.home_feed_show_new_subjects,
+        }
+        return {key for key, on in enabled.items() if on}
 
     def save(self, *args, **kwargs):
         # Ensure only one instance can exist
@@ -1487,6 +1533,20 @@ class ImageOfTheDay(models.Model):
         """The entry featured today, or None."""
         return cls.objects.filter(day=timezone.localdate()).first()
 
+    @classmethod
+    def current_or_most_recent(cls):
+        """Today's featured entry, or the most recent past one if none today.
+
+        Used to surface a featured image even on days with nothing queued —
+        the most recently featured image stands in until the next one is due.
+        """
+        return (
+            cls.objects.filter(day__lte=timezone.localdate())
+            .select_related("image__collection__source")
+            .order_by("-day")
+            .first()
+        )
+
     # -- Queue operations ---------------------------------------------------
 
     @classmethod
@@ -1542,9 +1602,7 @@ class ImageOfTheDay(models.Model):
                 cls.objects.filter(pk=entry.pk).update(locked=False)
                 entry.locked = False
             entry.delete()
-            return cls.place(
-                image, day=new_day, locked=True, note=note, user=user
-            )
+            return cls.place(image, day=new_day, locked=True, note=note, user=user)
 
     @classmethod
     def _compact(cls):

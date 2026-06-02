@@ -6,13 +6,17 @@ from django.db.models import Count, F, Max
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 
+from activity.views import get_activity_events
 from images.models import (
     AerialGeoreference,
     Georeference,
     GeoreferenceValidation,
     Image,
+    ImageOfTheDay,
+    SiteSettings,
     TopRatedImageView,
 )
 from images.utils import get_confidence_breakdown, get_overall_stats
@@ -41,9 +45,19 @@ def get_top_rated_image():
 
 def home(request):
     """Home page view"""
+    site_settings = SiteSettings.load()
+    featured_entry = ImageOfTheDay.current_or_most_recent()
     context = {
         "page_title": "Home",
         "top_rated_image": get_top_rated_image(),
+        "featured_entry": featured_entry,
+        "featured_is_today": (
+            featured_entry is not None and featured_entry.day == timezone.localdate()
+        ),
+        "activity_events": get_activity_events(
+            limit=site_settings.home_feed_item_count,
+            event_types=site_settings.home_feed_event_types,
+        ),
     }
     return render(request, "home.html", context)
 

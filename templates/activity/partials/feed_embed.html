@@ -1,0 +1,37 @@
+{% load django_vite %}
+{% comment %}
+Self-contained activity feed embed for use outside the full feed page
+(e.g. the homepage). Renders a fixed set of recent items as a flush list
+group — one event per <li>, with the event's own card flattened by
+activity.css so the rows read as a clean list rather than cards within a
+card. No "Load More" — just a link through to the full feed. Expects
+`activity_events` in context. Pulls in its own styling so the including
+template doesn't need to know about activity internals.
+{% endcomment %}
+{% vite_asset 'assets/styles/pages/activity.css' %}
+<ul class="list-group list-group-flush activity-feed-embed">
+    {% for event_type, event, timestamp in activity_events %}
+    <li class="list-group-item p-0">
+        {% if event_type == 'group' %}
+            {% include 'activity/partials/group_card.html' with group=event %}
+        {% elif event_type == 'comment' %}
+            {% include 'activity/partials/comment_card.html' with comment=event %}
+        {% elif event_type == 'milestone' %}
+            {% include 'activity/partials/milestone_card.html' with milestone=event %}
+        {% elif event_type == 'sitewide' %}
+            {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
+        {% elif event_type == 'validation' %}
+            {% include 'activity/partials/validation_card.html' with validation=event %}
+        {% elif event_type == 'subject' %}
+            {% include 'activity/partials/subject_card.html' with group=event %}
+        {% elif event_type == 'new_subject' %}
+            {% include 'activity/partials/new_subject_card.html' with introduction=event %}
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+<div class="text-center mb-3">
+    <a href="{% url 'activity:feed' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-right me-2"></i>More activity
+    </a>
+</div>

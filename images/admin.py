@@ -1131,6 +1131,22 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 "description": "Default bounding box used when refreshing OSM metadata for subjects (typically wider than the search bbox to cover the broader region)",
             },
         ),
+        (
+            "Homepage Activity Feed",
+            {
+                "fields": (
+                    "home_feed_item_count",
+                    "home_feed_show_georeferences",
+                    "home_feed_show_comments",
+                    "home_feed_show_user_milestones",
+                    "home_feed_show_site_milestones",
+                    "home_feed_show_validations",
+                    "home_feed_show_subjects",
+                    "home_feed_show_new_subjects",
+                ),
+                "description": "Controls the recent-activity feed embedded on the homepage",
+            },
+        ),
     )
 
 
