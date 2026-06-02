@@ -5,6 +5,8 @@
 // no-op when neither the IIIF viewer nor a plain <img> is present, so this is
 // safe to run even when no image is featured.
 import "../../styles/components/image-viewer.css";
+// Styles for the Recent Activity embed (templates/activity/partials/feed_embed.html).
+import "../../styles/pages/activity.css";
 
 import { initImageViewer } from "../components/image_viewer.js";
 

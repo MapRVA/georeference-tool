@@ -1,14 +1,13 @@
-{% load django_vite %}
 {% comment %}
-Self-contained activity feed embed for use outside the full feed page
-(e.g. the homepage). Renders a fixed set of recent items as a flush list
-group — one event per <li>, with the event's own card flattened by
-activity.css so the rows read as a clean list rather than cards within a
-card. No "Load More" — just a link through to the full feed. Expects
-`activity_events` in context. Pulls in its own styling so the including
-template doesn't need to know about activity internals.
+Activity feed embed for use outside the full feed page (e.g. the homepage).
+Renders a fixed set of recent items as a flush list group — one event per
+<li>, with the event's own card flattened by activity.css so the rows read as
+a clean list rather than cards within a card. No "Load More" — just a link
+through to the full feed. Expects `activity_events` in context.
+
+Styling comes from assets/styles/pages/activity.css; the including page's JS
+entry must import it (see home.js / activity_feed.js).
 {% endcomment %}
-{% vite_asset 'assets/styles/pages/activity.css' %}
 <ul class="list-group list-group-flush activity-feed-embed">
     {% for event_type, event, timestamp in activity_events %}
     <li class="list-group-item p-0">

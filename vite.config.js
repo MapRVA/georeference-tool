@@ -83,10 +83,6 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/activity_feed.js",
         ),
-        activity_css: path.resolve(
-          __dirname,
-          "./assets/styles/pages/activity.css",
-        ),
         directory_create: path.resolve(
           __dirname,
           "./assets/js/pages/directory_create.js",

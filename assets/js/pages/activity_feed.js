@@ -2,11 +2,8 @@
  * Activity Feed page JavaScript
  *
  * Handles the "Load More" infinite scroll functionality and filtering using Alpine.js.
- *
- * Feed CSS is loaded via {% vite_asset 'assets/styles/pages/activity.css' %} in
- * the templates (the single source of truth), not imported here, so it can be
- * shared with the homepage embed without double-loading.
  */
+import "../../styles/pages/activity.css";
 
 // Add x-cloak style to prevent flash of unstyled content
 document.addEventListener("DOMContentLoaded", function () {
@@ -30,7 +27,13 @@ window.activityFilter = function (initialFilters) {
     "subject",
     "new_subject",
   ];
-  const defaultTypes = ["group", "comment", "milestone", "sitewide", "new_subject"];
+  const defaultTypes = [
+    "group",
+    "comment",
+    "milestone",
+    "sitewide",
+    "new_subject",
+  ];
 
   return {
     filters: {
