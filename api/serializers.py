@@ -508,7 +508,7 @@ class SourceCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Source
         fields = ["id", "name", "slug", "url", "description", "public"]
-        read_only_fields = ["id", "slug"]
+        read_only_fields = ["id"]
         extra_kwargs = {
             "public": {"required": False, "default": False},
         }
