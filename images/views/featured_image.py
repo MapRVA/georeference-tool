@@ -63,11 +63,15 @@ def queue_featured_image(request, image_id):
             status=400,
         )
 
+    # Only attribute the entry to the submitter if they opted in to being
+    # publicly quoted; otherwise keep it anonymous.
+    user = request.user if data.get("quote_me") else None
+
     try:
         # Choosing an explicit date pins the image to that day (locks it);
         # leaving it blank appends to the next open day, unlocked.
         entry = ImageOfTheDay.place(
-            image, day=day, locked=day is not None, note=note, user=request.user
+            image, day=day, locked=day is not None, note=note, user=user
         )
     except ValidationError as e:
         return JsonResponse(

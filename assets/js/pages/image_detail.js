@@ -576,6 +576,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const formData = new FormData(queueFeaturedImageForm);
       const day = (formData.get("day") || "").trim();
       const note = (formData.get("note") || "").trim();
+      const quoteMe = formData.get("quote_me") !== null;
       const csrfToken = formData.get("csrfmiddlewaretoken");
 
       const submitBtn = queueFeaturedImageForm.querySelector(
@@ -592,7 +593,7 @@ document.addEventListener("DOMContentLoaded", function () {
           "Content-Type": "application/json",
           "X-CSRFToken": csrfToken,
         },
-        body: JSON.stringify({ day: day, note: note }),
+        body: JSON.stringify({ day: day, note: note, quote_me: quoteMe }),
       })
         .then((response) =>
           response.json().then((data) => ({ ok: response.ok, data: data })),

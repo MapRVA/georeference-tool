@@ -67,7 +67,7 @@
                     </div>
 
                     <div class="mb-4">
-                        <label for="featured-image-user-search" class="form-label">Assigned user <span class="text-muted">(optional)</span></label>
+                        <label for="featured-image-user-search" class="form-label">Quoted user <span class="text-muted">(optional)</span></label>
                         <div class="position-relative">
                             <span class="position-absolute top-50 translate-middle-y d-flex align-items-center" style="left: 0.5rem; pointer-events: none; z-index: 5;">
                                 {% with avatar=entry.user.get_profile_picture_url %}
@@ -77,13 +77,13 @@
                                      SVG mode replaces the inner <i>, so toggling the <i> directly
                                      would target a stale, detached element. The span survives. -->
                                 <span id="featured-image-user-avatar-fallback" class="align-items-center justify-content-center"
-                                      style="width: 1.5em; height: 1.5em;{% if avatar %}display: none;{% else %}display: inline-flex;{% endif %}">
+                                      style="width: 1.5em; height: 1.5em;{% if avatar or not entry.user %}display: none;{% else %}display: inline-flex;{% endif %}">
                                     <i class="fas fa-user-circle text-muted" style="font-size: 1.5em;"></i>
                                 </span>
                                 {% endwith %}
                             </span>
                             <input type="text" class="form-control" id="featured-image-user-search"
-                                   style="padding-left: 2.25rem;"
+                                   {% if entry.user %}style="padding-left: 2.25rem;"{% endif %}
                                    data-autocomplete-url="{% url 'images:featured_image_user_autocomplete' %}"
                                    placeholder="Search by name or username..."
                                    value="{% if entry.user %}{{ entry.user.get_display_name }}{% endif %}"
@@ -91,6 +91,7 @@
                         </div>
                         <input type="hidden" id="featured-image-user-id" name="user_id" value="{% if entry.user %}{{ entry.user.id }}{% endif %}">
                         <div class="form-text">
+                            The note above will be publicly attributed to this user.<br>
                             Start typing to search for a user.
                             <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="featured-image-user-clear">Clear assignment</button>
                         </div>

@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const avatarFallback = document.getElementById(
     "featured-image-user-avatar-fallback",
   );
-  const setAvatar = (url) => {
+  const setAvatar = (url, hasUser) => {
     if (!avatarImg || !avatarFallback) return;
     if (url) {
       avatarImg.src = url;
@@ -34,8 +34,10 @@ document.addEventListener("DOMContentLoaded", function () {
       avatarFallback.style.display = "none";
     } else {
       avatarImg.style.display = "none";
+      // Only show the standin icon for a selected user with no picture; show
+      // nothing when there's no assignment at all.
       // inline-flex (not "") so the span keeps centering the icon in its box.
-      avatarFallback.style.display = "inline-flex";
+      avatarFallback.style.display = hasUser ? "inline-flex" : "none";
     }
   };
 
@@ -43,7 +45,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // the input's extra left padding (set in the template) is dropped, so the
   // field reads as a normal text box.
   const avatarWrap = avatarImg ? avatarImg.parentElement : null;
-  const paddedLeft = searchInput.style.paddingLeft;
+  // The padding that makes room for the avatar prefix. Kept as a constant
+  // rather than read from the input, since the template omits it when no user
+  // is selected (so there's nothing to read at load).
+  const paddedLeft = "2.25rem";
   const showAvatarPrefix = (show) => {
     if (avatarWrap) {
       // The wrap uses d-flex (display: flex !important), so an inline
@@ -69,8 +74,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const applyCommitted = () => {
     searchInput.value = committed.name;
     userIdInput.value = committed.id;
-    showAvatarPrefix(true);
-    setAvatar(committed.picture || null);
+    // No selection means no prefix at all, so the placeholder isn't indented.
+    showAvatarPrefix(Boolean(committed.id));
+    setAvatar(committed.picture || null, Boolean(committed.id));
   };
 
   const userAutocomplete = new autoComplete({
