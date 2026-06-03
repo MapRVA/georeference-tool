@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/configure-pages@v6
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
       - run: uv sync --only-group docs
       - run: uv run --only-group docs zensical build --clean --strict
       - uses: actions/upload-pages-artifact@v5
