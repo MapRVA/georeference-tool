@@ -2,7 +2,7 @@
 
 An instance's site settings can be accessed at `/admin/images/sitesettings/1/change/`.
 
-## Hompage Content
+## Homepage Content
 
 The title and subtitle as presented in the hero on the site's landing page.
 
