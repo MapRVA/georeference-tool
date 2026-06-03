@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --only-group docs
-      - run: uv run --only-group docs zensical build --clean
+      - run: uv run --only-group docs zensical build --clean --strict
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
