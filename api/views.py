@@ -50,7 +50,6 @@ from images.models import (
     Source,
     SubjectMapping,
     SubjectMappingActivity,
-    SUBJECT_MAPPING_ACTION_ADDED,
 )
 from images.tasks import process_image
 from images.utils import R2Uploader, get_confidence_breakdown, get_overall_stats
@@ -651,7 +650,7 @@ def import_commit_view(request):
                     user=request.user,
                     image=image,
                     subject=subject,
-                    action=SUBJECT_MAPPING_ACTION_ADDED,
+                    action=SubjectMappingActivity.ACTION_ADDED,
                 )
 
             dest_key = f"images/{image.id}/original{ext}"
