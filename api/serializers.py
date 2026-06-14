@@ -548,6 +548,13 @@ class ImportCommitSerializer(serializers.Serializer):
     mirror = serializers.ChoiceField(
         choices=["none", "h", "v"], required=False, default="none"
     )
+    subjects = serializers.SlugRelatedField(
+        many=True,
+        slug_field="slug",
+        queryset=Subject.objects.all(),
+        required=False,
+        default=list,
+    )
 
     def validate_edtf_date(self, value):
         try:
