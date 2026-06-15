@@ -1,6 +1,22 @@
 {% extends 'base.html' %}
 {% load django_vite %}
 
+{% block extra_css %}
+<style>
+    #homepage-map {
+        width: 100%;
+        height: 400px;
+    }
+    /* This is a preview embed — hide the interactive control clusters but
+       keep the attribution (bottom-right). Use the /map/ page for the full,
+       controllable experience. */
+    #homepage-map .maplibregl-ctrl-top-right,
+    #homepage-map .maplibregl-ctrl-top-left {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block opengraph %}
 	<meta property="og:title" content="{{ site_title }}">
 	<meta property="og:type" content="website">
@@ -83,6 +99,20 @@
         </div>
     </div>
     {% endif %}
+
+    <div class="{% if activity_events %}col-lg-8{% else %}col-12{% endif %} mb-4 {% if featured_entry %}order-lg-3{% else %}order-first{% endif %}">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Image Map</h5>
+                <a href="/map/" class="btn btn-primary btn-sm">
+                    <i class="fas fa-map me-2"></i>Explore the full map
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% include 'images/partials/map_display.html' with map_id='homepage-map' %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
