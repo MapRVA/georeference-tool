@@ -3,6 +3,7 @@ import logging
 
 import numpy as np
 import requests
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
@@ -15,6 +16,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
+from psycopg import sql
 
 from activity.models import (
     GROUPING_WINDOW,
@@ -29,7 +31,6 @@ from .project_graph import PROJECT_GRAPH_IRI, SUBJECT_CLASS_IRI
 from .sparql_safety import (
     UnsafeSparqlInput,
     sparql_string_literal,
-    sparql_wikidata_entity_iri,
     validate_qid,
 )
 from .subject_facts import fetch_subject_facts
@@ -1070,7 +1071,11 @@ def find_similar_images_to_subject(request, subject_slug):
         # Get IDs of subject images to exclude from results
         subject_image_ids = list(subject_images.values_list("id", flat=True))
 
-        with connection.cursor() as cursor:
+        with transaction.atomic(), connection.cursor() as cursor:
+            # Raise pgvector's HNSW search depth from its default of 40.
+            # Scoped to this transaction via SET LOCAL.
+            cursor.execute("SET LOCAL hnsw.ef_search = %s", [settings.HNSW_EF_SEARCH])
+
             # Convert centroid embedding to PostgreSQL array format
             embedding_str = "[" + ",".join(map(str, centroid_embedding.tolist())) + "]"
 
@@ -1145,38 +1150,29 @@ def find_similar_images_to_subject(request, subject_slug):
             where_clause = " AND ".join(where_conditions)
 
             # Get total count for pagination
-            count_sql = f"""
+            count_sql = sql.SQL("""
                 SELECT COUNT(id)
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
-            """
+                AND is_searchable = true
+            """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(count_sql, where_params)
             total_count = cursor.fetchone()[0]
+            # HNSW can only rank ef_search candidates per query, so deeper
+            # results aren't reachable even if more matching rows exist.
+            total_count = min(total_count, settings.HNSW_EF_SEARCH)
 
             # SQL-level pagination - only fetch the IDs we need for this page
-            query_sql = f"""
+            query_sql = sql.SQL("""
                 SELECT
                     id,
                     (embedding::vector(768) <=> %s::vector(768)) as distance
                 FROM images_image
                 WHERE {where_clause}
-                AND id IN (
-                    SELECT i.id
-                    FROM images_image i
-                    JOIN images_collection c ON i.collection_id = c.id
-                    JOIN images_source s ON c.source_id = s.id
-                    WHERE c.public = true AND s.public = true AND i.duplicate_of_id IS NULL
-                )
+                AND is_searchable = true
                 ORDER BY embedding::vector(768) <=> %s::vector(768), id ASC
                 LIMIT %s OFFSET %s
-            """
+            """).format(where_clause=sql.SQL(where_clause))
             cursor.execute(
                 query_sql,
                 [embedding_str] + where_params + [embedding_str, per_page, offset],
