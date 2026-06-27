@@ -19,9 +19,10 @@ from iiif_prezi3 import (
 )
 from PIL import Image as PILImage
 
-from .models import Image, ImportSlot
-from .utils import R2Uploader, R2UploaderError
 from yesterdays.iiif import generate_and_upload_iiif_tiles
+
+from .models import Image, ImportSlot
+from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
 
@@ -160,9 +161,9 @@ def process_image(self, image_id: int, quality: int = 85):
         Image.objects.filter(pk=image_id).update(
             asset_generation=F("asset_generation") + 1,
         )
-        generation = Image.objects.values_list(
-            "asset_generation", flat=True
-        ).get(pk=image_id)
+        generation = Image.objects.values_list("asset_generation", flat=True).get(
+            pk=image_id
+        )
 
     base_key = f"images/{image_id}/{generation}"
 
@@ -285,7 +286,6 @@ def transform_image(img: PILImage.Image, rotation: int, mirror: str) -> PILImage
     return img
 
 
-
 def download_image(url: str, timeout: int = 30) -> PILImage.Image | None:
     """Download an image from URL and return PIL Image."""
     try:
@@ -297,7 +297,7 @@ def download_image(url: str, timeout: int = 30) -> PILImage.Image | None:
             return None
 
         image_data = BytesIO(response.content)
-        return PILImage.open(image_data).convert("RGB")
+        return to_rgb(PILImage.open(image_data))
     except Exception:
         return None
 
@@ -491,7 +491,7 @@ def cleanup_old_image_assets(image_id):
     for key in r2.iter_keys(prefix):
         if key.startswith(keep_subprefix):
             continue
-        first_segment, _, _ = key[len(prefix):].partition("/")
+        first_segment, _, _ = key[len(prefix) :].partition("/")
         if first_segment.isdigit():
             to_delete.append(key)
 
@@ -510,8 +510,9 @@ def cleanup_old_image_assets(image_id):
 @shared_task
 def cleanup_stale_import_slots():
     """Delete import slots older than 24 hours and their temporary S3 files."""
-    from django.utils import timezone
     from datetime import timedelta
+
+    from django.utils import timezone
 
     cutoff = timezone.now() - timedelta(hours=24)
     stale_slots = ImportSlot.objects.filter(created_at__lt=cutoff)
@@ -525,7 +526,9 @@ def cleanup_stale_import_slots():
         for slot in stale_slots:
             r2.delete_file(slot.s3_key)
     except R2UploaderError:
-        logger.warning("Failed to clean up some S3 files for stale import slots", exc_info=True)
+        logger.warning(
+            "Failed to clean up some S3 files for stale import slots", exc_info=True
+        )
 
     stale_slots.delete()
     return f"Cleaned up {count} stale import slot(s)."

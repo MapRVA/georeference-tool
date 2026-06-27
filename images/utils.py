@@ -21,6 +21,7 @@ from django.db import connection
 from django.urls import reverse
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
+from PIL import Image as PILImage
 from tqdm import tqdm
 
 # Allowed HTML tags for sanitized content
@@ -30,6 +31,23 @@ ALLOWED_TAGS = {"p", "br", "strong", "em", "u", "ul", "ol", "li", "blockquote", 
 ALLOWED_ATTRIBUTES = {
     "a": {"href", "title"},
 }
+
+# PIL modes that store more than 8 bits per channel. A direct .convert("RGB")
+# on these clamps any value above 255 to white instead of rescaling.
+_HIGH_DEPTH_MODES = ("I", "I;16", "I;16B", "I;16L", "I;16N", "F")
+
+
+def to_rgb(img: PILImage.Image) -> PILImage.Image:
+    """Convert a PIL image to 8-bit RGB, downscaling high-bit-depth sources.
+
+    Pillow's direct .convert("RGB") on 16-bit modes (e.g. a 16-bit grayscale
+    TIFF scan, mode "I;16") clamps every value above 255 to white instead of
+    rescaling, producing a blank thumbnail. Map the 16-bit range down to 8 bits
+    (high byte) first; ordinary 8-bit images pass straight through unchanged.
+    """
+    if img.mode in _HIGH_DEPTH_MODES:
+        img = img.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+    return img.convert("RGB")
 
 
 class ImageReferenceProcessor(InlineProcessor):
@@ -345,7 +363,10 @@ class R2Uploader:
                 break
             except ssl.SSLError:
                 if attempt < 2:
-                    logger.warning("SSLError creating S3 client, retrying (attempt %d/3)", attempt + 1)
+                    logger.warning(
+                        "SSLError creating S3 client, retrying (attempt %d/3)",
+                        attempt + 1,
+                    )
                     time.sleep(0.1 * (attempt + 1))
                 else:
                     raise
@@ -589,7 +610,9 @@ class R2Uploader:
         except ClientError as e:
             raise R2UploaderError(f"Failed to delete R2 objects: {e}")
 
-    def upload_original(self, image_id, source_url, timeout=30, in_tqdm=False, max_retries=3):
+    def upload_original(
+        self, image_id, source_url, timeout=30, in_tqdm=False, max_retries=3
+    ):
         """
         Download a file from URL and upload to R2 at images/<ID>/original.<ext>.
 
@@ -624,12 +647,11 @@ class R2Uploader:
                 break
             except requests.RequestException as e:
                 status = e.response.status_code if e.response is not None else None
-                is_retryable = (
-                    isinstance(e, (requests.ConnectionError, requests.Timeout))
-                    or (status is not None and 500 <= status < 600)
-                )
+                is_retryable = isinstance(
+                    e, (requests.ConnectionError, requests.Timeout)
+                ) or (status is not None and 500 <= status < 600)
                 if attempt + 1 < max_retries and is_retryable:
-                    delay = 2 ** attempt
+                    delay = 2**attempt
                     _print(
                         f"  Download failed (attempt {attempt + 1}/{max_retries}, "
                         f"retrying in {delay}s): {e}"

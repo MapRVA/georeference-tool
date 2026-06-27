@@ -1,7 +1,6 @@
 from io import BytesIO
 from pathlib import Path
 
-
 import requests
 from django.core.management.base import BaseCommand
 from PIL import Image as PILImage
@@ -9,7 +8,7 @@ from PIL import ImageOps
 
 from images.models import Image
 from images.tasks import process_image
-from images.utils import R2Uploader, R2UploaderError
+from images.utils import R2Uploader, R2UploaderError, to_rgb
 
 
 class Command(BaseCommand):
@@ -246,9 +245,7 @@ class Command(BaseCommand):
 
             # Load image
             image_data = BytesIO(response.content)
-            pil_image = ImageOps.exif_transpose(PILImage.open(image_data)).convert(
-                "RGB"
-            )
+            pil_image = to_rgb(ImageOps.exif_transpose(PILImage.open(image_data)))
 
             return pil_image
 
