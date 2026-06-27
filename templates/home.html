@@ -45,13 +45,15 @@
 </div>
 
 <div class="row">
-    {% if featured_entry %}
     {% comment %}
-    Featured image — main column; the activity feed sits beside it on large
-    screens and flows underneath on small ones.
+    Left/main column: the featured image sits on top and the map flows
+    directly beneath it. Keeping both cards in a single column lets the map
+    fill the space under the featured image instead of being pushed down to
+    clear the (often taller) activity feed in the column beside it.
     {% endcomment %}
-    <div class="{% if activity_events %}col-lg-8{% else %}col-12{% endif %} mb-4 align-self-start">
-        <div class="card">
+    <div class="{% if activity_events %}col-lg-8{% else %}col-12{% endif %}">
+        {% if featured_entry %}
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">Featured Image</h5>
             </div>
@@ -84,8 +86,20 @@
                 </a>
             </div>
         </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Image Map</h5>
+                <a href="/map/" class="btn btn-primary btn-sm">
+                    <i class="fas fa-map me-2"></i>Explore the full map
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% include 'images/partials/map_display.html' with map_id='homepage-map' %}
+            </div>
+        </div>
     </div>
-    {% endif %}
 
     {% if activity_events %}
     <div class="col-lg-4 mb-4">
@@ -99,20 +113,6 @@
         </div>
     </div>
     {% endif %}
-
-    <div class="{% if activity_events %}col-lg-8{% else %}col-12{% endif %} mb-4 {% if featured_entry %}order-lg-3{% else %}order-first{% endif %}">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Image Map</h5>
-                <a href="/map/" class="btn btn-primary btn-sm">
-                    <i class="fas fa-map me-2"></i>Explore the full map
-                </a>
-            </div>
-            <div class="card-body p-0">
-                {% include 'images/partials/map_display.html' with map_id='homepage-map' %}
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
