@@ -48,6 +48,8 @@ from images.models import (
     License,
     SiteSettings,
     Source,
+    SubjectMapping,
+    SubjectMappingActivity,
 )
 from images.tasks import process_image
 from images.utils import R2Uploader, get_confidence_breakdown, get_overall_stats
@@ -640,6 +642,17 @@ def import_commit_view(request):
                 rotation=data["rotation"],
                 mirror=data["mirror"],
             )
+
+            subjects = data.get("subjects", [])
+            for idx, subject in enumerate(subjects):
+                SubjectMapping.objects.create(image=image, subject=subject, order=idx)
+                SubjectMappingActivity.objects.create(
+                    user=request.user,
+                    image=image,
+                    subject=subject,
+                    action=SubjectMappingActivity.ACTION_ADDED,
+                )
+
             dest_key = f"images/{image.id}/original{ext}"
             cdn_url = r2.copy_object(slot.s3_key, dest_key)
             image.permalink = cdn_url
@@ -670,11 +683,14 @@ def import_commit_view(request):
     except Exception:
         logger.warning("Failed to delete temp upload %s", temp_key, exc_info=True)
 
-    # Queue background processing (thumbnails, IIIF tiles)
-    try:
-        process_image.delay(image.id)
-    except Exception:
-        logger.warning("Failed to queue process_image for image %d", image.id)
+    def trigger_processing():
+        try:
+            process_image.delay(image.id)
+        except Exception:
+            logger.warning("Failed to queue process_image for image %d", image.id)
+
+    # Ensure image is processed after the image has been created
+    transaction.on_commit(trigger_processing)
 
     return Response(
         {"image_id": image.id},
@@ -820,10 +836,14 @@ def image_replace_view(request, id):
         except Exception:
             logger.warning("Failed to delete stale original %s", key, exc_info=True)
 
-    try:
-        process_image.delay(image.id)
-    except Exception:
-        logger.warning("Failed to queue process_image for image %d", image.id)
+    def trigger_replace_processing():
+        try:
+            process_image.delay(image.id)
+        except Exception:
+            logger.warning("Failed to queue process_image for image %d", image.id)
+
+    # Ensure image is processed after the image has been created
+    transaction.on_commit(trigger_replace_processing)
 
     return Response(
         {"image_id": image.id},
