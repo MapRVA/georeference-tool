@@ -642,7 +642,7 @@ def import_commit_view(request):
                 rotation=data["rotation"],
                 mirror=data["mirror"],
             )
-            
+
             subjects = data.get("subjects", [])
             for idx, subject in enumerate(subjects):
                 SubjectMapping.objects.create(image=image, subject=subject, order=idx)
