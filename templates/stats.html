@@ -94,7 +94,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ stats.georeferences }}</td>
-                            <td>{% if contributor == 'Anonymous' %}N/A{% else %}{{ stats.validations }}{% endif %}</td>
+                            <td>{% if contributor == 'Anonymous' %}&ndash;{% else %}{{ stats.validations }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
