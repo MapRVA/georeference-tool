@@ -78,7 +78,7 @@ services:
       retries: 12
 
   oxigraph:
-    image: ghcr.io/oxigraph/oxigraph:latest
+    image: ghcr.io/oxigraph/oxigraph:0.5.9
     command: serve --location /data --bind 0.0.0.0:7878 --union-default-graph
     volumes:
       - oxigraph-data:/data
