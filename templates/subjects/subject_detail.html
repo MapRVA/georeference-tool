@@ -124,8 +124,8 @@
                                     </a>
                                 </div>
                             {% endif %}
-                            {% if subject.description %}
-                                <p class="card-text text-muted">{{ subject.description }}</p>
+                            {% if subject.wikidata_item.description %}
+                                <p class="card-text text-muted">{{ subject.wikidata_item.description }}</p>
                             {% endif %}
                         {% endif %}
                     </div>

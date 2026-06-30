@@ -43,8 +43,8 @@
                 <div class="card-body">
                     <h5 class="card-title">Finding images similar to subject:</h5>
                     <h4 class="card-subtitle mb-2 text-muted">{{ subject.title }}</h4>
-                    {% if subject.description %}
-                        <p class="card-text">{{ subject.description|truncatechars:300 }}</p>
+                    {% if subject.wikidata_item.description %}
+                        <p class="card-text">{{ subject.wikidata_item.description|truncatechars:300 }}</p>
                     {% endif %}
                     <div class="d-flex gap-2 align-items-center">
                         <a href="{% url 'subjects:subject_detail' subject.slug %}" class="btn btn-primary">View Subject</a>

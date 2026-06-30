@@ -51,9 +51,9 @@
                     {% endif %}
                 </div>
 
-                {% if introduction.subject.description %}
+                {% if introduction.subject.wikidata_item.description %}
                     <div class="mt-2 p-2 bg-body-secondary rounded small overflow-hidden">
-                        {{ introduction.subject.description|truncatechars:280 }}
+                        {{ introduction.subject.wikidata_item.description|truncatechars:280 }}
                     </div>
                 {% endif %}
             </div>

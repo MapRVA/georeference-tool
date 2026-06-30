@@ -22,10 +22,8 @@
                     <small class="text-muted d-block mt-1">{{ subject.total_images }} image{{ subject.total_images|pluralize }}</small>
                 </h5>
 
-                {% if subject.wikidata_item and subject.wikidata_item.description %}
+                {% if subject.wikidata_item.description %}
                     <p class="card-text text-muted small">{{ subject.wikidata_item.description|truncatewords:20 }}</p>
-                {% elif subject.description %}
-                    <p class="card-text text-muted small">{{ subject.description|truncatewords:20 }}</p>
                 {% endif %}
 
                 {% if subject.wikidata_item %}

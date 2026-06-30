@@ -182,7 +182,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
             .order_by("-validated_at")[:FETCH_LIMIT]
         )
         events.extend(("validation", v, v.validated_at) for v in aerial_validations)
-    
+
     if "subject" in event_types:
         subject_groups = (
             SubjectMappingActivityGroup.objects.filter(**subject_filter)
@@ -202,7 +202,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     if "new_subject" in event_types:
         introductions = (
             SubjectIntroduction.objects.filter(**new_subject_filter)
-            .select_related("user", "image", "subject")
+            .select_related("user", "image", "subject", "subject__wikidata_item")
             .order_by("-created_at")[:FETCH_LIMIT]
         )
         events.extend(("new_subject", i, i.created_at) for i in introductions)

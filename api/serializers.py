@@ -174,6 +174,7 @@ class SubjectSummarySerializer(serializers.ModelSerializer):
 
 class SubjectSerializer(serializers.ModelSerializer):
     wikidata = WikidataItemSerializer(source="wikidata_item", read_only=True)
+    description = serializers.SerializerMethodField()
     image_count = serializers.IntegerField(read_only=True)
     images_url = serializers.SerializerMethodField()
 
@@ -188,6 +189,9 @@ class SubjectSerializer(serializers.ModelSerializer):
             "image_count",
             "images_url",
         ]
+
+    def get_description(self, obj):
+        return obj.get_description()
 
     def get_images_url(self, obj):
         request = self.context.get("request")

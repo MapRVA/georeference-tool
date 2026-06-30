@@ -246,9 +246,9 @@ class SubjectAdmin(admin.ModelAdmin):
     list_filter = ("created_at",)
     search_fields = (
         "title",
-        "description",
         "wikidata_item__wikidata_id",
         "wikidata_item__title",
+        "wikidata_item__description",
     )
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ["wikidata_item"]
@@ -257,7 +257,7 @@ class SubjectAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Subject Information",
-            {"fields": ("title", "slug", "description")},
+            {"fields": ("title", "slug")},
         ),
         (
             "Linked Data",
@@ -276,11 +276,10 @@ class SubjectAdmin(admin.ModelAdmin):
     )
 
     def description_truncated(self, obj):
-        if obj.description:
+        description = obj.get_description()
+        if description:
             return (
-                obj.description[:100] + "..."
-                if len(obj.description) > 100
-                else obj.description
+                description[:100] + "..." if len(description) > 100 else description
             )
         return ""
 

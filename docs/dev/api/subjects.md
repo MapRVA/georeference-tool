@@ -176,7 +176,7 @@ Some subjects span multiple OSM elements (e.g., a street made up of several ways
 | `id`          | integer | Unique identifier |
 | `title`       | string  | Name of the subject |
 | `slug`        | string  | URL-friendly name |
-| `description` | string  | Description of the subject |
+| `description` | string  | Description of the subject, sourced from Wikidata (might fall back to placeholder) |
 | `wikidata`    | object  | Wikidata metadata (see below) |
 | `image_count` | integer | Number of public images tagged with this subject |
 | `images_url`  | string  | API link to browse images of this subject |

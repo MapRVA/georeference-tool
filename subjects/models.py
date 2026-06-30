@@ -355,7 +355,6 @@ class Subject(models.Model):
 
     title = models.CharField(max_length=500, help_text="Name/title of the subject")
     slug = models.SlugField(unique=True)
-    description = models.TextField(help_text="Admin-written description of the subject")
     wikidata_item = models.OneToOneField(
         WikidataItem,
         on_delete=models.CASCADE,
@@ -390,6 +389,18 @@ class Subject(models.Model):
 
     def get_absolute_url(self):
         return reverse("subjects:subject_detail", kwargs={"subject_slug": self.slug})
+
+    def get_description(self):
+        """Return a description for display, sourced from the Wikidata item.
+
+        Falls back to a placeholder referencing the Wikidata ID when the
+        linked item has no description. Computed on demand, never stored.
+        """
+        if self.wikidata_item_id:
+            return self.wikidata_item.description or (
+                f"Subject from Wikidata: {self.wikidata_item.wikidata_id}"
+            )
+        return ""
 
     def get_representative_image(self):
         """Return the representative image for this subject, or None.

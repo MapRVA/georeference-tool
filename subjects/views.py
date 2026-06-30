@@ -124,7 +124,7 @@ def subject_autocomplete(request):
         result = {
             "id": subject.id,
             "title": subject.title,
-            "description": subject.description,
+            "description": subject.get_description(),
             "wikidata_id": subject.wikidata_item.wikidata_id
             if subject.wikidata_item
             else None,
@@ -272,11 +272,7 @@ def wikidata_lookup(request):
         # Get or create Subject
         subject, _ = Subject.objects.get_or_create(
             wikidata_item=wikidata_item,
-            defaults={
-                "title": wikidata_item.title,
-                "description": wikidata_item.description
-                or f"Subject from Wikidata: {wikidata_id}",
-            },
+            defaults={"title": wikidata_item.title},
         )
 
         return JsonResponse(
@@ -285,7 +281,7 @@ def wikidata_lookup(request):
                 "subject": {
                     "id": subject.id,
                     "title": subject.title,
-                    "description": subject.description,
+                    "description": subject.get_description(),
                     "wikidata_id": wikidata_id,
                 },
             }
@@ -346,21 +342,12 @@ def bulk_add_subject_to_images(request):
         # Try to get or create Subject
         subject, subject_created = Subject.objects.get_or_create(
             wikidata_item=wikidata_item,
-            defaults={
-                "title": wikidata_item.title,
-                "description": wikidata_item.description
-                or f"Subject from Wikidata: {wikidata_id}",
-            },
+            defaults={"title": wikidata_item.title},
         )
 
-        # Update Subject if it exists but has outdated info
-        if not subject_created and (
-            subject.title == wikidata_id or not subject.description
-        ):
+        # Heal the title if an older row still has the Q-ID placeholder.
+        if not subject_created and subject.title == wikidata_id:
             subject.title = wikidata_item.title
-            subject.description = (
-                wikidata_item.description or f"Subject from Wikidata: {wikidata_id}"
-            )
             subject.save()
 
         # Add subject to each image
@@ -409,7 +396,7 @@ def bulk_add_subject_to_images(request):
                 "subject": {
                     "id": subject.id,
                     "title": subject.title,
-                    "description": subject.description,
+                    "description": subject.get_description(),
                 },
             },
             status=200,
@@ -462,21 +449,12 @@ def add_subject_to_image(request, image_id):
         # Try to get or create Subject
         subject, subject_created = Subject.objects.get_or_create(
             wikidata_item=wikidata_item,
-            defaults={
-                "title": wikidata_item.title,
-                "description": wikidata_item.description
-                or f"Subject from Wikidata: {wikidata_id}",
-            },
+            defaults={"title": wikidata_item.title},
         )
 
-        # Update Subject if it exists but has outdated info
-        if not subject_created and (
-            subject.title == wikidata_id or not subject.description
-        ):
+        # Heal the title if an older row still has the Q-ID placeholder.
+        if not subject_created and subject.title == wikidata_id:
             subject.title = wikidata_item.title
-            subject.description = (
-                wikidata_item.description or f"Subject from Wikidata: {wikidata_id}"
-            )
             subject.save()
 
         if SubjectMapping.objects.filter(image=image, subject=subject).exists():

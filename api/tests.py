@@ -157,7 +157,6 @@ class ApiFixturesMixin:
         cls.subject = Subject.objects.create(
             title="Main Street",
             slug="main-street",
-            description="A major thoroughfare.",
             wikidata_item=cls.wikidata_item,
         )
         SubjectMapping.objects.create(image=cls.img1, subject=cls.subject)
@@ -574,7 +573,6 @@ class TestSubjectsEndpoint(ApiFixturesMixin, TestCase):
         subj2 = Subject.objects.create(
             title="Empty Subject",
             slug="empty",
-            description="No geometry.",
             wikidata_item=wd2,
         )
         SubjectMapping.objects.create(image=self.img2, subject=subj2)
