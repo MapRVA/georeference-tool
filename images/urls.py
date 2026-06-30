@@ -42,6 +42,8 @@ urlpatterns = [
         views.user_autocomplete,
         name="featured_image_user_autocomplete",
     ),
+    # Validation queue (staff)
+    path("validation-queue/", views.validation_queue, name="validation_queue"),
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("stats/", views.image_stats, name="image_stats"),

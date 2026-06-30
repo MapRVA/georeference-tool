@@ -1,0 +1,77 @@
+{% if georeferences %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Image</th>
+                <th scope="col">Placed by</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Validations</th>
+                <th scope="col" class="text-end"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for gr in georeferences %}
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <a href="{% url 'images:image_detail' gr.image.id %}" class="flex-shrink-0">
+                            <img src="{% if gr.image.thumbnail %}{{ gr.image.thumbnail }}{% else %}{{ gr.image.display_permalink }}{% endif %}"
+                                 alt="{{ gr.image.title|default:'Image' }}"
+                                 class="rounded me-3"
+                                 style="width: 56px; height: 56px; object-fit: cover;"
+                                 loading="lazy">
+                        </a>
+                        <div>
+                            <a href="{% url 'images:image_detail' gr.image.id %}" class="text-decoration-none">{{ gr.image.title|default:"Untitled image"|truncatechars:55 }}</a>
+                            {% if gr.image.collection %}
+                            <small class="text-muted d-block">{{ gr.image.collection.source.name }} — {{ gr.image.collection.name }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td class="text-nowrap">
+                    {% if gr.georeferenced_by %}
+                        {% include 'auth/partials/user_badge.html' with user=gr.georeferenced_by link=True %}
+                    {% else %}
+                        <span class="text-muted">Anonymous</span>
+                    {% endif %}
+                    <small class="text-muted d-block"><i class="fas fa-calendar me-1"></i>{{ gr.georeferenced_at|date:"M j, Y" }}</small>
+                </td>
+                <td>
+                    <span class="badge {% if gr.confidence == 'high' %}bg-success{% elif gr.confidence == 'medium' %}text-bg-warning{% elif gr.confidence == 'low' %}bg-danger{% else %}bg-secondary{% endif %}">{{ gr.confidence|capfirst }}</span>
+                </td>
+                <td class="text-nowrap">
+                    {% if gr.total_count > 0 %}
+                        {% if gr.correct_count > 0 %}<span class="badge bg-success" title="{{ gr.correct_count }} correct"><i class="fas fa-check me-1"></i>{{ gr.correct_count }}</span>{% endif %}
+                        {% if gr.uncertain_count > 0 %}<span class="badge text-bg-warning" title="{{ gr.uncertain_count }} uncertain"><i class="fas fa-question me-1"></i>{{ gr.uncertain_count }}</span>{% endif %}
+                        {% if gr.incorrect_count > 0 %}<span class="badge bg-danger" title="{{ gr.incorrect_count }} incorrect"><i class="fas fa-times me-1"></i>{{ gr.incorrect_count }}</span>{% endif %}
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                    {% if include_mine %}
+                        {% if gr.georeferenced_by_id == request.user.id %}
+                            <span class="text-muted me-2" title="You placed this georeference"><i class="fas fa-user-check"></i></span>
+                        {% elif gr.already_validated %}
+                            <span class="text-muted me-2" title="You've already validated this"><i class="fas fa-check"></i></span>
+                        {% endif %}
+                    {% endif %}
+                    <a href="{% url 'images:image_detail' gr.image.id %}" class="btn btn-sm btn-outline-primary">Review</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-success">
+    <i class="fas fa-check-circle me-2"></i>
+    {% if include_mine %}
+        Nothing in the queue — every current georeference has been validated.
+    {% else %}
+        Nothing left for you to validate. Flip the switch above to include images you placed or already validated.
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Validation Queue – Yesterdays{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h1 class="mb-0"><i class="fas fa-check-double me-1"></i>Validation Queue</h1>
+        </div>
+        <div x-data="{
+                includeMine: false,
+                loading: false,
+                async reload() {
+                    this.loading = true;
+                    const params = new URLSearchParams({ include_mine: this.includeMine ? '1' : '0', partial: '1' });
+                    try {
+                        const resp = await fetch(`?${params}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (resp.ok) this.$refs.list.innerHTML = await resp.text();
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+             }">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="includeMineToggle"
+                       x-model="includeMine" @change="reload()">
+                <label class="form-check-label" for="includeMineToggle">Include images I've placed or already validated</label>
+            </div>
+            <div x-ref="list" :class="{ 'opacity-50': loading }">
+                {% include 'images/partials/validation_queue_list.html' %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
