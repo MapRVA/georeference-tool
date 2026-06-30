@@ -59,6 +59,10 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/browse_subjects.js",
         ),
+        subjects_map: path.resolve(
+          __dirname,
+          "./assets/js/pages/subjects_map.js",
+        ),
         from_above: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
         georeference_interface: path.resolve(
           __dirname,

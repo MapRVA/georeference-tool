@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}Subjects Map – Yesterdays{% endblock %}
+
+{% block opengraph %}
+	<meta property="og:title" content="Subjects Map – Yesterdays">
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="{{ request.build_absolute_uri }}">
+	<meta property="og:description" content="Explore image subjects — notable buildings, statues, and natural features — on an interactive map.">
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
+    window.VECTOR_TILES_URL = "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}".replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
+</script>
+{% vite_asset 'assets/js/pages/subjects_map.js' %}
+{% endblock %}
+
+
+{% block main_container_class %}container-fluid px-0 mt-4 d-flex flex-column flex-grow-1{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <h1><i class="fas fa-map me-3"></i>Subjects Map</h1>
+            <p class="text-muted mb-0">Explore image subjects, including notable buildings, statues, and natural features. Hover an entry to preview its images, and click to open it.</p>
+        </div>
+        <a href="{% url 'subjects:browse_subjects' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-map-pin me-2"></i>Browse Subjects
+        </a>
+    </div>
+</div>
+
+<div id="subjects-map"></div>
+{% endblock %}

@@ -1,0 +1,15 @@
+#subjects-map {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 50vh;
+}
+
+/* MapLibre popup dark mode support */
+.maplibregl-popup-content {
+    background-color: var(--bs-body-bg) !important;
+    color: var(--bs-body-color) !important;
+}
+
+.maplibregl-popup-tip {
+    border-top-color: var(--bs-body-bg) !important;
+}

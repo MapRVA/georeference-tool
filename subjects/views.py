@@ -789,6 +789,17 @@ def browse_subjects(request):
     return render(request, "subjects/browse_subjects.html", context)
 
 
+def subjects_map(request):
+    """Standalone interactive map of all subjects and their georeferenced images.
+
+    The map's data comes entirely from vector tiles fetched client-side, so no
+    per-request context is needed beyond the globally available
+    ``protomaps_api_key`` and ``tile_version`` (see
+    ``images.context_processors.site_settings``).
+    """
+    return render(request, "subjects/subjects_map.html")
+
+
 def subject_detail(request, subject_slug):
     """Detail view for a specific subject showing its images"""
     subject = get_object_or_404(Subject, slug=subject_slug)

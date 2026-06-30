@@ -7,6 +7,7 @@ app_name = "subjects"
 urlpatterns = [
     # Subject browsing
     path("", views.browse_subjects, name="browse_subjects"),
+    path("map/", views.subjects_map, name="subjects_map"),
     path("<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
     path(
         "<slug:subject_slug>/similar/",
