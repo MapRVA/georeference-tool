@@ -16,7 +16,12 @@ uv run zensical serve
 The site will be live at `http://localhost:8000`.
 Changes in the `/docs/` directory should trigger automatic refreshes of the site as you view it in your browser.
 
-Please note that the main Yesterdays site also uses port 8000 by default, so it is not possible to run both development servers at once without configuring one of them to use a different port.
+Please note that the main Yesterdays site also uses port 8000 by default.
+If you'd like to run both at the same time, pick a different port for Zensical:
+
+```
+uv run zensical serve -a localhost:8080
+```
 
 ## Code blocks
 
