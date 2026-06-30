@@ -5,8 +5,13 @@
 # uv and bun). Source is bind-mounted for live reload; the venv lives in the
 # image, so run `docker compose build` after dependency changes.
 #
-# my.env is loaded as-is, with PG_HOST/CELERY_BROKER_URL overridden to reach
-# the service names instead of localhost — so my.env still works on the host.
+# my.env only supplies the external secrets (Cloudflare R2, Protomaps); every
+# dev connection setting and feature flag is set in the `environment:` block
+# below, pointing at the sibling services. Only web, vite, and the RabbitMQ
+# management UI publish host ports; everything else (Postgres, the RabbitMQ
+# broker, oxigraph) talks over the Compose network by service name, so those
+# ports stay internal. Run host-side Django/Celery via
+# `docker compose exec web …` since localhost no longer reaches the DB/broker.
 
 name: yesterdays
 
@@ -20,9 +25,22 @@ x-app: &app
   build: *build
   env_file: my.env
   environment:
+    # DB connection — PG_HOST/PG_PORT target the postgres service; the
+    # credentials must match the POSTGRES_* values it initialises with.
     PG_HOST: postgres
+    PG_PORT: "5432"
+    PG_DBNAME: georef
+    PG_USER: django_user
+    PG_PASSWORD: dev_password
+    PG_SSL_MODE: disable
+    # Broker and graph store, reached by service name.
     CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
     OXIGRAPH_URL: http://oxigraph:7878
+    # Non-secret dev settings; real secrets (R2, Protomaps) stay in my.env.
+    LOCAL_DEV: "0"
+    ALLOW_HARDCODED_ADMIN: "1"
+    DJANGO_DEBUG: "1"
+    DJANGO_VITE_DEV_MODE: "True"
   volumes:
     - .:/app
   depends_on:
@@ -40,8 +58,6 @@ services:
       POSTGRES_DB: georef
       POSTGRES_USER: django_user
       POSTGRES_PASSWORD: dev_password
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -53,7 +69,7 @@ services:
   rabbitmq:
     image: docker.io/library/rabbitmq:3-management
     ports:
-      - "5672:5672"
+      # Broker (5672) stays internal; only the management UI is published.
       - "15672:15672" # management UI at http://localhost:15672 (guest/guest)
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
@@ -64,8 +80,6 @@ services:
   oxigraph:
     image: ghcr.io/oxigraph/oxigraph:latest
     command: serve --location /data --bind 0.0.0.0:7878 --union-default-graph
-    ports:
-      - "127.0.0.1:7878:7878"
     volumes:
       - oxigraph-data:/data
     restart: unless-stopped

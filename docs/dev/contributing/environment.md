@@ -2,19 +2,19 @@
 
 There are two ways to run Yesterdays locally:
 
-- **[Quick start with Docker Compose](#quick-start-docker-compose)** (recommended) — write one environment file and bring the whole stack up with a single command.
-- **[Manual setup](#manual-setup)** — run each service yourself on the host. More moving parts, but useful if you can't use containers or want fine-grained control over individual services.
+- **[Quick start with Docker Compose](#quick-start-docker-compose)** (recommended): write one environment file and bring the whole stack up with a single command.
+- **[Manual setup](#manual-setup)**: run each service yourself on the host. More moving parts, but useful if you can't use containers or want fine-grained control over individual services.
 
 ## Quick start (Docker Compose)
 
 !!! tip "This is the recommended path for most contributors."
-    `docker compose` builds a single image containing the Django app, the Celery workers, and Vite, then runs them alongside PostgreSQL, RabbitMQ, and Oxigraph. Your source tree is bind-mounted into the containers, so code edits reload live.
+    `docker compose` builds a single image containing the Django app, the Celery workers, and Vite, then runs them alongside PostgreSQL, RabbitMQ, and Oxigraph. The worktree is mounted into the containers, so code edits reload live.
 
 You only need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
 ### 1. Create the database volume
 
-The database lives in a named volume that is intentionally **external** to Compose, so it survives `docker compose down -v` and can't be destroyed by accident. Create it once:
+The database lives in a named volume that is intentionally external to Compose, so it survives `docker compose down -v` and can't be destroyed by accident. Create it once:
 
 ```sh
 docker volume create georef-postgres-data
@@ -22,7 +22,7 @@ docker volume create georef-postgres-data
 
 ### 2. Write your environment file { #env-file }
 
-Save the following to `my.env` in the root of the repository, filling in the secret values:
+Save the following secrets to `my.env` in the root of the repository. These external keys are all Compose needs from you — it provides the database connection and local dev settings itself:
 
 ```sh title="my.env"
 # Cloudflare R2 Key
@@ -35,27 +35,7 @@ export IMPORT_R2_PUBLIC_URL_BASE='https://cdn.maprva.org'
 
 # Protomaps Key
 export PROTOMAPS_API_KEY=6f7a752e00e84ef9
-
-# PostgreSQL Connection
-export PG_DBNAME=georef
-export PG_USER=django_user
-export PG_PASSWORD=dev_password
-export PG_HOST=localhost
-export PG_PORT=5432
-export PG_SSL_MODE=disable
-
-# RabbitMQ Connection
-export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
-
-# Local Development Settings
-export LOCAL_DEV=0
-export ALLOW_HARDCODED_ADMIN=1
-export DJANGO_DEBUG=1
-export DJANGO_VITE_DEV_MODE=True
 ```
-
-!!! note
-    Compose reads this file directly (via `env_file`) and overrides the host-specific values — `PG_HOST`, `CELERY_BROKER_URL`, and `OXIGRAPH_URL` — to point at the other containers. The same `my.env` therefore works unchanged for the [manual setup](#manual-setup) below, where the `localhost` values apply instead.
 
 ### 3. Start the stack
 
@@ -91,13 +71,32 @@ Here's what you need to run Yesterdays manually:
 
 ### Set up environment variables
 
-If you haven't already, create `my.env` as shown above in [Write your environment file](#env-file). Then load it into your shell:
+If you haven't already, create `my.env` as shown above in [Write your environment file](#env-file). Because you run each service directly on the host, add the connection details and dev settings that Compose otherwise supplies for you:
+
+```sh title="my.env (add these values)"
+# PostgreSQL Connection
+export PG_DBNAME=georef
+export PG_USER=django_user
+export PG_PASSWORD=dev_password
+export PG_HOST=localhost
+export PG_PORT=5432
+export PG_SSL_MODE=disable
+
+# RabbitMQ Connection
+export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
+
+# Local Development Settings
+export LOCAL_DEV=0
+export ALLOW_HARDCODED_ADMIN=1
+export DJANGO_DEBUG=1
+export DJANGO_VITE_DEV_MODE=True
+```
+
+Then load it into your shell:
 
 ```sh
 source my.env
 ```
-
-The `localhost` values for `PG_HOST` and `CELERY_BROKER_URL` apply when running each service directly on the host.
 
 ### Run Database
 
