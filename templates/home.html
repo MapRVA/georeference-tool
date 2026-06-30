@@ -82,8 +82,16 @@
                     {% endif %}
                 </div>
                 <a href="{{ featured_entry.image.get_absolute_url }}" class="btn btn-primary btn-sm shrink-0">
-                    View image
+                    Image Details
                 </a>
+            </div>
+            <div class="card-footer border-top-0 pt-0 text-body-secondary">
+                <small class="fst-italic">
+                    From
+                    <a href="{{ featured_entry.image.collection.get_absolute_url }}" class="text-decoration-none">{{ featured_entry.image.collection.name }}</a>
+                    &middot;
+                    <a href="{{ featured_entry.image.collection.source.get_absolute_url }}" class="text-decoration-none">{{ featured_entry.image.collection.source.name }}</a>
+                </small>
             </div>
         </div>
         {% endif %}
