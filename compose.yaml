@@ -1,0 +1,112 @@
+# Local dev stack: Postgres, RabbitMQ, oxigraph, Django, two Celery workers,
+# and Vite. Run with `docker compose up`.
+#
+# Django/Celery/Vite share one image (the `dev` target in Containerfile, with
+# uv and bun). Source is bind-mounted for live reload; the venv lives in the
+# image, so run `docker compose build` after dependency changes.
+#
+# my.env is loaded as-is, with PG_HOST/CELERY_BROKER_URL overridden to reach
+# the service names instead of localhost — so my.env still works on the host.
+
+name: yesterdays
+
+x-build: &build
+  context: .
+  dockerfile: Containerfile
+  target: dev
+
+# Shared config for the Python services (web, workers, beat).
+x-app: &app
+  build: *build
+  env_file: my.env
+  environment:
+    PG_HOST: postgres
+    CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+    OXIGRAPH_URL: http://oxigraph:7878
+  volumes:
+    - .:/app
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    oxigraph:
+      condition: service_started
+
+services:
+  postgres:
+    image: ghcr.io/maprva/postgis-pgvector-local:latest
+    environment:
+      POSTGRES_DB: georef
+      POSTGRES_USER: django_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U django_user -d georef"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: docker.io/library/rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672" # management UI at http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  oxigraph:
+    image: ghcr.io/oxigraph/oxigraph:latest
+    command: serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+    ports:
+      - "127.0.0.1:7878:7878"
+    volumes:
+      - oxigraph-data:/data
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    command: sh -c "uv run manage.py migrate && uv run manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+
+  worker-urgent:
+    <<: *app
+    command: uv run celery -A yesterdays worker --loglevel=info -Q urgent
+
+  worker-background:
+    <<: *app
+    command: uv run celery -A yesterdays worker --loglevel=info -Q background
+
+  beat:
+    <<: *app
+    command: uv run celery -A yesterdays beat --loglevel=info
+
+  vite:
+    build: *build
+    command: bun run dev --host
+    ports:
+      - "5173:5173"
+    # Mount only frontend source, so the image's node_modules isn't shadowed
+    # by the host's (which may be built for a different platform).
+    volumes:
+      - ./assets:/app/assets
+      - ./vite.config.js:/app/vite.config.js
+
+volumes:
+  postgres-data:
+    # External (predates Compose) so `down -v` won't delete the real database.
+    # On a fresh machine: `docker volume create georef-postgres-data`, then
+    # restore a dump or migrate into it.
+    name: georef-postgres-data
+    external: true
+  oxigraph-data:
+    # Regenerable RDF store, repopulated from Wikidata/OSM by Celery Beat. Safe
+    # to drop; Compose-managed, so it won't inherit any old podman volume.
+    name: oxigraph-data

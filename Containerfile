@@ -33,10 +33,12 @@ COPY .python-version ./
 # Install Python to a path that will also work in the release image
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 
-# Install Python dependencies (uv will download and manage Python)
+# Install Python dependencies (uv will download and manage Python). The
+# lockfiles are copied in rather than bind-mounted so this builds under both
+# BuildKit/docker and buildah/podman — buildah's `relabel` mount option isn't
+# understood by BuildKit.
+COPY uv.lock pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock,relabel=shared \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml,relabel=shared \
     uv sync --locked --no-install-project
 
 # Copy project files - only what's needed for the application
@@ -64,6 +66,30 @@ RUN mkdir -p /app/static
 
 # 2. Run bun build to generate Vite-bundled JS/CSS into /static
 RUN bun run build
+
+# Development stage - the full build toolchain (uv + bun) plus the runtime
+# libraries the app loads at runtime, used by docker compose for local
+# development. Source is bind-mounted over /app at run time; the Python venv
+# lives at /opt/venv (outside /app) so the bind mount can't shadow it, and a
+# fresh image build always yields fresh dependencies (no stale volume to clear).
+FROM build AS dev
+
+# Runtime libraries the build stage only carried the compile-time (-dev)
+# variants of, or didn't install at all (libvips for pyvips, tesseract for OCR).
+RUN apt-get -y update && apt-get install -y --no-install-recommends \
+    libvips42 \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build the project's virtualenv outside the bind-mounted source tree. Reuses
+# the wheel cache populated earlier in this build, so it doesn't re-download.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
 
 # Final runtime image - minimal Debian
 FROM debian:bookworm-slim AS release
