@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    CollectionIntroduction,
     GeoreferenceGroup,
     GeoreferenceGroupMember,
     SitewideMilestone,
@@ -135,9 +136,29 @@ class SubjectIntroductionAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(CollectionIntroduction)
+class CollectionIntroductionAdmin(admin.ModelAdmin):
+    list_display = ("collection", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("collection__name", "collection__source__name")
+    readonly_fields = ("collection", "created_at")
+    ordering = ("-created_at",)
+
+    def has_add_permission(self, request):
+        # Announced via the "Announce as new collection" button on a collection.
+        return False
+
+
 @admin.register(SubjectMappingActivityGroup)
 class SubjectMappingActivityGroupAdmin(admin.ModelAdmin):
-    list_display = ("user_display", "action", "subject", "count", "started_at", "ended_at")
+    list_display = (
+        "user_display",
+        "action",
+        "subject",
+        "count",
+        "started_at",
+        "ended_at",
+    )
     list_filter = (UserDisplayNameFilter, "action", "started_at", "ended_at")
     search_fields = (
         "user__username",

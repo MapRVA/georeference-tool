@@ -168,6 +168,31 @@ class SubjectIntroduction(models.Model):
         ordering = ["-created_at"]
 
 
+class CollectionIntroduction(models.Model):
+    """Announces a new collection on the activity feed.
+
+    Unlike the other activity records, this is not created automatically.
+    A site administrator announces a collection manually from the admin, so
+    that new collections only appear in the feed when we choose to highlight
+    them.
+    """
+
+    collection = models.OneToOneField(
+        "images.Collection",
+        on_delete=models.CASCADE,
+        related_name="introduction",
+    )
+    created_at = models.DateTimeField(
+        db_index=True, help_text="When the collection was announced"
+    )
+
+    def __str__(self):
+        return f"New collection: {self.collection.name}"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class SubjectMappingActivityGroup(models.Model):
     """A burst of subject-mapping changes by one user on one subject.
 

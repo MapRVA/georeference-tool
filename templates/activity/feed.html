@@ -71,6 +71,13 @@
                             <i class="fas fa-seedling me-1"></i>New Subjects
                         </label>
                     </li>
+                    <li>
+                        <label class="dropdown-item">
+                            <input type="checkbox" class="form-check-input me-2"
+                                   x-model="filters.new_collection" @change="applyFilters()">
+                            <i class="fas fa-gift me-1"></i>New Collections
+                        </label>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -95,6 +102,8 @@
                                 {% include 'activity/partials/subject_card.html' with group=event %}
                             {% elif event_type == 'new_subject' %}
                                 {% include 'activity/partials/new_subject_card.html' with introduction=event %}
+                            {% elif event_type == 'new_collection' %}
+                                {% include 'activity/partials/new_collection_card.html' with introduction=event %}
                             {% endif %}
                         </div>
                     {% endfor %}

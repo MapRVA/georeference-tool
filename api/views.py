@@ -992,6 +992,15 @@ def _serialize_activity_event(event_type, obj, timestamp):
                 else None,
             },
         }
+    elif event_type == "new_collection":
+        return {
+            "type": "collection_introduction",
+            "timestamp": timestamp,
+            "data": {
+                "collection_id": obj.collection_id,
+                "collection_name": obj.collection.name,
+            },
+        }
 
 
 @api_view(["GET"])
@@ -1002,7 +1011,8 @@ def activity_view(request):
         before: ISO 8601 timestamp -- return events before this time (for pagination)
         types: comma-separated event types to include
                (georeference_group, comment, user_milestone, sitewide_milestone,
-               subject_activity_group, subject_introduction). Defaults to all.
+               subject_activity_group, subject_introduction,
+               collection_introduction). Defaults to all.
         limit: number of events to return (default 20, max 100)
     """
     # Map API type names (matching response) to internal event type names
@@ -1013,6 +1023,7 @@ def activity_view(request):
         "sitewide_milestone": "sitewide",
         "subject_activity_group": "subject",
         "subject_introduction": "new_subject",
+        "collection_introduction": "new_collection",
     }
 
     before = None

@@ -98,7 +98,7 @@ Returns a stream of recent activity on the site, including georeference contribu
 
 ### Event types
 
-The feed contains six types of events:
+The feed contains seven types of events:
 
 #### `georeference_group`
 
@@ -177,12 +177,23 @@ operations are always reported with `count: 1`.
 | `previous_order` | array | List of subject IDs in their previous order (only for `reordered`) |
 | `new_order` | array | List of subject IDs in their new order (only for `reordered`) |
 
+#### `collection_introduction`
+
+A new collection was highlighted on the site. Unlike the other event types,
+this one is not generated automatically — a site administrator announces a
+collection manually, so it only appears when we choose to feature it.
+
+| Field | Type | Description |
+|---|---|---|
+| `collection_id` | integer | ID of the collection |
+| `collection_name` | string | Name of the collection |
+
 ### Query parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `before` | string | — | ISO 8601 timestamp. Return only events before this time. Use this for pagination by passing the `timestamp` of the last event you received. |
-| `types` | string | all | Comma-separated list of event types to include: `georeference_group`, `comment`, `user_milestone`, `sitewide_milestone`, `subject_activity_group`, `subject_introduction`. |
+| `types` | string | all | Comma-separated list of event types to include: `georeference_group`, `comment`, `user_milestone`, `sitewide_milestone`, `subject_activity_group`, `subject_introduction`, `collection_introduction`. |
 | `limit` | integer | 20 | Number of events to return (max 100). |
 
 ### Examples

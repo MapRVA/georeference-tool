@@ -1,0 +1,48 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Django administration" }}</a></h1>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:images_collection_changelist' %}">Collections</a>
+&rsaquo; <a href="{{ change_url }}">{{ collection.name }}</a>
+&rsaquo; Announce
+</div>
+{% endblock %}
+
+{% block content %}
+<p>You are about to announce <strong>{{ collection }}</strong> as a new collection in the activity feed.</p>
+
+{% if georeference_count %}
+<ul class="messagelist">
+    <li class="warning">
+        This collection already has {{ georeference_count }}
+        georeference{{ georeference_count|pluralize }}, so it may not be a new
+        collection. Please double-check before announcing it.
+    </li>
+</ul>
+{% endif %}
+
+{% if already_announced %}
+<ul class="messagelist">
+    <li class="info">
+        This collection has already been announced. Announcing it again will
+        have no effect.
+    </li>
+</ul>
+{% endif %}
+
+<form method="post" action="">
+    {% csrf_token %}
+    <div class="submit-row">
+        <input type="submit" value="Yes, announce this collection" class="default">
+        <a href="{{ change_url }}" class="button cancel-link">Cancel</a>
+    </div>
+</form>
+{% endblock %}

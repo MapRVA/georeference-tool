@@ -14,6 +14,7 @@ from images.models import (
 )
 
 from .models import (
+    CollectionIntroduction,
     GeoreferenceGroup,
     GeoreferenceGroupMember,
     SitewideMilestone,
@@ -32,8 +33,16 @@ ALL_EVENT_TYPES = {
     "validation",
     "subject",
     "new_subject",
+    "new_collection",
 }
-DEFAULT_EVENT_TYPES = {"group", "comment", "milestone", "sitewide", "new_subject"}
+DEFAULT_EVENT_TYPES = {
+    "group",
+    "comment",
+    "milestone",
+    "sitewide",
+    "new_subject",
+    "new_collection",
+}
 
 
 def activity_feed(request):
@@ -116,6 +125,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
     validation_filter = {}
     subject_filter = {}
     new_subject_filter = {}
+    new_collection_filter = {}
 
     if before:
         group_filter["ended_at__lt"] = before
@@ -125,6 +135,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         validation_filter["validated_at__lt"] = before
         subject_filter["ended_at__lt"] = before
         new_subject_filter["created_at__lt"] = before
+        new_collection_filter["created_at__lt"] = before
 
     events = []
 
@@ -206,6 +217,14 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
             .order_by("-created_at")[:FETCH_LIMIT]
         )
         events.extend(("new_subject", i, i.created_at) for i in introductions)
+
+    if "new_collection" in event_types:
+        collection_intros = (
+            CollectionIntroduction.objects.filter(**new_collection_filter)
+            .select_related("collection", "collection__source")
+            .order_by("-created_at")[:FETCH_LIMIT]
+        )
+        events.extend(("new_collection", c, c.created_at) for c in collection_intros)
 
     # Sort by timestamp descending and take the requested limit
     events.sort(key=lambda e: e[2], reverse=True)

@@ -1,12 +1,15 @@
 import json
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.models import User
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.html import format_html
+
+from activity.models import CollectionIntroduction
 
 from .models import (
     AerialGeoreference,
@@ -175,7 +178,7 @@ class CollectionAdmin(admin.ModelAdmin):
     )
     list_filter = ("public", "source", "created_at")
     search_fields = ("name", "description", "source__name")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "announce_button")
 
     def get_urls(self):
         urls = super().get_urls()
@@ -190,8 +193,67 @@ class CollectionAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.update_image_label),
                 name="images_collection_update_label",
             ),
+            path(
+                "<int:collection_id>/announce/",
+                self.admin_site.admin_view(self.announce_collection),
+                name="images_collection_announce",
+            ),
         ]
         return custom_urls + urls
+
+    def announce_button(self, obj):
+        if obj is None or obj.pk is None:
+            return "Save the collection before announcing it."
+        url = reverse("admin:images_collection_announce", args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}">Announce as new collection</a>', url
+        )
+
+    announce_button.short_description = "Activity feed"
+
+    def announce_collection(self, request, collection_id):
+        collection = get_object_or_404(Collection, id=collection_id)
+        change_url = reverse("admin:images_collection_change", args=[collection.pk])
+
+        if request.method == "POST":
+            _, created = CollectionIntroduction.objects.get_or_create(
+                collection=collection,
+                defaults={"created_at": timezone.now()},
+            )
+            if created:
+                self.message_user(
+                    request,
+                    f'Announced "{collection.name}" in the activity feed.',
+                    level=messages.SUCCESS,
+                )
+            else:
+                self.message_user(
+                    request,
+                    f'"{collection.name}" had already been announced.',
+                    level=messages.WARNING,
+                )
+            return HttpResponseRedirect(change_url)
+
+        georeference_count = (
+            Georeference.objects.filter(image__collection=collection).count()
+            + AerialGeoreference.objects.filter(image__collection=collection).count()
+        )
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Announce collection: {collection.name}",
+            "collection": collection,
+            "georeference_count": georeference_count,
+            "already_announced": CollectionIntroduction.objects.filter(
+                collection=collection
+            ).exists(),
+            "change_url": change_url,
+            "opts": self.model._meta,
+        }
+        return render(
+            request,
+            "admin/images/announce_collection_confirmation.html",
+            context,
+        )
 
     def image_count(self, obj):
         return obj.images.count()
@@ -947,7 +1009,13 @@ class SubjectMappingAdmin(admin.ModelAdmin):
 
 @admin.register(SubjectMappingActivity)
 class SubjectMappingActivityAdmin(admin.ModelAdmin):
-    list_display = ("user_display", "action", "image_link", "subject_title", "created_at")
+    list_display = (
+        "user_display",
+        "action",
+        "image_link",
+        "subject_title",
+        "created_at",
+    )
     list_filter = ("action", "created_at")
     search_fields = (
         "user__username",
@@ -1143,6 +1211,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                     "home_feed_show_validations",
                     "home_feed_show_subjects",
                     "home_feed_show_new_subjects",
+                    "home_feed_show_new_collections",
                 ),
                 "description": "Controls the recent-activity feed embedded on the homepage",
             },

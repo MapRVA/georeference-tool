@@ -161,6 +161,10 @@ class SiteSettings(models.Model):
         default=True,
         help_text="Show new subject introductions in the homepage feed embed",
     )
+    home_feed_show_new_collections = models.BooleanField(
+        default=True,
+        help_text="Show new collection announcements in the homepage feed embed",
+    )
 
     class Meta:
         verbose_name = "Site Settings"
@@ -180,6 +184,7 @@ class SiteSettings(models.Model):
             "validation": self.home_feed_show_validations,
             "subject": self.home_feed_show_subjects,
             "new_subject": self.home_feed_show_new_subjects,
+            "new_collection": self.home_feed_show_new_collections,
         }
         return {key for key, on in enabled.items() if on}
 

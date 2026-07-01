@@ -26,6 +26,7 @@ window.activityFilter = function (initialFilters) {
     "validation",
     "subject",
     "new_subject",
+    "new_collection",
   ];
   const defaultTypes = [
     "group",
@@ -33,6 +34,7 @@ window.activityFilter = function (initialFilters) {
     "milestone",
     "sitewide",
     "new_subject",
+    "new_collection",
   ];
 
   return {
@@ -44,6 +46,7 @@ window.activityFilter = function (initialFilters) {
       validation: initialFilters?.validation ?? false,
       subject: initialFilters?.subject ?? false,
       new_subject: initialFilters?.new_subject ?? true,
+      new_collection: initialFilters?.new_collection ?? true,
     },
 
     applyFilters() {
