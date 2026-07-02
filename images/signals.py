@@ -13,10 +13,17 @@ The view only needs to refresh when:
 import logging
 
 from django.db import connection, transaction
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Collection, Georeference, Image, Source
+from .models import (
+    AerialGeoreference,
+    Collection,
+    CollectionStats,
+    Georeference,
+    Image,
+    Source,
+)
 from .views.api import bump_tile_version
 
 logger = logging.getLogger(__name__)
@@ -94,6 +101,101 @@ def refresh_view_on_source_save(sender, instance, **kwargs):
     update_fields = kwargs.get("update_fields")
     if update_fields is None or "public" in update_fields:
         transaction.on_commit(refresh_tiles)
+
+
+# ---------------------------------------------------------------------------
+# CollectionStats maintenance
+#
+# Keep the denormalized per-collection statistics current the moment the
+# underlying data changes, so browse pages always show correct numbers
+# without running aggregate queries. Refreshes run on_commit, after the
+# write is visible to other transactions.
+# ---------------------------------------------------------------------------
+
+# Image fields that affect CollectionStats counts. Saves restricted (via
+# update_fields) to other fields skip the refresh.
+STATS_RELEVANT_IMAGE_FIELDS = {
+    "collection",
+    "will_not_georef",
+    "duplicate_of",
+    "aerial",
+}
+
+
+def _refresh_stats_on_commit(collection_ids):
+    ids = [cid for cid in collection_ids if cid is not None]
+    if not ids:
+        return
+
+    def _refresh():
+        # Log but don't raise: the triggering write already committed, and a
+        # failed refresh only means stale stats until the next event or the
+        # periodic reconcile
+        try:
+            CollectionStats.refresh_for(ids)
+        except Exception:
+            logger.warning(
+                f"Failed to refresh collection stats for {ids}", exc_info=True
+            )
+
+    transaction.on_commit(_refresh)
+
+
+def _collection_id_of_image(image_id):
+    return (
+        Image.objects.filter(pk=image_id)
+        .values_list("collection_id", flat=True)
+        .first()
+    )
+
+
+@receiver(post_save, sender=Georeference)
+@receiver(post_delete, sender=Georeference)
+@receiver(post_save, sender=AerialGeoreference)
+@receiver(post_delete, sender=AerialGeoreference)
+def refresh_stats_on_georeference_change(sender, instance, **kwargs):
+    """Refresh the image's collection stats when a georeference changes.
+
+    On cascade deletes triggered by an Image delete the image row may already
+    be gone; the Image post_delete handler covers the refresh in that case.
+    """
+    _refresh_stats_on_commit([_collection_id_of_image(instance.image_id)])
+
+
+@receiver(pre_save, sender=Image)
+def capture_previous_collection(sender, instance, **kwargs):
+    """Remember the collection an image is moving away from, so its stats
+    can be refreshed too."""
+    instance._previous_collection_id = None
+    update_fields = kwargs.get("update_fields")
+    if instance.pk and (update_fields is None or "collection" in update_fields):
+        instance._previous_collection_id = _collection_id_of_image(instance.pk)
+
+
+@receiver(post_save, sender=Image)
+def refresh_stats_on_image_save(sender, instance, **kwargs):
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None and not (
+        STATS_RELEVANT_IMAGE_FIELDS & set(update_fields)
+    ):
+        return
+    previous = getattr(instance, "_previous_collection_id", None)
+    ids = {instance.collection_id}
+    if previous and previous != instance.collection_id:
+        ids.add(previous)
+    _refresh_stats_on_commit(ids)
+
+
+@receiver(post_delete, sender=Image)
+def refresh_stats_on_image_delete(sender, instance, **kwargs):
+    _refresh_stats_on_commit([instance.collection_id])
+
+
+@receiver(post_save, sender=Collection)
+def seed_stats_on_collection_create(sender, instance, created, **kwargs):
+    """Give every new collection a (zeroed) stats row immediately."""
+    if created:
+        _refresh_stats_on_commit([instance.pk])
 
 
 @receiver(post_save, sender=Image)

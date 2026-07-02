@@ -275,6 +275,109 @@ class Collection(models.Model):
         unique_together = ["source", "name", "slug"]
 
 
+class CollectionStats(models.Model):
+    """Denormalized per-collection image statistics.
+
+    Maintained eagerly by signal handlers whenever images or georeferences
+    change (see signals.py), so browse pages can read counts without running
+    aggregate queries. A periodic reconcile task self-heals any drift from
+    write paths that bypass signals (bulk updates, raw SQL).
+
+    An image counts as georeferenced if it is a non-aerial with a point
+    georeference, or an aerial with a polygon georeference (matching
+    Image.is_georeferenced). An aerial with only a point georeference does NOT
+    count — it stays available. The confidence bucket comes from the most
+    recent qualifying georeference: the latest aerial georeference for aerials,
+    the latest point georeference for non-aerials. Counts include non-public
+    collections and sources — visibility is filtered at read time, so
+    publishing a collection is reflected immediately without a recompute.
+    """
+
+    collection = models.OneToOneField(
+        Collection, on_delete=models.CASCADE, primary_key=True, related_name="stats"
+    )
+    total_images = models.PositiveIntegerField(default=0)
+    will_not_georef_images = models.PositiveIntegerField(default=0)
+    georeferenced_low = models.PositiveIntegerField(default=0)
+    georeferenced_medium = models.PositiveIntegerField(default=0)
+    georeferenced_high = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "collection stats"
+
+    def __str__(self):
+        return f"Stats for {self.collection}"
+
+    @property
+    def georeferenced_images(self):
+        return (
+            self.georeferenced_low + self.georeferenced_medium + self.georeferenced_high
+        )
+
+    @property
+    def pending_images(self):
+        return (
+            self.total_images - self.georeferenced_images - self.will_not_georef_images
+        )
+
+    REFRESH_SQL = """
+    INSERT INTO images_collectionstats (
+        collection_id, total_images, will_not_georef_images,
+        georeferenced_low, georeferenced_medium, georeferenced_high, updated_at
+    )
+    SELECT
+        c.id,
+        COUNT(img.id),
+        COUNT(img.id) FILTER (WHERE img.will_not_georef),
+        COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'low'),
+        COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'medium'),
+        COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'high'),
+        NOW()
+    FROM images_collection c
+    LEFT JOIN images_image img
+        ON img.collection_id = c.id AND img.duplicate_of_id IS NULL
+    LEFT JOIN LATERAL (
+        SELECT CASE WHEN img.aerial THEN (
+            SELECT ag.confidence FROM images_aerialgeoreference ag
+            WHERE ag.image_id = img.id
+            ORDER BY ag.georeferenced_at DESC LIMIT 1
+        ) ELSE (
+            SELECT g.confidence FROM images_georeference g
+            WHERE g.image_id = img.id
+            ORDER BY g.georeferenced_at DESC LIMIT 1
+        ) END AS confidence
+    ) conf ON TRUE
+    {where_clause}
+    GROUP BY c.id
+    ON CONFLICT (collection_id) DO UPDATE SET
+        total_images = EXCLUDED.total_images,
+        will_not_georef_images = EXCLUDED.will_not_georef_images,
+        georeferenced_low = EXCLUDED.georeferenced_low,
+        georeferenced_medium = EXCLUDED.georeferenced_medium,
+        georeferenced_high = EXCLUDED.georeferenced_high,
+        updated_at = EXCLUDED.updated_at
+    """
+
+    @classmethod
+    def refresh_for(cls, collection_ids=None):
+        """Recompute stats rows in a single upsert query.
+
+        Pass a list of collection ids to refresh just those collections, or
+        None to refresh every collection (reconcile).
+        """
+        if collection_ids is not None and not collection_ids:
+            return
+        with connection.cursor() as cursor:
+            if collection_ids is None:
+                cursor.execute(cls.REFRESH_SQL.format(where_clause=""))
+            else:
+                cursor.execute(
+                    cls.REFRESH_SQL.format(where_clause="WHERE c.id = ANY(%s)"),
+                    [list(collection_ids)],
+                )
+
+
 class PreCollection(models.Model):
     """Collection within a source containing images that have yet to be reviewed for inclusion"""
 

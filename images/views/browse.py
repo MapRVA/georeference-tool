@@ -1,10 +1,21 @@
 from django.contrib.gis.geos import Point
 from django.core.paginator import Page, Paginator
-from django.db.models import Avg, Case, Count, IntegerField, Q, Value, When
+from django.db.models import (
+    Avg,
+    Case,
+    Count,
+    F,
+    IntegerField,
+    Q,
+    Sum,
+    Value,
+    When,
+)
 from django.shortcuts import get_object_or_404, render
 
 from ..models import (
     Collection,
+    CollectionStats,
     Image,
     ImageRating,
     Source,
@@ -86,7 +97,7 @@ def apply_image_filters(request, queryset):
         filter_conditions = Q()
 
         if "georeferenced" in georeference_status:
-            filter_conditions |= Q(georeferences__isnull=False) | Q(
+            filter_conditions |= Q(aerial=False, georeferences__isnull=False) | Q(
                 aerial=True, aerial_georeferences__isnull=False
             )
 
@@ -111,54 +122,59 @@ def apply_image_filters(request, queryset):
     return queryset
 
 
+def _browse_sources_stats():
+    """Read per-source and sitewide image statistics from CollectionStats.
+
+    The denormalized stats table is maintained eagerly by signal handlers,
+    so these are cheap sums over a few hundred rows at most.
+    """
+    per_source = (
+        CollectionStats.objects.filter(
+            collection__source__public=True,
+            collection__public=True,
+        )
+        .values("collection__source")
+        .annotate(
+            total=Sum("total_images"),
+            georeferenced=Sum(
+                F("georeferenced_low")
+                + F("georeferenced_medium")
+                + F("georeferenced_high")
+            ),
+            will_not_georef=Sum("will_not_georef_images"),
+        )
+    )
+    return {
+        "by_source": {row["collection__source"]: row for row in per_source},
+        "overall": get_overall_stats(),
+    }
+
+
 def browse_sources(request):
     """Browse all public sources"""
     sources = (
         Source.objects.filter(public=True)
-        .prefetch_related("collections")
+        .annotate(
+            public_collections_count=Count(
+                "collections", filter=Q(collections__public=True)
+            )
+        )
         .order_by("name")
     )
 
-    # Add statistics for each source (only from public collections)
+    stats = _browse_sources_stats()
     for source in sources:
-        # Count only public collections for this source
-        source.public_collections_count = source.collections.filter(public=True).count()
-
-        source.total_images = Image.objects.filter(
-            collection__source=source,
-            collection__public=True,
-            duplicate_of__isnull=True,
-        ).count()
-        # Count images as georeferenced if they have point georeferences
-        # OR aerials with polygon georeferences
-        source.georeferenced_images = (
-            Image.objects.filter(
-                collection__source=source,
-                collection__public=True,
-                duplicate_of__isnull=True,
-                will_not_georef=False,
-            )
-            .filter(
-                Q(georeferences__isnull=False)
-                | Q(aerial=True, aerial_georeferences__isnull=False)
-            )
-            .distinct()
-            .count()
-        )
-        source.will_not_georef_images = Image.objects.filter(
-            collection__source=source,
-            collection__public=True,
-            duplicate_of__isnull=True,
-            will_not_georef=True,
-        ).count()
+        row = stats["by_source"].get(source.id)
+        source.total_images = row["total"] if row else 0
+        source.georeferenced_images = row["georeferenced"] if row else 0
+        source.will_not_georef_images = row["will_not_georef"] if row else 0
         source.pending_images = (
             source.total_images
             - source.georeferenced_images
             - source.will_not_georef_images
         )
 
-    # Get overall statistics using shared utility function
-    overall_stats = get_overall_stats()
+    overall_stats = stats["overall"]
 
     # Get top-rated image from entire site for Open Graph metadata
     top_rated_entry = (
@@ -183,55 +199,22 @@ def browse_sources(request):
 def source_detail(request, slug):
     """Detail view for a specific source showing its public collections"""
     source = get_object_or_404(Source, slug=slug, public=True)
-    collections = source.collections.filter(public=True)
+    collections = source.collections.filter(public=True).select_related("stats")
 
-    # Add statistics for each collection
+    # Attach per-collection statistics from the denormalized stats table, and
+    # sum them for the source-level totals
+    total_images = 0
+    georeferenced_images = 0
+    will_not_georef_images = 0
     for collection in collections:
-        collection.total_images = collection.images.filter(
-            duplicate_of__isnull=True
-        ).count()
-        collection.georeferenced_images = (
-            collection.images.filter(
-                duplicate_of__isnull=True,
-                will_not_georef=False,
-            )
-            .filter(
-                Q(georeferences__isnull=False)
-                | Q(aerial=True, aerial_georeferences__isnull=False)
-            )
-            .distinct()
-            .count()
-        )
-        collection.will_not_georef_images = collection.images.filter(
-            duplicate_of__isnull=True, will_not_georef=True
-        ).count()
-        collection.pending_images = (
-            collection.total_images
-            - collection.georeferenced_images
-            - collection.will_not_georef_images
-        )
-
-    # Overall source statistics (only from public collections, excluding duplicates)
-    total_images = Image.objects.filter(
-        collection__source=source, collection__public=True, duplicate_of__isnull=True
-    ).count()
-    georeferenced_images = (
-        Image.objects.filter(
-            collection__source=source,
-            collection__public=True,
-            duplicate_of__isnull=True,
-            will_not_georef=False,
-            georeferences__isnull=False,
-        )
-        .distinct()
-        .count()
-    )
-    will_not_georef_images = Image.objects.filter(
-        collection__source=source,
-        collection__public=True,
-        duplicate_of__isnull=True,
-        will_not_georef=True,
-    ).count()
+        stats = getattr(collection, "stats", None)
+        collection.total_images = stats.total_images if stats else 0
+        collection.georeferenced_images = stats.georeferenced_images if stats else 0
+        collection.will_not_georef_images = stats.will_not_georef_images if stats else 0
+        collection.pending_images = stats.pending_images if stats else 0
+        total_images += collection.total_images
+        georeferenced_images += collection.georeferenced_images
+        will_not_georef_images += collection.will_not_georef_images
 
     # Get top-rated image for Open Graph metadata
     top_rated_entry = (
@@ -274,7 +257,10 @@ def collection_detail(request, source_slug, collection_slug):
     """Detail view for a specific public collection"""
     source = get_object_or_404(Source, slug=source_slug, public=True)
     collection = get_object_or_404(
-        Collection, source=source, slug=collection_slug, public=True
+        Collection.objects.select_related("stats"),
+        source=source,
+        slug=collection_slug,
+        public=True,
     )
 
     # Get filter parameters from URL
@@ -305,7 +291,7 @@ def collection_detail(request, source_slug, collection_slug):
         .annotate(
             has_georeference=Case(
                 When(
-                    Q(georeferences__isnull=False)
+                    Q(aerial=False, georeferences__isnull=False)
                     | Q(aerial=True, aerial_georeferences__isnull=False),
                     then=Value(1),
                 ),
@@ -355,7 +341,7 @@ def collection_detail(request, source_slug, collection_slug):
         filter_conditions = Q()
 
         if "georeferenced" in georeference_status:
-            filter_conditions |= Q(georeferences__isnull=False) | Q(
+            filter_conditions |= Q(aerial=False, georeferences__isnull=False) | Q(
                 aerial=True, aerial_georeferences__isnull=False
             )
 
@@ -363,6 +349,10 @@ def collection_detail(request, source_slug, collection_slug):
             filter_conditions |= (
                 Q(georeferences__isnull=True)
                 & Q(aerial=False)
+                & Q(will_not_georef=False)
+            ) | (
+                Q(aerial_georeferences__isnull=True)
+                & Q(aerial=True)
                 & Q(will_not_georef=False)
             )
 
@@ -372,23 +362,11 @@ def collection_detail(request, source_slug, collection_slug):
         # Apply the filter if any conditions were added
         if filter_conditions:
             images = images.filter(filter_conditions)
-    # Get counts before filtering for statistics
-    all_images = collection.images.filter(duplicate_of__isnull=True)
-    total_images = all_images.distinct().count()
-
-    # Count images as georeferenced if they have point georeferences OR aerials
-    # with polygon georeferences. Exclude will_not_georef so the buckets stay
-    # mutually exclusive (matches Image.georeference_status precedence).
-    georeferenced_images = (
-        all_images.filter(will_not_georef=False)
-        .filter(
-            Q(georeferences__isnull=False)
-            | Q(aerial=True, aerial_georeferences__isnull=False)
-        )
-        .distinct()
-        .count()
-    )
-    will_not_georef_images = all_images.filter(will_not_georef=True).count()
+    # Unfiltered collection statistics from the denormalized stats table
+    stats = getattr(collection, "stats", None)
+    total_images = stats.total_images if stats else 0
+    georeferenced_images = stats.georeferenced_images if stats else 0
+    will_not_georef_images = stats.will_not_georef_images if stats else 0
 
     # Paginate the filtered images for browsing
     paginator = Paginator(images.distinct(), 24)  # 24 images per page for grid layout

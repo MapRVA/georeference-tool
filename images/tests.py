@@ -1,13 +1,25 @@
 import datetime
+from contextlib import contextmanager
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.contrib.gis.geos import Point, Polygon
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from images.models import Collection, Image, ImageOfTheDay, Source
+from images.models import (
+    AerialGeoreference,
+    Collection,
+    CollectionStats,
+    Georeference,
+    Image,
+    ImageOfTheDay,
+    Source,
+)
+from images.tasks import reconcile_collection_stats
+from images.utils import get_confidence_breakdown, get_overall_stats
 
 
 class ImageOfTheDayTests(TestCase):
@@ -44,8 +56,7 @@ class ImageOfTheDayTests(TestCase):
     def queue(self):
         """The current queue as {day: image_title} for compact assertions."""
         return {
-            e.day: e.image.title
-            for e in ImageOfTheDay.objects.select_related("image")
+            e.day: e.image.title for e in ImageOfTheDay.objects.select_related("image")
         }
 
     # -- next_available_day -------------------------------------------------
@@ -68,9 +79,7 @@ class ImageOfTheDayTests(TestCase):
     def test_next_available_day_fills_gap_left_by_lock(self):
         # Day 1 taken, day 3 locked, day 2 free -> day 2 is returned, not day 4.
         ImageOfTheDay.objects.create(image=self.img("A"), day=self.d(1))
-        ImageOfTheDay.objects.create(
-            image=self.img("L"), day=self.d(3), locked=True
-        )
+        ImageOfTheDay.objects.create(image=self.img("L"), day=self.d(3), locked=True)
         with patch.object(timezone, "localdate", return_value=self.d(1)):
             self.assertEqual(ImageOfTheDay.next_available_day(), self.d(2))
 
@@ -79,9 +88,7 @@ class ImageOfTheDayTests(TestCase):
     @override_settings(TIME_ZONE="America/New_York")
     def test_next_available_day_uses_site_timezone(self):
         # 03:30 UTC on June 2 is still 23:30 on June 1 in New York.
-        instant = datetime.datetime(
-            2026, 6, 2, 3, 30, tzinfo=datetime.timezone.utc
-        )
+        instant = datetime.datetime(2026, 6, 2, 3, 30, tzinfo=datetime.timezone.utc)
         with patch.object(timezone, "now", return_value=instant):
             self.assertEqual(
                 ImageOfTheDay.next_available_day(), datetime.date(2026, 6, 1)
@@ -89,9 +96,7 @@ class ImageOfTheDayTests(TestCase):
 
     @override_settings(TIME_ZONE="America/New_York")
     def test_for_today_uses_site_timezone(self):
-        instant = datetime.datetime(
-            2026, 6, 2, 3, 30, tzinfo=datetime.timezone.utc
-        )
+        instant = datetime.datetime(2026, 6, 2, 3, 30, tzinfo=datetime.timezone.utc)
         entry = ImageOfTheDay.objects.create(
             image=self.img("A"), day=datetime.date(2026, 6, 1)
         )
@@ -168,9 +173,7 @@ class ImageOfTheDayTests(TestCase):
 
     def test_place_on_locked_day_raises_and_changes_nothing(self):
         ImageOfTheDay.objects.create(image=self.img("A"), day=self.d(1))
-        ImageOfTheDay.objects.create(
-            image=self.img("L"), day=self.d(2), locked=True
-        )
+        ImageOfTheDay.objects.create(image=self.img("L"), day=self.d(2), locked=True)
         before = self.queue()
         with self.assertRaises(ValidationError):
             ImageOfTheDay.place(self.img("X"), day=self.d(2))
@@ -312,9 +315,7 @@ class ImageOfTheDayTests(TestCase):
     def test_move_relocks_already_locked_entry(self):
         ImageOfTheDay.objects.create(image=self.img("A"), day=self.d(1))
         ImageOfTheDay.objects.create(image=self.img("B"), day=self.d(2))
-        ImageOfTheDay.objects.create(
-            image=self.img("L"), day=self.d(3), locked=True
-        )
+        ImageOfTheDay.objects.create(image=self.img("L"), day=self.d(3), locked=True)
         ImageOfTheDay.objects.create(image=self.img("C"), day=self.d(4))
         locked = ImageOfTheDay.objects.get(day=self.d(3))
 
@@ -333,9 +334,7 @@ class ImageOfTheDayTests(TestCase):
 
     def test_move_to_locked_day_raises_and_rolls_back(self):
         ImageOfTheDay.objects.create(image=self.img("A"), day=self.d(1))
-        ImageOfTheDay.objects.create(
-            image=self.img("L"), day=self.d(2), locked=True
-        )
+        ImageOfTheDay.objects.create(image=self.img("L"), day=self.d(2), locked=True)
         entry = ImageOfTheDay.objects.get(day=self.d(1))
         before = self.queue()
 
@@ -420,9 +419,7 @@ class ImageOfTheDayTests(TestCase):
     def test_unlock_compacts_around_remaining_locks(self):
         ImageOfTheDay.objects.create(image=self.img("A"), day=self.d(1))
         ImageOfTheDay.objects.create(image=self.img("B"), day=self.d(2))
-        ImageOfTheDay.objects.create(
-            image=self.img("L"), day=self.d(3), locked=True
-        )
+        ImageOfTheDay.objects.create(image=self.img("L"), day=self.d(3), locked=True)
         anchor = ImageOfTheDay.objects.create(
             image=self.img("T"), day=self.d(10), locked=True
         )
@@ -437,3 +434,189 @@ class ImageOfTheDayTests(TestCase):
         )
         self.assertTrue(ImageOfTheDay.objects.get(day=self.d(3)).locked)
         self.assertFalse(ImageOfTheDay.objects.get(day=self.d(4)).locked)
+
+
+class CollectionStatsTests(TestCase):
+    """The denormalized CollectionStats rows stay correct as images and
+    georeferences change. Refreshes run via transaction.on_commit, so tests
+    wrap writes in captureOnCommitCallbacks (and mute the image-processing
+    task that Image saves also enqueue on commit)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = Source.objects.create(
+            name="Src", slug="src", url="https://example.com", description=""
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source, name="Col", slug="col", url="https://example.com"
+        )
+
+    @contextmanager
+    def stats_events(self):
+        with (
+            patch("images.tasks.process_image.apply_async"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            yield
+
+    def img(self, title, **kwargs):
+        with self.stats_events():
+            return Image.objects.create(
+                collection=kwargs.pop("collection", self.collection),
+                title=title,
+                permalink=f"https://img.example.com/{title}.jpg",
+                **kwargs,
+            )
+
+    def stats(self, collection=None):
+        return CollectionStats.objects.get(pk=(collection or self.collection).pk)
+
+    def counts(self, collection=None):
+        s = self.stats(collection)
+        return (
+            s.total_images,
+            s.georeferenced_images,
+            s.will_not_georef_images,
+            s.pending_images,
+        )
+
+    def test_new_collection_seeds_zeroed_row(self):
+        with self.stats_events():
+            collection = Collection.objects.create(
+                source=self.source, name="New", slug="new", url="https://example.com"
+            )
+        self.assertEqual(self.counts(collection), (0, 0, 0, 0))
+
+    def test_georeference_lifecycle(self):
+        image = self.img("A")
+        self.assertEqual(self.counts(), (1, 0, 0, 1))
+
+        with self.stats_events():
+            georef = Georeference.objects.create(
+                image=image, point=Point(-77.43, 37.54, srid=4326), confidence="high"
+            )
+        self.assertEqual(self.counts(), (1, 1, 0, 0))
+        self.assertEqual(self.stats().georeferenced_high, 1)
+
+        with self.stats_events():
+            georef.delete()
+        self.assertEqual(self.counts(), (1, 0, 0, 1))
+
+    def test_confidence_follows_most_recent_georeference(self):
+        image = self.img("A")
+        with self.stats_events():
+            Georeference.objects.create(
+                image=image, point=Point(-77.43, 37.54, srid=4326), confidence="low"
+            )
+        old = Georeference.objects.get(image=image)
+        Georeference.objects.filter(pk=old.pk).update(
+            georeferenced_at=timezone.now() - datetime.timedelta(days=1)
+        )
+        with self.stats_events():
+            Georeference.objects.create(
+                image=image, point=Point(-77.44, 37.54, srid=4326), confidence="medium"
+            )
+        s = self.stats()
+        self.assertEqual(
+            (s.georeferenced_low, s.georeferenced_medium, s.georeferenced_high),
+            (0, 1, 0),
+        )
+        self.assertEqual(s.georeferenced_images, 1)
+
+    def test_aerial_image_counts_only_via_aerial_georeference(self):
+        aerial = self.img("Aerial", aerial=True)
+        with self.stats_events():
+            AerialGeoreference.objects.create(
+                image=aerial,
+                polygon=Polygon(
+                    (
+                        (-77.44, 37.53),
+                        (-77.43, 37.53),
+                        (-77.43, 37.54),
+                        (-77.44, 37.54),
+                        (-77.44, 37.53),
+                    ),
+                    srid=4326,
+                ),
+                confidence="medium",
+            )
+        self.assertEqual(self.counts(), (1, 1, 0, 0))
+
+        # An aerial image with ONLY a point georeference is not "done" — it
+        # still needs a polygon georeference, so it stays available (pending).
+        aerial_pt = self.img("AerialPoint", aerial=True)
+        with self.stats_events():
+            Georeference.objects.create(
+                image=aerial_pt,
+                point=Point(-77.43, 37.54, srid=4326),
+                confidence="low",
+            )
+        # total 2, only the polygon-georeferenced aerial is done, the other pends
+        self.assertEqual(self.counts(), (2, 1, 0, 1))
+        s = self.stats()
+        self.assertEqual(s.georeferenced_images, 1)
+        self.assertEqual(s.georeferenced_low, 0)
+
+    def test_will_not_georef_and_duplicates(self):
+        image = self.img("A")
+        self.img("Dup", duplicate_of=image)
+        self.assertEqual(self.counts(), (1, 0, 0, 1))
+
+        image.will_not_georef = True
+        with self.stats_events():
+            image.save()
+        self.assertEqual(self.counts(), (1, 0, 1, 0))
+
+    def test_image_move_refreshes_both_collections(self):
+        other = Collection.objects.create(
+            source=self.source, name="Other", slug="other", url="https://example.com"
+        )
+        image = self.img("A")
+        image.collection = other
+        with self.stats_events():
+            image.save()
+        self.assertEqual(self.counts(), (0, 0, 0, 0))
+        self.assertEqual(self.counts(other), (1, 0, 0, 1))
+
+    def test_image_delete_refreshes_stats(self):
+        image = self.img("A")
+        with self.stats_events():
+            image.delete()
+        self.assertEqual(self.counts(), (0, 0, 0, 0))
+
+    def test_reconcile_task_heals_drift(self):
+        self.img("A")
+        CollectionStats.objects.filter(pk=self.collection.pk).update(
+            total_images=99, georeferenced_high=42
+        )
+        reconcile_collection_stats()
+        self.assertEqual(self.counts(), (1, 0, 0, 1))
+
+    def test_overall_stats_and_confidence_breakdown(self):
+        image = self.img("A")
+        self.img("B")
+        self.img("C", will_not_georef=True)
+        with self.stats_events():
+            Georeference.objects.create(
+                image=image, point=Point(-77.43, 37.54, srid=4326), confidence="high"
+            )
+        # A private collection's images must not leak into sitewide numbers
+        hidden = Collection.objects.create(
+            source=self.source,
+            name="Hidden",
+            slug="hidden",
+            url="https://example.com",
+            public=False,
+        )
+        self.img("H", collection=hidden)
+
+        overall = get_overall_stats()
+        self.assertEqual(overall["total_images"], 2)  # excludes wnf + hidden
+        self.assertEqual(overall["total_georeferenced"], 1)
+        self.assertEqual(overall["georeferenced_percentage"], 50.0)
+
+        breakdown = get_confidence_breakdown()
+        self.assertEqual(
+            breakdown,
+            {"not_georeferenced": 1, "low": 0, "medium": 0, "high": 1},
+        )

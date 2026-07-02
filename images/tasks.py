@@ -21,7 +21,7 @@ from PIL import Image as PILImage
 
 from yesterdays.iiif import generate_and_upload_iiif_tiles
 
-from .models import Image, ImportSlot
+from .models import CollectionStats, Image, ImportSlot
 from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
@@ -532,3 +532,14 @@ def cleanup_stale_import_slots():
 
     stale_slots.delete()
     return f"Cleaned up {count} stale import slot(s)."
+
+
+@shared_task(ignore_result=True)
+def reconcile_collection_stats():
+    """Recompute every CollectionStats row from scratch.
+
+    Signal handlers keep the stats current in real time; this periodic
+    reconcile self-heals any drift from write paths that bypass signals
+    (bulk updates, raw SQL).
+    """
+    CollectionStats.refresh_for()

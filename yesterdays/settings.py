@@ -316,6 +316,7 @@ CELERY_TASK_ROUTES = {
     "images.tasks.generate_iiif_tiles": {"queue": "background"},
     "images.tasks.cleanup_old_image_assets": {"queue": "background"},
     "images.tasks.cleanup_stale_import_slots": {"queue": "background"},
+    "images.tasks.reconcile_collection_stats": {"queue": "background"},
     # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
     "images.tasks.encode_text": {"queue": "urgent"},
     "images.tasks.encode_image": {"queue": "urgent"},
@@ -378,6 +379,10 @@ CELERY_BEAT_SCHEDULE = {
     "cleanup-stale-import-slots": {
         "task": "images.tasks.cleanup_stale_import_slots",
         "schedule": 3600.0,  # every hour
+    },
+    "reconcile-collection-stats": {
+        "task": "images.tasks.reconcile_collection_stats",
+        "schedule": 3600.0,  # every hour; signals keep stats current in real time
     },
     "reconcile-project-graph": {
         "task": "subjects.tasks.reconcile_project_graph",
