@@ -381,7 +381,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "reconcile-project-graph": {
         "task": "subjects.tasks.reconcile_project_graph",
-        "schedule": 900.0,  # every 15 minutes
+        "schedule": 21600.0,  # every 6 hours
         "options": {"expires": 870},
     },
 }
