@@ -1,7 +1,9 @@
+import uuid
 from itertools import chain
 from operator import attrgetter
 
 from django.contrib.syndication.views import Feed
+from django.urls import reverse
 from django.utils.feedgenerator import Rss201rev2Feed
 
 
@@ -36,8 +38,8 @@ class SitewideActivityFeed(Feed):
         # Chain them together and sort chronologically
         combined = sorted(
             chain(georefs, subjects, user_milestones, sitewide_milestones, collections),
-            key=attrgetter('created_at'),
-            reverse=True
+            key=attrgetter('created_at', 'reached_at', 'ended_at'),
+            reverse=True,
         )
         return combined[:MAX_ITEMS]
 
@@ -69,11 +71,25 @@ class SitewideActivityFeed(Feed):
         return str(item)
 
     def item_link(self, item):
+        # Default to method if the model has one. Covers Image, Subject, Collection
         if hasattr(item, 'get_absolute_url'):
             return item.get_absolute_url()
-        if isinstance(item, SubjectIntroduction) and hasattr(item, 'subject'):
-            return f"/subjects/{item.subject.pk}/"
+        elif isinstance(item, SubjectIntroduction):
+            return item.subject.get_absolute_url()
+        elif isinstance(item, UserMilestone):
+            return reverse("user_profile", kwargs={"username": item.user.username})
+        elif isinstance(item, CollectionIntroduction):
+            return item.collection.get_absolute_url()
+
+        # GeoreferenceGroup and SitewideMilestone go nowhere?
         return "/activity/"
 
     def item_pubdate(self, item):
-        return getattr(item, 'created_at', None)
+        return getattr(item, 'created_at', None) or getattr(item, 'reached_at', None) or getattr(item, 'ended_at', None)
+
+    def item_guid(self, item):
+        """
+        Set a random UUID for each item, so that the exact same session can appear in
+        multiple feeds if necessary and won't be filtered by RSS clients.
+        """
+        return str(uuid.uuid4())
