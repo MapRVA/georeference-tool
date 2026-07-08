@@ -2,15 +2,12 @@ import hashlib
 import json
 
 from django.contrib.gis.geos import Point
-from django.core.cache import caches
 from django.db import connection
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 
 from ..models import Image, TileVersion
 from .core import get_min_scale_for_zoom
-
-tile_cache = caches["tiles"]
 
 
 def geojson_endpoint(request):
@@ -321,8 +318,10 @@ def bump_tile_version():
 def vector_tiles_endpoint(request, z, x, y, v=None):
     """Return MVT vector tiles of georeferenced images.
 
-    URLs may include a version (v) for cache-busting, but it's not used server-side.
-    When the version changes, all tile URLs change, invalidating browser and CDN caches.
+    Tiles are cached at the CDN edge, not on the server. Versioned URLs (v) are
+    the invalidation mechanism: when the version changes, all tile URLs change,
+    so stale cached tiles are simply never requested again. Unversioned URLs
+    can never be invalidated, so they must not be edge-cached.
     """
 
     # Collect filter parameters
@@ -337,16 +336,6 @@ def vector_tiles_endpoint(request, z, x, y, v=None):
 
     is_filtered = any([image_id, collection_id, source_id, subject_id, album_id])
 
-    # Only use cache for unfiltered tiles
-    if not is_filtered:
-        version = get_tile_version()
-        cache_key = f"tile:{version}:{z}:{x}:{y}:{enable_scale_filter}"
-
-        cached = tile_cache.get(cache_key)
-        if cached is not None:
-            return _make_tile_response(cached, z, is_filtered=False, hit=True)
-
-    # Generate tile (cache miss or filtered request)
     mvt_data = _generate_tile(
         z,
         x,
@@ -359,15 +348,11 @@ def vector_tiles_endpoint(request, z, x, y, v=None):
         album_id,
     )
 
-    # Cache unfiltered tiles only
-    if not is_filtered:
-        tile_cache.set(cache_key, mvt_data, timeout=86400)
-
-    return _make_tile_response(mvt_data, z, is_filtered, hit=False)
+    return _make_tile_response(mvt_data, is_filtered, versioned=v is not None)
 
 
 def _make_tile_response(
-    mvt_data: bytes, z: int, is_filtered: bool, hit: bool
+    mvt_data: bytes, is_filtered: bool, versioned: bool
 ) -> HttpResponse:
     """Create response with appropriate cache headers."""
     response = HttpResponse(mvt_data, content_type="application/x-protobuf")
@@ -375,12 +360,15 @@ def _make_tile_response(
     if is_filtered:
         # Don't cache filtered tiles in browser, short edge cache
         response["Cache-Control"] = "public, max-age=0, s-maxage=300"
-    else:
+    elif versioned:
         # Versioned URLs mean stale tiles are never requested again, so cache aggressively
         response["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
+    else:
+        # Unversioned URLs never rotate, so an edge-cached tile would stay stale
+        # until its TTL expired, with no way to invalidate it
+        response["Cache-Control"] = "public, max-age=0, s-maxage=0"
 
     response["ETag"] = f'"{hashlib.md5(mvt_data).hexdigest()}"'
-    response["X-Tile-Cache"] = "HIT" if hit else "MISS"
 
     return response
 

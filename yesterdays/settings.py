@@ -179,18 +179,14 @@ DATABASES = {
     }
 }
 
-# Local memory cache (might consider e.g. Redis in the future)
+# Local memory cache (might consider e.g. Redis in the future).
+# Vector tiles are deliberately not cached here: they are cached at the
+# Cloudflare edge (Cache Rule on /api/v1/tiles/v*), keeping large tile blobs
+# out of process memory.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "default",
-    },
-    "tiles": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "tiles",
-        "OPTIONS": {
-            "MAX_ENTRIES": 10000,
-        },
     },
 }
 
