@@ -11,22 +11,20 @@ class SubjectActivityFeed(Feed):
     """
     feed_type = Rss201rev2Feed
 
-    def get_object(self, request, subject_id):
+    def get_object(self, request, subject_slug):
         # Grabs the subject object when the URL is requested
-        return get_object_or_404(Subject, pk=subject_id)
+        return get_object_or_404(Subject, slug=subject_slug)
 
-    def title(self, obj):
-        name = getattr(obj, 'name', f"Subject {obj.id}")
-        return f"Yesterdays - New images for {name}"
+    def title(self, subject):
+        return f"Yesterdays - New images for {subject.name}"
 
     def link(self, obj):
         if hasattr(obj, 'get_absolute_url'):
             return obj.get_absolute_url()
         return f"/subjects/{obj.pk}/"
 
-    def description(self, obj):
-        name = getattr(obj, 'name', f"Subject {obj.id}")
-        return f"Latest images tagged with: {name}."
+    def description(self, subject):
+        return f"Latest images tagged with: {subject.name}."
 
     def items(self, obj):
         # Assuming SubjectMapping links Image and Subject via a ForeignKey to Subject.
@@ -37,11 +35,10 @@ class SubjectActivityFeed(Feed):
         ).distinct().order_by('-created_at')[:50]
 
     def item_title(self, item):
-        title = getattr(item, 'title', f"Image {item.id}")
-        return f"New image tagged: {title}"
+        return f"New image tagged: {item.title}"
 
     def item_description(self, item):
-        return getattr(item, 'description', 'A historical image was tagged with this subject.')
+        return item.description
 
     def item_link(self, item):
         if hasattr(item, 'get_absolute_url'):
