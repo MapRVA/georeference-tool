@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.syndication.views import Feed
 from django.shortcuts import get_object_or_404
 from django.utils.feedgenerator import Rss201rev2Feed
@@ -43,3 +45,10 @@ class SubjectActivityFeed(Feed):
 
     def item_pubdate(self, image):
         return image.created_at
+
+    def item_guid(self, subject):
+        """
+        Set a random UUID for each item, so that the exact same session can appear in
+        multiple feeds if necessary and won't be filtered by RSS clients.
+        """
+        return str(uuid.uuid4())
