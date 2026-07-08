@@ -12,24 +12,25 @@
             Applications you've allowed to access your Yesterdays account. Revoke access from any you no longer use.
         </p>
 
-        {% if authorized_tokens %}
+        {% if consents %}
             <div class="card shadow-sm">
                 <ul class="list-group list-group-flush">
-                    {% for authorized_token in authorized_tokens %}
+                    {% for consent in consents %}
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <div class="fw-semibold">{{ authorized_token.application }}</div>
-                                    {% if authorized_token.scopes %}
+                                    <div class="fw-semibold">{{ consent.application }}</div>
+                                    {% if consent.scopes %}
                                         <div class="small text-muted mt-1">
                                             Permissions:
-                                            {% for scope_name, scope_description in authorized_token.scopes.items %}
+                                            {% for scope_name, scope_description in consent.scopes.items %}
                                                 <span class="badge bg-light text-dark border me-1" title="{{ scope_description }}">{{ scope_name }}</span>
                                             {% endfor %}
                                         </div>
                                     {% endif %}
+                                    <div class="small text-muted mt-1">Authorized {{ consent.created_at|date }}</div>
                                 </div>
-                                <a href="{% url 'oauth2_provider:authorized-token-delete' authorized_token.pk %}" class="btn btn-sm btn-outline-danger">
+                                <a href="{% url 'oauth2_provider:authorized-token-delete' consent.pk %}" class="btn btn-sm btn-outline-danger">
                                     <i class="fas fa-times me-1"></i>Revoke
                                 </a>
                             </div>

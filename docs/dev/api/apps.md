@@ -69,7 +69,7 @@ For a `confidential` app, `client_secret` will contain the freshly generated sec
 
 After registration, follow the normal OAuth2 authorization-code flow against `/oauth/authorize/` and `/oauth/token/`. PKCE is required for all clients.
 
-Users will see a consent screen the first time your app requests authorization, showing the `name` you registered.
+Users will see a consent screen the first time your app requests authorization, showing the `name` you registered. Their approval is remembered: later authorization requests for already-granted scopes skip the screen entirely, until the user revokes your app from their account settings. Requesting a scope the user hasn't yet granted re-prompts them. See [Authentication](authentication.md#authorization-request) for details.
 
 ## Notes for app developers
 

@@ -1,3 +1,5 @@
+import base64
+import hashlib
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -5,6 +7,7 @@ from django.contrib.auth.models import User
 from django.contrib.gis.geos import Point, Polygon
 from django.test import TestCase
 from django.utils import timezone
+from oauth2_provider.models import AccessToken, Application, RefreshToken
 
 from activity.models import (
     GeoreferenceGroup,
@@ -12,6 +15,7 @@ from activity.models import (
     SitewideMilestone,
     UserMilestone,
 )
+from api.models import ApplicationConsent
 from images.models import (
     AerialGeoreference,
     Collection,
@@ -885,3 +889,201 @@ class TestSearchEndpoints(ApiFixturesMixin, TestCase):
     def test_text_search_query_too_long(self):
         resp = self.client.get(f"/api/v2/search/text/?q={'x' * 501}")
         self.assertEqual(resp.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# OAuth authorization: remembered consent
+# ---------------------------------------------------------------------------
+
+OAUTH_REDIRECT_URI = "http://127.0.0.1/callback"
+
+
+class OAuthConsentFixturesMixin:
+    """Shared fixtures for the OAuth authorization and consent tests."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="osm_700", password="test")
+        cls.other_user = User.objects.create_user(username="osm_800", password="test")
+        cls.application = Application.objects.create(
+            name="Desktop Importer",
+            client_type=Application.CLIENT_PUBLIC,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            redirect_uris=OAUTH_REDIRECT_URI,
+        )
+        verifier = "a" * 64
+        cls.code_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+
+    def authorize_params(self, scope="read", **extra):
+        params = {
+            "response_type": "code",
+            "client_id": self.application.client_id,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "scope": scope,
+            "state": "opaque",
+            "code_challenge": self.code_challenge,
+            "code_challenge_method": "S256",
+        }
+        params.update(extra)
+        return params
+
+    def get_authorize(self, **extra):
+        return self.client.get("/oauth/authorize/", self.authorize_params(**extra))
+
+    def post_authorize(self, allow=True, scope="read"):
+        data = self.authorize_params(scope=scope)
+        if allow:
+            data["allow"] = "on"
+        return self.client.post("/oauth/authorize/", data)
+
+    def create_consent(self, user=None, scope="read"):
+        return ApplicationConsent.objects.create(
+            user=user or self.user, application=self.application, scope=scope
+        )
+
+
+class TestOAuthRememberedConsent(OAuthConsentFixturesMixin, TestCase):
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_first_authorization_shows_consent_form(self):
+        resp = self.get_authorize()
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "oauth2_provider/authorize.html")
+
+    def test_approval_issues_code_and_records_consent(self):
+        resp = self.post_authorize()
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith(OAUTH_REDIRECT_URI))
+        self.assertIn("code=", resp["Location"])
+        consent = ApplicationConsent.objects.get(
+            user=self.user, application=self.application
+        )
+        self.assertEqual(consent.scope, "read")
+
+    def test_denial_records_no_consent(self):
+        resp = self.post_authorize(allow=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("error=access_denied", resp["Location"])
+        self.assertFalse(ApplicationConsent.objects.exists())
+
+    def test_remembered_consent_skips_form(self):
+        self.create_consent()
+        # No access or refresh tokens exist: the skip must come from the
+        # consent record alone, so it survives token expiry and revocation.
+        self.assertFalse(AccessToken.objects.exists())
+        resp = self.get_authorize()
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith(OAUTH_REDIRECT_URI))
+        self.assertIn("code=", resp["Location"])
+        self.assertIn("state=opaque", resp["Location"])
+
+    def test_narrower_scope_still_skips(self):
+        self.create_consent(scope="read import")
+        resp = self.get_authorize(scope="read")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("code=", resp["Location"])
+
+    def test_scope_escalation_reprompts(self):
+        self.create_consent(scope="read")
+        resp = self.get_authorize(scope="read import")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "oauth2_provider/authorize.html")
+
+    def test_approving_new_scope_merges_grant(self):
+        self.create_consent(scope="read")
+        resp = self.post_authorize(scope="read import")
+        self.assertEqual(resp.status_code, 302)
+        consent = ApplicationConsent.objects.get(
+            user=self.user, application=self.application
+        )
+        self.assertEqual(consent.scope, "import read")
+
+    def test_consent_is_per_user(self):
+        self.create_consent(user=self.other_user)
+        resp = self.get_authorize()
+        self.assertEqual(resp.status_code, 200)
+
+    def test_consent_is_per_application(self):
+        other_app = Application.objects.create(
+            name="Impostor",
+            client_type=Application.CLIENT_PUBLIC,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            redirect_uris=OAUTH_REDIRECT_URI,
+        )
+        ApplicationConsent.objects.create(
+            user=self.user, application=other_app, scope="read"
+        )
+        resp = self.get_authorize()
+        self.assertEqual(resp.status_code, 200)
+
+    def test_approval_prompt_force_reprompts(self):
+        self.create_consent()
+        resp = self.get_authorize(approval_prompt="force")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_non_s256_rejected(self):
+        resp = self.client.get(
+            "/oauth/authorize/",
+            self.authorize_params(code_challenge_method="plain"),
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestAuthorizedApplicationsSettings(OAuthConsentFixturesMixin, TestCase):
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def create_tokens(self):
+        access = AccessToken.objects.create(
+            user=self.user,
+            application=self.application,
+            token="access-token-1",
+            expires=timezone.now() + timedelta(hours=8),
+            scope="read",
+        )
+        refresh = RefreshToken.objects.create(
+            user=self.user,
+            application=self.application,
+            token="refresh-token-1",
+            access_token=access,
+        )
+        return access, refresh
+
+    def test_list_shows_consented_application(self):
+        self.create_consent()
+        resp = self.client.get("/settings/oauth/authorized_tokens/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Desktop Importer")
+
+    def test_list_requires_login(self):
+        self.client.logout()
+        resp = self.client.get("/settings/oauth/authorized_tokens/")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_revoke_deletes_consent_and_tokens(self):
+        consent = self.create_consent()
+        access, refresh = self.create_tokens()
+        resp = self.client.post(
+            f"/settings/oauth/authorized_tokens/{consent.pk}/delete/"
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(ApplicationConsent.objects.filter(pk=consent.pk).exists())
+        self.assertFalse(AccessToken.objects.filter(pk=access.pk).exists())
+        refresh.refresh_from_db()
+        self.assertIsNotNone(refresh.revoked)
+        # The next authorization request shows the consent form again.
+        resp = self.get_authorize()
+        self.assertEqual(resp.status_code, 200)
+
+    def test_cannot_revoke_other_users_consent(self):
+        consent = self.create_consent(user=self.other_user)
+        resp = self.client.post(
+            f"/settings/oauth/authorized_tokens/{consent.pk}/delete/"
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(ApplicationConsent.objects.filter(pk=consent.pk).exists())

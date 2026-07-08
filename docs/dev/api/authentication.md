@@ -83,6 +83,8 @@ GET https://yesterdays.maprva.org/oauth/authorize/
 
 The user sees a consent screen showing your app's `name`, the requested scopes, and the redirect URI you provided. If they approve, the browser is redirected to your `redirect_uri` with a `code` and the `state` you sent.
 
+Consent is remembered. The screen appears the first time your app requests authorization, and again only if you request a scope the user hasn't already granted (or if you pass `approval_prompt=force`). Otherwise, repeat authorization requests redirect back to you immediately — even after the user's tokens have expired or been revoked. Users can withdraw a remembered consent at any time from the **Authorized Applications** page in their account settings, which also revokes all of your app's tokens; the next authorization request then shows the consent screen again.
+
 ### Generating the PKCE verifier and challenge
 
 The verifier is a 43–128 character random string from the unreserved-character set. The challenge is the base64url-encoded (no padding) SHA-256 hash of the verifier (RFC 7636 §4.1, §4.2).
@@ -334,7 +336,7 @@ Success is `200 OK` with a JSON body (OAuth 2.1 §3.2.3):
 ```json
 {
     "access_token": "abc123...",
-    "expires_in": 3600,
+    "expires_in": 28800,
     "token_type": "Bearer",
     "scope": "read import",
     "refresh_token": "def456..."
@@ -417,7 +419,7 @@ If your client receives `invalid_grant` on a refresh, do not retry with the same
 | Artifact             | Lifetime    | Notes                              |
 | -------------------- | ----------- | ---------------------------------- |
 | Authorization code   | 60 seconds  | Single use; deleted on exchange.   |
-| Access token         | 1 hour      | Bearer token for API calls.        |
+| Access token         | 8 hours     | Bearer token for API calls.        |
 | Refresh token        | 30 days     | Rotated on every successful use.   |
 
 ## Errors

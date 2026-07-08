@@ -20,42 +20,74 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
-
 from oauth2_provider.urls import base_urlpatterns, management_urlpatterns
+
 from osm_auth import views as auth_views
 from subjects import views as subject_views
 
 from . import views
-from .oauth_views import S256OnlyAuthorizationView, ThrottledTokenView
+from .oauth_views import (
+    AuthorizedApplicationsView,
+    RevokeApplicationConsentView,
+    S256OnlyAuthorizationView,
+    ThrottledTokenView,
+)
 
-# Override a couple of DOT's default endpoints:
-#   - /authorize/ rejects code_challenge_method != "S256"
+
+def _override_urlpatterns(patterns, overrides, excluded=frozenset()):
+    """Rebuild a DOT urlpattern list, swapping in our views by URL name."""
+    result = []
+    for pattern in patterns:
+        name = getattr(pattern, "name", None)
+        if name in excluded:
+            continue
+        if name in overrides:
+            route, view = overrides[name]
+            result.append(path(route, view, name=name))
+        else:
+            result.append(pattern)
+    return result
+
+
+# Override a couple of DOT's default protocol endpoints:
+#   - /authorize/ rejects code_challenge_method != "S256" and remembers consent
 #   - /token/ adds IP-based rate limiting
-_oauth_overrides = {
-    "authorize": ("authorize/", S256OnlyAuthorizationView.as_view()),
-    "token": ("token/", ThrottledTokenView.as_view()),
-}
 # Drop endpoints we don't use:
 #   - device flow (RFC 8628) — no device-grant clients
 #   - introspect (RFC 7662) — we're both auth server and resource server,
 #     so token validation happens via direct DB access, not introspection
-_oauth_excluded = {
-    "device-authorization",
-    "device",
-    "device-confirm",
-    "device-grant-status",
-    "introspect",
-}
-_oauth_base_urlpatterns = []
-for _p in base_urlpatterns:
-    _name = getattr(_p, "name", None)
-    if _name in _oauth_excluded:
-        continue
-    if _name in _oauth_overrides:
-        _route, _view = _oauth_overrides[_name]
-        _oauth_base_urlpatterns.append(path(_route, _view, name=_name))
-    else:
-        _oauth_base_urlpatterns.append(_p)
+_oauth_base_urlpatterns = _override_urlpatterns(
+    base_urlpatterns,
+    overrides={
+        "authorize": ("authorize/", S256OnlyAuthorizationView.as_view()),
+        "token": ("token/", ThrottledTokenView.as_view()),
+    },
+    excluded={
+        "device-authorization",
+        "device",
+        "device-confirm",
+        "device-grant-status",
+        "introspect",
+    },
+)
+
+# Replace DOT's token-based "authorized applications" management views with
+# consent-based ones (same URL names, so existing {% url %} lookups keep
+# working): apps are listed and revoked via ApplicationConsent records
+# rather than access tokens.
+_oauth_management_urlpatterns = _override_urlpatterns(
+    management_urlpatterns,
+    overrides={
+        "authorized-token-list": (
+            "authorized_tokens/",
+            AuthorizedApplicationsView.as_view(),
+        ),
+        "authorized-token-delete": (
+            "authorized_tokens/<int:pk>/delete/",
+            RevokeApplicationConsentView.as_view(),
+        ),
+    },
+)
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -77,11 +109,7 @@ urlpatterns = [
             url=f"/album/{album_id}/", permanent=True
         )(request),
     ),
-    *(
-        [path("", include("directories.urls"))]
-        if settings.DIRECTORIES_ENABLED
-        else []
-    ),
+    *([path("", include("directories.urls"))] if settings.DIRECTORIES_ENABLED else []),
     path("subjects/", include("subjects.urls")),
     path("activity/", include("activity.urls")),
     path("", include("images.urls")),
@@ -119,7 +147,7 @@ urlpatterns = [
             (
                 [
                     path("oauth/", include(_oauth_base_urlpatterns)),
-                    path("settings/oauth/", include(management_urlpatterns)),
+                    path("settings/oauth/", include(_oauth_management_urlpatterns)),
                 ],
                 "oauth2_provider",
             )
