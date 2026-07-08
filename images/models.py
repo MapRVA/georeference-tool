@@ -243,7 +243,7 @@ class Collection(models.Model):
     )
     name = models.CharField(max_length=200)
     slug = models.SlugField()
-    url = models.URLField()
+    url = models.URLField(blank=True)
     description = models.TextField(blank=True)
     public = models.BooleanField(
         default=True, help_text="Whether this collection is visible to users"

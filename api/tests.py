@@ -384,6 +384,27 @@ class TestCollectionsEndpoint(ApiFixturesMixin, TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 2)
 
+    def test_create_with_blank_url(self):
+        staff = User.objects.create_user(
+            username="osm_500",
+            first_name="Eve",
+            password="test",
+            is_staff=True,
+        )
+        self.client.force_login(staff)
+        resp = self.client.post(
+            "/api/v2/collections/",
+            {
+                "name": "No URL Collection",
+                "slug": "no-url",
+                "source": self.source.pk,
+                "url": "",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()["url"], "")
+
 
 # ---------------------------------------------------------------------------
 # Images
