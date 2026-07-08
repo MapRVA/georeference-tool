@@ -1,5 +1,6 @@
 import os
 
+import pyvips
 from celery import Celery
 from celery.signals import worker_process_init
 
@@ -19,6 +20,15 @@ app.autodiscover_tasks()
 
 # Explicitly include tasks from the main project
 app.autodiscover_tasks(["yesterdays"])
+
+
+@worker_process_init.connect
+def _disable_vips_cache_on_worker_init(**_):
+    # libvips keeps a cache of recent operations (100 ops / ~100 MB / 100
+    # open files) that pins source images and file handles between tasks.
+    # Worker children run one-shot pipelines (dzsave tiling), so the cache
+    # never gets a hit — it only holds memory.
+    pyvips.cache_set_max(0)
 
 
 @worker_process_init.connect
