@@ -6,8 +6,10 @@ from django.contrib.auth.models import User
 from django.contrib.gis.geos import Point, Polygon
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
+from django.db.models import F
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from PIL import Image as PILImage
 
 from images.models import (
     AerialGeoreference,
@@ -18,7 +20,7 @@ from images.models import (
     ImageOfTheDay,
     Source,
 )
-from images.tasks import reconcile_collection_stats
+from images.tasks import process_image, reconcile_collection_stats
 from images.utils import get_confidence_breakdown, get_overall_stats
 
 
@@ -632,3 +634,131 @@ class CollectionStatsTests(TestCase):
             breakdown,
             {"not_georeferenced": 1, "low": 0, "medium": 0, "high": 1},
         )
+
+
+class ProcessImageGenerationGuardTests(TestCase):
+    """process_image must never persist asset URLs from a superseded
+    generation. cleanup_old_image_assets deletes every R2 generation
+    directory except the current asset_generation's, so a stale write leaves
+    the DB pointing at objects that no longer exist (404 thumbnails). This
+    is exactly what happened when API imports queued several concurrent
+    process_image tasks per image: each claimed its own generation, and the
+    last DB write was not always the task holding the newest one."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = Source.objects.create(
+            name="Src", slug="src", url="https://example.com", description=""
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source, name="Col", slug="col", url="https://example.com"
+        )
+
+    def make_image(self):
+        with patch("images.tasks.process_image.apply_async"):
+            return Image.objects.create(
+                collection=self.collection,
+                title="Test",
+                permalink="https://img.example.com/test.jpg",
+            )
+
+    @contextmanager
+    def run_environment(self, download_side_effect):
+        """Patch process_image's collaborators: image download, R2 uploads
+        (return a URL derived from the key), and the tile task."""
+        uploader = patch("images.tasks.R2Uploader").start()
+        uploader.return_value.upload_file_content.side_effect = (
+            lambda content, key, **kwargs: f"https://cdn.test/{key}"
+        )
+        patch(
+            "images.tasks.download_image", side_effect=download_side_effect
+        ).start()
+        tiles = patch("images.tasks.generate_iiif_tiles.delay").start()
+        try:
+            yield tiles
+        finally:
+            patch.stopall()
+
+    def test_persists_thumbnail_for_current_generation(self):
+        image = self.make_image()
+
+        def download(url, **kwargs):
+            return PILImage.new("RGB", (600, 400))
+
+        with self.run_environment(download) as tiles:
+            process_image(image.id)
+
+        image.refresh_from_db()
+        self.assertEqual(image.asset_generation, 1)
+        self.assertEqual(
+            image.thumbnail,
+            f"https://cdn.test/images/{image.id}/1/thumbnail.webp",
+        )
+        tiles.assert_called_once_with(image.id)
+
+    def test_discards_write_when_generation_superseded(self):
+        """Simulate a concurrent process_image run claiming a newer
+        generation while this one is mid-flight (during the download): the
+        stale run must not persist its URLs or queue tiling."""
+        image = self.make_image()
+
+        def download(url, **kwargs):
+            Image.objects.filter(pk=image.id).update(
+                asset_generation=F("asset_generation") + 1
+            )
+            return PILImage.new("RGB", (600, 400))
+
+        with self.run_environment(download) as tiles:
+            process_image(image.id)
+
+        image.refresh_from_db()
+        self.assertEqual(image.asset_generation, 2)
+        # The superseded run uploaded to .../1/thumbnail.webp; persisting
+        # that URL is the bug — generation 1's directory gets deleted by
+        # cleanup_old_image_assets once generation 2 completes.
+        self.assertFalse(image.thumbnail)
+        tiles.assert_not_called()
+
+
+class QueueImageProcessingSignalTests(TestCase):
+    """Exactly one process_image task per imported image. The API import
+    flow saves the Image twice in one transaction (placeholder insert, then
+    the permalink update after the S3 copy); only the save that sets the
+    permalink should queue processing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = Source.objects.create(
+            name="Src", slug="src", url="https://example.com", description=""
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source, name="Col", slug="col", url="https://example.com"
+        )
+
+    def test_import_commit_sequence_queues_one_task(self):
+        with (
+            patch("images.tasks.process_image.apply_async") as apply_async,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            image = Image.objects.create(
+                collection=self.collection,
+                title="Imported",
+                permalink="",
+            )
+            image.permalink = "https://cdn.test/images/1/original.jpg"
+            image.save(update_fields=["permalink"])
+
+        apply_async.assert_called_once_with(args=[image.id])
+
+    def test_save_without_permalink_queues_nothing(self):
+        with (
+            patch("images.tasks.process_image.apply_async") as apply_async,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            Image.objects.create(
+                collection=self.collection,
+                title="Placeholder",
+                permalink="",
+            )
+
+        apply_async.assert_not_called()

@@ -683,14 +683,12 @@ def import_commit_view(request):
     except Exception:
         logger.warning("Failed to delete temp upload %s", temp_key, exc_info=True)
 
-    def trigger_processing():
-        try:
-            process_image.delay(image.id)
-        except Exception:
-            logger.warning("Failed to queue process_image for image %d", image.id)
-
-    # Ensure image is processed after the image has been created
-    transaction.on_commit(trigger_processing)
+    # Image processing is queued on commit by the post_save signal from the
+    # permalink save above — no explicit trigger here, so exactly one
+    # process_image task runs per imported image. Duplicate concurrent tasks
+    # each claim their own asset_generation and race to be the last DB write,
+    # which can leave the row pointing at a generation directory that
+    # cleanup_old_image_assets then deletes.
 
     return Response(
         {"image_id": image.id},

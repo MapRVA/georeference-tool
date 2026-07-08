@@ -204,9 +204,15 @@ def queue_image_processing(sender, instance, **kwargs):
     Queue image processing (thumbnail generation and/or transforms) on every save.
 
     The task itself checks current state and only does work that's needed,
-    so it's safe to queue on every save.
+    so it's safe to queue on every save. Saves of rows without a permalink
+    (e.g. the placeholder insert during API import, before the S3 copy) are
+    skipped — there is nothing to download yet, and the save that later sets
+    the permalink queues the task.
     """
     from .tasks import process_image
+
+    if not instance.permalink:
+        return
 
     def _queue():
         try:

@@ -208,13 +208,29 @@ def process_image(self, image_id: int, quality: int = 85):
         if _transform_changed(image_id, task_rotation, task_mirror):
             return
 
-        Image.objects.filter(pk=image_id).update(
+        # Only persist if the generation this task claimed is still current.
+        # A concurrent process_image run that claimed a newer generation
+        # supersedes this one: cleanup_old_image_assets keeps only the
+        # current generation's R2 directory, so persisting a superseded
+        # generation's URLs would leave the DB pointing at objects that are
+        # about to be deleted.
+        updated = Image.objects.filter(
+            pk=image_id, asset_generation=generation
+        ).update(
             transformed_permalink=transformed_url,
             thumbnail=thumb_url,
             tile_status="",
             tile_error="",
             iiif_url=None,
         )
+        if not updated:
+            logger.info(
+                "Asset generation for image %d advanced past %d while "
+                "processing; discarding superseded assets",
+                image_id,
+                generation,
+            )
+            return
 
     except R2UploaderError as e:
         raise self.retry(exc=e)
@@ -435,13 +451,27 @@ def generate_iiif_tiles(self, image_id):
             )
             return
 
-        Image.objects.filter(pk=image_id).update(
+        # Same generation guard as process_image: if a newer generation was
+        # claimed while we were tiling, our tiles live in a directory that
+        # cleanup_old_image_assets will delete — don't point the DB at them.
+        # The newer run re-queues tiling for its own generation.
+        updated = Image.objects.filter(
+            pk=image_id, asset_generation=generation
+        ).update(
             tile_status="complete",
             tile_error="",
             iiif_url=iiif_base,
             width=width,
             height=height,
         )
+        if not updated:
+            logger.info(
+                "Asset generation for image %d advanced past %d while "
+                "tiling; discarding superseded tiles",
+                image_id,
+                generation,
+            )
+            return
         logger.info(
             "IIIF tiles generated for image %d (%dx%d)",
             image_id,
