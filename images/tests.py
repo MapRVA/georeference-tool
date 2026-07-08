@@ -592,6 +592,18 @@ class CollectionStatsTests(TestCase):
         reconcile_collection_stats()
         self.assertEqual(self.counts(), (1, 0, 0, 1))
 
+    def test_refresh_skips_rows_computed_from_newer_snapshot(self):
+        """The upsert's freshness guard: a refresh whose snapshot is older
+        than the row's updated_at must leave the row untouched, so a stale
+        concurrent refresh (or the reconcile) can't clobber fresher counts."""
+        self.img("A")
+        CollectionStats.objects.filter(pk=self.collection.pk).update(
+            total_images=99,
+            updated_at=timezone.now() + datetime.timedelta(hours=1),
+        )
+        CollectionStats.refresh_for([self.collection.pk])
+        self.assertEqual(self.stats().total_images, 99)
+
     def test_overall_stats_and_confidence_breakdown(self):
         image = self.img("A")
         self.img("B")

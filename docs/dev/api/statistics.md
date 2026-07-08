@@ -8,6 +8,8 @@ GET /api/v2/stats/
 
 Returns current site-wide statistics. This is a simple, non-paginated response.
 
+All counts cover only public collections belonging to public sources.
+
 ### Example request
 
 === "curl"
@@ -60,7 +62,7 @@ Returns current site-wide statistics. This is a simple, non-paginated response.
 | `name` | string | Site title configured for this instance |
 | `total_sources` | integer | Number of public sources |
 | `total_collections` | integer | Number of public collections |
-| `total_images` | integer | Total eligible images (excludes duplicates) |
+| `total_images` | integer | Images eligible for georeferencing (excludes duplicates and images marked as will-not-georeference) |
 | `georeferenced_images` | integer | Number of distinct images that have been georeferenced |
 | `total_georeferences` | integer | Total number of georeference submissions (includes superseded and improved georeferences) |
 | `confidence_breakdown` | object | Georeferenced image counts by confidence level |

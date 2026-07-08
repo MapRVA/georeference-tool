@@ -281,16 +281,22 @@ class CollectionStats(models.Model):
     Maintained eagerly by signal handlers whenever images or georeferences
     change (see signals.py), so browse pages can read counts without running
     aggregate queries. A periodic reconcile task self-heals any drift from
-    write paths that bypass signals (bulk updates, raw SQL).
+    write paths that bypass signals (bulk updates, raw SQL). Concurrent
+    refreshes resolve by snapshot age, not write order: updated_at carries
+    each refresh's snapshot time, and the upsert only overwrites rows computed
+    from an older snapshot, so a slow stale refresh — or the full reconcile
+    running alongside a live one — can never clobber fresher counts.
 
     An image counts as georeferenced if it is a non-aerial with a point
     georeference, or an aerial with a polygon georeference (matching
     Image.is_georeferenced). An aerial with only a point georeference does NOT
-    count — it stays available. The confidence bucket comes from the most
-    recent qualifying georeference: the latest aerial georeference for aerials,
-    the latest point georeference for non-aerials. Counts include non-public
-    collections and sources — visibility is filtered at read time, so
-    publishing a collection is reflected immediately without a recompute.
+    count — it stays available. An image marked will_not_georef counts only
+    as will_not_georef, even if it also has georeferences (matching
+    Image.georeference_status precedence). The confidence bucket comes from
+    the most recent qualifying georeference: the latest aerial georeference
+    for aerials, the latest point georeference for non-aerials. Counts include
+    non-public collections and sources — visibility is filtered at read time,
+    so publishing a collection is reflected immediately without a recompute.
     """
 
     collection = models.OneToOneField(
@@ -333,7 +339,10 @@ class CollectionStats(models.Model):
         COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'low'),
         COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'medium'),
         COUNT(img.id) FILTER (WHERE NOT img.will_not_georef AND conf.confidence = 'high'),
-        NOW()
+        -- statement start time == this statement's snapshot time (READ
+        -- COMMITTED); NOW() would freeze for a whole transaction, breaking
+        -- the freshness guard below under TestCase's wrapping transaction
+        STATEMENT_TIMESTAMP()
     FROM images_collection c
     LEFT JOIN images_image img
         ON img.collection_id = c.id AND img.duplicate_of_id IS NULL
@@ -357,6 +366,10 @@ class CollectionStats(models.Model):
         georeferenced_medium = EXCLUDED.georeferenced_medium,
         georeferenced_high = EXCLUDED.georeferenced_high,
         updated_at = EXCLUDED.updated_at
+    -- Freshest snapshot wins: a refresh computed from an older snapshot must
+    -- not overwrite counts computed from a newer one, regardless of which
+    -- write lands last
+    WHERE images_collectionstats.updated_at < EXCLUDED.updated_at
     """
 
     @classmethod
