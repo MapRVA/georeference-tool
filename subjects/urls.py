@@ -1,6 +1,7 @@
 from django.urls import path
 
-from . import views
+from subjects import views
+from subjects.feeds import SubjectActivityFeed
 
 app_name = "subjects"
 
@@ -9,6 +10,7 @@ urlpatterns = [
     path("", views.browse_subjects, name="browse_subjects"),
     path("map/", views.subjects_map, name="subjects_map"),
     path("<slug:subject_slug>/", views.subject_detail, name="subject_detail"),
+    path("<slug:subject_slug>/feed/", SubjectActivityFeed(), name="subject_feed"),
     path(
         "<slug:subject_slug>/similar/",
         views.find_similar_images_to_subject,
