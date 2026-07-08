@@ -10,6 +10,7 @@ from activity.models import (
     SitewideMilestone,
     SubjectIntroduction,
     UserMilestone,
+    CollectionIntroduction,
 )
 
 MAX_ITEMS = 50
@@ -17,24 +18,24 @@ MAX_ITEMS = 50
 
 class SitewideActivityFeed(Feed):
     """
-    Site-wide RSS feed showing the latest image additions.
+    Site-wide RSS feed showing the latest georeferences, subjects, and milestones.
     """
     feed_type = Rss201rev2Feed
     title = "Yesterdays - Site-wide Activity"
     link = "/activity/"  # Update with your main activity page URL
-    description = "The latest historical images, georeferences, and tags from Yesterdays."
+    description = "The latest georeferences subjects, and milestones in Yesterdays."
 
     def items(self):
         # Fetch the most recent items of each activity type.
-        # Adjust 'created_at' to match your actual datetime field (e.g., 'timestamp').
-        georefs = GeoreferenceGroup.objects.all().order_by('-created_at')[:MAX_ITEMS]
-        subjects = SubjectIntroduction.objects.all().order_by('-created_at')[:MAX_ITEMS]
-        user_milestones = UserMilestone.objects.all().order_by('-created_at')[:MAX_ITEMS]
+        georefs = GeoreferenceGroup.objects.all().order_by('-ended_at')[:MAX_ITEMS]
+        user_milestones = UserMilestone.objects.all().order_by('-reached_at')[:MAX_ITEMS]
         sitewide_milestones = SitewideMilestone.objects.all().order_by('-created_at')[:MAX_ITEMS]
+        subjects = SubjectIntroduction.objects.all().order_by('-reached_at')[:MAX_ITEMS]
+        collections = CollectionIntroduction.objects.all().order_by('-created_at')[:MAX_ITEMS]
 
         # Chain them together and sort chronologically
         combined = sorted(
-            chain(georefs, subjects, user_milestones, sitewide_milestones),
+            chain(georefs, subjects, user_milestones, sitewide_milestones, collections),
             key=attrgetter('created_at'),
             reverse=True
         )
@@ -49,6 +50,8 @@ class SitewideActivityFeed(Feed):
             return f"{item.user.username} reached {item.count} georeferences!"
         elif isinstance(item, SitewideMilestone):
             return f"Yesterdays reached {item.count} images georeferenced!"
+        elif isinstance(item, CollectionIntroduction):
+            return f"New collection added: {item.collection.name}"
         return str(item)
 
     def item_description(self, item):
@@ -61,6 +64,8 @@ class SitewideActivityFeed(Feed):
             return "A user has reached a new georeferencing milestone."
         elif isinstance(item, SitewideMilestone):
             return "The community has reached a new site-wide milestone."
+        elif isinstance(item, CollectionIntroduction):
+            return "A new collection was introduced to the catalog."
         return str(item)
 
     def item_link(self, item):
