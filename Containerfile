@@ -39,7 +39,7 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 # understood by BuildKit.
 COPY uv.lock pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-default-groups
 
 # Copy project files - only what's needed for the application
 COPY uv.lock ./
@@ -57,8 +57,9 @@ COPY osm_auth ./osm_auth
 COPY templates ./templates
 COPY yesterdays ./yesterdays
 
-# Install project itself
-RUN uv sync --locked
+# Install project itself (--no-default-groups keeps the docs toolchain out of
+# the venv that ships in the release image)
+RUN uv sync --locked --no-default-groups
 
 # Build static files in correct order:
 # 1. Create static directory first
