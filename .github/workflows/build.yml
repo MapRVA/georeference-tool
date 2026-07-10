@@ -26,12 +26,27 @@ jobs:
       - name: Check outputs
         run: echo ${{ steps.vars.outputs.sha_short }}
 
+      # Log in before the build so --cache-to can push cache layers to ghcr.
+      - name: Log in to registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      # layers + a registry-backed cache keep unchanged build steps (apt,
+      # torch/uv sync) byte-identical across runs, so pushes and deploy pulls
+      # only transfer the layers that actually changed.
       - name: Buildah Action
         id: build_image
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: ${{ steps.vars.outputs.sha_short }} ${{ github.ref_name }}
+          layers: true
+          extra-args: |
+            --cache-from ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}-cache
+            --cache-to ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}-cache
           containerfiles: |
             ./Containerfile
 
