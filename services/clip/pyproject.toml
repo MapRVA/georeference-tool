@@ -1,0 +1,35 @@
+[project]
+name = "yesterdays-clip"
+version = "0.1.0"
+description = "CLIP embedding microservice: OpenVINO inference over HTTP for semantic search."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "numpy>=2.1",
+    "openvino>=2025.1",
+    "pillow>=11.0",
+    # <5 because the runtime uses the PIL-based (slow) CLIPImageProcessor,
+    # which transformers v5 plans to drop in favor of torch-based ones.
+    "transformers>=4.48,<5",
+    "uvicorn>=0.34",
+]
+
+[dependency-groups]
+# Only needed for the one-time IR export (scripts/export_ir.py); torch never
+# ships in the service image.
+export = [
+    "torch>=2.6",
+]
+
+[tool.uv]
+# An application, not an installable package: `uv sync` manages deps only.
+package = false
+default-groups = []
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

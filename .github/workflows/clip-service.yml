@@ -1,0 +1,71 @@
+name: Build CLIP service container
+on:
+  push:
+    branches:
+      - trunk
+      - develop
+    paths:
+      - services/clip/**
+      - .github/workflows/clip-service.yml
+
+env:
+  IMAGE_NAME: yesterdays-clip
+  IMAGE_REGISTRY: ghcr.io/maprva
+  REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_PASSWORD: ${{ github.token }}
+  # One-time IR export bundle (see docs/dev/deployment/clip-service.md).
+  # Produced by services/clip/scripts/export_ir.py and uploaded to R2; update
+  # both values together when publishing a new bundle version.
+  MODEL_BUNDLE_URL: "https://cdn.yesterdays.maprva.org/models/clip-vit-l14-336-ir-v1.tar.gz"
+  MODEL_BUNDLE_SHA256: "7e6a5ee81c2f6f34320badefef74cb9135a0b13a92834957b3821eae1052ba1f"
+
+jobs:
+  build:
+    name: Build Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get Short Commit SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Log in before the build so --cache-to can push cache layers to ghcr.
+      - name: Log in to registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      # The model bundle layer sits below the venv and app code, so with the
+      # registry cache it is uploaded once and reused until the bundle version
+      # changes; code-only pushes ship a few MB.
+      - name: Buildah Action
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          tags: ${{ steps.vars.outputs.sha_short }} ${{ github.ref_name }}
+          context: services/clip
+          containerfiles: |
+            ./services/clip/Containerfile
+          layers: true
+          build-args: |
+            MODEL_BUNDLE_URL=${{ env.MODEL_BUNDLE_URL }}
+            MODEL_BUNDLE_SHA256=${{ env.MODEL_BUNDLE_SHA256 }}
+          extra-args: |
+            --target release
+            --cache-from ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}-cache
+            --cache-to ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}-cache
+
+      - name: Push Image
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}

@@ -1,0 +1,68 @@
+# CLIP embedding microservice. Ubuntu (not Debian) because Arc/DG2 GPU
+# compute needs a newer Intel compute runtime than bookworm ships, and
+# Intel's official GPU apt repo targets Ubuntu LTS.
+
+# Dependency stage: uv-managed Python + venv, mirroring the root Containerfile.
+FROM ubuntu:24.04 AS deps
+WORKDIR /app
+RUN apt-get -y update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+COPY .python-version pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-default-groups
+
+# Shared runtime base: Intel compute runtime (OpenCL + Level Zero) so one
+# image serves both CPU-only and Arc GPU deployments. GPU pods additionally
+# need `gpu.intel.com/i915: 1` resources and the render group via
+# supplementalGroups; see docs/dev/deployment/clip-service.md.
+FROM ubuntu:24.04 AS base
+WORKDIR /app
+RUN apt-get -y update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    && curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key \
+       | gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" \
+       > /etc/apt/sources.list.d/intel-gpu.list \
+    && apt-get -y update && apt-get install -y --no-install-recommends \
+    intel-opencl-icd \
+    libze-intel-gpu1 \
+    libze1 \
+    ocl-icd-libopencl1 \
+    clinfo \
+    && apt-get -y purge gnupg && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/*
+ENV CLIP_MODEL_DIR=/app/model \
+    CLIP_CACHE_DIR=/tmp/ov-cache \
+    PATH="/app/.venv/bin:$PATH"
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Development image: compose bind-mounts app/ (live reload) and model/
+# (populated once by scripts/export_ir.py).
+FROM base AS dev
+COPY --from=deps /opt/uv/python /opt/uv/python
+COPY --from=deps /app/.venv /app/.venv
+COPY app ./app
+
+# Release image: the IR bundle is fetched as its own layer, placed before the
+# venv and app code so it stays byte-stable (fixed mtimes) and registry-cached
+# across builds — uploaded and pulled only when the bundle version changes.
+FROM base AS release
+ARG MODEL_BUNDLE_URL
+ARG MODEL_BUNDLE_SHA256
+RUN test -n "$MODEL_BUNDLE_URL" || { echo "MODEL_BUNDLE_URL build-arg is required for the release target" >&2; exit 1; } \
+    && curl -fsSL -o /tmp/bundle.tar.gz "$MODEL_BUNDLE_URL" \
+    && echo "$MODEL_BUNDLE_SHA256  /tmp/bundle.tar.gz" | sha256sum -c - \
+    && mkdir -p /app/model \
+    && tar -xzf /tmp/bundle.tar.gz -C /app/model \
+    && rm /tmp/bundle.tar.gz \
+    && find /app/model -exec touch -t 202601010000.00 {} +
+COPY --from=deps /opt/uv/python /opt/uv/python
+COPY --from=deps /app/.venv /app/.venv
+COPY app ./app
+USER ubuntu

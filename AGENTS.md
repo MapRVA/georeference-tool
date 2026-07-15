@@ -22,6 +22,8 @@ The Django project package is `yesterdays/` (settings, root `urls.py`, Celery ap
 
 Several features are toggled by settings/env vars, e.g. `DIRECTORIES_ENABLED`, `CLIP_WARMUP_ENABLED`, `PROMETHEUS_ENABLED`, `LOCAL_DEV`, `DJANGO_DEBUG`. Use `django.conf.settings` rather than reading env vars directly in app code.
 
+Besides the Django apps, **`services/clip/`** is a standalone microservice (own `pyproject.toml`/`uv.lock`/Containerfile, no Django imports) serving CLIP embeddings over HTTP via OpenVINO — CPU everywhere, Intel Arc GPU in production. Django talks to it through `images/clip_client.py` when `CLIP_SERVICE_URL` is set, and falls back to the legacy in-worker torch path when it isn't.
+
 ## Development environment (Docker Compose)
 
 Local development runs as a Docker Compose stack. **`docker compose up`** starts everything:

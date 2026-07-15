@@ -77,6 +77,12 @@ CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
     "yes",
 )
 
+# CLIP embedding microservice (services/clip). When set, embeddings are
+# fetched over HTTP; when empty, the legacy in-worker torch path (Celery
+# encode_text/encode_image tasks) is used instead.
+CLIP_SERVICE_URL = os.getenv("CLIP_SERVICE_URL", "").rstrip("/")
+CLIP_SERVICE_TIMEOUT = float(os.getenv("CLIP_SERVICE_TIMEOUT", "10"))
+
 # pgvector HNSW search depth. Sets the per-query hnsw.ef_search parameter and
 # also caps how deep semantic-search pagination can go (the index can only rank
 # this many candidates per query). pgvector hard-caps ef_search at 1000.

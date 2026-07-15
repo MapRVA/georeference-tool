@@ -33,9 +33,10 @@ x-app: &app
     PG_USER: django_user
     PG_PASSWORD: dev_password
     PG_SSL_MODE: disable
-    # Broker and graph store, reached by service name.
+    # Broker, graph store, and CLIP embedding service, reached by service name.
     CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
     OXIGRAPH_URL: http://oxigraph:7878
+    CLIP_SERVICE_URL: http://clip:8000
     # Non-secret dev settings; real secrets (R2, Protomaps) stay in my.env.
     LOCAL_DEV: "0"
     ALLOW_HARDCODED_ADMIN: "1"
@@ -49,6 +50,8 @@ x-app: &app
     rabbitmq:
       condition: service_healthy
     oxigraph:
+      condition: service_started
+    clip:
       condition: service_started
 
 services:
@@ -101,6 +104,23 @@ services:
   beat:
     <<: *app
     command: uv run celery -A yesterdays beat --loglevel=info
+
+  clip:
+    build:
+      context: services/clip
+      dockerfile: Containerfile
+      target: dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      # CPU-only in dev; the vision tower targets the Arc GPU in production.
+      CLIP_TEXT_DEVICE: CPU
+      CLIP_VISION_DEVICE: CPU
+    volumes:
+      - ./services/clip/app:/app/app
+      # Populated once with `uv run --group export scripts/export_ir.py`
+      # from services/clip/ — see docs/dev/deployment/clip-service.md. The
+      # service stays up but unready (503) until the bundle exists.
+      - ./services/clip/model:/app/model:ro
 
   vite:
     build: *build

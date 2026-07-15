@@ -16,6 +16,7 @@ from django_ratelimit.decorators import ratelimit
 from PIL import Image as PILImage
 from psycopg import sql
 
+from .. import clip_client
 from ..models import Image
 from ..tasks import encode_image, encode_text
 
@@ -57,7 +58,9 @@ def search_page(request):
 
 
 def _get_text_embedding(text):
-    """Dispatch text encoding to a Celery worker and wait for the result."""
+    """Encode text via the CLIP service, or a Celery worker when unconfigured."""
+    if clip_client.is_configured():
+        return clip_client.get_text_embedding(text)
     return encode_text.delay(text).get(timeout=CLIP_TASK_TIMEOUT)
 
 
@@ -126,10 +129,12 @@ def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
 
 
 def _get_image_embedding(sanitized_image):
-    """Dispatch image encoding to a Celery worker and wait for the result.
+    """Encode an image via the CLIP service, or a Celery worker when unconfigured.
 
     The image must already be sanitised (a BytesIO of PNG data).
     """
+    if clip_client.is_configured():
+        return clip_client.get_image_embedding(sanitized_image.read())
     image_b64 = base64.b64encode(sanitized_image.read()).decode("ascii")
     return encode_image.delay(image_b64).get(timeout=CLIP_TASK_TIMEOUT)
 

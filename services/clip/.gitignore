@@ -1,0 +1,6 @@
+# Exported IR bundle (built by scripts/export_ir.py, distributed via R2)
+model/
+*.tar.gz
+
+.venv/
+__pycache__/
