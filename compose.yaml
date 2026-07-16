@@ -91,7 +91,9 @@ services:
     <<: *app
     command: sh -c "uv run manage.py migrate && uv run manage.py runserver 0.0.0.0:8000"
     ports:
-      - "8000:8000"
+      # Host port is configurable to dodge collisions with other projects:
+      # `WEB_PORT=8001 docker compose up`. The container always listens on 8000.
+      - "${WEB_PORT:-8000}:8000"
 
   worker-urgent:
     <<: *app

@@ -15,10 +15,20 @@ def is_configured():
     return bool(settings.CLIP_SERVICE_URL)
 
 
+def _require_url():
+    if not settings.CLIP_SERVICE_URL:
+        raise RuntimeError(
+            "CLIP_SERVICE_URL is not configured; semantic search and embedding "
+            "generation require the CLIP service (services/clip)."
+        )
+    return settings.CLIP_SERVICE_URL
+
+
 def get_text_embedding(text):
     """
     Encode text into a normalized 768-dim CLIP embedding (list of floats).
     """
+    _require_url()
     response = _session.post(
         f"{settings.CLIP_SERVICE_URL}/embed/text",
         json={"text": text},
@@ -32,6 +42,7 @@ def get_image_embedding(image_bytes):
     """
     Encode image bytes into a normalized 768-dim CLIP embedding.
     """
+    _require_url()
     response = _session.post(
         f"{settings.CLIP_SERVICE_URL}/embed/image",
         data=image_bytes,

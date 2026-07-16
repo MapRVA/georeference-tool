@@ -20,7 +20,7 @@ The Django project package is `yesterdays/` (settings, root `urls.py`, Celery ap
 - **`directories`** — **optional**, enabled by the `DIRECTORIES_ENABLED` setting. An LLM/OCR pipeline (via OpenRouter) for transcribing historical city directories into structured `Entry`/`Address` records linked back to subjects. Only added to `INSTALLED_APPS` and routed when enabled.
 - **`api`** — the public REST API (see below). No models of its own.
 
-Several features are toggled by settings/env vars, e.g. `DIRECTORIES_ENABLED`, `CLIP_WARMUP_ENABLED`, `PROMETHEUS_ENABLED`, `LOCAL_DEV`, `DJANGO_DEBUG`. Use `django.conf.settings` rather than reading env vars directly in app code.
+Several features are toggled by settings/env vars, e.g. `DIRECTORIES_ENABLED`, `PROMETHEUS_ENABLED`, `LOCAL_DEV`, `DJANGO_DEBUG`. Use `django.conf.settings` rather than reading env vars directly in app code.
 
 Besides the Django apps, **`services/clip/`** is a standalone microservice (own `pyproject.toml`/`uv.lock`/Containerfile, no Django imports) serving CLIP embeddings over HTTP via OpenVINO — CPU everywhere, Intel Arc GPU in production. Django talks to it through `images/clip_client.py` when `CLIP_SERVICE_URL` is set, and falls back to the legacy in-worker torch path when it isn't.
 
@@ -68,11 +68,11 @@ When modifying models or fields in `images`, `subjects`, or `activity`, check wh
 
 ## Background tasks (Celery)
 
-Celery handles background work (thumbnail and IIIF tile generation, embedding generation, metadata refresh) with **RabbitMQ** as the broker and **django-celery-results** for results. Tasks are routed across two queues, **`urgent`** and **`background`**, each served by its own worker. Celery Beat schedules periodic tasks, including rate-limited refreshes of external data from Wikidata and OpenStreetMap (one item per interval, so request volume is independent of worker count) and reconciliation of the Oxigraph subject graph. The CLIP model can be pre-warmed on worker startup via `CLIP_WARMUP_ENABLED`.
+Celery handles background work (thumbnail and IIIF tile generation, embedding generation, metadata refresh) with **RabbitMQ** as the broker and **django-celery-results** for results. Tasks are routed across two queues, **`urgent`** and **`background`**, each served by its own worker. Celery Beat schedules periodic tasks, including rate-limited refreshes of external data from Wikidata and OpenStreetMap (one item per interval, so request volume is independent of worker count) and reconciliation of the Oxigraph subject graph.
 
 ## Semantic search (CLIP) and the database
 
-Semantic search uses an OpenAI **CLIP ViT-L/14@336px** model. The weights live in the gitignored `models/` directory and are fetched with the `download_clip_model` management command. Image and query encoding happens in Celery tasks (`images/tasks.py`). Embeddings are 768-dimensional, stored on `Image.embedding` and queried with **pgvector** (HNSW index, cosine distance). `generate_embeddings` backfills them.
+Semantic search uses an OpenAI **CLIP ViT-L/14@336px** model. All encoding happens in the standalone CLIP service (`services/clip/`, reached via `CLIP_SERVICE_URL`); Django posts query text and images to it through `images/clip_client.py`. Embeddings are 768-dimensional, stored on `Image.embedding` and queried with **pgvector** (HNSW index, cosine distance). The `generate_embeddings` management command backfills them by streaming images through the service.
 
 The database is **PostgreSQL with PostGIS, pgvector, and pg_trgm** (trigram text search). Image dates are stored as **EDTF**. A couple of config models (`SiteSettings`, `TileVersion`) are singletons (pk=1).
 

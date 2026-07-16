@@ -1,4 +1,3 @@
-import base64
 import json
 import logging
 import re
@@ -18,12 +17,8 @@ from psycopg import sql
 
 from .. import clip_client
 from ..models import Image
-from ..tasks import encode_image, encode_text
 
 logger = logging.getLogger(__name__)
-
-# Timeout (seconds) for waiting on CLIP worker results
-CLIP_TASK_TIMEOUT = getattr(settings, "CLIP_TASK_TIMEOUT", 30)
 
 # Fixed at the model + index level (ViT-L/14@336px → 768D, see migration 0036)
 CLIP_EMBEDDING_DIMENSION = 768
@@ -58,10 +53,8 @@ def search_page(request):
 
 
 def _get_text_embedding(text):
-    """Encode text via the CLIP service, or a Celery worker when unconfigured."""
-    if clip_client.is_configured():
-        return clip_client.get_text_embedding(text)
-    return encode_text.delay(text).get(timeout=CLIP_TASK_TIMEOUT)
+    """Encode text into a CLIP embedding via the CLIP service."""
+    return clip_client.get_text_embedding(text)
 
 
 def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
@@ -129,14 +122,11 @@ def _sanitize_image(uploaded_file, max_pixels=MAX_IMAGE_PIXELS):
 
 
 def _get_image_embedding(sanitized_image):
-    """Encode an image via the CLIP service, or a Celery worker when unconfigured.
+    """Encode an image into a CLIP embedding via the CLIP service.
 
     The image must already be sanitised (a BytesIO of PNG data).
     """
-    if clip_client.is_configured():
-        return clip_client.get_image_embedding(sanitized_image.read())
-    image_b64 = base64.b64encode(sanitized_image.read()).decode("ascii")
-    return encode_image.delay(image_b64).get(timeout=CLIP_TASK_TIMEOUT)
+    return clip_client.get_image_embedding(sanitized_image.read())
 
 
 @ratelimit(key="ip", rate="1000/h", method=["GET", "POST"])  # 16/min average

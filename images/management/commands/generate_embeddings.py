@@ -1,35 +1,41 @@
 """
 Django management command to generate CLIP embeddings for images.
 
+Embeddings are produced by the CLIP microservice (services/clip), reached via
+``CLIP_SERVICE_URL``. This command downloads each image and posts its bytes to
+the service; the service handles preprocessing and encoding.
+
 Usage:
-    python manage.py generate_embeddings [--batch-size 100] [--force] [--image-ids 1,2,3]
+    python manage.py generate_embeddings [--batch-size 100] [--concurrency 8]
+                                         [--force] [--image-ids 1,2,3]
 """
 
-import gc
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from itertools import islice
-from pathlib import Path
-from typing import Optional
 
-import clip
 import requests
-import torch
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
-from PIL import Image as PILImage
 
+from images import clip_client
 from images.models import Image
 
 
 class Command(BaseCommand):
-    help = "Generate CLIP embeddings for images"
+    help = "Generate CLIP embeddings for images via the CLIP service"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--batch-size",
             type=int,
-            default=32,
-            help="Number of images to process in each batch (default: 32)",
+            default=100,
+            help="Number of images to commit to the database per batch (default: 100)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=8,
+            help="Number of images to encode in parallel (default: 8)",
         )
         parser.add_argument(
             "--force",
@@ -41,24 +47,14 @@ class Command(BaseCommand):
             type=str,
             help="Comma-separated list of specific image IDs to process",
         )
-        parser.add_argument(
-            "--model-name",
-            type=str,
-            default="ViT-L/14@336px",
-            help="CLIP model name to use (default: ViT-L/14@336px)",
-        )
-        parser.add_argument(
-            "--device",
-            type=str,
-            choices=["auto", "cpu", "cuda"],
-            default="auto",
-            help="Device to use for processing (default: auto)",
-        )
 
     def handle(self, *args, **options):
-        self.setup_model(options)
+        if not clip_client.is_configured():
+            raise CommandError(
+                "CLIP_SERVICE_URL is not set. This command requires the CLIP "
+                "embedding service (services/clip) to be running and configured."
+            )
 
-        # Get images to process
         images_queryset = self.get_images_queryset(options)
         total_images = images_queryset.count()
 
@@ -66,60 +62,44 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No images found to process."))
             return
 
+        batch_size = options["batch_size"]
+        concurrency = options["concurrency"]
         self.stdout.write(
             self.style.SUCCESS(
-                f"Processing {total_images} images in batches of {options['batch_size']}"
+                f"Processing {total_images} images "
+                f"(commit batch {batch_size}, concurrency {concurrency})"
             )
         )
 
-        # Process images in batches, iterating lazily
-        batch_size = options["batch_size"]
         processed_count = 0
         failed_count = 0
         batch_num = 0
 
         iterator = images_queryset.iterator(chunk_size=batch_size)
-        while batch_images := list(islice(iterator, batch_size)):
-            batch_num += 1
-            self.stdout.write(f"Processing batch {batch_num}...")
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            while batch_images := list(islice(iterator, batch_size)):
+                batch_num += 1
+                self.stdout.write(f"Processing batch {batch_num}...")
 
-            batch_processed, batch_failed = self.process_batch(batch_images)
-            processed_count += batch_processed
-            failed_count += batch_failed
+                batch_processed, batch_failed = self.process_batch(batch_images, pool)
+                processed_count += batch_processed
+                failed_count += batch_failed
 
-            self.stdout.write(
-                f"Batch complete: {batch_processed} processed, {batch_failed} failed"
-            )
+                self.stdout.write(
+                    f"Batch complete: {batch_processed} processed, {batch_failed} failed"
+                )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Embedding generation complete: {processed_count} processed, {failed_count} failed"
+                f"Embedding generation complete: {processed_count} processed, "
+                f"{failed_count} failed"
             )
         )
-
-    def setup_model(self, options):
-        """Initialize the CLIP model and preprocessing"""
-        device = options["device"]
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        model_name = options["model_name"]
-
-        local_model_dir = Path("./models").absolute()
-
-        self.stdout.write(f"Loading CLIP model {model_name}")
-        self.model, self.preprocess = clip.load(
-            model_name, device=device, download_root=local_model_dir
-        )
-
-        self.device = device
-        self.stdout.write(f"Using device: {device}")
 
     def get_images_queryset(self, options):
         """Get the queryset of images to process"""
         queryset = Image.objects.only("id", "permalink", "embedding")
 
-        # Filter by specific IDs if provided
         if options["image_ids"]:
             try:
                 image_ids = [int(id.strip()) for id in options["image_ids"].split(",")]
@@ -135,99 +115,49 @@ class Command(BaseCommand):
 
         return queryset.order_by("id")
 
-    def process_batch(self, batch_images) -> tuple[int, int]:
-        """Process a batch of images and return (processed_count, failed_count)"""
-        successful_images = []
-        embeddings = []
+    def process_batch(self, batch_images, pool) -> tuple[int, int]:
+        """Encode a batch of images concurrently and bulk-save the results."""
+        successful_images = list(pool.map(self.embed_image, batch_images))
+        successful_images = [image for image in successful_images if image is not None]
 
-        # Download and preprocess images
-        for image in batch_images:
-            try:
-                pil_image = self.download_image(image.permalink)
-                if pil_image is None:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Failed to download image {image.id}: {image.permalink}"
-                        )
-                    )
-                    continue
+        if successful_images:
+            Image.objects.bulk_update(successful_images, ["embedding"])
 
-                try:
-                    preprocessed = self.preprocess(pil_image)
-                finally:
-                    pil_image.close()
+        return len(successful_images), len(batch_images) - len(successful_images)
 
-                successful_images.append(image)
-                embeddings.append(preprocessed)
+    def embed_image(self, image):
+        """Download an image and set its embedding from the service.
 
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"Error processing image {image.id}: {str(e)}")
-                )
-                continue
-
-        if not embeddings:
-            return 0, len(batch_images)
-
-        # Generate embeddings
+        Returns the mutated Image on success (for bulk_update), or None on
+        failure (already logged).
+        """
         try:
-            embeddings_tensor = torch.stack(embeddings).to(self.device)
-            del embeddings
-
-            with torch.no_grad():
-                features = self.model.encode_image(embeddings_tensor)
-                features /= features.norm(dim=-1, keepdim=True)
-
-            # Convert to lists for database storage
-            features_list = features.cpu().numpy().tolist()
-
-            del embeddings_tensor, features
-            if self.device == "cuda":
-                torch.cuda.empty_cache()
-
-            # Save to database
-            with transaction.atomic():
-                for image, embedding in zip(successful_images, features_list):
-                    image.embedding = embedding
-                    image.save(update_fields=["embedding"])
-
-            return len(successful_images), len(batch_images) - len(successful_images)
-
+            image_bytes = self.download_image(image.permalink)
+            if image_bytes is None:
+                return None
+            image.embedding = clip_client.get_image_embedding(image_bytes)
+            return image
         except Exception as e:
-            self.stdout.write(
-                self.style.ERROR(f"Error generating embeddings for batch: {str(e)}")
+            self.stderr.write(
+                self.style.ERROR(f"Error processing image {image.id}: {e}")
             )
-            return 0, len(batch_images)
-        finally:
-            gc.collect()
+            return None
 
-    def download_image(self, url: str, timeout: int = 30) -> Optional[PILImage.Image]:
-        """Download an image from URL and return PIL Image"""
+    def download_image(self, url: str, timeout: int = 30) -> bytes | None:
+        """Download an image from URL and return its raw bytes."""
         try:
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
 
-            # Check content type
             content_type = response.headers.get("content-type", "").lower()
             if not content_type.startswith("image/"):
-                self.stdout.write(
+                self.stderr.write(
                     self.style.WARNING(f"URL does not return an image: {url}")
                 )
                 return None
 
-            # Load image — .convert("RGB") copies pixel data, so we can
-            # close the original immediately to free the BytesIO buffer.
-            image_data = BytesIO(response.content)
-            pil_image = PILImage.open(image_data).convert("RGB")
-            image_data.close()
-
-            return pil_image
+            return BytesIO(response.content).getvalue()
 
         except requests.RequestException as e:
-            self.stdout.write(self.style.WARNING(f"Failed to download {url}: {str(e)}"))
-            return None
-        except Exception as e:
-            self.stdout.write(
-                self.style.WARNING(f"Failed to process image from {url}: {str(e)}")
-            )
+            self.stderr.write(self.style.WARNING(f"Failed to download {url}: {e}"))
             return None

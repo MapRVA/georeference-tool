@@ -70,16 +70,9 @@ DIRECTORIES_ENABLED = os.getenv("DIRECTORIES_ENABLED", "True").lower() in (
     "yes",
 )
 
-# CLIP model warmup on startup (disabled by default)
-CLIP_WARMUP_ENABLED = os.getenv("CLIP_WARMUP_ENABLED", "False").lower() in (
-    "true",
-    "1",
-    "yes",
-)
-
-# CLIP embedding microservice (services/clip). When set, embeddings are
-# fetched over HTTP; when empty, the legacy in-worker torch path (Celery
-# encode_text/encode_image tasks) is used instead.
+# CLIP embedding microservice (services/clip). Semantic search and embedding
+# generation post images/text to this service over HTTP; it is required for
+# those features to work.
 CLIP_SERVICE_URL = os.getenv("CLIP_SERVICE_URL", "").rstrip("/")
 CLIP_SERVICE_TIMEOUT = float(os.getenv("CLIP_SERVICE_TIMEOUT", "10"))
 
@@ -319,9 +312,6 @@ CELERY_TASK_ROUTES = {
     "images.tasks.cleanup_old_image_assets": {"queue": "background"},
     "images.tasks.cleanup_stale_import_slots": {"queue": "background"},
     "images.tasks.reconcile_collection_stats": {"queue": "background"},
-    # CLIP encoding tasks go to urgent queue (latency-sensitive, user-facing)
-    "images.tasks.encode_text": {"queue": "urgent"},
-    "images.tasks.encode_image": {"queue": "urgent"},
     # First-time Wikidata closure hydration fires off a request thread
     # right after a new WikidataItem is saved; the user is waiting on the
     # subject to populate, so this one stays on the urgent queue.

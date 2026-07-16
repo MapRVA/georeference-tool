@@ -29,22 +29,3 @@ def _disable_vips_cache_on_worker_init(**_):
     # Worker children run one-shot pipelines (dzsave tiling), so the cache
     # never gets a hit — it only holds memory.
     pyvips.cache_set_max(0)
-
-
-@worker_process_init.connect
-def _warmup_clip_on_worker_init(**_):
-    # Fires inside each prefork child after fork. We discard any model
-    # state inherited from the parent and force a fresh load: the JIT
-    # ScriptModule's C++ thread pools and compile caches don't initialize
-    # cleanly across fork, so inference on the inherited object stalls
-    # the first time it runs.
-    from django.conf import settings
-
-    if not getattr(settings, "CLIP_WARMUP_ENABLED", False):
-        return
-    import images.tasks
-
-    images.tasks._clip_model = None
-    images.tasks._clip_preprocess = None
-    images.tasks._clip_device = None
-    images.tasks.warmup_clip_model()

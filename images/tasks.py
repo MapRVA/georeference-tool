@@ -1,8 +1,5 @@
-import base64
 import logging
-import threading
 from io import BytesIO
-from pathlib import Path
 
 import requests
 from celery import shared_task
@@ -25,89 +22,6 @@ from .models import CollectionStats, Image, ImportSlot
 from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# CLIP model management (loaded once per worker process)
-# ---------------------------------------------------------------------------
-_clip_model = None
-_clip_preprocess = None
-_clip_device = None
-_clip_model_lock = threading.Lock()
-
-
-def _load_clip_model():
-    """Load CLIP model on first use (cached per-worker, thread-safe)."""
-    global _clip_model, _clip_preprocess, _clip_device
-
-    if _clip_model is not None:
-        return _clip_model, _clip_preprocess, _clip_device
-
-    with _clip_model_lock:
-        if _clip_model is not None:
-            return _clip_model, _clip_preprocess, _clip_device
-
-        import clip
-        import torch
-
-        _clip_device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_name = "ViT-L/14@336px"
-        local_model_dir = Path("./models").absolute()
-        _clip_model, _clip_preprocess = clip.load(
-            model_name, device=_clip_device, download_root=local_model_dir
-        )
-        logger.info("CLIP model loaded on worker (device: %s)", _clip_device)
-        return _clip_model, _clip_preprocess, _clip_device
-
-
-def warmup_clip_model():
-    """Pre-load the CLIP model into memory. Returns True if successful."""
-    try:
-        logger.info("Warming up CLIP model...")
-        _load_clip_model()
-        logger.info("CLIP model loaded successfully (device: %s)", _clip_device)
-        return True
-    except Exception as e:
-        logger.error("Failed to load CLIP model: %s", e)
-        return False
-
-
-# ---------------------------------------------------------------------------
-# CLIP encoding tasks (routed to the urgent queue)
-# ---------------------------------------------------------------------------
-@shared_task(ignore_result=False, time_limit=60, soft_time_limit=45)
-def encode_text(text):
-    """Encode a text query into a CLIP embedding vector.
-
-    Returns the embedding as a list of floats.
-    """
-    import clip
-    import torch
-
-    model, _preprocess, device = _load_clip_model()
-    with torch.no_grad():
-        text_input = clip.tokenize([text]).to(device)
-        text_features = model.encode_text(text_input)
-        text_features /= text_features.norm(dim=-1, keepdim=True)
-    return text_features.cpu().numpy()[0].tolist()
-
-
-@shared_task(ignore_result=False, time_limit=60, soft_time_limit=45)
-def encode_image(image_b64):
-    """Encode a base64-encoded image into a CLIP embedding vector.
-
-    Accepts the image as a base64-encoded string (already sanitised by the
-    calling view). Returns the embedding as a list of floats.
-    """
-    import torch
-
-    model, preprocess, device = _load_clip_model()
-    image_bytes = base64.b64decode(image_b64)
-    pil_image = PILImage.open(BytesIO(image_bytes)).convert("RGB")
-    with torch.no_grad():
-        image_input = preprocess(pil_image).unsqueeze(0).to(device)
-        image_features = model.encode_image(image_input)
-        image_features /= image_features.norm(dim=-1, keepdim=True)
-    return image_features.cpu().numpy()[0].tolist()
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
@@ -214,9 +128,7 @@ def process_image(self, image_id: int, quality: int = 85):
         # current generation's R2 directory, so persisting a superseded
         # generation's URLs would leave the DB pointing at objects that are
         # about to be deleted.
-        updated = Image.objects.filter(
-            pk=image_id, asset_generation=generation
-        ).update(
+        updated = Image.objects.filter(pk=image_id, asset_generation=generation).update(
             transformed_permalink=transformed_url,
             thumbnail=thumb_url,
             tile_status="",
@@ -455,9 +367,7 @@ def generate_iiif_tiles(self, image_id):
         # claimed while we were tiling, our tiles live in a directory that
         # cleanup_old_image_assets will delete — don't point the DB at them.
         # The newer run re-queues tiling for its own generation.
-        updated = Image.objects.filter(
-            pk=image_id, asset_generation=generation
-        ).update(
+        updated = Image.objects.filter(pk=image_id, asset_generation=generation).update(
             tile_status="complete",
             tile_error="",
             iiif_url=iiif_base,
