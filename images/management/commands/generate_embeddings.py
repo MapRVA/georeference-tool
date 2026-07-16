@@ -31,11 +31,15 @@ class Command(BaseCommand):
             default=100,
             help="Number of images to commit to the database per batch (default: 100)",
         )
+        # The CLIP service encodes vision requests serially (one infer request
+        # behind a lock, per replica), so raising concurrency past the replica
+        # count only stacks requests behind that lock until they hit
+        # CLIP_SERVICE_TIMEOUT.
         parser.add_argument(
             "--concurrency",
             type=int,
-            default=8,
-            help="Number of images to encode in parallel (default: 8)",
+            default=2,
+            help="Number of images to encode in parallel (default: 2)",
         )
         parser.add_argument(
             "--force",

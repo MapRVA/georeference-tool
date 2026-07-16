@@ -74,7 +74,9 @@ DIRECTORIES_ENABLED = os.getenv("DIRECTORIES_ENABLED", "True").lower() in (
 # generation post images/text to this service over HTTP; it is required for
 # those features to work.
 CLIP_SERVICE_URL = os.getenv("CLIP_SERVICE_URL", "").rstrip("/")
-CLIP_SERVICE_TIMEOUT = float(os.getenv("CLIP_SERVICE_TIMEOUT", "10"))
+# The vision tower encodes serially and a single CPU-only encode of
+# ViT-L/14@336px takes several seconds.
+CLIP_SERVICE_TIMEOUT = float(os.getenv("CLIP_SERVICE_TIMEOUT", "30"))
 
 # pgvector HNSW search depth. Sets the per-query hnsw.ef_search parameter and
 # also caps how deep semantic-search pagination can go (the index can only rank
