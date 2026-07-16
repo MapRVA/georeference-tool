@@ -24,7 +24,6 @@ from .models import (
 )
 
 ITEMS_PER_PAGE = 20
-FETCH_LIMIT = 50  # Fetch this many of each type to ensure we have enough
 ALL_EVENT_TYPES = {
     "group",
     "comment",
@@ -139,7 +138,9 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
 
     events = []
 
-    # Fetch latest of each type (over-fetch to ensure enough after merge)
+    # Fetch the latest `limit` of each type. Each queryset is sorted by the
+    # same timestamp used in the merge below, so the merged top-`limit` can
+    # never need more than `limit` rows from any one type.
     if "group" in event_types:
         groups = (
             GeoreferenceGroup.objects.filter(**group_filter)
@@ -153,7 +154,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
                     ).order_by("-added_at"),
                 )
             )
-            .order_by("-ended_at")[:FETCH_LIMIT]
+            .order_by("-ended_at")[:limit]
         )
         events.extend(("group", g, g.ended_at) for g in groups)
 
@@ -161,7 +162,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         comments = (
             Comment.objects.filter(**comment_filter)
             .select_related("commented_by", "image")
-            .order_by("-created_at")[:FETCH_LIMIT]
+            .order_by("-created_at")[:limit]
         )
         events.extend(("comment", c, c.created_at) for c in comments)
 
@@ -169,28 +170,28 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         milestones = (
             UserMilestone.objects.filter(**milestone_filter)
             .select_related("user")
-            .order_by("-reached_at")[:FETCH_LIMIT]
+            .order_by("-reached_at")[:limit]
         )
         events.extend(("milestone", m, m.reached_at) for m in milestones)
 
     if "sitewide" in event_types:
         sitewide_milestones = SitewideMilestone.objects.filter(
             **sitewide_filter
-        ).order_by("-reached_at")[:FETCH_LIMIT]
+        ).order_by("-reached_at")[:limit]
         events.extend(("sitewide", m, m.reached_at) for m in sitewide_milestones)
 
     if "validation" in event_types:
         georef_validations = (
             GeoreferenceValidation.objects.filter(**validation_filter)
             .select_related("validated_by", "georeference__image")
-            .order_by("-validated_at")[:FETCH_LIMIT]
+            .order_by("-validated_at")[:limit]
         )
         events.extend(("validation", v, v.validated_at) for v in georef_validations)
 
         aerial_validations = (
             AerialGeoreferenceValidation.objects.filter(**validation_filter)
             .select_related("validated_by", "georeference__image")
-            .order_by("-validated_at")[:FETCH_LIMIT]
+            .order_by("-validated_at")[:limit]
         )
         events.extend(("validation", v, v.validated_at) for v in aerial_validations)
 
@@ -206,7 +207,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
                     ).order_by("-created_at"),
                 )
             )
-            .order_by("-ended_at")[:FETCH_LIMIT]
+            .order_by("-ended_at")[:limit]
         )
         events.extend(("subject", g, g.ended_at) for g in subject_groups)
 
@@ -214,7 +215,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         introductions = (
             SubjectIntroduction.objects.filter(**new_subject_filter)
             .select_related("user", "image", "subject", "subject__wikidata_item")
-            .order_by("-created_at")[:FETCH_LIMIT]
+            .order_by("-created_at")[:limit]
         )
         events.extend(("new_subject", i, i.created_at) for i in introductions)
 
@@ -222,7 +223,7 @@ def get_activity_events(before=None, limit=ITEMS_PER_PAGE, event_types=None):
         collection_intros = (
             CollectionIntroduction.objects.filter(**new_collection_filter)
             .select_related("collection", "collection__source")
-            .order_by("-created_at")[:FETCH_LIMIT]
+            .order_by("-created_at")[:limit]
         )
         events.extend(("new_collection", c, c.created_at) for c in collection_intros)
 
