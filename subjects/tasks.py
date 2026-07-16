@@ -378,7 +378,17 @@ def fetch_osm_features(
 
 
 def get_next_stale_wikidata_item():
-    """Find the next WikidataItem whose Oxigraph closure needs refreshing."""
+    """
+    Find the next WikidataItem whose Oxigraph closure needs refreshing.
+
+    Only items attached to a Subject are refreshed on their own schedule.
+    Ancestor items discovered via closure fetches don't need one: their
+    named graphs are replaced whenever a seed's closure includes them, and
+    ``commit_closure_to_oxigraph`` bumps their freshness timestamps then.
+    Enrolling them here made the rotation unbounded — each ancestor refresh
+    fetched *its* closure, discovering ever-deeper ancestors, until the
+    queue (200k+ items) could never drain within the staleness window.
+    """
 
     stale_hours = get_stale_threshold_hours()
     max_failures = get_max_failures()
@@ -389,6 +399,7 @@ def get_next_stale_wikidata_item():
             Q(sparql_last_loaded_at__isnull=True)
             | Q(sparql_last_loaded_at__lt=stale_threshold),
             sparql_fetch_failures__lt=max_failures,
+            subject__isnull=False,
         )
         .order_by("sparql_last_loaded_at")
         .first()
