@@ -18,7 +18,7 @@ The Django project package is `yesterdays/` (settings, root `urls.py`, Celery ap
 - **`maps`** — curated map layers (`MapLayer`, `LayerCollection`): PMTiles, XYZ, and MapLibre styles shown on the map. Served under `/layers/` (`/maps/` redirects there for backwards compatibility).
 - **`osm_auth`** — OpenStreetMap OAuth login (via `osm_login_python`), plus `UserProfile` and `UserPreferences`. Provides the auth backend and user-settings pages.
 - **`directories`** — **optional**, enabled by the `DIRECTORIES_ENABLED` setting. An LLM/OCR pipeline (via OpenRouter) for transcribing historical city directories into structured `Entry`/`Address` records linked back to subjects. Only added to `INSTALLED_APPS` and routed when enabled.
-- **`api`** — the public REST API (see below). No models of its own.
+- **`api`** — the public REST API (see below). Its only model is `ApplicationConsent`, which remembers a user's OAuth consent per application so they aren't re-prompted on every authorization.
 
 Several features are toggled by settings/env vars, e.g. `DIRECTORIES_ENABLED`, `PROMETHEUS_ENABLED`, `LOCAL_DEV`, `DJANGO_DEBUG`. Use `django.conf.settings` rather than reading env vars directly in app code.
 
@@ -60,7 +60,7 @@ Other conventions worth knowing:
 
 ## REST API
 
-A public REST API lives in the `api/` app, served at `/api/v2/`. It uses Django REST Framework, django-rest-framework-gis, django-filter, and drf-spectacular (OpenAPI schema). It has no models of its own — it exposes data from `images`, `subjects`, `activity`, and friends through serializers, viewsets, and filter classes in `api/serializers.py`, `api/views.py`, and `api/filters.py`.
+A public REST API lives in the `api/` app, served at `/api/v2/`. It uses Django REST Framework, django-rest-framework-gis, django-filter, and drf-spectacular (OpenAPI schema). Apart from `ApplicationConsent` (remembered OAuth consent, see `api/models.py`), it exposes data from `images`, `subjects`, `activity`, and friends through serializers, viewsets, and filter classes in `api/serializers.py`, `api/views.py`, and `api/filters.py`.
 
 Much of the API is **publicly readable without authentication** — images, subjects, activity, georeferences, licenses, and the semantic/text search endpoints (`/search/semantic/`, `/search/text/`). Layered on top is a substantial **OAuth2 layer** (`oauth2_provider`, PKCE required): clients register an application (`/apps/`), obtain a token, and make authenticated requests on a user's behalf, scoped by OAuth scopes (`/auth/me/` returns the authenticated user). A few legacy `/api/v1/subjects/...` endpoints also exist.
 
