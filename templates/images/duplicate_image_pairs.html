@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Possible Duplicates – Yesterdays{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Pin the distance column to a constant width so the first image always
+       starts at the same x-position, whether or not the "same collection"
+       note appears below the badge. Only needed at md+ where the badge and
+       images sit side by side; below that the row stacks. */
+    @media (min-width: 768px) {
+        .card-body .dupe-dist { width: 7.5rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h1 class="mb-0"><i class="fas fa-clone me-3"></i>Possible Duplicate Image Pairs</h1>
+        </div>
+        <p class="text-muted">
+            The closest image-embedding pairs found by the nightly scan.
+            Last run:
+            {% if last_run %}<strong>{{ last_run|date:"M j, Y, g:i a" }}</strong>{% else %}<strong>never</strong>{% endif %}
+        </p>
+
+        {% if pairs %}
+            {% for pair in pairs %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-auto text-center dupe-dist">
+                            <span class="badge fs-6 {% if pair.distance < 0.02 %}bg-success{% elif pair.distance < 0.04 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                {{ pair.distance|floatformat:4 }}
+                            </span>
+                            {% if pair.image_a.collection_id == pair.image_b.collection_id %}
+                            <div class="small text-muted mt-1">same collection</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-12 col-md">
+                            <div class="d-flex gap-3">
+                                <a href="{{ pair.image_a.get_absolute_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
+                                    {% if pair.image_a.thumbnail %}
+                                    <img src="{{ pair.image_a.thumbnail }}" loading="lazy" alt="" class="rounded border" style="height:140px;width:140px;object-fit:cover;">
+                                    {% else %}
+                                    <span class="d-inline-flex align-items-center justify-content-center rounded border text-muted small" style="height:140px;width:140px;">no thumbnail</span>
+                                    {% endif %}
+                                </a>
+                                <div>
+                                    <div class="fw-semibold">{{ pair.image_a.title|default:"(untitled)" }}</div>
+                                    <div class="text-muted small">{{ pair.image_a.collection.source.name }} — {{ pair.image_a.collection.name }}</div>
+                                    <div class="small mt-1">
+                                        <a href="{{ pair.image_a.get_absolute_url }}" target="_blank" rel="noopener">#{{ pair.image_a.id }}</a>
+                                        <span class="text-muted">·</span>
+                                        <a href="{% url 'admin:images_image_change' pair.image_a.id %}" target="_blank" rel="noopener">edit in admin</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md">
+                            <div class="d-flex gap-3">
+                                <a href="{{ pair.image_b.get_absolute_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
+                                    {% if pair.image_b.thumbnail %}
+                                    <img src="{{ pair.image_b.thumbnail }}" loading="lazy" alt="" class="rounded border" style="height:140px;width:140px;object-fit:cover;">
+                                    {% else %}
+                                    <span class="d-inline-flex align-items-center justify-content-center rounded border text-muted small" style="height:140px;width:140px;">no thumbnail</span>
+                                    {% endif %}
+                                </a>
+                                <div>
+                                    <div class="fw-semibold">{{ pair.image_b.title|default:"(untitled)" }}</div>
+                                    <div class="text-muted small">{{ pair.image_b.collection.source.name }} — {{ pair.image_b.collection.name }}</div>
+                                    <div class="small mt-1">
+                                        <a href="{{ pair.image_b.get_absolute_url }}" target="_blank" rel="noopener">#{{ pair.image_b.id }}</a>
+                                        <span class="text-muted">·</span>
+                                        <a href="{% url 'admin:images_image_change' pair.image_b.id %}" target="_blank" rel="noopener">edit in admin</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info">
+                {% if last_run %}No unresolved duplicate candidates right now.{% else %}The nightly scan hasn’t run yet.{% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

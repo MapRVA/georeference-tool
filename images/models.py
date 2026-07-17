@@ -488,6 +488,34 @@ class CollectionEmbeddingStats(models.Model):
         stale.delete()
 
 
+class DuplicateImagePair(models.Model):
+    """
+    A candidate visual-duplicate image pair from the nightly scan.
+
+    images.tasks.refresh_duplicate_image_pairs wipes and repopulates this table
+    each night with the globally closest CLIP-embedding pairs among searchable
+    images. The staff review page (images:duplicate_image_pairs) reads it,
+    hiding any pair whose images have since been marked duplicate_of so the list
+    stays accurate between nightly runs.
+    """
+
+    image_a = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
+    image_b = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
+    distance = models.FloatField(
+        help_text="Cosine distance between the two image embeddings (0 = identical)"
+    )
+    computed_at = models.DateTimeField(
+        help_text="When the nightly scan that produced this pair ran"
+    )
+
+    class Meta:
+        ordering = ["distance"]
+        unique_together = ["image_a", "image_b"]
+
+    def __str__(self):
+        return f"#{self.image_a_id} ~ #{self.image_b_id} (d={self.distance:.4f})"
+
+
 class PreCollection(models.Model):
     """Collection within a source containing images that have yet to be reviewed for inclusion"""
 

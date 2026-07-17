@@ -44,6 +44,12 @@ urlpatterns = [
     ),
     # Validation queue (staff)
     path("validation-queue/", views.validation_queue, name="validation_queue"),
+    # Duplicate image pair review (staff)
+    path(
+        "duplicate-pairs/",
+        views.duplicate_image_pairs,
+        name="duplicate_image_pairs",
+    ),
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("stats/", views.image_stats, name="image_stats"),

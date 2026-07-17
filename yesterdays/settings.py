@@ -6,6 +6,8 @@ import os
 import re
 from pathlib import Path
 
+from celery.schedules import crontab
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -94,6 +96,17 @@ SUBJECT_SIMILARITY_SHRINKAGE_N0 = int(
 SUBJECT_SIMILARITY_DEDUPE_COSINE = float(
     os.getenv("SUBJECT_SIMILARITY_DEDUPE_COSINE", "0.97")
 )
+
+# Nightly visual-duplicate scan (images.tasks.refresh_duplicate_image_pairs).
+# How many of the globally closest embedding pairs to store for staff review,
+# how many neighbors to examine per image, and the HNSW search depth used for
+# the scan (lower than HNSW_EF_SEARCH since we only need the very nearest).
+DUPLICATE_PAIRS_COUNT = int(os.getenv("DUPLICATE_PAIRS_COUNT", "100"))
+DUPLICATE_PAIRS_NEIGHBORS = int(os.getenv("DUPLICATE_PAIRS_NEIGHBORS", "5"))
+DUPLICATE_PAIRS_EF_SEARCH = int(os.getenv("DUPLICATE_PAIRS_EF_SEARCH", "200"))
+DUPLICATE_PAIRS_BATCH_SIZE = int(os.getenv("DUPLICATE_PAIRS_BATCH_SIZE", "500"))
+# Hour (0-23, in CELERY_TIMEZONE) at which the nightly duplicate scan runs
+DUPLICATE_PAIRS_SCAN_HOUR = int(os.getenv("DUPLICATE_PAIRS_SCAN_HOUR", "4"))
 
 # Application definition
 
@@ -328,6 +341,7 @@ CELERY_TASK_ROUTES = {
     "images.tasks.reconcile_collection_stats": {"queue": "background"},
     "images.tasks.refresh_collection_embedding_stats": {"queue": "background"},
     "images.tasks.refresh_next_collection_embedding_stats": {"queue": "background"},
+    "images.tasks.refresh_duplicate_image_pairs": {"queue": "background"},
     # First-time Wikidata closure hydration fires off a request thread
     # right after a new WikidataItem is saved; the user is waiting on the
     # subject to populate, so this one stays on the urgent queue.
@@ -370,6 +384,11 @@ CELERY_TASK_QUEUES = {
     },
 }
 
+# Celery Beat evaluates crontab schedules in this timezone. It defaults to UTC
+# via TIME_ZONE; interval (seconds) schedules are timezone-independent, so this
+# only affects crontab entries like the nightly duplicate scan.
+CELERY_TIMEZONE = TIME_ZONE
+
 # Celery Beat schedule for periodic tasks
 # Rate limiting is achieved by Beat's schedule interval, not per-worker limits
 # Tasks expire shortly before the next one is scheduled to prevent backlog buildup
@@ -399,6 +418,11 @@ CELERY_BEAT_SCHEDULE = {
     "refresh-collection-embedding-stats": {
         "task": "images.tasks.refresh_collection_embedding_stats",
         "schedule": 86400.0,  # daily reconcile for count-neutral changes
+    },
+    "refresh-duplicate-image-pairs": {
+        "task": "images.tasks.refresh_duplicate_image_pairs",
+        # Nightly at DUPLICATE_PAIRS_SCAN_HOUR (in CELERY_TIMEZONE)
+        "schedule": crontab(hour=DUPLICATE_PAIRS_SCAN_HOUR, minute=0),
     },
     "reconcile-project-graph": {
         "task": "subjects.tasks.reconcile_project_graph",

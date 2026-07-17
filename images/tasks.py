@@ -6,6 +6,7 @@ from celery import shared_task
 from django.conf import settings
 from django.db import connection, transaction
 from django.db.models import F
+from django.utils import timezone
 from iiif_prezi3 import (
     Annotation,
     AnnotationBody,
@@ -18,7 +19,13 @@ from PIL import Image as PILImage
 
 from yesterdays.iiif import generate_and_upload_iiif_tiles
 
-from .models import CollectionEmbeddingStats, CollectionStats, Image, ImportSlot
+from .models import (
+    CollectionEmbeddingStats,
+    CollectionStats,
+    DuplicateImagePair,
+    Image,
+    ImportSlot,
+)
 from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
@@ -525,3 +532,82 @@ def refresh_next_collection_embedding_stats():
         row = cursor.fetchone()
     if row:
         CollectionEmbeddingStats.refresh_for([row[0]])
+
+
+@shared_task(ignore_result=True)
+def refresh_duplicate_image_pairs():
+    """
+    Rebuild the candidate visual-duplicate pair table (nightly).
+
+    For every searchable, non-duplicate image, find its nearest neighbors by
+    CLIP-embedding cosine distance via the partial HNSW index, then keep the
+    globally closest settings.DUPLICATE_PAIRS_COUNT pairs. Binding each image's
+    own embedding back as a %s::vector(768) parameter guarantees the index is
+    used, exactly as semantic search does. The whole table is then replaced
+    atomically.
+    """
+    neighbor_sql = """
+        SELECT id, (embedding::vector(768) <=> %s::vector(768)) AS distance
+        FROM images_image
+        WHERE is_searchable = true
+          AND embedding IS NOT NULL
+          AND duplicate_of_id IS NULL
+          AND id <> %s
+        ORDER BY embedding::vector(768) <=> %s::vector(768)
+        LIMIT %s
+    """
+    k = settings.DUPLICATE_PAIRS_NEIGHBORS
+    batch_size = settings.DUPLICATE_PAIRS_BATCH_SIZE
+    pairs = {}
+    with connection.cursor() as cursor:
+        cursor.execute("SET hnsw.ef_search = %s", [settings.DUPLICATE_PAIRS_EF_SEARCH])
+        try:
+            cursor.execute(
+                "SELECT id FROM images_image "
+                "WHERE is_searchable = true AND embedding IS NOT NULL "
+                "AND duplicate_of_id IS NULL"
+            )
+            image_ids = [row[0] for row in cursor.fetchall()]
+            for start in range(0, len(image_ids), batch_size):
+                chunk = image_ids[start : start + batch_size]
+                cursor.execute(
+                    "SELECT id, embedding FROM images_image WHERE id = ANY(%s)",
+                    [chunk],
+                )
+                # fetchall() materializes the chunk, freeing the cursor for the
+                # per-image neighbor queries issued inside the loop.
+                for image_id, embedding in cursor.fetchall():
+                    cursor.execute(neighbor_sql, [embedding, image_id, embedding, k])
+                    for neighbor_id, distance in cursor.fetchall():
+                        key = (
+                            (image_id, neighbor_id)
+                            if image_id < neighbor_id
+                            else (neighbor_id, image_id)
+                        )
+                        if key not in pairs or distance < pairs[key]:
+                            pairs[key] = distance
+        finally:
+            cursor.execute("RESET hnsw.ef_search")
+
+    closest = sorted(pairs.items(), key=lambda item: item[1])[
+        : settings.DUPLICATE_PAIRS_COUNT
+    ]
+    computed_at = timezone.now()
+    with transaction.atomic():
+        DuplicateImagePair.objects.all().delete()
+        DuplicateImagePair.objects.bulk_create(
+            [
+                DuplicateImagePair(
+                    image_a_id=a_id,
+                    image_b_id=b_id,
+                    distance=distance,
+                    computed_at=computed_at,
+                )
+                for (a_id, b_id), distance in closest
+            ]
+        )
+    logger.info(
+        "refresh_duplicate_image_pairs: scanned %d images, stored %d pairs",
+        len(image_ids),
+        len(closest),
+    )

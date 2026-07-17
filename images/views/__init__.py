@@ -42,6 +42,7 @@ from .core import (
     submit_rating,
     update_image_scale,
 )
+from .duplicates import duplicate_image_pairs
 from .featured_image import (
     featured_image_delete,
     featured_image_edit,
