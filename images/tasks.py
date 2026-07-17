@@ -4,7 +4,7 @@ from io import BytesIO
 import requests
 from celery import shared_task
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F
 from iiif_prezi3 import (
     Annotation,
@@ -18,7 +18,7 @@ from PIL import Image as PILImage
 
 from yesterdays.iiif import generate_and_upload_iiif_tiles
 
-from .models import CollectionStats, Image, ImportSlot
+from .models import CollectionEmbeddingStats, CollectionStats, Image, ImportSlot
 from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
@@ -483,3 +483,45 @@ def reconcile_collection_stats():
     (bulk updates, raw SQL).
     """
     CollectionStats.refresh_for()
+
+
+@shared_task(ignore_result=True)
+def refresh_collection_embedding_stats():
+    """Recompute every collection's mean CLIP embedding.
+
+    These means power the style-neutral subject similarity query
+    (subjects/similarity.py). The frequent refresh_next task below keeps them
+    current between runs; this daily full refresh is the reconcile backstop
+    for changes the count-mismatch check can't see (e.g. embeddings
+    regenerated in place), and does the initial seeding after deploy.
+    """
+    CollectionEmbeddingStats.refresh_for()
+
+
+@shared_task(ignore_result=True)
+def refresh_next_collection_embedding_stats():
+    """Refresh the most stale collection's mean embedding, if any.
+
+    A collection is stale when its stored embedding_count differs from its
+    current number of eligible images (including collections with no stats
+    row yet). At most one collection is recomputed per run, so a bulk import
+    costs one cheap counting scan per interval — never a recompute per image —
+    and the most-drifted collection is fixed first.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT c.id
+            FROM images_collection c
+            LEFT JOIN images_collectionembeddingstats s ON s.collection_id = c.id
+            LEFT JOIN images_image img ON img.collection_id = c.id
+                AND {CollectionEmbeddingStats.ELIGIBLE_SQL.format(alias="img.")}
+            GROUP BY c.id, s.embedding_count
+            HAVING COUNT(img.id) IS DISTINCT FROM COALESCE(s.embedding_count, 0)
+            ORDER BY ABS(COUNT(img.id) - COALESCE(s.embedding_count, 0)) DESC, c.id
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+    if row:
+        CollectionEmbeddingStats.refresh_for([row[0]])

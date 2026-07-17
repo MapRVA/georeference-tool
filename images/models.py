@@ -391,6 +391,103 @@ class CollectionStats(models.Model):
                 )
 
 
+class CollectionEmbeddingStats(models.Model):
+    """
+    Per-collection mean CLIP embedding.
+
+    Used by subject similarity search (subjects/similarity.py) to build
+    style-neutral query embeddings: subtracting a set image's collection mean
+    cancels collection-level style (medium, film stock, era) while the shared
+    subject content survives.
+
+    Unlike CollectionStats, these rows are not maintained eagerly by signals:
+    a collection's mean embedding drifts far too slowly for staleness to
+    matter — it only softens the style cancellation slightly, never affects
+    correctness. Instead, a frequent task tops up the most stale collection
+    (detected by embedding_count mismatching the collection's current
+    eligible-image count) and a daily full refresh reconciles everything,
+    including changes that don't alter the count (see
+    images.tasks.refresh_next_collection_embedding_stats and
+    refresh_collection_embedding_stats).
+    """
+
+    collection = models.OneToOneField(
+        Collection,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="embedding_stats",
+    )
+    mean_embedding = ArrayField(
+        models.FloatField(),
+        help_text="Mean of the collection's searchable image embeddings (not unit-length)",
+    )
+    embedding_count = models.PositiveIntegerField(
+        help_text="Number of embeddings averaged into mean_embedding"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "collection embedding stats"
+
+    def __str__(self):
+        return f"Embedding stats for {self.collection}"
+
+    # Which images count toward a collection's mean ({alias} = table alias).
+    # duplicate_of is excluded explicitly even though is_searchable already
+    # implies it, so the eligibility rule doesn't silently depend on how
+    # is_searchable is derived (and survives bulk writes that bypass the
+    # is_searchable signals). The staleness check in
+    # refresh_next_collection_embedding_stats must use the same rule, or the
+    # count-mismatch detector would refresh forever.
+    ELIGIBLE_SQL = (
+        "{alias}embedding IS NOT NULL AND {alias}is_searchable = true"
+        " AND {alias}duplicate_of_id IS NULL"
+    )
+
+    @classmethod
+    def refresh_for(cls, collection_ids=None):
+        """Recompute mean-embedding rows in-database.
+
+        Pass a list of collection ids to refresh just those collections, or
+        None to refresh every collection. Rows whose collections no longer
+        have eligible images are deleted (scoped to collection_ids when given).
+        """
+        if collection_ids is not None and not collection_ids:
+            return
+        where, params = cls.ELIGIBLE_SQL.format(alias=""), []
+        if collection_ids is not None:
+            where += " AND collection_id = ANY(%s)"
+            params.append(list(collection_ids))
+        with connection.cursor() as cursor:
+            # Aggregate in-database; parse pgvector's text form ("[0.1,...]")
+            cursor.execute(
+                f"""
+                SELECT collection_id, COUNT(*), AVG(embedding::vector(768))::text
+                FROM images_image
+                WHERE {where}
+                GROUP BY collection_id
+                """,
+                params,
+            )
+            rows = cursor.fetchall()
+
+        for collection_id, count, mean_text in rows:
+            cls.objects.update_or_create(
+                collection_id=collection_id,
+                defaults={
+                    "mean_embedding": [
+                        float(x) for x in mean_text.strip("[]").split(",")
+                    ],
+                    "embedding_count": count,
+                },
+            )
+
+        stale = cls.objects.exclude(collection_id__in=[r[0] for r in rows])
+        if collection_ids is not None:
+            stale = stale.filter(collection_id__in=list(collection_ids))
+        stale.delete()
+
+
 class PreCollection(models.Model):
     """Collection within a source containing images that have yet to be reviewed for inclusion"""
 

@@ -1,7 +1,6 @@
 import json
 import logging
 
-import numpy as np
 import requests
 from django.conf import settings
 from django.contrib import messages
@@ -28,6 +27,7 @@ from images.models import Image, SubjectMapping, SubjectMappingActivity
 from .models import Subject, SubjectAncestor, WikidataItem
 from .oxigraph import OxigraphClient
 from .project_graph import PROJECT_GRAPH_IRI, SUBJECT_CLASS_IRI
+from .similarity import build_subject_query_embedding
 from .sparql_safety import (
     UnsafeSparqlInput,
     sparql_string_literal,
@@ -1038,24 +1038,19 @@ def find_similar_images_to_subject(request, subject_slug):
         offset = 0
 
     try:
-        # Calculate the centroid of all subject image embeddings
-        subject_embeddings = []
-        for img in subject_images:
-            if img.embedding:
-                subject_embeddings.append(np.array(img.embedding))
+        # Build the style-neutral query embedding from the subject's images:
+        # each embedding is centered on its collection's mean so collection-
+        # level style cancels out (see subjects/similarity.py)
+        query_embedding = build_subject_query_embedding(
+            subject_images.values_list("collection_id", "embedding")
+        )
 
-        if not subject_embeddings:
+        if query_embedding is None:
             messages.error(
                 request,
-                "Unable to calculate centroid - no valid embeddings found.",
+                "Unable to build a similarity query - no valid embeddings found.",
             )
             return redirect("subjects:subject_detail", subject_slug=subject_slug)
-
-        # Calculate centroid as the mean of all embeddings
-        centroid_embedding = np.mean(subject_embeddings, axis=0)
-
-        # Normalize the centroid (important for cosine similarity)
-        centroid_embedding = centroid_embedding / np.linalg.norm(centroid_embedding)
 
         # Get IDs of subject images to exclude from results
         subject_image_ids = list(subject_images.values_list("id", flat=True))
@@ -1065,8 +1060,8 @@ def find_similar_images_to_subject(request, subject_slug):
             # Scoped to this transaction via SET LOCAL.
             cursor.execute("SET LOCAL hnsw.ef_search = %s", [settings.HNSW_EF_SEARCH])
 
-            # Convert centroid embedding to PostgreSQL array format
-            embedding_str = "[" + ",".join(map(str, centroid_embedding.tolist())) + "]"
+            # Convert query embedding to PostgreSQL array format
+            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
             # Build WHERE conditions
             where_conditions = ["embedding IS NOT NULL", "id != ALL(%s)"]

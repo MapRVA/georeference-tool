@@ -83,6 +83,18 @@ CLIP_SERVICE_TIMEOUT = float(os.getenv("CLIP_SERVICE_TIMEOUT", "30"))
 # this many candidates per query). pgvector hard-caps ef_search at 1000.
 HNSW_EF_SEARCH = int(os.getenv("HNSW_EF_SEARCH", "1000"))
 
+# Subject "find similar images" query construction (subjects/similarity.py).
+# Shrinkage strength toward the corpus mean for small collections' means:
+# mu_c = (n * mean_c + n0 * mu_corpus) / (n + n0)
+SUBJECT_SIMILARITY_SHRINKAGE_N0 = int(
+    os.getenv("SUBJECT_SIMILARITY_SHRINKAGE_N0", "20")
+)
+# Cosine similarity above which two set images count as near-duplicates
+# (multiple scans/prints of one photo) and only the first is kept
+SUBJECT_SIMILARITY_DEDUPE_COSINE = float(
+    os.getenv("SUBJECT_SIMILARITY_DEDUPE_COSINE", "0.97")
+)
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -314,6 +326,8 @@ CELERY_TASK_ROUTES = {
     "images.tasks.cleanup_old_image_assets": {"queue": "background"},
     "images.tasks.cleanup_stale_import_slots": {"queue": "background"},
     "images.tasks.reconcile_collection_stats": {"queue": "background"},
+    "images.tasks.refresh_collection_embedding_stats": {"queue": "background"},
+    "images.tasks.refresh_next_collection_embedding_stats": {"queue": "background"},
     # First-time Wikidata closure hydration fires off a request thread
     # right after a new WikidataItem is saved; the user is waiting on the
     # subject to populate, so this one stays on the urgent queue.
@@ -377,6 +391,14 @@ CELERY_BEAT_SCHEDULE = {
     "reconcile-collection-stats": {
         "task": "images.tasks.reconcile_collection_stats",
         "schedule": 3600.0,  # every hour; signals keep stats current in real time
+    },
+    "refresh-next-collection-embedding-stats": {
+        "task": "images.tasks.refresh_next_collection_embedding_stats",
+        "schedule": 600.0,  # every 10 minutes: top up the most stale collection
+    },
+    "refresh-collection-embedding-stats": {
+        "task": "images.tasks.refresh_collection_embedding_stats",
+        "schedule": 86400.0,  # daily reconcile for count-neutral changes
     },
     "reconcile-project-graph": {
         "task": "subjects.tasks.reconcile_project_graph",
