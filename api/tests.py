@@ -1108,3 +1108,41 @@ class TestAuthorizedApplicationsSettings(OAuthConsentFixturesMixin, TestCase):
         )
         self.assertEqual(resp.status_code, 404)
         self.assertTrue(ApplicationConsent.objects.filter(pk=consent.pk).exists())
+
+
+# ---------------------------------------------------------------------------
+# RSS Feeds
+# ---------------------------------------------------------------------------
+
+
+class TestSitewideActivityFeed(ApiFixturesMixin, TestCase):
+    def test_feed_status_and_type(self):
+        resp = self.client.get("/activity/feed/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/rss+xml; charset=utf-8")
+
+    def test_feed_content(self):
+        resp = self.client.get("/activity/feed/")
+        content = resp.content.decode("utf-8")
+        
+        self.assertIn('<rss version="2.0"', content)
+        self.assertIn("<title>Yesterdays - Site-wide Activity</title>", content)
+        # Based on the test fixtures, we should have a milestone in the activity feed
+        self.assertIn("milestone", content.lower())
+
+
+class TestSubjectActivityFeed(ApiFixturesMixin, TestCase):
+    def test_feed_status_and_type(self):
+        resp = self.client.get(f"/subjects/{self.subject.slug}/feed/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/rss+xml; charset=utf-8")
+
+    def test_feed_content(self):
+        resp = self.client.get(f"/subjects/{self.subject.slug}/feed/")
+        content = resp.content.decode("utf-8")
+        self.assertIn('<rss version="2.0"', content)
+        self.assertIn(self.img1.title, content)
+
+    def test_feed_404(self):
+        resp = self.client.get("/subjects/fake-subject/feed/")
+        self.assertEqual(resp.status_code, 404)
