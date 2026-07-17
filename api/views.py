@@ -1094,21 +1094,26 @@ def _parse_search_filters(params, table_ref="images_image"):
     where_conditions = []
     where_params = {}
 
-    # Georeferenced filtering
+    # Georeferenced filtering (mirrors Image.is_georeferenced: aerial images are
+    # judged by polygon georefs, others by point georefs)
     georeferenced = params.get("georeferenced")
     if georeferenced is not None:
         if georeferenced.lower() == "true":
             where_conditions.append(
                 sql.SQL(
-                    "EXISTS (SELECT 1 FROM images_georeference g"
-                    " WHERE g.image_id = {t}.id)"
+                    "(({t}.aerial = false AND EXISTS (SELECT 1 FROM images_georeference g"
+                    " WHERE g.image_id = {t}.id))"
+                    " OR ({t}.aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag"
+                    " WHERE ag.image_id = {t}.id)))"
                 ).format(t=t)
             )
         elif georeferenced.lower() == "false":
             where_conditions.append(
                 sql.SQL(
-                    "NOT EXISTS (SELECT 1 FROM images_georeference g"
-                    " WHERE g.image_id = {t}.id)"
+                    "NOT (({t}.aerial = false AND EXISTS (SELECT 1 FROM images_georeference g"
+                    " WHERE g.image_id = {t}.id))"
+                    " OR ({t}.aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag"
+                    " WHERE ag.image_id = {t}.id)))"
                 ).format(t=t)
             )
 

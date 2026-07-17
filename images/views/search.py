@@ -287,14 +287,17 @@ def semantic_search(request):
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
 
-            # Add georeferenced filter
+            # Add georeferenced filter (mirrors Image.is_georeferenced: aerial
+            # images are judged by polygon georefs, others by point georefs)
             if georeferenced_only:
                 where_conditions.append(
-                    "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                    "((aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)) "
+                    "OR (aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id)))"
                 )
             elif non_georeferenced_only:
                 where_conditions.append(
-                    "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                    "NOT ((aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)) "
+                    "OR (aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id)))"
                 )
 
             # Add year filtering conditions
@@ -901,14 +904,17 @@ def text_search(request):
             "offset": offset,
         }
 
-        # Georeferenced filtering
+        # Georeferenced filtering (mirrors Image.is_georeferenced: aerial images
+        # are judged by polygon georefs, others by point georefs)
         if georeferenced_only:
             sql_where_conditions.append(
-                "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)"
+                "((i.aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)) "
+                "OR (i.aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = i.id)))"
             )
         elif non_georeferenced_only:
             sql_where_conditions.append(
-                "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)"
+                "NOT ((i.aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = i.id)) "
+                "OR (i.aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = i.id)))"
             )
 
         # Year filtering
@@ -1307,14 +1313,17 @@ def reverse_image_search(request):
             where_conditions = ["embedding IS NOT NULL"]
             where_params = []
 
-            # Add georeferenced filter
+            # Add georeferenced filter (mirrors Image.is_georeferenced: aerial
+            # images are judged by polygon georefs, others by point georefs)
             if georeferenced_only:
                 where_conditions.append(
-                    "EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                    "((aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)) "
+                    "OR (aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id)))"
                 )
             elif non_georeferenced_only:
                 where_conditions.append(
-                    "NOT EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)"
+                    "NOT ((aerial = false AND EXISTS (SELECT 1 FROM images_georeference g WHERE g.image_id = images_image.id)) "
+                    "OR (aerial = true AND EXISTS (SELECT 1 FROM images_aerialgeoreference ag WHERE ag.image_id = images_image.id)))"
                 )
 
             # Add year filtering conditions

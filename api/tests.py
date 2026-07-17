@@ -1108,3 +1108,105 @@ class TestAuthorizedApplicationsSettings(OAuthConsentFixturesMixin, TestCase):
         )
         self.assertEqual(resp.status_code, 404)
         self.assertTrue(ApplicationConsent.objects.filter(pk=consent.pk).exists())
+
+
+# ---------------------------------------------------------------------------
+# Search: georeferenced filter (aerial polygon georefs)
+# ---------------------------------------------------------------------------
+
+
+class TestSearchGeoreferencedFilter(TestCase):
+    """The ``/api/v2/search/`` ``georeferenced=true|false`` filter must respect
+    BOTH kinds of georeference, mirroring ``Image.is_georeferenced``: point
+    georefs for regular images and aerial (polygon) georefs for aerial images.
+
+    Regression test: ``_parse_search_filters`` (shared by the semantic and text
+    search endpoints) used to check only the point ``images_georeference``
+    table, so an aerial image with only a polygon georef leaked through
+    ``georeferenced=false`` (and was wrongly hidden by ``georeferenced=true``).
+    Exercised through the text-search endpoint, which needs no CLIP service.
+    """
+
+    TOKEN = "riverbend"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="osm_1", password="test")
+        cls.source = Source.objects.create(
+            name="Src",
+            slug="src",
+            url="https://example.com",
+            description="",
+            public=True,
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source,
+            name="Col",
+            slug="col",
+            url="https://example.com",
+            public=True,
+        )
+
+        # Non-aerial image with a point georeference -> georeferenced.
+        cls.img_point = cls._make_image("Point photo")
+        Georeference.objects.create(
+            image=cls.img_point,
+            point=Point(-77.43, 37.54, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user,
+        )
+        # Aerial image with a polygon georeference -> georeferenced. THE BUG CASE.
+        cls.img_aerial = cls._make_image("Aerial photo", aerial=True)
+        AerialGeoreference.objects.create(
+            image=cls.img_aerial,
+            polygon=Polygon(POLYGON_COORDS, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user,
+        )
+        # Non-aerial image with no georeference -> not georeferenced.
+        cls.img_plain = cls._make_image("Plain photo")
+        # Aerial image with no georeference -> not georeferenced.
+        cls.img_aerial_plain = cls._make_image("Aerial pending photo", aerial=True)
+
+        cls.all_ids = {
+            cls.img_point.id,
+            cls.img_aerial.id,
+            cls.img_plain.id,
+            cls.img_aerial_plain.id,
+        }
+        cls.georeferenced_ids = {cls.img_point.id, cls.img_aerial.id}
+        cls.not_georeferenced_ids = {cls.img_plain.id, cls.img_aerial_plain.id}
+
+    @classmethod
+    def _make_image(cls, title, aerial=False):
+        img = Image.objects.create(
+            collection=cls.collection,
+            title=title,
+            permalink=f"https://img.example.com/{title}.jpg",
+            description=f"A photograph of the {cls.TOKEN} district.",
+            aerial=aerial,
+        )
+        # Pick up the signal-computed is_searchable flag.
+        img.refresh_from_db()
+        return img
+
+    def _search_ids(self, **params):
+        resp = self.client.get("/api/v2/search/text/", {"q": self.TOKEN, **params})
+        self.assertEqual(resp.status_code, 200)
+        return {r["id"] for r in resp.json()["results"]}
+
+    def test_no_filter_returns_all(self):
+        self.assertEqual(self._search_ids(), self.all_ids)
+
+    def test_georeferenced_false_excludes_aerial_polygon(self):
+        ids = self._search_ids(georeferenced="false")
+        # The aerial image is georeferenced via a polygon and must NOT leak
+        # through georeferenced=false.
+        self.assertNotIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.not_georeferenced_ids)
+
+    def test_georeferenced_true_includes_aerial_polygon(self):
+        ids = self._search_ids(georeferenced="true")
+        # The aerial-with-polygon image must be counted as georeferenced.
+        self.assertIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.georeferenced_ids)

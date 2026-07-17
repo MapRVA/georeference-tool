@@ -762,3 +762,147 @@ class QueueImageProcessingSignalTests(TestCase):
             )
 
         apply_async.assert_not_called()
+
+
+# Coordinates for a small aerial-georeference footprint (a closed ring).
+_SEARCH_POLYGON = (
+    (-77.44, 37.53),
+    (-77.43, 37.53),
+    (-77.43, 37.54),
+    (-77.44, 37.54),
+    (-77.44, 37.53),
+)
+
+
+class SearchGeoreferenceFilterTests(TestCase):
+    """The "georeferenced only" / "not georeferenced only" search filters must
+    respect BOTH kinds of georeference, mirroring ``Image.is_georeferenced``:
+    point georefs for regular images and aerial (polygon) georefs for aerial
+    images.
+
+    Regression test: the raw-SQL search filters used to check only the point
+    ``images_georeference`` table, so an aerial image with only a polygon georef
+    leaked through "not georeferenced only" (and was wrongly hidden by
+    "georeferenced only"). Covers the ``semantic_search`` and ``text_search``
+    endpoints; ``reverse_image_search`` shares ``semantic_search``'s SQL.
+    """
+
+    # A distinctive token in every image's description so a single trigram query
+    # matches all fixtures regardless of their georeference state.
+    TOKEN = "riverbend"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="osm_1", password="test")
+        cls.source = Source.objects.create(
+            name="Src",
+            slug="src",
+            url="https://example.com",
+            description="",
+            public=True,
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source,
+            name="Col",
+            slug="col",
+            url="https://example.com",
+            public=True,
+        )
+
+        # Non-aerial image with a point georeference -> georeferenced.
+        cls.img_point = cls._make_image("Point photo")
+        Georeference.objects.create(
+            image=cls.img_point,
+            point=Point(-77.43, 37.54, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user,
+        )
+        # Aerial image with a polygon georeference -> georeferenced. THE BUG CASE.
+        cls.img_aerial = cls._make_image("Aerial photo", aerial=True)
+        AerialGeoreference.objects.create(
+            image=cls.img_aerial,
+            polygon=Polygon(_SEARCH_POLYGON, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user,
+        )
+        # Non-aerial image with no georeference -> not georeferenced.
+        cls.img_plain = cls._make_image("Plain photo")
+        # Aerial image with no georeference -> not georeferenced.
+        cls.img_aerial_plain = cls._make_image("Aerial pending photo", aerial=True)
+
+        cls.all_ids = {
+            cls.img_point.id,
+            cls.img_aerial.id,
+            cls.img_plain.id,
+            cls.img_aerial_plain.id,
+        }
+        cls.georeferenced_ids = {cls.img_point.id, cls.img_aerial.id}
+        cls.not_georeferenced_ids = {cls.img_plain.id, cls.img_aerial_plain.id}
+
+    @classmethod
+    def _make_image(cls, title, aerial=False):
+        img = Image.objects.create(
+            collection=cls.collection,
+            title=title,
+            permalink=f"https://img.example.com/{title}.jpg",
+            description=f"A photograph of the {cls.TOKEN} district.",
+            aerial=aerial,
+            embedding=[0.1] * 768,
+        )
+        # Pick up the signal-computed is_searchable flag.
+        img.refresh_from_db()
+        return img
+
+    # -- text search (trigram) ---------------------------------------------
+
+    def _text_search_ids(self, **params):
+        resp = self.client.get(
+            "/api/v1/search/text/", {"q": self.TOKEN, **params}
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        return {r["id"] for r in data["results"]}
+
+    def test_text_search_no_filter_returns_all(self):
+        self.assertEqual(self._text_search_ids(), self.all_ids)
+
+    def test_text_search_not_georeferenced_only_excludes_aerial_polygon(self):
+        ids = self._text_search_ids(non_georeferenced_only="true")
+        # The aerial image is georeferenced via a polygon and must NOT leak
+        # through the "not georeferenced only" filter.
+        self.assertNotIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.not_georeferenced_ids)
+
+    def test_text_search_georeferenced_only_includes_aerial_polygon(self):
+        ids = self._text_search_ids(georeferenced_only="true")
+        # The aerial-with-polygon image must be counted as georeferenced.
+        self.assertIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.georeferenced_ids)
+
+    # -- semantic search (CLIP embeddings; query encoding mocked) -----------
+
+    def _semantic_search_ids(self, **params):
+        with patch(
+            "images.views.search._get_text_embedding", return_value=[0.1] * 768
+        ):
+            resp = self.client.get(
+                "/api/v1/search/", {"q": self.TOKEN, **params}
+            )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        return {r["id"] for r in data["results"]}
+
+    def test_semantic_search_no_filter_returns_all(self):
+        self.assertEqual(self._semantic_search_ids(), self.all_ids)
+
+    def test_semantic_search_not_georeferenced_only_excludes_aerial_polygon(self):
+        ids = self._semantic_search_ids(non_georeferenced_only="true")
+        self.assertNotIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.not_georeferenced_ids)
+
+    def test_semantic_search_georeferenced_only_includes_aerial_polygon(self):
+        ids = self._semantic_search_ids(georeferenced_only="true")
+        self.assertIn(self.img_aerial.id, ids)
+        self.assertEqual(ids, self.georeferenced_ids)
