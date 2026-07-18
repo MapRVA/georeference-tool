@@ -46,6 +46,7 @@ export function imageGrid() {
     userAlbums: [],
     selectedAlbum: null,
     albumMode: "existing",
+    pendingBulkAction: null,
 
     /**
      * Initialize the component
@@ -66,6 +67,15 @@ export function imageGrid() {
 
       this.$el.addEventListener("show-add-to-album-modal", () => {
         this.showAddToAlbumModal();
+      });
+
+      // Listen for staff-only bulk status events
+      this.$el.addEventListener("bulk-mark-aerial", () => {
+        this.bulkMarkAerial();
+      });
+
+      this.$el.addEventListener("bulk-mark-will-not-georef", () => {
+        this.bulkMarkWillNotGeoref();
       });
     },
 
@@ -735,6 +745,106 @@ export function imageGrid() {
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-plus me-1"></i>Add to Album';
+      }
+    },
+
+    // ==================== Bulk Status Methods (staff) ====================
+
+    /**
+     * Mark all selected images as aerial ("from above")
+     */
+    bulkMarkAerial() {
+      this.confirmBulkMarkFlag(
+        "/api/v1/bulk/from-above/",
+        "from above",
+        (count) => `Marked ${count} image(s) as from above.`,
+      );
+    },
+
+    /**
+     * Mark all selected images as "will not georeference"
+     */
+    bulkMarkWillNotGeoref() {
+      this.confirmBulkMarkFlag(
+        "/api/v1/bulk/will-not-georef/",
+        "will not georeference",
+        (count) => `Marked ${count} image(s) as will not georeference.`,
+      );
+    },
+
+    /**
+     * Show the Bootstrap confirmation modal for a bulk status flag action.
+     * The action is stored as pending and performed if the user confirms.
+     */
+    confirmBulkMarkFlag(url, actionLabel, successMessage) {
+      if (this.selectedIds.size === 0) return;
+
+      this.pendingBulkAction = { url, actionLabel, successMessage };
+
+      const messageEl = document.getElementById("bulkConfirmMessage");
+      if (messageEl) {
+        messageEl.textContent = `Mark ${this.selectedIds.size} selected image(s) as ${actionLabel}?`;
+      }
+
+      const modalEl = document.getElementById("bulkConfirmModal");
+      if (!modalEl) return;
+
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+
+      const confirmBtn = document.getElementById("bulkConfirmBtn");
+      if (confirmBtn && !confirmBtn._hasClickHandler) {
+        confirmBtn.addEventListener("click", () => this.executeBulkMarkFlag());
+        confirmBtn._hasClickHandler = true;
+      }
+    },
+
+    /**
+     * Perform the pending bulk status flag action after confirmation.
+     * POSTs the selected image IDs, then reloads so status badges/filters
+     * reflect the change.
+     */
+    async executeBulkMarkFlag() {
+      const action = this.pendingBulkAction;
+      if (!action || this.selectedIds.size === 0) return;
+
+      const modal = bootstrap.Modal.getInstance(
+        document.getElementById("bulkConfirmModal"),
+      );
+      if (modal) modal.hide();
+
+      try {
+        const response = await fetch(action.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": this.getCsrfToken(),
+          },
+          body: JSON.stringify({ image_ids: this.getSelectedIds() }),
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          this.showAlert(
+            "success",
+            action.successMessage(result.updated_count),
+          );
+          this.toggleSelectionMode();
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          this.showAlert(
+            "danger",
+            result.error || "Failed to update images. Please try again.",
+          );
+        }
+      } catch (error) {
+        console.error("Error updating images:", error);
+        this.showAlert(
+          "danger",
+          "An error occurred while updating the images.",
+        );
+      } finally {
+        this.pendingBulkAction = null;
       }
     },
 

@@ -3,11 +3,11 @@
 
 <div x-data="{ filtersOpen: false }">
     <!-- Filters Button -->
-    <button class="btn btn-sm btn-outline-secondary" 
-            type="button" 
-            data-bs-toggle="collapse" 
-            data-bs-target="#georeferenceFilterPanel" 
-            aria-expanded="false" 
+    <button class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#georeferenceFilterPanel"
+            aria-expanded="false"
             aria-controls="georeferenceFilterPanel"
             :disabled="selectionMode"
             @click="filtersOpen = !filtersOpen">
@@ -16,9 +16,9 @@
 
     <!-- Bulk Selection Button -->
     {% if user.is_authenticated %}
-    <button class="btn btn-sm ms-2" 
-            :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'" 
-            type="button" 
+    <button class="btn btn-sm ms-2"
+            :class="selectionMode ? 'btn-outline-danger' : 'btn-outline-primary'"
+            type="button"
             :disabled="filtersOpen"
             @click="toggleSelectionMode()">
         <i class="fas" :class="selectionMode ? 'fa-circle-xmark' : 'fa-square-check'"></i>
@@ -40,9 +40,9 @@
                 </div>
                 <div class="d-flex gap-2">
                     <div class="dropdown d-inline-block">
-                        <button class="btn btn-sm btn-primary dropdown-toggle" 
-                                type="button" 
-                                data-bs-toggle="dropdown" 
+                        <button class="btn btn-sm btn-primary dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
                                 :disabled="selectedCount === 0">
                             Bulk Actions
                         </button>
@@ -57,9 +57,22 @@
                                     <i class="fas fa-photo-video me-2"></i>Add to Album
                                 </button>
                             </li>
+                            {% if user.is_staff %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item" type="button" @click="$dispatch('bulk-mark-aerial')">
+                                    <i class="fas fa-plane me-2"></i>Mark as From Above
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" type="button" @click="$dispatch('bulk-mark-will-not-georef')">
+                                    <i class="fas fa-ban me-2"></i>Mark as Will Not Georeference
+                                </button>
+                            </li>
+                            {% endif %}
                         </ul>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger" 
+                    <button class="btn btn-sm btn-outline-danger"
                             @click="toggleSelectionMode()">Cancel</button>
                 </div>
             </div>

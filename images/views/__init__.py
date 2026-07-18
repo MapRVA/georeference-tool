@@ -29,6 +29,8 @@ from .browse import (
 )
 from .core import (
     add_comment,
+    bulk_mark_aerial,
+    bulk_mark_will_not_georef,
     get_min_scale_for_zoom,
     get_random_image,
     image_stats,

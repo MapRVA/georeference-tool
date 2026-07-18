@@ -100,6 +100,17 @@ urlpatterns = [
         views.mark_aerial,
         name="mark_aerial",
     ),
+    # Bulk image management (staff only)
+    path(
+        "api/v1/bulk/from-above/",
+        views.bulk_mark_aerial,
+        name="bulk_mark_aerial",
+    ),
+    path(
+        "api/v1/bulk/will-not-georef/",
+        views.bulk_mark_will_not_georef,
+        name="bulk_mark_will_not_georef",
+    ),
     path(
         "<int:image_id>/queue-featured-image/",
         views.queue_featured_image,

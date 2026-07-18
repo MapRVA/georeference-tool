@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from ..models import (
+    CollectionStats,
     Comment,
     Image,
     ImageRating,
@@ -420,6 +421,65 @@ def mark_aerial(request, image_id):
     image.save(update_fields=["aerial"])
     message = "Image marked as aerial" if aerial else "Removed aerial marking"
     return JsonResponse({"success": True, "message": message})
+
+
+def _bulk_set_image_flag(request, field):
+    """
+    Set a boolean flag to True on many images at once (admin only).
+
+    Shared implementation for the bulk "mark as from above" / "mark as will not
+    georeference" actions. A queryset UPDATE bypasses the post_save signal that
+    keeps CollectionStats in sync, so we refresh the affected collections here.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"success": False, "error": "Authentication required"}, status=401
+        )
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Admin permissions required"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"}, status=400
+        )
+
+    try:
+        image_ids = [int(image_id) for image_id in data.get("image_ids", [])]
+    except (AttributeError, TypeError, ValueError):
+        return JsonResponse(
+            {"success": False, "error": "Invalid image IDs"}, status=400
+        )
+
+    if not image_ids:
+        return JsonResponse(
+            {"success": False, "error": "No images selected"}, status=400
+        )
+
+    images = Image.objects.filter(id__in=image_ids)
+    collection_ids = list(images.values_list("collection_id", flat=True).distinct())
+    updated_count = images.update(**{field: True})
+
+    # The queryset UPDATE above skips the post_save signal, so refresh the
+    # denormalized stats for the affected collections directly.
+    CollectionStats.refresh_for(collection_ids)
+
+    return JsonResponse({"success": True, "updated_count": updated_count})
+
+
+@require_http_methods(["POST"])
+def bulk_mark_aerial(request):
+    """Mark multiple images as aerial ("from above") at once (admin only)."""
+    return _bulk_set_image_flag(request, "aerial")
+
+
+@require_http_methods(["POST"])
+def bulk_mark_will_not_georef(request):
+    """Mark multiple images as "will not georeference" at once (admin only)."""
+    return _bulk_set_image_flag(request, "will_not_georef")
 
 
 def get_random_image(request):
