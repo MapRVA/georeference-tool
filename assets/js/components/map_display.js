@@ -702,7 +702,12 @@ export function initializeMap(config) {
     }
 
     // Add current image as GeoJSON layer (always visible, distinct color, on top)
-    if (showOtherImages && imageId && center && !map.getSource("current-image")) {
+    if (
+      showOtherImages &&
+      imageId &&
+      center &&
+      !map.getSource("current-image")
+    ) {
       map.addSource("current-image", {
         type: "geojson",
         data: {
@@ -828,7 +833,11 @@ export function initializeMap(config) {
             }
           });
 
-          if (center && center.length === 2) {
+          // Only include `center` in the bounds when it marks the current
+          // image point (point+polygon case). In the polygon-only case there
+          // is no current-image marker and `center` is just the default map
+          // center, so extending to it would drag the view off the polygon.
+          if (showOtherImages && imageId && center && center.length === 2) {
             bounds.extend(center);
           }
 
