@@ -33,7 +33,7 @@ from .sparql_safety import (
     sparql_string_literal,
     validate_qid,
 )
-from .subject_facts import fetch_subject_facts
+from .subject_facts import fetch_authority_ids, fetch_subject_facts
 from .wikidata_closure import iri_to_qid
 
 logger = logging.getLogger(__name__)
@@ -952,6 +952,11 @@ def subject_detail(request, subject_slug):
         if subject.wikidata_item_id
         else {}
     )
+    authority_ids = (
+        fetch_authority_ids(subject.wikidata_item.wikidata_id)
+        if subject.wikidata_item_id
+        else []
+    )
 
     context = {
         "subject": subject,
@@ -965,6 +970,7 @@ def subject_detail(request, subject_slug):
         "has_images_with_embeddings": has_images_with_embeddings,
         "representative_image": representative_image,
         "wikidata_facts": wikidata_facts,
+        "authority_ids": authority_ids,
     }
     return render(request, "subjects/subject_detail.html", context)
 

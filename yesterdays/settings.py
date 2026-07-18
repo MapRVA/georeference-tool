@@ -449,6 +449,14 @@ METADATA_REFRESH_POSTPASS_TIMEOUT = int(
 OXIGRAPH_URL = os.getenv("OXIGRAPH_URL", "http://localhost:7878")
 OXIGRAPH_TIMEOUT = int(os.getenv("OXIGRAPH_TIMEOUT", "60"))
 
+# Languages whose literals the Wikidata mirror keeps (comma-separated BCP47
+# tags).
+WIKIDATA_MIRROR_LANGUAGES = [
+    lang.strip()
+    for lang in os.getenv("WIKIDATA_MIRROR_LANGUAGES", "en").split(",")
+    if lang.strip()
+]
+
 # OSM Authentication Settings
 OSM_URL = os.getenv("OSM_URL", "https://www.openstreetmap.org")
 OSM_CLIENT_ID = os.getenv("OSM_CLIENT_ID")

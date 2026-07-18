@@ -104,10 +104,35 @@
                                         {% endif %}
 
 
-                                        {% if subject.wikidata_item.va_landmark_id %}
+                                        {% if authority_ids %}
                                             <div class="mb-2">
-                                                <small class="text-muted d-block">VA Landmark ID:</small>
-                                                {{ subject.wikidata_item.va_landmark_id }}
+                                                <small class="text-muted d-block">Cultural heritage designations:</small>
+                                                <ul class="list-unstyled mb-0">
+                                                    {% for id in authority_ids %}
+                                                        <li>
+                                                            {% if id.item_label %}
+                                                                {% if id.url %}
+                                                                <a href="{{ id.url }}" target="_blank" rel="noopener" class="text-decoration-none">
+                                                                    {{ id.item_label }}
+                                                                    <i class="fas fa-external-link-alt ms-1 small"></i>
+                                                                </a>
+                                                                {% else %}
+                                                                <span class="text-muted">{{ id.item_label }}</span>
+                                                                {% endif %}
+                                                            {% else %}
+                                                            <span class="text-muted">{{ id.property }}:</span>
+                                                                {% if id.url %}
+                                                                    <a href="{{ id.url }}" target="_blank" rel="noopener" class="text-decoration-none">
+                                                                        {{ id.value }}
+                                                                        <i class="fas fa-external-link-alt ms-1 small"></i>
+                                                                    </a>
+                                                                {% else %}
+                                                                    {{ id.value }}
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        </li>
+                                                    {% endfor %}
+                                                </ul>
                                             </div>
                                         {% endif %}
                                     </div>

@@ -1,4 +1,5 @@
-"""Safely place untrusted input into SPARQL queries.
+"""
+Safely place untrusted input into SPARQL queries.
 
 SPARQL has no parameterized-query mechanism, so we escape per the
 SPARQL 1.1 string literal grammar and tightly validate the IRI fragments
@@ -22,6 +23,7 @@ shapes (e.g., a literal newline trying to break out of a comment).
 import re
 
 _QID_RE = re.compile(r"^Q[1-9]\d{0,19}$")
+_PID_RE = re.compile(r"^P[1-9]\d{0,19}$")
 _LANG_TAG_RE = re.compile(r"^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$")
 _MAX_FREE_TEXT_LEN = 100
 
@@ -42,6 +44,18 @@ def validate_qid(qid):
 def looks_like_qid(value):
     """Predicate form of ``validate_qid`` for use as a branch condition."""
     return isinstance(value, str) and bool(_QID_RE.match(value))
+
+
+def looks_like_pid(value):
+    """True if ``value`` matches the Wikidata property-ID grammar (``P123``)."""
+    return isinstance(value, str) and bool(_PID_RE.match(value))
+
+
+def validate_language_tag(lang):
+    """Return ``lang`` if it matches the BCP47 language-tag grammar; else raise."""
+    if not isinstance(lang, str) or not _LANG_TAG_RE.match(lang):
+        raise UnsafeSparqlInput(f"invalid BCP47 language tag: {lang!r}")
+    return lang
 
 
 def sparql_wikidata_entity_iri(qid):
@@ -67,7 +81,6 @@ def sparql_string_literal(value, lang=None):
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     out = f'"{escaped}"'
     if lang is not None:
-        if not _LANG_TAG_RE.match(lang):
-            raise UnsafeSparqlInput(f"invalid BCP47 language tag: {lang!r}")
+        validate_language_tag(lang)
         out = f"{out}@{lang}"
     return out

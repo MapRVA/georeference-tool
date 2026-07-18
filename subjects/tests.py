@@ -1,5 +1,9 @@
+from pathlib import Path
+
 import numpy as np
-from django.test import TestCase
+import pyoxigraph
+from django.core.exceptions import ImproperlyConfigured
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from images.models import Collection, CollectionEmbeddingStats, Image, Source
 from images.tasks import (
@@ -8,6 +12,13 @@ from images.tasks import (
 )
 
 from .similarity import build_subject_query_embedding
+from .sparql_safety import UnsafeSparqlInput, looks_like_pid, looks_like_qid
+from .wikidata_closure import (
+    build_atomic_update,
+    closure_query,
+    extract_seed_metadata,
+    parse_closure,
+)
 
 DIM = 768
 
@@ -220,3 +231,300 @@ class RefreshCollectionEmbeddingStatsTests(TestCase):
         self.assertFalse(
             CollectionEmbeddingStats.objects.filter(collection=self.collection).exists()
         )
+
+
+# --- Wikidata closure tests -------------------------------------------------
+
+_WD = "http://www.wikidata.org/entity/"
+_WDS = "http://www.wikidata.org/entity/statement/"
+_WDT = "http://www.wikidata.org/prop/direct/"
+_RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
+
+
+def _wd(local):
+    return pyoxigraph.NamedNode(f"{_WD}{local}")
+
+
+def _wdt(pid):
+    return pyoxigraph.NamedNode(f"{_WDT}{pid}")
+
+
+def _label(entity, text, lang="en"):
+    return pyoxigraph.Triple(
+        _wd(entity),
+        pyoxigraph.NamedNode(_RDFS_LABEL),
+        pyoxigraph.Literal(text, language=lang),
+    )
+
+
+# A miniature Wikidata neighbourhood for running the closure CONSTRUCT
+# against in-memory. Exercises what a recorded WDQS fixture can't: triples
+# that must be EXCLUDED (off-language labels, non-nav predicates on
+# nav-profile entities, entities no branch selects).
+_CLOSURE_FIXTURE_TTL = """\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix wds: <http://www.wikidata.org/entity/statement/> .
+@prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix p: <http://www.wikidata.org/prop/> .
+@prefix ps: <http://www.wikidata.org/prop/statement/> .
+@prefix pq: <http://www.wikidata.org/prop/qualifier/> .
+@prefix wikibase: <http://wikiba.se/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <http://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Seed: a historic hall with a heritage-designation statement (qualified
+# by the district it sits in) and an authority-control identifier.
+wd:Q100 rdfs:label "Test Hall"@en, "Salle d'essai"@fr ;
+    schema:description "historic building"@en ;
+    wdt:P31 wd:Q200 ;
+    wdt:P84 wd:Q300 ;
+    wdt:P1435 wd:Q400 ;
+    wdt:P5473 "127-0345" ;
+    p:P1435 wds:Q100-aaaa-bbbb .
+
+wds:Q100-aaaa-bbbb ps:P1435 wd:Q400 ;
+    pq:P361 wd:Q500 .
+
+# Class chain: Q100 -P31-> Q200 -P279-> Q210
+wd:Q200 rdfs:label "building"@en, "bâtiment"@fr ;
+    wdt:P279 wd:Q210 .
+wd:Q210 rdfs:label "structure"@en .
+
+# Direct reference (architect) with its own onward claim.
+wd:Q300 rdfs:label "Test Architect"@en ;
+    wdt:P31 wd:Q5 ;
+    wdt:P800 wd:Q999 .
+
+# Only reachable one hop past a direct reference - no branch selects it.
+wd:Q5 rdfs:label "human"@en .
+
+wd:Q400 rdfs:label "historic landmark"@en .
+
+# Qualifier target: nav profile only, so its P571 must not come along.
+wd:Q500 rdfs:label "Test District"@en, "Quartier d'essai"@fr ;
+    wdt:P571 "1900-01-01T00:00:00Z"^^xsd:dateTime .
+
+# P1629 target of the authority property: nav profile.
+wd:Q600 rdfs:label "Test Register"@en, "Registre d'essai"@fr ;
+    wdt:P571 "1966-01-01T00:00:00Z"^^xsd:dateTime .
+
+# A non-authority property descriptor - the generalized descriptor branch
+# must mirror it too.
+wd:P1435 wikibase:directClaim wdt:P1435 ;
+    rdfs:label "heritage designation"@en ;
+    wdt:P31 wd:Q18608871 .
+
+# An authority-control property descriptor (P31 Q18618628).
+wd:P5473 wikibase:directClaim wdt:P5473 ;
+    rdfs:label "Test Register number"@en, "numéro au registre"@fr ;
+    wdt:P31 wd:Q18618628 ;
+    wdt:P1630 "https://register.example/$1" ;
+    wdt:P1629 wd:Q600 .
+
+<https://en.wikipedia.org/wiki/Test_Hall> schema:about wd:Q100 ;
+    schema:isPartOf <https://en.wikipedia.org/> .
+"""
+
+
+class ClosureQueryTests(SimpleTestCase):
+    """Input validation and structure of the assembled closure CONSTRUCT."""
+
+    def test_rejects_invalid_qids(self):
+        for bad in ("Q42; DROP ALL", "P31", "", "Q042", None, "Q42 "):
+            with self.assertRaises(UnsafeSparqlInput):
+                closure_query(bad)
+
+    def test_rejects_invalid_language_tags(self):
+        with override_settings(WIKIDATA_MIRROR_LANGUAGES=['en"), DROP ALL; #']):
+            with self.assertRaises(UnsafeSparqlInput):
+                closure_query("Q42")
+
+    def test_rejects_empty_language_list(self):
+        with override_settings(WIKIDATA_MIRROR_LANGUAGES=[]):
+            with self.assertRaises(ImproperlyConfigured):
+                closure_query("Q42")
+
+    def test_structure(self):
+        query = closure_query("Q42")
+        # 5 top-level branches (4 UNIONs) + 1 inner in the full-profile
+        # branch + 2 inner in the nav-profile branch.
+        self.assertEqual(query.count("UNION"), 7)
+        # The nav predicate whitelist exists exactly once (shared tail).
+        self.assertEqual(query.count("skos:altLabel"), 1)
+        # One language filter per emission tail: seed, full, nav, descriptors.
+        self.assertEqual(query.count('lang(?o) IN ("en")'), 4)
+        # No leftover placeholders and no synthetic predicates.
+        self.assertNotIn("{qid}", query)
+        self.assertNotIn("{lang_filter}", query)
+        self.assertNotIn("urn:yesterdays", query)
+        self.assertEqual(query.count("{"), query.count("}"))
+
+    def test_language_setting_reaches_filter(self):
+        with override_settings(WIKIDATA_MIRROR_LANGUAGES=["en", "fr"]):
+            self.assertIn('lang(?o) IN ("en", "fr")', closure_query("Q42"))
+
+    def test_query_is_valid_sparql(self):
+        # pyoxigraph parses the query eagerly - a syntax error raises here.
+        pyoxigraph.Store().query(closure_query("Q42"))
+
+
+class ClosureQuerySemanticsTests(SimpleTestCase):
+    """Run the closure CONSTRUCT against the in-memory fixture graph."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.store = pyoxigraph.Store()
+        cls.store.load(
+            _CLOSURE_FIXTURE_TTL.encode(), format=pyoxigraph.RdfFormat.TURTLE
+        )
+
+    def _closure(self, qid="Q100"):
+        return set(self.store.query(closure_query(qid)))
+
+    def test_seed_literals_language_filtered(self):
+        result = self._closure()
+        self.assertIn(_label("Q100", "Test Hall"), result)
+        self.assertNotIn(_label("Q100", "Salle d'essai", "fr"), result)
+
+    def test_configured_languages_widen_the_mirror(self):
+        with override_settings(WIKIDATA_MIRROR_LANGUAGES=["en", "fr"]):
+            result = self._closure()
+        self.assertIn(_label("Q100", "Test Hall"), result)
+        self.assertIn(_label("Q100", "Salle d'essai", "fr"), result)
+
+    def test_ancestors_get_nav_profile(self):
+        result = self._closure()
+        self.assertIn(_label("Q200", "building"), result)
+        self.assertNotIn(_label("Q200", "bâtiment", "fr"), result)
+        self.assertIn(pyoxigraph.Triple(_wd("Q200"), _wdt("P279"), _wd("Q210")), result)
+        self.assertIn(_label("Q210", "structure"), result)
+
+    def test_qualifier_target_gets_labels_but_not_statements(self):
+        result = self._closure()
+        self.assertIn(_label("Q500", "Test District"), result)
+        self.assertFalse(
+            any(
+                t.subject == _wd("Q500") and t.predicate == _wdt("P571") for t in result
+            )
+        )
+
+    def test_direct_reference_gets_full_profile(self):
+        result = self._closure()
+        self.assertIn(_label("Q300", "Test Architect"), result)
+        self.assertIn(pyoxigraph.Triple(_wd("Q300"), _wdt("P800"), _wd("Q999")), result)
+
+    def test_second_hop_entities_are_not_pulled(self):
+        # Q5 is only reachable through the architect's own P31 - no branch
+        # selects it, so its label stays out of the closure.
+        self.assertNotIn(_label("Q5", "human"), self._closure())
+
+    def test_statement_bodies_come_along(self):
+        result = self._closure()
+        stmt = pyoxigraph.NamedNode(f"{_WDS}Q100-aaaa-bbbb")
+        ps = pyoxigraph.NamedNode("http://www.wikidata.org/prop/statement/P1435")
+        pq = pyoxigraph.NamedNode("http://www.wikidata.org/prop/qualifier/P361")
+        self.assertIn(pyoxigraph.Triple(stmt, ps, _wd("Q400")), result)
+        self.assertIn(pyoxigraph.Triple(stmt, pq, _wd("Q500")), result)
+
+    def test_descriptors_mirrored_for_every_used_property(self):
+        result = self._closure()
+        # Non-authority property: mirrored too (the generalization).
+        self.assertIn(_label("P1435", "heritage designation"), result)
+        # Authority property: full descriptor set, off-language label dropped.
+        self.assertIn(_label("P5473", "Test Register number"), result)
+        self.assertNotIn(_label("P5473", "numéro au registre", "fr"), result)
+        self.assertIn(
+            pyoxigraph.Triple(
+                _wd("P5473"),
+                _wdt("P1630"),
+                pyoxigraph.Literal("https://register.example/$1"),
+            ),
+            result,
+        )
+        self.assertIn(
+            pyoxigraph.Triple(_wd("P5473"), _wdt("P1629"), _wd("Q600")), result
+        )
+
+    def test_authority_item_mirrored_with_nav_profile(self):
+        result = self._closure()
+        self.assertIn(_label("Q600", "Test Register"), result)
+        self.assertNotIn(_label("Q600", "Registre d'essai", "fr"), result)
+        self.assertFalse(
+            any(
+                t.subject == _wd("Q600") and t.predicate == _wdt("P571") for t in result
+            )
+        )
+
+    def test_sitelink_triples_present(self):
+        result = self._closure()
+        article = pyoxigraph.NamedNode("https://en.wikipedia.org/wiki/Test_Hall")
+        self.assertIn(
+            pyoxigraph.Triple(
+                article, pyoxigraph.NamedNode("http://schema.org/about"), _wd("Q100")
+            ),
+            result,
+        )
+
+
+class ParseClosureTests(SimpleTestCase):
+    """Grouping and named-graph routing of the closure response."""
+
+    # Shaped like a (tiny) closure CONSTRUCT response.
+    TTL = """\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix wds: <http://www.wikidata.org/entity/statement/> .
+@prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix ps: <http://www.wikidata.org/prop/statement/> .
+@prefix wikibase: <http://wikiba.se/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <http://schema.org/> .
+
+wd:Q100 rdfs:label "Test Hall"@en, "Salle d'essai"@fr ;
+    wdt:P31 wd:Q200 .
+wds:Q100-aaaa-bbbb ps:P1435 wd:Q400 .
+wds:q100-cccc-dddd ps:P1435 wd:Q400 .
+wd:Q200 rdfs:label "building"@en .
+wd:P5473 wikibase:directClaim wdt:P5473 ;
+    rdfs:label "Test Register number"@en .
+<https://en.wikipedia.org/wiki/Test_Hall> schema:about wd:Q100 .
+<http://www.wikidata.org/entity/QBOGUS> rdfs:label "nope"@en .
+_:blank rdfs:label "anonymous"@en .
+"""
+
+    def setUp(self):
+        self.groups, self.labels = parse_closure(self.TTL.encode())
+
+    def test_entities_grouped_by_their_own_iri(self):
+        self.assertIn(f"{_WD}Q100", self.groups)
+        self.assertIn(f"{_WD}Q200", self.groups)
+
+    def test_statement_triples_routed_to_owning_entity(self):
+        # Both the modern (Q100-...) and legacy-lowercase (q100-...)
+        # statement IRIs resolve to the same owning entity graph.
+        stmt_triples = [
+            t for t in self.groups[f"{_WD}Q100"] if t.subject.value.startswith(_WDS)
+        ]
+        self.assertEqual(len(stmt_triples), 2)
+
+    def test_property_descriptors_get_their_own_graph(self):
+        self.assertIn(f"{_WD}P5473", self.groups)
+        self.assertEqual(len(self.groups[f"{_WD}P5473"]), 2)
+
+    def test_invalid_and_foreign_subjects_dropped(self):
+        self.assertNotIn(f"{_WD}QBOGUS", self.groups)
+        self.assertFalse(
+            any(iri.startswith("https://en.wikipedia.org/") for iri in self.groups)
+        )
+
+    def test_labels_collect_english_q_entities_only(self):
+        self.assertEqual(self.labels["Q100"], "Test Hall")
+        self.assertEqual(self.labels["Q200"], "building")
+        self.assertNotIn("P5473", self.labels)
+
+    def test_atomic_update_swaps_each_graph(self):
+        update = build_atomic_update(self.groups)
+        self.assertEqual(update.count("DROP SILENT GRAPH"), len(self.groups))
+        self.assertEqual(update.count("INSERT DATA"), len(self.groups))
+        self.assertIn(f"GRAPH <{_WD}P5473>", update)
