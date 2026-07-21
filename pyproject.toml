@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4~=4.15.0",
-    "boto3~=1.43.50",
+    "boto3~=1.43.52",
     "celery[librabbitmq]~=5.6.3",
     "django~=6.0.7",
     "django-celery-results>=2.6.0",
@@ -33,7 +33,7 @@ dependencies = [
     "pytesseract>=0.3.13",
     "pyvips>=3.1.1",
     "requests~=2.34.2",
-    "tqdm~=4.68.4",
+    "tqdm~=4.69.0",
     "uvicorn[standard]~=0.51.0",
     "whitenoise[brotli]~=6.12.0",
 ]
@@ -43,7 +43,7 @@ dev = [
     "pytest-django>=4.11.1",
     "pytest>=9.1.1",
 ]
-docs = ["zensical~=0.0.50"]
+docs = ["zensical~=0.0.51"]
 
 [tool.uv]
 default-groups = ["docs"]
