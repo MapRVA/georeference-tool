@@ -670,9 +670,7 @@ class ProcessImageGenerationGuardTests(TestCase):
         uploader.return_value.upload_file_content.side_effect = (
             lambda content, key, **kwargs: f"https://cdn.test/{key}"
         )
-        patch(
-            "images.tasks.download_image", side_effect=download_side_effect
-        ).start()
+        patch("images.tasks.download_image", side_effect=download_side_effect).start()
         tiles = patch("images.tasks.generate_iiif_tiles.delay").start()
         try:
             yield tiles
@@ -856,9 +854,7 @@ class SearchGeoreferenceFilterTests(TestCase):
     # -- text search (trigram) ---------------------------------------------
 
     def _text_search_ids(self, **params):
-        resp = self.client.get(
-            "/api/v1/search/text/", {"q": self.TOKEN, **params}
-        )
+        resp = self.client.get("/api/v1/search/text/", {"q": self.TOKEN, **params})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
@@ -883,12 +879,8 @@ class SearchGeoreferenceFilterTests(TestCase):
     # -- semantic search (CLIP embeddings; query encoding mocked) -----------
 
     def _semantic_search_ids(self, **params):
-        with patch(
-            "images.views.search._get_text_embedding", return_value=[0.1] * 768
-        ):
-            resp = self.client.get(
-                "/api/v1/search/", {"q": self.TOKEN, **params}
-            )
+        with patch("images.views.search._get_text_embedding", return_value=[0.1] * 768):
+            resp = self.client.get("/api/v1/search/", {"q": self.TOKEN, **params})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
@@ -906,3 +898,125 @@ class SearchGeoreferenceFilterTests(TestCase):
         ids = self._semantic_search_ids(georeferenced_only="true")
         self.assertIn(self.img_aerial.id, ids)
         self.assertEqual(ids, self.georeferenced_ids)
+
+
+class BulkImageFlagTests(TestCase):
+    """The staff-only bulk endpoints that mark images "from above" (aerial) or
+    "will not georeference". They report the number of images actually changed
+    (excluding those already tagged) and refresh CollectionStats, which the
+    underlying queryset UPDATE would otherwise bypass."""
+
+    FROM_ABOVE_URL = "/api/v1/bulk/from-above/"
+    WILL_NOT_GEOREF_URL = "/api/v1/bulk/will-not-georef/"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = Source.objects.create(
+            name="Src", slug="src", url="https://example.com", description=""
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source, name="Col", slug="col", url="https://example.com"
+        )
+        cls.staff = User.objects.create_user(
+            username="osm_staff", first_name="Sam", is_staff=True
+        )
+        cls.regular = User.objects.create_user(username="osm_regular", first_name="Reg")
+
+    def make_images(self, n, **kwargs):
+        return [
+            Image.objects.create(
+                collection=self.collection,
+                title=f"img{i}",
+                permalink=f"https://img.example.com/{i}.jpg",
+                **kwargs,
+            )
+            for i in range(n)
+        ]
+
+    def post(self, url, image_ids):
+        return self.client.post(
+            url, {"image_ids": image_ids}, content_type="application/json"
+        )
+
+    # -- happy path --------------------------------------------------------
+
+    def test_staff_marks_from_above(self):
+        images = self.make_images(3)
+        self.client.force_login(self.staff)
+        resp = self.post(self.FROM_ABOVE_URL, [img.id for img in images])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"success": True, "updated_count": 3})
+        for img in images:
+            img.refresh_from_db()
+            self.assertTrue(img.aerial)
+
+    def test_staff_marks_will_not_georef(self):
+        images = self.make_images(2)
+        self.client.force_login(self.staff)
+        resp = self.post(self.WILL_NOT_GEOREF_URL, [img.id for img in images])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["updated_count"], 2)
+        for img in images:
+            img.refresh_from_db()
+            self.assertTrue(img.will_not_georef)
+
+    # -- the "actual number changed" logic ---------------------------------
+
+    def test_updated_count_excludes_already_tagged(self):
+        already = self.make_images(1, aerial=True)[0]
+        fresh = self.make_images(2)
+        self.client.force_login(self.staff)
+        resp = self.post(self.FROM_ABOVE_URL, [already.id, *[img.id for img in fresh]])
+        self.assertEqual(resp.status_code, 200)
+        # 3 selected, 1 already aerial -> only 2 actually changed.
+        self.assertEqual(resp.json()["updated_count"], 2)
+        for img in fresh:
+            img.refresh_from_db()
+            self.assertTrue(img.aerial)
+
+    def test_updated_count_zero_when_all_already_tagged(self):
+        images = self.make_images(2, will_not_georef=True)
+        self.client.force_login(self.staff)
+        resp = self.post(self.WILL_NOT_GEOREF_URL, [img.id for img in images])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["updated_count"], 0)
+
+    # -- CollectionStats stays in sync despite the queryset UPDATE ----------
+
+    def test_marking_refreshes_collection_stats(self):
+        images = self.make_images(3)
+        self.client.force_login(self.staff)
+        self.post(self.WILL_NOT_GEOREF_URL, [img.id for img in images])
+        stats = CollectionStats.objects.get(pk=self.collection.pk)
+        self.assertEqual(stats.will_not_georef_images, 3)
+
+    # -- permissions -------------------------------------------------------
+
+    def test_anonymous_is_unauthorized(self):
+        images = self.make_images(2)
+        resp = self.post(self.FROM_ABOVE_URL, [img.id for img in images])
+        self.assertEqual(resp.status_code, 401)
+        for img in images:
+            img.refresh_from_db()
+            self.assertFalse(img.aerial)
+
+    def test_non_staff_is_forbidden(self):
+        images = self.make_images(2)
+        self.client.force_login(self.regular)
+        resp = self.post(self.WILL_NOT_GEOREF_URL, [img.id for img in images])
+        self.assertEqual(resp.status_code, 403)
+        for img in images:
+            img.refresh_from_db()
+            self.assertFalse(img.will_not_georef)
+
+    # -- input validation --------------------------------------------------
+
+    def test_empty_image_ids_is_bad_request(self):
+        self.client.force_login(self.staff)
+        resp = self.post(self.FROM_ABOVE_URL, [])
+        self.assertEqual(resp.status_code, 400)
+
+    def test_get_is_not_allowed(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(self.FROM_ABOVE_URL)
+        self.assertEqual(resp.status_code, 405)

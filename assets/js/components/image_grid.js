@@ -758,6 +758,7 @@ export function imageGrid() {
         "/api/v1/bulk/from-above/",
         "from above",
         (count) => `Marked ${count} image(s) as from above.`,
+        "aerial",
       );
     },
 
@@ -769,6 +770,7 @@ export function imageGrid() {
         "/api/v1/bulk/will-not-georef/",
         "will not georeference",
         (count) => `Marked ${count} image(s) as will not georeference.`,
+        "will_not_georef",
       );
     },
 
@@ -776,10 +778,10 @@ export function imageGrid() {
      * Show the Bootstrap confirmation modal for a bulk status flag action.
      * The action is stored as pending and performed if the user confirms.
      */
-    confirmBulkMarkFlag(url, actionLabel, successMessage) {
+    confirmBulkMarkFlag(url, actionLabel, successMessage, flag) {
       if (this.selectedIds.size === 0) return;
 
-      this.pendingBulkAction = { url, actionLabel, successMessage };
+      this.pendingBulkAction = { url, actionLabel, successMessage, flag };
 
       const messageEl = document.getElementById("bulkConfirmMessage");
       if (messageEl) {
@@ -801,8 +803,8 @@ export function imageGrid() {
 
     /**
      * Perform the pending bulk status flag action after confirmation.
-     * POSTs the selected image IDs, then reloads so status badges/filters
-     * reflect the change.
+     * POSTs the selected image IDs, then updates the affected cards in place
+     * (no reload) so the user keeps their scroll position.
      */
     async executeBulkMarkFlag() {
       const action = this.pendingBulkAction;
@@ -825,12 +827,14 @@ export function imageGrid() {
         const result = await response.json();
 
         if (response.ok && result.success) {
+          // Capture the selection before toggleSelectionMode() clears it.
+          const ids = this.getSelectedIds();
           this.showAlert(
             "success",
             action.successMessage(result.updated_count),
           );
+          this.applyBulkFlagToCards(ids, action.flag);
           this.toggleSelectionMode();
-          setTimeout(() => location.reload(), 1000);
         } else {
           this.showAlert(
             "danger",
@@ -846,6 +850,115 @@ export function imageGrid() {
       } finally {
         this.pendingBulkAction = null;
       }
+    },
+
+    /**
+     * Update the just-marked cards in the DOM so the page doesn't reload.
+     * `flag` is "will_not_georef" or "aerial".
+     *
+     * The reproduced badge/footer markup below mirrors
+     * templates/images/partials/image_card.html — keep them in sync.
+     */
+    applyBulkFlagToCards(ids, flag) {
+      ids.forEach((id) => {
+        const card = this.$el.querySelector(
+          `.image-card-wrapper[data-image-id="${id}"]`,
+        );
+        // Scoped to .image-card-wrapper because data-image-id also sits on the
+        // per-card album dropdown button. Cards paginated away are a safe no-op.
+        if (!card) return;
+        if (flag === "will_not_georef") {
+          this.markCardWillNotGeorefInPlace(card);
+        } else if (flag === "aerial") {
+          this.markCardAerialInPlace(card, id);
+        }
+      });
+    },
+
+    /**
+     * Return the DocumentFragment holding a card's status badges — the content of
+     * the `<template x-if="!selectionMode">` block in image_card.html. We mutate
+     * this source (not the rendered clone) so the change survives Alpine re-cloning
+     * the template whenever selection mode is toggled again. This runs while
+     * selection mode is still on, so the badges are not currently rendered.
+     * Returns null when the card has no badges (e.g. badges=False grids).
+     */
+    cardBadgeContent(card) {
+      for (const tpl of card.querySelectorAll("template")) {
+        if (tpl.content && tpl.content.querySelector(".badge")) {
+          return tpl.content;
+        }
+      }
+      return null;
+    },
+
+    /**
+     * Mark a card "will not georeference" in place (mirrors image_card.html).
+     */
+    markCardWillNotGeorefInPlace(card) {
+      const badges = this.cardBadgeContent(card);
+      if (badges) {
+        const topRight = badges.querySelector(
+          ".badge.position-absolute.top-0.end-0.m-2",
+        );
+        if (topRight && /match/i.test(topRight.textContent)) {
+          // Search/similarity card: keep the "% match" badge, set the top-left
+          // icon-only indicator (image_card.html lines 53-64).
+          const group = badges.querySelector(
+            ".position-absolute.top-0.start-0.m-2.d-flex.gap-1",
+          );
+          if (group) {
+            group.innerHTML =
+              '<span class="badge bg-secondary" title="Will not georeference"><i class="fas fa-ban"></i></span>';
+          }
+        } else if (topRight) {
+          // Normal card: top-right status badge -> grey "Skip" (lines 29-32).
+          topRight.className =
+            "badge bg-secondary position-absolute top-0 end-0 m-2";
+          topRight.innerHTML = '<i class="fas fa-ban"></i> Skip';
+        }
+      }
+      // Footer: remove the action button; the album dropdown (a <button>) stays
+      // (lines 153-154).
+      card.querySelector(".card-footer a.btn")?.remove();
+    },
+
+    /**
+     * Mark a card as aerial ("from above") in place (mirrors image_card.html).
+     */
+    markCardAerialInPlace(card, id) {
+      const badges = this.cardBadgeContent(card);
+      if (badges) {
+        const topRight = badges.querySelector(
+          ".badge.position-absolute.top-0.end-0.m-2",
+        );
+        const isSimilarity = topRight && /match/i.test(topRight.textContent);
+        // The template only renders the plane badge in the non-similarity branch.
+        if (!isSimilarity && !badges.querySelector('[title="Aerial image"]')) {
+          const wrap = badges.querySelector("div") || badges;
+          let group = wrap.querySelector(
+            ".position-absolute.top-0.start-0.m-2.d-flex.gap-1",
+          );
+          if (!group) {
+            // Group is absent when the card had no difficulty and wasn't aerial
+            // (lines 67-68); create it to match the template.
+            group = document.createElement("div");
+            group.className =
+              "position-absolute top-0 start-0 m-2 d-flex gap-1";
+            wrap.appendChild(group);
+          }
+          // Plane badge goes first, before any difficulty badge (lines 69-78).
+          group.insertAdjacentHTML(
+            "afterbegin",
+            '<span class="badge bg-success" title="Aerial image"><i class="fas fa-plane"></i></span>',
+          );
+        }
+      }
+      // Footer: repoint only a pending "Georeference" button (btn-success) to the
+      // aerial interface; View buttons (btn-primary/outline) are left alone (line 170).
+      card
+        .querySelector(".card-footer a.btn-success")
+        ?.setAttribute("href", `/polygonal-georeference/${id}/`);
     },
 
     // ==================== Utility Methods ====================

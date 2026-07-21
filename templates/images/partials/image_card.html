@@ -17,6 +17,9 @@
                 </div>
             </template>
             <!-- Image Status Badge (hidden in selection mode) -->
+            <!-- NOTE: the "Skip" and aerial plane badges below, and the footer
+                 action button, are reproduced in JS for in-place bulk updates —
+                 keep in sync with markCard*InPlace in assets/js/components/image_grid.js -->
             {% if badges %}
             <template x-if="!selectionMode">
                 <div>

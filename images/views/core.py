@@ -459,7 +459,10 @@ def _bulk_set_image_flag(request, field):
             {"success": False, "error": "No images selected"}, status=400
         )
 
-    images = Image.objects.filter(id__in=image_ids)
+    # Only images that don't already have the flag set will actually change.
+    # Filtering to those makes .update() return the true number changed
+    # (total selected minus those previously tagged).
+    images = Image.objects.filter(id__in=image_ids, **{field: False})
     collection_ids = list(images.values_list("collection_id", flat=True).distinct())
     updated_count = images.update(**{field: True})
 
