@@ -3,7 +3,7 @@ name = "yesterdays"
 version = "0.1.0"
 description = "A Django web application for georeferencing historical images."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4~=4.15.0",
     "boto3~=1.43.50",
