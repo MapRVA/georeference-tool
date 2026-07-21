@@ -39,6 +39,10 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = [
+    "pytest-django>=4.11.1",
+    "pytest>=9.1.1",
+]
 docs = ["zensical~=0.0.50"]
 
 [tool.uv]
@@ -46,3 +50,7 @@ default-groups = ["docs"]
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "yesterdays.settings"
+python_files = "tests.py test_*.py *_tests.py"
