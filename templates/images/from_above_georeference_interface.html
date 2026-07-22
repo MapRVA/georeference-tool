@@ -314,6 +314,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if image %}
 <script>
     window.fromAboveConfig = {
         isStaff: {{ user.is_staff|yesno:"true,false" }},
@@ -331,6 +332,6 @@
         {% endif %}
     };
 </script>
-
 {% vite_asset 'assets/js/pages/from_above_georeference_interface.js' %}
+{% endif %}
 {% endblock %}
