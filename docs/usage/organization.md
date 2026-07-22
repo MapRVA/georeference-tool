@@ -1,14 +1,14 @@
 # Organization System
 
 All images on Yesterdays are from third-party sources.
-**Yesterdays is not a preservation system.**
-It is a platform for exploring images across a wide variety of sources, and crowdsourcing metadata for those images.
+Our platform enables users to explore images across a wide variety of sources, and contribute metadata for those images.
 In other words, Yesterdays is meant to sit between the user and various information preservation systems, including museums and libraries.
 
 ## Sources
 
 Sources represent individual institutions, e.g. Library of Congress, where we have sourced images on Yesterdays.
-The images in Yesterdays are from online databases provided by these institutions.
+The images in Yesterdays are from online databases provided by these institutions, or in some cases provided directly from those insitutions.
+You can browse the sources on Yesterdays [here](https://yesterdays.maprva.org/browse/).
 
 ## Collections
 

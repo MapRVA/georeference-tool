@@ -90,7 +90,10 @@ nav = [
   ]},
   {"Administration" = [
      {"Overview" = "admin/index.md"},
-     {"Importing Images" = "admin/importing.md"},
+     {"Importing" = [
+         {"Overview" = "admin/importing/index.md"},
+         {"Desktop Uploader" = "admin/importing/desktop.md"},
+     ]},
      {"Image Management" = "admin/image-management.md"},
      {"Site Settings" = "admin/settings.md"},
   ]},
