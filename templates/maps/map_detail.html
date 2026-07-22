@@ -32,9 +32,11 @@
                         </a>
                     {% endif %}
                     {% if layer.iiif_link %}
-                        <a href="{{ layer.iiif_link }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                            IIIF
-                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                data-iiif-copy="{{ layer.iiif_link }}"
+                                title="Copy IIIF manifest URL">
+                            <i class="fas fa-copy me-1"></i>IIIF
+                        </button>
                     {% endif %}
                     {% if request.user.is_staff %}
                         <a href="{% url 'admin:maps_maplayer_change' layer.pk %}" class="btn btn-sm btn-outline-secondary">

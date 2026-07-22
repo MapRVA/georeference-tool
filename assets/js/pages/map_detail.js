@@ -24,6 +24,26 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
+  // Copy the IIIF manifest URL to the clipboard when the IIIF button is clicked
+  const iiifCopyBtn = document.querySelector("[data-iiif-copy]");
+  if (iiifCopyBtn) {
+    const originalHtml = iiifCopyBtn.innerHTML;
+    let revertTimer;
+    iiifCopyBtn.addEventListener("click", async function () {
+      try {
+        await navigator.clipboard.writeText(iiifCopyBtn.dataset.iiifCopy);
+        clearTimeout(revertTimer);
+        iiifCopyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        revertTimer = setTimeout(() => {
+          iiifCopyBtn.innerHTML = originalHtml;
+        }, 1500);
+      } catch (e) {
+        console.error("Could not copy IIIF manifest URL:", e);
+        window.showAlert("danger", "Could not copy the IIIF manifest URL.");
+      }
+    });
+  }
+
   const mapContainer = document.getElementById("layer-map");
   if (!mapContainer) return;
 
