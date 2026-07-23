@@ -5,7 +5,7 @@ It was initially developed by [MapRVA](https://maprva.org) for use in Richmond, 
 Yesterdays is now an [OpenStreetMap US Charter Project](https://openstreetmap.us/our-work/community-charter-projects/).
 
 This site documents how images are [organized](/usage/organization/), [georeferenced](/usage/georeferencing/), and [searched](/usage/search/) on Yesterdays.
-There is additional information available [for developers](/dev/).
+There is additional information available for developers interested in [accessing our API](/dev/api/) or [contributing to Yesterdays](/dev/contributing/).
 
 ## Join Us!
 
