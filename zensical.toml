@@ -50,17 +50,15 @@ edit_uri = "edit/trunk/docs/"
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   {"Home" = "index.md"},
-  {"Data Licenses" = "licenses.md"},
+  {"Licenses" = "licenses.md"},
   {"Contact Us" = "contact.md"},
-  {"Usage Guide" = [
-     "usage/index.md",
+  {"Getting Started" = [
      "usage/organization.md",
      "usage/georeferencing.md",
      "usage/search.md",
      "usage/subjects.md",
   ]},
   {"For Developers" = [
-    {"Overview" = "dev/index.md"},
     {"API" = [
         {"Overview" = "dev/api/index.md"},
         {"Authentication" = "dev/api/authentication.md"},
@@ -78,7 +76,7 @@ nav = [
     ]},
     {"Contributing" = [
         {"Overview" = "dev/contributing/index.md"},
-        {"Environment" = "dev/contributing/environment.md"},
+        {"Code" = "dev/contributing/code.md"},
         {"Documentation" = "dev/contributing/documentation.md"},
     ]},
     {"Deployment" = [
@@ -89,7 +87,6 @@ nav = [
     ]},
   ]},
   {"Administration" = [
-     {"Overview" = "admin/index.md"},
      {"Importing" = [
          {"Overview" = "admin/importing/index.md"},
          {"Desktop Uploader" = "admin/importing/desktop.md"},
@@ -382,6 +379,9 @@ toggle.name = "Switch to system preference"
 emoji_index = "zensical.extensions.emoji.twemoji"
 emoji_generator = "zensical.extensions.emoji.to_svg"
 [project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
 

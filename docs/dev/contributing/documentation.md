@@ -1,4 +1,4 @@
-# Documentation
+# Contributing Documentation
 
 One of the most valuable ways you can contribute to Yesterdays is by reviewing and contributing to our documentation.
 

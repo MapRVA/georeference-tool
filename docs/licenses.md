@@ -1,4 +1,4 @@
-# Data Licenses
+# Licenses
 
 ## Images
 

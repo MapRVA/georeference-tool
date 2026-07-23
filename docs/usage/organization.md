@@ -4,6 +4,14 @@ All images on Yesterdays are from third-party sources.
 Our platform enables users to explore images across a wide variety of sources, and contribute metadata for those images.
 In other words, Yesterdays is meant to sit between the user and various information preservation systems, including museums and libraries.
 
+```mermaid
+graph TD
+    Y["<strong>Yesterdays</strong>"]
+    Y --> S1["<strong>Source</strong><br/><em>e.g. <a href="https://yesterdays.maprva.org/browse/library-of-congress/">Library of Congress</a></em>"]
+    S1 --> C1["<strong>Collection</strong><br/><em>e.g. <a href="https://yesterdays.maprva.org/browse/library-of-congress/detroit-publishing-company/">Detroit Publishing Company</a></em>"]
+    C1 --> I1["<strong>Image</strong><br/><em>e.g. <a href="https://yesterdays.maprva.org/7134/">Monumental Church, Richmond, Va.</a></em>"]
+```
+
 ## Sources
 
 Sources represent individual institutions, e.g. Library of Congress, where we have sourced images on Yesterdays.

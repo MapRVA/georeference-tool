@@ -1,11 +1,9 @@
 # Contributing
 
-This section is for folks interested in contributing code to Yesterdays. First of all, thank you so much!
+Please see our documentation for [contributing code](code.md) and [contributing documentation](documentation.md).
 
-## Development Environment
+## Feature Requests & Bug Reports
 
-Please see [here](environment.md) for documentation on setting up your development environment.
-
-## Writing Documentation
-
-Please see [here](documentation.md) for more information on how to contribute to these docs.
+We welcome feature requests and bug reports in our [issue tracker](https://github.com/MapRVA/yesterdays/issues).
+If you do not have a GitHub account or prefer to contact us directly, please see our [contact page](/contact/).
+Thank you very much!

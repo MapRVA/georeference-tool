@@ -1,4 +1,4 @@
-# Development Environment
+# Contributing Code
 
 There are two ways to run Yesterdays locally:
 
