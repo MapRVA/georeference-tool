@@ -497,8 +497,14 @@ class DuplicateImagePair(models.Model):
     images. The staff review page (images:duplicate_image_pairs) reads it,
     hiding any pair whose images have since been marked duplicate_of so the list
     stays accurate between nightly runs.
+
+    Each pair carries a ``uuid`` used for its review url so the address doesn't
+    expose raw image ids. The nightly rebuild preserves the uuid of any pair
+    that persists (see refresh_duplicate_image_pairs), so review links stay
+    stable across scans.
     """
 
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     image_a = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
     image_b = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
     distance = models.FloatField(
@@ -514,6 +520,51 @@ class DuplicateImagePair(models.Model):
 
     def __str__(self):
         return f"#{self.image_a_id} ~ #{self.image_b_id} (d={self.distance:.4f})"
+
+    def get_absolute_url(self):
+        return reverse(
+            "images:duplicate_pair_detail", kwargs={"pair_uuid": self.uuid}
+        )
+
+
+class DismissedDuplicatePair(models.Model):
+    """
+    A candidate duplicate pair a staff reviewer has judged to be *not* a
+    duplicate.
+
+    Keyed by the two image ids (canonicalized so image_a_id < image_b_id) in a
+    table separate from DuplicateImagePair, so a dismissal survives the nightly
+    rebuild that wipes and repopulates the candidate table. The staff review
+    pages (images:duplicate_image_pairs and images:duplicate_pair_detail) hide
+    any candidate pair recorded here.
+    """
+
+    image_a = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
+    image_b = models.ForeignKey("Image", on_delete=models.CASCADE, related_name="+")
+    dismissed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Staff member who dismissed the pair",
+    )
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-dismissed_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["image_a", "image_b"], name="unique_dismissed_pair"
+            ),
+            models.CheckConstraint(
+                condition=Q(image_a__lt=F("image_b")),
+                name="dismissed_pair_canonical_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"dismissed #{self.image_a_id} ~ #{self.image_b_id}"
 
 
 class PreCollection(models.Model):

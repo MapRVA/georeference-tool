@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block title %}Review Duplicate Pair – Yesterdays{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Keep both preview images the same height so the pair lines up for
+       side-by-side comparison, letterboxing rather than cropping. */
+    .dupe-preview {
+        height: 360px;
+        object-fit: contain;
+        background-color: var(--bs-tertiary-bg);
+    }
+    /* Draw the eye to fields whose values match — matches are what make a
+       pair look like a genuine duplicate. */
+    .dupe-compare tr.matches td { background-color: rgba(25, 135, 84, 0.08); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'images:duplicate_image_pairs' %}">Possible Duplicates</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    #{{ image_a.id }} &amp; #{{ image_b.id }}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <h1 class="mb-0"><i class="fas fa-clone me-3"></i>Review Duplicate Pair</h1>
+            <span class="badge fs-6 {% if distance < 0.02 %}bg-success{% elif distance < 0.04 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                distance {{ distance|floatformat:4 }}
+            </span>
+            {% if same_collection %}
+            <span class="badge bg-secondary">same collection</span>
+            {% endif %}
+        </div>
+
+        <p class="text-muted">
+            Scanned <strong>{{ computed_at|date:"M j, Y, g:i a" }}</strong>.
+        </p>
+
+        {% if resolved %}
+        <div class="alert alert-info">
+            This pair is already resolved &mdash;
+            {% if image_a.duplicate_of_id %}image #{{ image_a.id }} is marked as a duplicate of
+                <a href="{% url 'images:image_detail' image_a.duplicate_of_id %}">#{{ image_a.duplicate_of_id }}</a>.
+            {% else %}image #{{ image_b.id }} is marked as a duplicate of
+                <a href="{% url 'images:image_detail' image_b.duplicate_of_id %}">#{{ image_b.duplicate_of_id }}</a>.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Side-by-side previews -->
+<div class="row g-3 mb-3">
+    {% for image in image_a_and_b %}
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span class="fw-semibold">{% if forloop.first %}Image A{% else %}Image B{% endif %} &middot; #{{ image.id }}</span>
+                <span class="d-flex gap-3 small">
+                    <a href="{{ image.get_absolute_url }}" target="_blank" rel="noopener">detail</a>
+                    <a href="{% url 'admin:images_image_change' image.id %}" target="_blank" rel="noopener">edit in admin</a>
+                </span>
+            </div>
+            <a href="{{ image.get_absolute_url }}" target="_blank" rel="noopener">
+                <img src="{{ image.display_permalink }}" loading="lazy"
+                     alt="{{ image.title|default:'Untitled image' }}"
+                     class="card-img-top dupe-preview w-100">
+            </a>
+            <div class="card-body py-2">
+                <div class="fw-semibold">{{ image.title|default:"(untitled)" }}</div>
+                <div class="text-muted small">{{ image.collection.source.name }} — {{ image.collection.name }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not resolved and not dismissed_pair %}
+<div class="row">
+    <div class="col-12">
+        <h5>Resolve: choose which image to keep</h5>
+        <p class="text-muted">
+            If these are the same image, keep one and retire the other. The image
+            you keep stays searchable; the other is marked as a duplicate and hidden
+            from search and georeferencing. Use the <strong>Keep</strong> buttons at the
+            bottom of each column.
+        </p>
+        {% if image_a.total_georef_count or image_b.total_georef_count %}
+        <div class="alert alert-warning">
+            <h6 class="alert-heading"><i class="fas fa-triangle-exclamation me-1"></i>Georeferences will be transferred</h6>
+            {% if image_a.total_georef_count and image_b.total_georef_count %}
+            <p class="mb-0">
+                <strong>Both images are georeferenced.</strong>
+                (#{{ image_a.id }}: {{ image_a.total_georef_count }};
+                #{{ image_b.id }}: {{ image_b.total_georef_count }}.)
+                Whichever you keep, the other's georeferences move onto it — nothing is deleted.
+            </p>
+            {% else %}
+            <p class="mb-0">
+                Resolving moves the retired image's georeferences onto the one you
+                keep — nothing is deleted.
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Field-by-field comparison (Keep buttons live in the footer) -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle dupe-compare mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col" style="width: 12rem;">Field</th>
+                        <th scope="col">Image #{{ image_a.id }}</th>
+                        <th scope="col">Image #{{ image_b.id }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="{% if image_a.title == image_b.title %}matches{% endif %}">
+                        <th scope="row">Title</th>
+                        <td>{{ image_a.title|default:"—" }}</td>
+                        <td>{{ image_b.title|default:"—" }}</td>
+                    </tr>
+                    <tr class="{% if same_collection %}matches{% endif %}">
+                        <th scope="row">Source / Collection</th>
+                        <td>{{ image_a.collection.source.name }} — {{ image_a.collection.name }}</td>
+                        <td>{{ image_b.collection.source.name }} — {{ image_b.collection.name }}</td>
+                    </tr>
+                    <tr class="{% if image_a.date_display == image_b.date_display %}matches{% endif %}">
+                        <th scope="row">Date</th>
+                        <td>{{ image_a.date_display }}</td>
+                        <td>{{ image_b.date_display }}</td>
+                    </tr>
+                    <tr class="{% if image_a.creator and image_a.creator == image_b.creator %}matches{% endif %}">
+                        <th scope="row">Creator</th>
+                        <td>{{ image_a.creator|default:"—" }}</td>
+                        <td>{{ image_b.creator|default:"—" }}</td>
+                    </tr>
+                    <tr class="{% if image_a.ref and image_a.ref == image_b.ref %}matches{% endif %}">
+                        <th scope="row">Reference</th>
+                        <td>{{ image_a.ref|default:"—" }}</td>
+                        <td>{{ image_b.ref|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">License</th>
+                        <td>{{ image_a.license.name|default:"—" }}</td>
+                        <td>{{ image_b.license.name|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Dimensions</th>
+                        <td>{% if image_a.width and image_a.height %}{{ image_a.width }}×{{ image_a.height }}{% else %}—{% endif %}</td>
+                        <td>{% if image_b.width and image_b.height %}{{ image_b.width }}×{{ image_b.height }}{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Georeference</th>
+                        <td>
+                            {{ image_a.georeference_status }}
+                            {% if image_a.total_georef_count %}
+                            <span class="badge bg-info-subtle text-info-emphasis ms-1">{{ image_a.point_georef_count }} point, {{ image_a.aerial_georef_count }} aerial</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ image_b.georeference_status }}
+                            {% if image_b.total_georef_count %}
+                            <span class="badge bg-info-subtle text-info-emphasis ms-1">{{ image_b.point_georef_count }} point, {{ image_b.aerial_georef_count }} aerial</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Subjects</th>
+                        <td>{% for s in image_a.subjects.all %}{{ s }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+                        <td>{% for s in image_b.subjects.all %}{{ s }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Description</th>
+                        <td class="small text-muted">{{ image_a.description|default:"—"|truncatewords:60 }}</td>
+                        <td class="small text-muted">{{ image_b.description|default:"—"|truncatewords:60 }}</td>
+                    </tr>
+                </tbody>
+                {% if not resolved and not dismissed_pair %}
+                <tfoot>
+                    <tr class="align-top">
+                        <th scope="row">Keep</th>
+                        {% for keeper, loser in resolve_choices %}
+                        <td>
+                            {% if loser.hard_blockers %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                    title="Can't retire #{{ loser.id }}: {{ loser.hard_blockers|join:'; ' }}.">
+                                Keep #{{ keeper.id }}
+                            </button>
+                            <div class="form-text">Can't keep #{{ keeper.id }} — #{{ loser.id }} {{ loser.hard_blockers|join:'; ' }}.</div>
+                            {% else %}
+                            <form method="post"
+                                  action="{% url 'images:resolve_duplicate_pair' pair.uuid %}"
+                                  onsubmit="return confirm('Keep #{{ keeper.id }} and retire #{{ loser.id }} as a duplicate?{% if loser.total_georef_count %} This MOVES {{ loser.total_georef_count }} georeference{{ loser.total_georef_count|pluralize }} from #{{ loser.id }} to #{{ keeper.id }}.{% endif %}');">
+                                {% csrf_token %}
+                                <input type="hidden" name="duplicate_id" value="{{ loser.id }}">
+                                <button type="submit" class="btn btn-sm {% if loser.total_georef_count %}btn-warning{% else %}btn-primary{% endif %}">
+                                    Keep #{{ keeper.id }}
+                                </button>
+                            </form>
+                            <div class="form-text">
+                                #{{ loser.id }} becomes a duplicate of #{{ keeper.id }}.
+                                {% if loser.total_georef_count %}
+                                <span class="text-warning-emphasis fw-semibold d-block">
+                                    <i class="fas fa-arrow-right-arrow-left me-1"></i>Moves {{ loser.total_georef_count }}
+                                    georeference{{ loser.total_georef_count|pluralize }}
+                                    ({{ loser.point_georef_count }} point, {{ loser.aerial_georef_count }} aerial)
+                                    from #{{ loser.id }} to #{{ keeper.id }}.
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Dismiss / restore -->
+{% if dismissed_pair %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2 mb-0">
+            <span>
+                <i class="fas fa-xmark me-1"></i>Dismissed as not a duplicate{% if dismissed_pair.dismissed_by %} by {{ dismissed_pair.dismissed_by.username }}{% endif %}
+                on {{ dismissed_pair.dismissed_at|date:"M j, Y" }}.
+            </span>
+            <form method="post" action="{% url 'images:restore_duplicate_pair' pair.uuid %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-rotate-left me-1"></i>Restore to list
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% elif not resolved %}
+<div class="row">
+    <div class="col-12">
+        <p class="text-muted mb-2">
+            Not the same image? Dismiss the pair so the nightly scan stops
+            surfacing it. You can restore it later.
+        </p>
+        <form method="post" action="{% url 'images:dismiss_duplicate_pair' pair.uuid %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'images:duplicate_image_pairs' %}">
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="fas fa-xmark me-1"></i>Not a duplicate — dismiss
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

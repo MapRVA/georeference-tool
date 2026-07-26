@@ -26,6 +26,17 @@
             {% if last_run %}<strong>{{ last_run|date:"M j, Y, g:i a" }}</strong>{% else %}<strong>never</strong>{% endif %}
         </p>
 
+        <div class="btn-group mb-3" role="group" aria-label="Filter duplicate pairs">
+            <a href="{% url 'images:duplicate_image_pairs' %}"
+               class="btn btn-sm {% if not show_dismissed %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Active <span class="badge text-bg-light ms-1">{{ active_count }}</span>
+            </a>
+            <a href="?show=dismissed"
+               class="btn btn-sm {% if show_dismissed %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Dismissed <span class="badge text-bg-light ms-1">{{ dismissed_count }}</span>
+            </a>
+        </div>
+
         {% if pairs %}
             {% for pair in pairs %}
             <div class="card mb-3">
@@ -37,6 +48,22 @@
                             </span>
                             {% if pair.image_a.collection_id == pair.image_b.collection_id %}
                             <div class="small text-muted mt-1">same collection</div>
+                            {% endif %}
+                            <a href="{% url 'images:duplicate_pair_detail' pair.uuid %}" class="btn btn-sm btn-outline-primary mt-2 w-100">
+                                Review
+                            </a>
+                            {% if show_dismissed %}
+                            <form method="post" action="{% url 'images:restore_duplicate_pair' pair.uuid %}" class="mt-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Restore</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="{% url 'images:dismiss_duplicate_pair' pair.uuid %}" class="mt-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Dismiss</button>
+                            </form>
                             {% endif %}
                         </div>
 
@@ -87,7 +114,7 @@
             {% endfor %}
         {% else %}
             <div class="alert alert-info">
-                {% if last_run %}No unresolved duplicate candidates right now.{% else %}The nightly scan hasn’t run yet.{% endif %}
+                {% if show_dismissed %}No dismissed pairs.{% elif last_run %}No unresolved duplicate candidates right now.{% else %}The nightly scan hasn’t run yet.{% endif %}
             </div>
         {% endif %}
     </div>

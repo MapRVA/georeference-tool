@@ -1,4 +1,5 @@
 import logging
+import uuid
 from io import BytesIO
 
 import requests
@@ -592,12 +593,21 @@ def refresh_duplicate_image_pairs():
     closest = sorted(pairs.items(), key=lambda item: item[1])[
         : settings.DUPLICATE_PAIRS_COUNT
     ]
+    # Preserve the uuid of any pair that persists across the rebuild so its
+    # review url stays stable; new pairs fall back to a fresh uuid.
+    existing_uuids = {
+        (a_id, b_id): pair_uuid
+        for a_id, b_id, pair_uuid in DuplicateImagePair.objects.values_list(
+            "image_a_id", "image_b_id", "uuid"
+        )
+    }
     computed_at = timezone.now()
     with transaction.atomic():
         DuplicateImagePair.objects.all().delete()
         DuplicateImagePair.objects.bulk_create(
             [
                 DuplicateImagePair(
+                    uuid=existing_uuids.get((a_id, b_id)) or uuid.uuid4(),
                     image_a_id=a_id,
                     image_b_id=b_id,
                     distance=distance,

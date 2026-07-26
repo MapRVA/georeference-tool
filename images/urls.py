@@ -50,6 +50,26 @@ urlpatterns = [
         views.duplicate_image_pairs,
         name="duplicate_image_pairs",
     ),
+    path(
+        "duplicate-pairs/<uuid:pair_uuid>/",
+        views.duplicate_pair_detail,
+        name="duplicate_pair_detail",
+    ),
+    path(
+        "duplicate-pairs/<uuid:pair_uuid>/resolve/",
+        views.resolve_duplicate_pair,
+        name="resolve_duplicate_pair",
+    ),
+    path(
+        "duplicate-pairs/<uuid:pair_uuid>/dismiss/",
+        views.dismiss_duplicate_pair,
+        name="dismiss_duplicate_pair",
+    ),
+    path(
+        "duplicate-pairs/<uuid:pair_uuid>/restore/",
+        views.restore_duplicate_pair,
+        name="restore_duplicate_pair",
+    ),
     # List and detail views
     path("", views.image_list, name="image_list"),
     path("stats/", views.image_stats, name="image_stats"),
