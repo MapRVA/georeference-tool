@@ -44,7 +44,7 @@ export default defineConfig({
         ),
         map_display: path.resolve(
           __dirname,
-          "./assets/js/components/map_display.js",
+          "./assets/js/components/map_display/index.ts",
         ),
         album_detail: path.resolve(
           __dirname,

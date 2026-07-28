@@ -50,12 +50,14 @@ As always, **please ask permission before running Django commands.** Thank you.
 
 Vite (managed by bun) bundles JavaScript and CSS from `/assets` into the gitignored `/static` directory (with a `manifest.json`). The application makes heavy use of **MapLibre**, and **Alpine.js** is universally available, so follow Alpine.js best practices where we can. The `vite` Compose service runs the dev server automatically with HMR.
 
-**Important**: When creating new page-specific JavaScript files in `assets/js/pages/`, you must also add them as entry points in `vite.config.js` under `rollupOptions.input`. Otherwise, the asset will work in development but fail in production with a 500 error.
+New frontend code is **TypeScript** (`strict`); the sitewide migration is in progress, starting with `assets/js/components/map_display/`. `tsconfig.json` at the repo root uses `allowJs`/`checkJs: false`, so existing `.js` files keep working unchecked until they're converted. `bun run typecheck` runs `tsc` — it's enforced by CI (`.github/workflows/typecheck.yml`) and by the container build. Multi-module components live in a directory with an `index.ts` entry.
+
+**Important**: When creating new page-specific JavaScript/TypeScript files in `assets/js/pages/`, you must also add them as entry points in `vite.config.js` under `rollupOptions.input`. Otherwise, the asset will work in development but fail in production with a 500 error. The same applies to renames (including `.js` → `.ts`): the `{% vite_asset %}` path in the template must match the entry's source path exactly, extension included, or production breaks while development keeps working.
 
 Other conventions worth knowing:
 - Templates load assets with **`django-vite`**: `{% load django_vite %}` then `{% vite_asset 'assets/js/pages/<name>.js' %}`. `templates/base.html` emits `{% vite_hmr_client %}` and the global `assets/index.js` bundle; pages add their own bundle via `{% block extra_js %}`.
 - `base.html` exposes server-side config to JS as `window.*` globals (e.g. `window.DEFAULT_MAP_CENTER`, `window.OSM_STYLE_URL`, `window.MAP_LAYERS_DATA`).
-- Shared helpers are global: `window.showAlert(type, message, duration)`, `window.getCsrfToken()`, `window.maplibregl`, `window.Alpine`, `window.bootstrap`.
+- Shared helpers are global: `window.showAlert(type, message, duration)`, `window.getCsrfToken()`, `window.Alpine`, `window.bootstrap`.
 - Register Alpine components with `Alpine.data(...)` in page scripts before `Alpine.start()` runs (handled in `index.js` on `DOMContentLoaded`).
 
 ## REST API
@@ -91,7 +93,7 @@ Project documentation (published at docs.yesterdays.maprva.org) is built from `d
 
 ## Testing and CI
 
-Tests use Django's built-in `TestCase` and live in `api/tests.py`, `images/tests.py`, and `maps/tests.py` (no pytest). Run them with `docker compose exec web uv run manage.py test`. CI (`.github/workflows/`) currently only builds the container image and the docs site — there is no automated test or lint step, so run tests locally.
+Tests use Django's built-in `TestCase` and live in `api/tests.py`, `images/tests.py`, and `maps/tests.py` (no pytest). Run them with `docker compose exec web uv run manage.py test`. CI (`.github/workflows/`) builds the container image and the docs site, and type-checks the frontend (`typecheck.yml`, also run during the container build) — there is no automated Python test or lint step, so run tests locally.
 
 ## Coding guidelines
 

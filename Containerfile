@@ -21,7 +21,7 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install Bun from official image
-COPY --from=oven/bun:1.3.5 /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=oven/bun:1.3.14 /usr/local/bin/bun /usr/local/bin/bun
 
 # Install Bun dependencies (including devDependencies for vite build)
 COPY package.json bun.lock ./
@@ -45,8 +45,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY uv.lock ./
 COPY manage.py ./
 COPY vite.config.js ./
+COPY tsconfig.json ./
 COPY pyproject.toml ./
 COPY assets ./assets
+
+# Type-check frontend sources before anything heavier runs
+RUN bun run typecheck
+
 COPY api ./api
 COPY images ./images
 COPY directories ./directories

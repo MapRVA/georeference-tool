@@ -13,7 +13,7 @@ Usage:
 {% endcomment %}
 
 <!-- Load bundled map display module (includes all CSS) -->
-{% vite_asset 'assets/js/components/map_display.js' %}
+{% vite_asset 'assets/js/components/map_display/index.ts' %}
 
 <div id="{{ map_id|default:'map-display' }}"></div>
 
@@ -21,23 +21,9 @@ Usage:
 document.addEventListener('DOMContentLoaded', function() {
     const mapId = '{{ map_id|default:'map-display' }}';
 
-    {% if enable_scale_visibility %}
-    // Scale visibility configuration
-    const scaleVisibilityConfig = {
-        5: { pinpointZoom: 0,  fullDetailZoom: 10 },
-        4: { pinpointZoom: 11, fullDetailZoom: 14 },
-        3: { pinpointZoom: 12, fullDetailZoom: 15 },
-        2: { pinpointZoom: 13, fullDetailZoom: 16.5 },
-        1: { pinpointZoom: 16.5, fullDetailZoom: 17.5 },
-    };
-    {% else %}
-    const scaleVisibilityConfig = {};
-    {% endif %}
-
     // Build vector tiles URL
     {% if disable_image_points %}
     const vectorTilesUrl = null;
-    const singleImageUrl = null;
     const allImagesUrl = null;
     {% elif show_other_images and image_id %}
     const baseUrlParams = new URLSearchParams();
@@ -54,7 +40,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Current image will be shown via GeoJSON, so vector tiles start hidden (null)
     const vectorTilesUrl = null;
-    const singleImageUrl = null;
     {% else %}
     const urlParams = new URLSearchParams();
 
@@ -80,7 +65,6 @@ document.addEventListener('DOMContentLoaded', function() {
         vectorTilesUrl += '?' + urlParams.toString();
     }
 
-    const singleImageUrl = null;
     const allImagesUrl = null;
     {% endif %}
 
@@ -91,12 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
         zoom: {{ zoom_level|default:default_map_zoom }},
         hash: {{ hash|yesno:"true,false,false" }},
         vectorTilesUrl: vectorTilesUrl,
-        singleImageUrl: singleImageUrl,
         allImagesUrl: allImagesUrl,
         showOtherImages: {{ show_other_images|yesno:"true,false,false" }},
         imageId: {% if image_id %}'{{ image_id }}'{% else %}null{% endif %},
+        // Scale zoom thresholds live in assets/js/components/map_display/scale_visibility.ts
         enableScaleVisibility: {{ enable_scale_visibility|yesno:"true,false,false" }},
-        scaleVisibilityConfig: scaleVisibilityConfig,
         includeGeocoder: {{ include_geocoder|yesno:"true,false,false" }},
         geolocate: {{ geolocate|yesno:"true,false,false" }},
         aerialGeoreference: {% if aerial_georeference %}{{ aerial_georeference.polygon.geojson|safe }}{% else %}null{% endif %},

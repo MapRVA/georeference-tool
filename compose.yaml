@@ -134,6 +134,7 @@ services:
     volumes:
       - ./assets:/app/assets
       - ./vite.config.js:/app/vite.config.js
+      - ./tsconfig.json:/app/tsconfig.json
 
 volumes:
   postgres-data:

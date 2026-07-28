@@ -25,12 +25,12 @@ import "../../styles/components/layer-control.css";
 
 export class LayerControl {
   /**
-   * @param {Object} options
-   * @param {boolean} options.showImageLayerToggle - Whether to show the image layer toggle (default: false)
-   * @param {string[]} options.overlayLayerIds - Layer IDs that should be considered overlay layers (for visibility checks)
-   * @param {string} options.beforeLayerId - Insert overlay tile layers before this layer ID
-   * @param {Function} options.onBaseLayerChange - Callback when base layer changes (receives layer key)
-   * @param {Function} options.onStyleSwap - Callback after a style swap completes (receives map instance)
+   * @param {Object} [options]
+   * @param {boolean} [options.showImageLayerToggle] - Whether to show the image layer toggle (default: false)
+   * @param {string[]} [options.overlayLayerIds] - Layer IDs that should be considered overlay layers (for visibility checks)
+   * @param {string} [options.beforeLayerId] - Insert overlay tile layers before this layer ID
+   * @param {Function} [options.onBaseLayerChange] - Callback when base layer changes (receives layer key)
+   * @param {Function} [options.onStyleSwap] - Callback after a style swap completes (receives map instance)
    */
   constructor(options = {}) {
     this.options = {
@@ -489,6 +489,9 @@ export class LayerControl {
     // 2. location hints
     // 3. context images (other georeferenced images)
     // 4. pin layers (user's placement marker - always on top)
+    // 5. image point layers
+    // 6. aerial georeference polygon (the only overlay present on
+    //    aerial-only image detail pages, where image points are disabled)
     const possibleBeforeLayers = [
       "subject-hints-pulse",
       "subject-hints-label",
@@ -503,6 +506,8 @@ export class LayerControl {
       "image-directions",
       "image-circles-simple",
       "image-directions-simple",
+      "aerial-polygon-fill",
+      "aerial-polygon-outline",
     ];
 
     for (const layerId of possibleBeforeLayers) {
