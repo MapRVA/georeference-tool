@@ -70,6 +70,62 @@
     border-color: var(--bs-primary);
 }
 
+/* Base style swap indicator (layer_control/swap_indicator.ts). While MapLibre
+   rebuilds the style — seconds of blocked main thread on large styles — the
+   button shows a spinner and "Switching…" in place of the layer name. Font
+   Awesome's fa-spin animates a transform, so the compositor keeps it turning
+   while the main thread is busy. */
+.layer-control .layer-control-busy-icon {
+    display: none;
+}
+
+.layer-control .layer-control-button[aria-busy="true"] {
+    cursor: progress;
+}
+
+.layer-control .layer-control-button[aria-busy="true"] .layer-control-icon {
+    display: none;
+}
+
+.layer-control .layer-control-button[aria-busy="true"] .layer-control-busy-icon {
+    display: inline-block;
+}
+
+/* Point size slider (simple display style), with a preview tooltip.
+   Its size, stroke width and horizontal position are set from JS in
+   layer_control/image_layer_panel.ts. */
+.radius-slider-wrapper {
+    position: relative;
+}
+
+.radius-slider-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #333;
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+
+.radius-slider-tooltip-dot {
+    display: inline-block;
+    box-sizing: border-box;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--bs-primary);
+}
+
 /* Reset font when offcanvas is inside map container (fullscreen mode) */
 .maplibregl-map .offcanvas {
     font: var(--bs-body-font-size) / var(--bs-body-line-height)

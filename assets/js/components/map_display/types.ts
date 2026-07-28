@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MultiPolygon, Polygon } from "geojson";
-import type { LayerControl } from "../layer_control.js";
+import type { LayerControl } from "../layer_control";
 
 // Zoom thresholds for a map scale (1-5): pinpointZoom is where points become
 // visible, fullDetailZoom is where they become interactive.

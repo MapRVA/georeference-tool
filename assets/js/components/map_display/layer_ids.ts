@@ -1,6 +1,5 @@
 // Source, layer, and sprite ids owned by the map_display component.
-// layer_control.js currently hardcodes the same strings; it can import these
-// once it migrates to TypeScript.
+// layer_control/ imports these to decide layer stacking and visibility.
 export const SOURCE_IDS = {
   images: "images",
   currentImage: "current-image",

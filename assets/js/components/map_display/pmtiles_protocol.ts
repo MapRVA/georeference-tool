@@ -1,9 +1,8 @@
 import maplibregl from "maplibre-gl";
 import * as pmtiles from "pmtiles";
 
-// Registered on window (not exported) because still-JS modules
-// (layer_control.js) and other page bundles share one protocol
-// registration per page through these globals.
+// Registered on window (not exported) because layer_control/ and the still-JS
+// page bundles share one protocol registration per page through these globals.
 window.pmtilesProtocolSetup = false;
 
 window.setupPMTilesProtocol = function () {

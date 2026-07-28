@@ -11,7 +11,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../../styles/components/map-display.css";
 import "./pmtiles_protocol";
-import { LayerControl } from "../layer_control.js";
+import { LayerControl } from "../layer_control";
 import { addResponsiveGeocoder } from "../responsive_geocoder.js";
 import { boundsFromAerialGeometry } from "./bounds";
 import { primaryColor, dangerColor } from "./colors";

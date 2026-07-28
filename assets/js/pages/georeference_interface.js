@@ -14,7 +14,7 @@ import * as pmtiles from "pmtiles";
 import { initSubjectEditor } from "../components/subject_editor.js";
 import { initImageViewer } from "../components/image_viewer.js";
 import { OSM_STYLE_URL } from "../constants/map.js";
-import { LayerControl } from "../components/layer_control.js";
+import { LayerControl } from "../components/layer_control";
 import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
 import {
   deduplicateFeatures,
