@@ -42,6 +42,9 @@ x-app: &app
     ALLOW_HARDCODED_ADMIN: "1"
     DJANGO_DEBUG: "1"
     DJANGO_VITE_DEV_MODE: "True"
+    # Must match vite's published host port (below) — this is the URL the
+    # browser uses to fetch assets, not an in-network address.
+    DJANGO_VITE_DEV_PORT: "${VITE_PORT:-5173}"
   volumes:
     - .:/app
   depends_on:
@@ -73,7 +76,9 @@ services:
     image: docker.io/library/rabbitmq:3-management
     ports:
       # Broker (5672) stays internal; only the management UI is published.
-      - "15672:15672" # management UI at http://localhost:15672 (guest/guest)
+      # Host port is configurable to dodge collisions with other projects:
+      # `RABBITMQ_PORT=15673 docker compose up`.
+      - "${RABBITMQ_PORT:-15672}:15672" # management UI (guest/guest)
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -128,7 +133,9 @@ services:
     build: *build
     command: bun run dev --host
     ports:
-      - "5173:5173"
+      # Host port is configurable to dodge collisions with other projects:
+      # `VITE_PORT=5174 docker compose up`. The container always listens on 5173.
+      - "${VITE_PORT:-5173}:5173"
     # Mount only frontend source, so the image's node_modules isn't shadowed
     # by the host's (which may be built for a different platform).
     volumes:
