@@ -449,6 +449,9 @@ METADATA_REFRESH_POSTPASS_TIMEOUT = int(
 OXIGRAPH_URL = os.getenv("OXIGRAPH_URL", "http://localhost:7878")
 OXIGRAPH_TIMEOUT = int(os.getenv("OXIGRAPH_TIMEOUT", "60"))
 
+# How long the subjects-map info panel's JSON responses may be cached.
+SUBJECT_MAP_INFO_CACHE_SECONDS = int(os.getenv("SUBJECT_MAP_INFO_CACHE_SECONDS", "300"))
+
 # Languages whose literals the Wikidata mirror keeps (comma-separated BCP47
 # tags).
 WIKIDATA_MIRROR_LANGUAGES = [

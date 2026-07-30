@@ -13,6 +13,7 @@ from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 from psycopg import sql
@@ -665,6 +666,29 @@ def reorder_subjects(request, image_id):
         )
 
 
+def _public_image_count_annotations():
+    """Annotations counting a subject's publicly visible images.
+
+    Shared by the browse page and the subjects-map info panel so both report
+    the same numbers: originals only (no duplicates), from public collections
+    of public sources.
+    """
+    public_images = Q(
+        image_mappings__image__duplicate_of__isnull=True,
+        image_mappings__image__collection__public=True,
+        image_mappings__image__collection__source__public=True,
+    )
+    return {
+        "total_images": models.Count("image_mappings", filter=public_images),
+        "georeferenced_images": models.Count(
+            "image_mappings",
+            filter=public_images
+            & Q(image_mappings__image__georeferences__isnull=False),
+            distinct=True,
+        ),
+    }
+
+
 def browse_subjects(request):
     """Browse all subjects with search and load-more support."""
     PER_PAGE = 100
@@ -672,26 +696,7 @@ def browse_subjects(request):
     subjects = (
         Subject.objects.all()
         .select_related("wikidata_item", "representative_image")
-        .annotate(
-            total_images=models.Count(
-                "image_mappings",
-                filter=Q(
-                    image_mappings__image__duplicate_of__isnull=True,
-                    image_mappings__image__collection__public=True,
-                    image_mappings__image__collection__source__public=True,
-                ),
-            ),
-            georeferenced_images=models.Count(
-                "image_mappings",
-                filter=Q(
-                    image_mappings__image__duplicate_of__isnull=True,
-                    image_mappings__image__collection__public=True,
-                    image_mappings__image__collection__source__public=True,
-                    image_mappings__image__georeferences__isnull=False,
-                ),
-                distinct=True,
-            ),
-        )
+        .annotate(**_public_image_count_annotations())
         .filter(total_images__gt=0)
         .order_by("-total_images", "title")
     )
@@ -798,6 +803,41 @@ def subjects_map(request):
     ``images.context_processors.site_settings``).
     """
     return render(request, "subjects/subjects_map.html")
+
+
+@cache_control(public=True, max_age=settings.SUBJECT_MAP_INFO_CACHE_SECONDS)
+def subject_map_info(request, subject_slug):
+    """Compact subject summary for the subjects-map hover/pin panel.
+
+    Vector tiles only carry a subject's title and slug, so the panel fetches
+    the rest here. Kept deliberately cheap — no Oxigraph round-trips — because
+    it is requested on hover.
+    """
+    subject = get_object_or_404(
+        Subject.objects.select_related(
+            "wikidata_item", "representative_image"
+        ).annotate(**_public_image_count_annotations()),
+        slug=subject_slug,
+    )
+
+    representative_image = subject.get_representative_image()
+    wikidata_item = subject.wikidata_item if subject.wikidata_item_id else None
+
+    return JsonResponse(
+        {
+            "slug": subject.slug,
+            "title": subject.title,
+            "url": subject.get_absolute_url(),
+            "description": subject.get_description(),
+            "thumbnail": representative_image.thumbnail
+            if representative_image
+            else None,
+            "total_images": subject.total_images,
+            "georeferenced_images": subject.georeferenced_images,
+            "wikidata_id": wikidata_item.wikidata_id if wikidata_item else None,
+            "wikidata_url": wikidata_item.wikidata_url if wikidata_item else None,
+        }
+    )
 
 
 def subject_detail(request, subject_slug):

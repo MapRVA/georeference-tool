@@ -14,9 +14,8 @@
 {% block extra_js %}
 <script>
     window.PROTOMAPS_API_KEY = "{{ protomaps_api_key }}";
-    window.VECTOR_TILES_URL = "{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}".replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');
 </script>
-{% vite_asset 'assets/js/pages/subjects_map.js' %}
+{% vite_asset 'assets/js/pages/subjects_map/index.ts' %}
 {% endblock %}
 
 
@@ -27,7 +26,7 @@
     <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
             <h1><i class="fas fa-map me-3"></i>Subjects Map</h1>
-            <p class="text-muted mb-0">Explore image subjects, including notable buildings, statues, and natural features. Hover an entry to preview its images, and click to open it.</p>
+            <p class="text-muted mb-0">Explore image subjects, including notable buildings, statues, and natural features. Hover an entry to preview it, and click to keep its details open.</p>
         </div>
         <a href="{% url 'subjects:browse_subjects' %}" class="btn btn-outline-secondary">
             <i class="fas fa-map-pin me-2"></i>Browse Subjects
@@ -35,5 +34,67 @@
     </div>
 </div>
 
-<div id="subjects-map"></div>
+{# The map and its info card share this wrapper so both go fullscreen together. #}
+<div id="subjects-map-wrapper"
+     class="position-relative d-flex flex-column flex-grow-1"
+     x-data="subjectsMapPanel()"
+     data-tiles-url="{% url 'images:vector_tiles' v=tile_version z=0 x=0 y=0 %}"
+     data-osm-elements-url="{% url 'images:osm_elements_tiles' z=0 x=0 y=0 %}"
+     data-info-url="{% url 'subjects:subject_map_info' subject_slug='__slug__' %}"
+     data-subject-url="{% url 'subjects:subject_detail' subject_slug='__slug__' %}"
+     @subjects-map:preview.window="preview($event.detail)"
+     @subjects-map:pin.window="pin($event.detail)"
+     @subjects-map:clear.window="dismiss()"
+     @keydown.escape.window="close()">
+    <div id="subjects-map"></div>
+
+    <aside id="subject-info-panel" class="card shadow" role="region" aria-label="Subject information"
+           x-show="open" x-cloak x-transition.opacity>
+        {# Same overlay control as subjects/partials/subject_card.html #}
+        <div class="position-absolute top-0 end-0 p-1" x-show="pinned">
+            <button type="button" class="btn btn-sm btn-light" title="Close details"
+                    aria-label="Close details" @click="close()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <img class="card-img-top" alt="" loading="lazy"
+             x-show="detail && detail.thumbnail" :src="detail?.thumbnail">
+
+        <div class="card-body">
+            {# Without a thumbnail the close button floats over this heading. #}
+            <h2 class="h6 card-title mb-1" aria-live="polite" x-text="title"
+                :class="pinned && !(detail && detail.thumbnail) ? 'pe-5' : ''"></h2>
+
+            <template x-if="loading">
+                <p class="placeholder-glow mb-0">
+                    <span class="placeholder col-10"></span>
+                    <span class="placeholder col-6"></span>
+                </p>
+            </template>
+
+            <template x-if="detail">
+                <div>
+                    <p class="small text-muted mb-2" x-text="detail.description"></p>
+                    <p class="small mb-3" x-text="countsLabel"></p>
+                </div>
+            </template>
+
+            {# Default `stretch` keeps the icon-only button the same height as the text one; it centres the logo itself. #}
+            <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-primary" :href="subjectUrl">
+                    View subject</i>
+                </a>
+
+                <a class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                   target="_blank" rel="noopener"
+                   x-show="detail && detail.wikidata_url" :href="detail?.wikidata_url"
+                   :title="'View on Wikidata (' + (detail?.wikidata_id ?? '') + ')'">
+                    {% include 'subjects/partials/wikidata_logo.html' %}
+                    <span class="visually-hidden">View on Wikidata</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+</div>
 {% endblock %}

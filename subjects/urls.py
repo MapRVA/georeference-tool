@@ -32,6 +32,11 @@ urlpatterns = [
     ),
     path("api/all/", views.all_subjects_api, name="all_subjects_api"),
     path(
+        "api/map-info/<slug:subject_slug>/",
+        views.subject_map_info,
+        name="subject_map_info",
+    ),
+    path(
         "api/bulk-add/",
         views.bulk_add_subject_to_images,
         name="bulk_add_subject_to_images",
