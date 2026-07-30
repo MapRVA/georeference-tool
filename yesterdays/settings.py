@@ -605,6 +605,24 @@ OAUTH2_PROVIDER = {
     "REFRESH_TOKEN_GRACE_PERIOD_SECONDS": 30,
     "PKCE_REQUIRED": True,
     "ALLOWED_REDIRECT_URI_SCHEMES": ["http", "https"],
+    # RFC 8414 discovery document (/.well-known/oauth-authorization-server).
+    # DOT's defaults advertise everything it *can* do; these narrow the document
+    # to what this server actually accepts. Applications are registered with the
+    # authorization-code grant only (see api/views.register_app_view), so the
+    # implicit, password, client-credentials, and device-code grants never apply.
+    "OAUTH2_GRANT_TYPES_SUPPORTED": ["authorization_code", "refresh_token"],
+    "OAUTH2_RESPONSE_TYPES_SUPPORTED": ["code"],
+    # Public clients authenticate at /oauth/token/ with PKCE and no secret,
+    # which RFC 8414 spells as the "none" auth method; DOT's default omits it.
+    "OAUTH2_TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED": [
+        "client_secret_post",
+        "client_secret_basic",
+        "none",
+    ],
+    # S256OnlyAuthorizationView already rejects code_challenge_method=plain at
+    # /oauth/authorize/. Enabling the gate makes the validator reject it too and
+    # keeps "plain" out of code_challenge_methods_supported.
+    "COMPLIANT_BCP_RFC9700_PKCE_METHOD": True,
 }
 
 # drf-spectacular (OpenAPI schema generation)

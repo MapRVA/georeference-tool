@@ -20,7 +20,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
-from oauth2_provider.urls import base_urlpatterns, management_urlpatterns
+from oauth2_provider.urls import (
+    base_urlpatterns,
+    management_urlpatterns,
+    metadata_urlpatterns,
+)
 
 from osm_auth import views as auth_views
 from subjects import views as subject_views
@@ -89,6 +93,15 @@ _oauth_management_urlpatterns = _override_urlpatterns(
     },
 )
 
+# RFC 8414 authorization server metadata, served from the site root (the spec
+# locates the document at the origin's /.well-known/, not under our /oauth/
+# prefix).
+_oauth_metadata_urlpatterns = _override_urlpatterns(
+    metadata_urlpatterns,
+    overrides={},
+    excluded={"oauth-resource-metadata", "oauth-resource-metadata-path"},
+)
+
 urlpatterns = [
     path("", views.home, name="home"),
     path("robots.txt", views.robots_txt, name="robots_txt"),
@@ -135,12 +148,15 @@ urlpatterns = [
         name="wikidata_lookup",
     ),
     path("api/v2/", include("api.urls")),
-    # Protocol endpoints at /oauth/ and user-facing app/token management at
-    # /settings/oauth/ share a single "oauth2_provider" namespace so that
-    # reverse lookups like {% url 'oauth2_provider:list' %} work across both.
+    # Protocol endpoints at /oauth/, user-facing app/token management at
+    # /settings/oauth/, and the RFC 8414 metadata document at the site root
+    # share a single "oauth2_provider" namespace so that reverse lookups like
+    # {% url 'oauth2_provider:list' %} work across all three (the metadata view
+    # itself reverses "oauth2_provider:authorize" and friends).
     # OIDC endpoints from the package are intentionally not mounted; we have
     # no use case for federated identity (we already delegate identity to OSM
-    # upstream).
+    # upstream). Discovery works without them: RFC 8414 is OAuth-only and is
+    # not gated behind OIDC_ENABLED.
     path(
         "",
         include(
@@ -148,6 +164,7 @@ urlpatterns = [
                 [
                     path("oauth/", include(_oauth_base_urlpatterns)),
                     path("settings/oauth/", include(_oauth_management_urlpatterns)),
+                    path("", include(_oauth_metadata_urlpatterns)),
                 ],
                 "oauth2_provider",
             )
