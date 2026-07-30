@@ -4,7 +4,7 @@ import {
   OSM_STYLE_URL,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
-} from "../constants/map.js";
+} from "../constants/map";
 
 // Import image grid component (includes bulk selection and modal functionality)
 import { imageGrid } from "../components/image_grid.js";

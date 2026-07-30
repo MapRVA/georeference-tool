@@ -17,7 +17,7 @@ import {
   OSM_STYLE_URL,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
-} from "../constants/map.js";
+} from "../constants/map";
 import { LayerControl } from "../components/layer_control";
 import { initSubjectEditor } from "../components/subject_editor.js";
 import { initImageViewer } from "../components/image_viewer.js";

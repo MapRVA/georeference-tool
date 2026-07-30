@@ -1,15 +1,51 @@
-#subjects-map {
-    width: 100%;
-    flex: 1 1 auto;
+#subjects-map-wrapper {
     min-height: 50vh;
 }
 
-/* MapLibre popup dark mode support */
-.maplibregl-popup-content {
-    background-color: var(--bs-body-bg) !important;
-    color: var(--bs-body-color) !important;
+#subjects-map {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
-.maplibregl-popup-tip {
-    border-top-color: var(--bs-body-bg) !important;
+/* The fullscreen control targets the wrapper so the info card comes along. */
+#subjects-map-wrapper:fullscreen {
+    height: 100%;
+    background-color: var(--bs-body-bg);
+}
+
+/* Info card revealed by hovering or tapping a subject. Offset from the top so
+   it clears MapLibre's fullscreen control in the same corner. */
+#subject-info-panel {
+    position: absolute;
+    top: 3.25rem;
+    right: 0.5rem;
+    z-index: 3;
+    width: min(20rem, calc(100% - 1rem));
+    max-height: calc(100% - 4rem);
+    overflow-y: auto;
+}
+
+#subject-info-panel[x-cloak] {
+    display: none !important;
+}
+
+#subject-info-panel .card-img-top {
+    height: 150px;
+    object-fit: cover;
+}
+
+/* On phones the card becomes a bottom sheet: a corner card would cover the
+   subject you just tapped. */
+@media (max-width: 575.98px) {
+    #subject-info-panel {
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-height: 45%;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+    }
 }

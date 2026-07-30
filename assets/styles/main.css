@@ -20,6 +20,13 @@
     padding: 0;
 }
 
+/* Wikidata brand mark, inlined by templates/subjects/partials/wikidata_logo.html.
+   The source viewBox is 32x18, so setting height alone fixes both dimensions. */
+.wikidata-logo {
+    height: 1em;
+    vertical-align: middle;
+}
+
 .action-button {
     transition: all 0.2s ease;
 }

@@ -13,13 +13,13 @@ import * as pmtiles from "pmtiles";
 
 import { initSubjectEditor } from "../components/subject_editor.js";
 import { initImageViewer } from "../components/image_viewer.js";
-import { OSM_STYLE_URL } from "../constants/map.js";
+import { OSM_STYLE_URL } from "../constants/map";
 import { LayerControl } from "../components/layer_control";
-import { addResponsiveGeocoder } from "../components/responsive_geocoder.js";
+import { addResponsiveGeocoder } from "../components/responsive_geocoder";
 import {
   deduplicateFeatures,
   buildPopupWrapper,
-} from "../components/map_popup.js";
+} from "../components/map_popup";
 
 // Get colors from Bootstrap's CSS custom properties
 const dangerColor =

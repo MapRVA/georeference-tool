@@ -12,6 +12,13 @@
     max-width: 60vw;
 }
 
+.popup-image {
+    border-radius: 0.5em;
+    width: 30em;
+    max-width: 100%;
+    height: auto;
+}
+
 /* Popup navigation for overlapping features */
 .maplibregl-popup-content:has(.popup-nav-row) {
     padding-top: 4px;

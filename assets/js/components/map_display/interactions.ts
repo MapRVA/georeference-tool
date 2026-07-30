@@ -1,5 +1,5 @@
 import maplibregl from "maplibre-gl";
-import { deduplicateFeatures, buildPopupWrapper } from "../map_popup.js";
+import { deduplicateFeatures, buildPopupWrapper } from "../map_popup";
 import { LAYER_IDS } from "./layer_ids";
 import type { MapDisplayContext } from "./types";
 

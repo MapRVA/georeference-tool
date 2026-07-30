@@ -24,7 +24,20 @@ declare global {
     OSM_STYLE_URL?: string;
     DEFAULT_MAP_CENTER?: [number, number];
     DEFAULT_MAP_ZOOM?: number;
+
+    // Geocoder configuration: the search bounding box is
+    // [west, south, east, north]; ADMIN_EMAIL is sent to Nominatim as a
+    // contact address and is null when unset.
+    DEFAULT_SEARCH_BBOX?: [number, number, number, number];
+    ADMIN_EMAIL?: string | null;
+
     MAP_LAYERS_DATA?: MapLayersData;
+
+    // Protomaps basemap key, set by pages that build their own basemap style
+    PROTOMAPS_API_KEY?: string;
+
+    // Alpine.js, assigned globally in assets/index.js
+    Alpine: typeof import("alpinejs").default;
 
     bootstrap: BootstrapNamespace;
 

@@ -6,13 +6,13 @@ import {
   OSM_STYLE_URL,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
-} from "../../constants/map.js";
+} from "../../constants/map";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../../styles/components/map-display.css";
 import "./pmtiles_protocol";
 import { LayerControl } from "../layer_control";
-import { addResponsiveGeocoder } from "../responsive_geocoder.js";
+import { addResponsiveGeocoder } from "../responsive_geocoder";
 import { boundsFromAerialGeometry } from "./bounds";
 import { primaryColor, dangerColor } from "./colors";
 import { setupMapDataLayers } from "./data_layers";
@@ -31,7 +31,7 @@ import type {
 export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
   const {
     mapId,
-    center = DEFAULT_MAP_CENTER as [number, number],
+    center = DEFAULT_MAP_CENTER,
     zoom = DEFAULT_MAP_ZOOM,
     hash = false,
     vectorTilesUrl = null,

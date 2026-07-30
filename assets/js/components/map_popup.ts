@@ -1,12 +1,18 @@
-/**
- * Shared popup builder for map image features.
- * Used by map_display.js and georeference_interface.js.
- */
+// Shared popup builder for map image features. Used by the map_display
+// component and the georeference interface.
+import type { MapGeoJSONFeature } from "maplibre-gl";
 
-/**
- * Build DOM content for a single image feature popup.
- */
-export function buildPopupContent(properties) {
+// The image-point properties a popup renders. Vector tile features type their
+// properties as `any`, so this shape is asserted at the boundary in
+// buildPopupWrapper().
+interface ImagePopupProperties {
+  id: string;
+  thumbnail: string;
+  original_date?: string | null;
+}
+
+// Build DOM content for a single image feature popup.
+function buildPopupContent(properties: ImagePopupProperties): HTMLDivElement {
   const imgEntry = window.location.origin + "/" + properties.id + "/";
   const container = document.createElement("div");
 
@@ -15,14 +21,12 @@ export function buildPopupContent(properties) {
 
   const img = document.createElement("img");
   img.src = properties.thumbnail;
-  img.style.cssText =
-    "border-radius: 0.5em; width: 30em; max-width: 100%; height: auto;";
+  img.className = "popup-image";
   imgLink.appendChild(img);
   container.appendChild(imgLink);
 
   const footer = document.createElement("div");
-  footer.className =
-    "d-flex align-items-center justify-content-between mt-1";
+  footer.className = "d-flex align-items-center justify-content-between mt-1";
 
   if (properties.original_date) {
     const dateSpan = document.createElement("span");
@@ -43,11 +47,12 @@ export function buildPopupContent(properties) {
   return container;
 }
 
-/**
- * Deduplicate an array of map features by properties.id.
- */
-export function deduplicateFeatures(features) {
-  const seen = new Set();
+// Deduplicate an array of map features by properties.id. A single click can
+// return the same image from more than one layer.
+export function deduplicateFeatures(
+  features: MapGeoJSONFeature[],
+): MapGeoJSONFeature[] {
+  const seen = new Set<unknown>();
   return features.filter((f) => {
     const id = f.properties.id;
     if (seen.has(id)) return false;
@@ -56,24 +61,23 @@ export function deduplicateFeatures(features) {
   });
 }
 
-/**
- * Build a popup DOM wrapper with navigation for multiple features.
- * For a single feature, returns just the content with no nav row.
- */
-export function buildPopupWrapper(features) {
+// Build a popup DOM wrapper with navigation for multiple features.
+// For a single feature, returns just the content with no nav row.
+export function buildPopupWrapper(
+  features: MapGeoJSONFeature[],
+): HTMLDivElement {
   const wrapper = document.createElement("div");
   const contentSlot = document.createElement("div");
 
   let currentIndex = 0;
 
-  let prevBtn = null;
-  let nextBtn = null;
-  let navLabel = null;
+  let prevBtn: HTMLButtonElement | null = null;
+  let nextBtn: HTMLButtonElement | null = null;
+  let navLabel: HTMLSpanElement | null = null;
 
   if (features.length > 1) {
     const navRow = document.createElement("div");
-    navRow.className =
-      "popup-nav-row d-flex align-items-center gap-2 mb-1";
+    navRow.className = "popup-nav-row d-flex align-items-center gap-2 mb-1";
 
     prevBtn = document.createElement("button");
     prevBtn.type = "button";
@@ -96,10 +100,13 @@ export function buildPopupWrapper(features) {
 
   wrapper.appendChild(contentSlot);
 
-  const showFeature = (index) => {
+  const showFeature = (index: number) => {
+    const feature = features[index];
+    if (!feature) return;
+
     currentIndex = index;
     contentSlot.replaceChildren(
-      buildPopupContent(features[index].properties),
+      buildPopupContent(feature.properties as ImagePopupProperties),
     );
     if (navLabel) {
       navLabel.textContent = index + 1 + " of " + features.length;
@@ -119,8 +126,7 @@ export function buildPopupWrapper(features) {
   }
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
-      if (currentIndex < features.length - 1)
-        showFeature(currentIndex + 1);
+      if (currentIndex < features.length - 1) showFeature(currentIndex + 1);
     });
   }
 

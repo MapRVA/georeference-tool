@@ -82,7 +82,7 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/similar_images.js",
         ),
-        map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.js"),
+        map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.ts"),
         activity_feed: path.resolve(
           __dirname,
           "./assets/js/pages/activity_feed.js",
