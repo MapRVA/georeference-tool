@@ -73,6 +73,12 @@
     /* --md-code-font: "Roboto Mono"; */
 }
 
+/* --- Mermaid diagrams ----------------------------------------------------- */
+/* The theme leaves diagrams flush left; center them within the content area. */
+.md-typeset .mermaid {
+    text-align: center;
+}
+
 /* --- Dark mode (slate scheme) -------------------------------------------- */
 /* Uncomment to customize dark mode separately.                              */
 [data-md-color-scheme="slate"] {
