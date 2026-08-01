@@ -1,0 +1,1 @@
+../../../assets/js/components/image_viewer.js

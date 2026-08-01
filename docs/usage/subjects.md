@@ -11,12 +11,14 @@ Subjects represent the entities in images. They could be:
 
 In general, a subject needs to be a physical, observable, _thing_.
 
+
+
 ## Exploring Subjects
 
 The [subjects page](https://yesterdays.maprva.org/subjects/) provides two ways to explore subjects:
 
 - A map showing buildings, parks, etc. using [OpenStreetMap](https://openstreetmap.org) data.
-- A autocomplete-enabled search bar where you can filter by category.
+- An autocomplete-enabled search bar where you can filter by category.
 
 As demonstrated by the links at the top of this page, categories are determined by Wikidata relationships such as [`P31 instance of`](https://www.wikidata.org/wiki/Property:P31) or [`P279 subclass of`](https://www.wikidata.org/wiki/Property:P279). This system of categories allows us to tag specific things like [Morgan Fountain](https://yesterdays.maprva.org/subjects/morgan-fountain/), and have those photos also show up on the page for [fountain](https://yesterdays.maprva.org/subjects/fountain/). This works because [`Q137179642 Morgan Fountain`](https://www.wikidata.org/wiki/Q137179642) is an instance of [`Q483453 fountain`](https://www.wikidata.org/wiki/Q483453).
 

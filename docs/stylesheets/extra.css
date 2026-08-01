@@ -79,6 +79,105 @@
     text-align: center;
 }
 
+/* --- Embedded interface demos -------------------------------------------- */
+.md-typeset .ui-demo-figure {
+    margin: 1.5rem 0;
+    width: 100%;
+}
+
+.md-typeset .ui-demo-flow {
+    display: flow-root;
+    margin: 1.5rem 0;
+}
+
+.md-typeset .ui-demo-flow--float .ui-demo-copy--lead > :first-child {
+    margin-top: 0;
+}
+
+.md-typeset .ui-demo-flow--float .ui-demo-copy--lead > :last-child {
+    margin-bottom: 0;
+}
+
+.md-typeset .ui-demo-frame {
+    display: block;
+    width: 100%;
+    height: 30rem;
+    border: 0;
+    background: transparent;
+}
+
+.md-typeset .ui-demo-frame--details {
+    height: 43rem;
+}
+
+.md-typeset .ui-demo-frame--viewer {
+    margin: 0.75rem 0 1.5rem;
+}
+
+.md-typeset .ui-demo-frame--georeference {
+    height: 38rem;
+    margin: 0.75rem 0 1.5rem;
+}
+
+.md-typeset .ui-demo-figure figcaption {
+    margin-top: 0.5rem;
+    color: var(--md-default-fg-color--light);
+    font-size: inherit;
+    text-align: center;
+}
+
+@media screen and (min-width: 45em) {
+    .md-typeset .ui-demo-flow--float .ui-demo-copy--lead {
+        float: left;
+        width: 55%;
+    }
+
+    .md-typeset .ui-demo-flow--float .ui-demo-figure {
+        float: right;
+        margin: 0;
+        width: 42%;
+    }
+
+    .md-typeset .ui-demo-flow--card .ui-demo-figure {
+        max-width: 15rem;
+    }
+}
+
+/* --- Badges --------------------------------------------------------------- */
+/* Inline equivalents of the badges shown on image cards. Colors are the app's
+   Bootstrap theme colors (see docs/usage/demos/ui-demo.css); the orange needs
+   dark text to stay readable, so text color is set per-modifier.
+   Usage: **Easy**{ .badge .badge--easy } */
+.md-typeset .badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    border-radius: 0.375rem;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.md-typeset .badge--easy {
+    background-color: #527448;
+    color: #fff;
+}
+
+.md-typeset .badge--medium {
+    background-color: #dc8434;
+    color: #0b1722;
+}
+
+.md-typeset .badge--difficult {
+    background-color: #d52e1c;
+    color: #fff;
+}
+
+.md-typeset .badge--skip {
+    background-color: #747375;
+    color: #fff;
+}
+
 /* --- Dark mode (slate scheme) -------------------------------------------- */
 /* Uncomment to customize dark mode separately.                              */
 [data-md-color-scheme="slate"] {

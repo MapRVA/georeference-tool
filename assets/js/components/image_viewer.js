@@ -1,5 +1,5 @@
 import OpenSeadragon from "openseadragon";
-import { addViewerButtons } from "./osd_buttons";
+import { addViewerButtons } from "./osd_buttons.js";
 
 export function initImageViewer() {
   const osdEl = document.getElementById("osd-viewer");

@@ -4,6 +4,7 @@
  */
 
 import "../../styles/pages/georeference-interface.css";
+import "../../styles/components/georeference-joystick.css";
 import "../../styles/components/map-display.css";
 import "../../styles/components/image-viewer.css";
 import "maplibre-gl/dist/maplibre-gl.css";

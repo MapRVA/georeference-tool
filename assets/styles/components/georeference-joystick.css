@@ -1,0 +1,31 @@
+#joystick-container {
+    display: block;
+    position: relative;
+    width: 6.5em;
+    height: 6.5em;
+    min-width: 6.5em;
+    background: var(--bs-secondary-bg);
+    border: 0.1em solid var(--bs-border-color);
+    border-radius: 50%;
+    flex-shrink: 0;
+    user-select: none;
+    touch-action: none;
+}
+
+#joystick-handle {
+    width: 1.5em;
+    height: 1.5em;
+    background: var(--bs-secondary);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    transition: none;
+}
+
+#joystick-handle:active {
+    cursor: grabbing;
+}

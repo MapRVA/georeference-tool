@@ -1,0 +1,166 @@
+:root,
+[data-bs-theme="light"] {
+    color-scheme: light;
+    --bs-body-color: #0b1722;
+    --bs-body-color-rgb: 11, 23, 34;
+    --bs-body-bg: #fffdf9;
+    --bs-body-bg-rgb: 255, 253, 249;
+    --bs-emphasis-color: #000;
+    --bs-secondary-color: rgba(11, 23, 34, 0.75);
+    --bs-tertiary-color: rgba(11, 23, 34, 0.5);
+    --bs-secondary-bg: #f5f2eb;
+    --bs-tertiary-bg: #f0ede6;
+    --bs-primary: #286071;
+    --bs-primary-rgb: 40, 96, 113;
+    --bs-secondary: #747375;
+    --bs-secondary-rgb: 116, 115, 117;
+    --bs-success: #527448;
+    --bs-success-rgb: 82, 116, 72;
+    --bs-warning: #dc8434;
+    --bs-warning-rgb: 220, 132, 52;
+    --bs-danger: #d52e1c;
+    --bs-danger-rgb: 213, 46, 28;
+    --bs-info: #c07684;
+    --bs-info-rgb: 192, 118, 132;
+    --bs-light: #f4ecd6;
+    --bs-light-rgb: 244, 236, 214;
+    --bs-dark: #0b1722;
+    --bs-dark-rgb: 11, 23, 34;
+    --bs-link-color: #286071;
+    --bs-link-color-rgb: 40, 96, 113;
+    --bs-link-hover-color: #204d5a;
+    --bs-link-hover-color-rgb: 32, 77, 90;
+    --bs-border-color: #c3c1c3;
+}
+
+[data-bs-theme="dark"] {
+    color-scheme: dark;
+    --bs-body-color: #f4ecd6;
+    --bs-body-color-rgb: 244, 236, 214;
+    --bs-body-bg: #0b1722;
+    --bs-body-bg-rgb: 11, 23, 34;
+    --bs-emphasis-color: #fff;
+    --bs-secondary-color: rgba(244, 236, 214, 0.75);
+    --bs-tertiary-color: rgba(244, 236, 214, 0.5);
+    --bs-secondary-bg: #494649;
+    --bs-tertiary-bg: rgb(57.5, 55, 57.5);
+    --bs-link-color: rgb(126, 159.6, 169.8);
+    --bs-link-color-rgb: 126, 160, 170;
+    --bs-link-hover-color: rgb(151.8, 178.68, 186.84);
+    --bs-link-hover-color-rgb: 152, 179, 187;
+    --bs-border-color: #686468;
+}
+
+html,
+body {
+    margin: 0;
+    background: transparent;
+}
+
+body {
+    overflow: hidden;
+}
+
+.demo-stage {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0.25rem;
+}
+
+.demo-stage--image-card {
+    padding-block: 0.5rem;
+}
+
+.demo-stage--image-viewer {
+    padding-block: 0.5rem;
+}
+
+/* The parent sizes this iframe to its contents. A vh-based maximum here would
+   create a feedback loop: a shorter viewer makes a shorter iframe, which makes
+   70vh shorter again. Let the shared viewer's image aspect ratio set the height. */
+.demo-stage--image-viewer #osd-viewer {
+    max-height: none;
+}
+
+.image-card-wrapper {
+    width: 100%;
+    max-width: 18rem;
+}
+
+.image-card {
+    overflow: hidden;
+}
+
+.image-card .badge {
+    z-index: 10;
+    font-size: 0.65rem;
+}
+
+.image-card .card-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.image-container {
+    background: var(--bs-secondary-bg);
+}
+
+.image-details-card {
+    width: 100%;
+    max-width: 30rem;
+}
+
+.card {
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.bg-success {
+    background-color: rgba(var(--bs-success-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.bg-warning {
+    background-color: rgba(var(--bs-warning-rgb), var(--bs-bg-opacity, 1)) !important;
+}
+
+.btn-primary {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: #286071;
+    --bs-btn-border-color: #286071;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: rgb(34, 81.6, 96.05);
+    --bs-btn-hover-border-color: rgb(32, 76.8, 90.4);
+    --bs-btn-focus-shadow-rgb: 72, 120, 134;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: rgb(32, 76.8, 90.4);
+    --bs-btn-active-border-color: rgb(30, 72, 84.75);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: #286071;
+    --bs-btn-disabled-border-color: #286071;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: #747375;
+    --bs-btn-border-color: #747375;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #747375;
+    --bs-btn-hover-border-color: #747375;
+    --bs-btn-focus-shadow-rgb: 116, 115, 117;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #747375;
+    --bs-btn-active-border-color: #747375;
+    --bs-btn-disabled-color: #747375;
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: #747375;
+    --bs-gradient: none;
+}
+
+a:focus-visible,
+button:focus-visible {
+    outline: 3px solid rgba(var(--bs-primary-rgb), 0.45);
+    outline-offset: 2px;
+}

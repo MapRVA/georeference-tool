@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Yesterdays image viewer example</title>
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.0/css/all.min.css"
+        integrity="sha384-sTlsophtwz/I4myskS3OIJf5VvEojkXKZyBTWZm0YD/K1pN7C5wpBPLyrsbr1SU2"
+        crossorigin="anonymous">
+    <link rel="stylesheet" href="ui-demo.css">
+    <link rel="stylesheet" href="image-viewer.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "openseadragon": "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/+esm"
+            }
+        }
+    </script>
+    <script src="ui-demo.js" defer></script>
+    <script type="module">
+        import { initImageViewer } from "./image-viewer.js";
+
+        initImageViewer();
+    </script>
+</head>
+<body>
+    <!-- Live example: https://yesterdays.maprva.org/7131/ -->
+    <main class="demo-stage demo-stage--image-viewer" data-demo-stage>
+        <div
+            id="osd-viewer"
+            data-iiif-url="https://cdn.yesterdays.maprva.org/images/7131/2/tiles/info.json"
+            style="width: 100%;"
+            role="region"
+            aria-label="Zoomable view of Monumental Church in Richmond, Virginia, circa 1903">
+        </div>
+    </main>
+</body>
+</html>

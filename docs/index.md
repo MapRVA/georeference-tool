@@ -9,20 +9,15 @@ There is additional information available for developers interested in [accessin
 
 ## Join Us!
 
+You are invited to contribute to Yesterdays. [Click here](getting-started/intro) for a beginner's guide.
+
 Join the [OpenStreetMap US Slack](https://openstreetmap.us/slack/), where we collaborate on development and contributions to Yesterdays in the `#yesterdays` channel.
 Anyone is welcome to participate.
 
-We are [MapRVA](https://maprva.org), a community of mapping enthusiasts based in Richmond, Virginia.
-Come join our [next meetup](https://maprva.org/events/)!
-
-## Contact Us
-
-Please see our [contact page](/contact).
-
 ## Donate
 
-Yesterdays will always be free to use, and distributed as open source software.
-Donating helps us sustain the Yesterdays platform and expand it to new regions.
+Yesterdays will always be free.
+Donating helps us sustain Yesterdays and expand it to new regions.
 Thank you very much for your support!
 
 [Donate to Yesterdays](https://openstreetmap.app.neoncrm.com/forms/support-yesterdays){ .md-button .md-button--primary }
