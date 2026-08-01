@@ -1,5 +1,8 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import type { MapLayersData } from "../js/components/layer_control/types";
+import type {
+  MapLayersData,
+  MapLayerType,
+} from "../js/components/layer_control/types";
 import type { MapDisplayConfig } from "../js/components/map_display/types";
 
 declare global {
@@ -19,6 +22,15 @@ declare global {
     ) => BootstrapOffcanvas;
   }
 
+  // The single layer previewed on the map layer detail page, serialized by
+  // templates/maps/map_detail.html from a maps.models.MapLayer.
+  interface PreviewMapLayer {
+    name: string;
+    type: MapLayerType;
+    url: string;
+    attribution: string;
+  }
+
   interface Window {
     // Django-provided configuration, set by inline scripts in templates/base.html
     OSM_STYLE_URL?: string;
@@ -32,6 +44,7 @@ declare global {
     ADMIN_EMAIL?: string | null;
 
     MAP_LAYERS_DATA?: MapLayersData;
+    MAP_LAYER?: PreviewMapLayer;
 
     // Protomaps basemap key, set by pages that build their own basemap style
     PROTOMAPS_API_KEY?: string;
@@ -40,6 +53,14 @@ declare global {
     Alpine: typeof import("alpinejs").default;
 
     bootstrap: BootstrapNamespace;
+
+    // Toast-style alert helper, defined in js/components/notifications.js and
+    // loaded sitewide by assets/index.js
+    showAlert: (
+      type: "success" | "danger" | "warning" | "info" | "primary" | "secondary",
+      message: string,
+      duration?: number,
+    ) => void;
 
     // PMTiles protocol registration, shared with still-JS page bundles
     pmtilesProtocolSetup: boolean;

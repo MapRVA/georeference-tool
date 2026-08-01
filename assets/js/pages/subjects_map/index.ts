@@ -5,6 +5,10 @@ import "../../../styles/pages/subjects-map.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import maplibregl from "maplibre-gl";
+import {
+  onColorSchemeChange,
+  protomapsStyleUrl,
+} from "../../components/map_display/basemap";
 import { primaryColor } from "../../components/map_display/colors";
 import { DEFAULT_MAP_CENTER } from "../../constants/map";
 import { registerSubjectInteractions } from "./interactions";
@@ -15,15 +19,6 @@ import type { SubjectsMapUrls } from "./types";
 const INITIAL_ZOOM = 13;
 
 registerSubjectPanel();
-
-function isDarkMode(): boolean {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-function getMapStyle(): string {
-  const theme = isDarkMode() ? "dark" : "white";
-  return `https://api.protomaps.com/styles/v5/${theme}/en.json?key=${window.PROTOMAPS_API_KEY}`;
-}
 
 // Django can only reverse a tile route with concrete coordinates, so the
 // template renders tile 0/0/0 and we put MapLibre's placeholders back.
@@ -45,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const map = new maplibregl.Map({
     container,
-    style: getMapStyle(),
+    style: protomapsStyleUrl(),
     center: DEFAULT_MAP_CENTER,
     zoom: INITIAL_ZOOM,
   });
@@ -67,13 +62,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // A theme change swaps the whole basemap style, which discards our sources
   // and layers — re-add them, then restore whatever was highlighted.
-  window
-    .matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", () => {
-      map.once("styledata", () => {
-        addCustomLayers(map, urls, primaryColor);
-        interactions?.reapplyHighlight();
-      });
-      map.setStyle(getMapStyle());
+  onColorSchemeChange(() => {
+    map.once("styledata", () => {
+      addCustomLayers(map, urls, primaryColor);
+      interactions?.reapplyHighlight();
     });
+    map.setStyle(protomapsStyleUrl());
+  });
 });
