@@ -81,9 +81,8 @@ RUN bun run build
 FROM build AS dev
 
 # Runtime libraries the build stage only carried the compile-time (-dev)
-# variants of, or didn't install at all (libvips for pyvips, tesseract for OCR).
+# variants of, or didn't install at all (tesseract for OCR).
 RUN apt-get -y update && apt-get install -y --no-install-recommends \
-    libvips42 \
     tesseract-ocr \
     tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
@@ -109,7 +108,6 @@ WORKDIR /app
 RUN apt-get -y update && apt-get install -y --no-install-recommends \
     libgdal32 \
     libproj25 \
-    libvips42 \
     tesseract-ocr \
     tesseract-ocr-eng \
     ca-certificates \
