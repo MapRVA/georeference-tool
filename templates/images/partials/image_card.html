@@ -66,21 +66,24 @@
                             {% endif %}
                         </div>
                     {% else %}
-                        <!-- Aerial Indicator and Difficulty Badge -->
-                        {% if image.difficulty or image.aerial %}
-                            <div class="position-absolute top-0 start-0 m-2 d-flex gap-1">
-                                {% if image.aerial %}
-                                    <span class="badge bg-success" title="Aerial image">
-                                        <i class="fas fa-plane"></i>
-                                    </span>
-                                {% endif %}
-                                {% if image.difficulty %}
-                                    <span class="badge {% if image.difficulty == 'easy' %}bg-success{% elif image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
-                                        {{ image.difficulty|capfirst }}
-                                    </span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                        <!-- Aerial Indicator and Difficulty Badge
+                             (difficulty only shown if image needs georeferencing) -->
+                        {% with georeferenced=image.is_georeferenced %}
+                            {% if image.aerial or image.difficulty and not georeferenced and not image.will_not_georef %}
+                                <div class="position-absolute top-0 start-0 m-2 d-flex gap-1">
+                                    {% if image.aerial %}
+                                        <span class="badge bg-success" title="Aerial image">
+                                            <i class="fas fa-plane"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if image.difficulty and not georeferenced and not image.will_not_georef %}
+                                        <span class="badge {% if image.difficulty == 'easy' %}bg-success{% elif image.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ image.difficulty|capfirst }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        {% endwith %}
                     {% endif %}
                 </div>
             </template>

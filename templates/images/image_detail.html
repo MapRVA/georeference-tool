@@ -99,27 +99,29 @@
                             {% endif %}
                         </h5>
                         <div class="d-flex gap-2 flex-wrap">
-
-                            {% if image.difficulty %}
-                                <span class="badge status-badge
-                                    {% if image.difficulty == 'easy' %}bg-success
-                                    {% elif image.difficulty == 'medium' %}text-bg-warning
-                                    {% else %}bg-danger{% endif %}">
-                                    <i class="fas fa-signal me-1"></i>{{ image.difficulty|capfirst }}
-                                </span>
-                            {% endif %}
-
-                            <span class="badge status-badge {% if image.duplicate_of %}bg-secondary{% elif image.is_georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}text-bg-warning{% endif %}">
-                                {% if image.duplicate_of %}
-                                    <i class="fas fa-copy me-1"></i>Duplicate
-                                {% elif image.is_georeferenced %}
-                                    <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
-                                {% elif image.will_not_georef %}
-                                    <i class="fas fa-ban me-1"></i>Will Not Georeference
-                                {% else %}
-                                    <i class="fas fa-clock me-1"></i>Available
+                            {% with georeferenced=image.is_georeferenced %}
+                                <!-- Difficulty only shown if image needs georeferencing -->
+                                {% if image.difficulty and not georeferenced and not image.will_not_georef %}
+                                    <span class="badge status-badge
+                                        {% if image.difficulty == 'easy' %}bg-success
+                                        {% elif image.difficulty == 'medium' %}text-bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        <i class="fas fa-signal me-1"></i>{{ image.difficulty|capfirst }}
+                                    </span>
                                 {% endif %}
-                            </span>
+
+                                <span class="badge status-badge {% if image.duplicate_of %}bg-secondary{% elif georeferenced %}bg-success{% elif image.will_not_georef %}bg-secondary{% else %}text-bg-warning{% endif %}">
+                                    {% if image.duplicate_of %}
+                                        <i class="fas fa-copy me-1"></i>Duplicate
+                                    {% elif georeferenced %}
+                                        <i class="fas fa-map-marker-alt me-1"></i>Georeferenced
+                                    {% elif image.will_not_georef %}
+                                        <i class="fas fa-ban me-1"></i>Will Not Georeference
+                                    {% else %}
+                                        <i class="fas fa-clock me-1"></i>Available
+                                    {% endif %}
+                                </span>
+                            {% endwith %}
                         </div>
                     </div>
                     <div class="card-body p-0">
