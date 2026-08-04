@@ -421,6 +421,17 @@ class Subject(models.Model):
 
     class Meta:
         ordering = ["title"]
+        indexes = [
+            # Trigram index backing the tagging autocomplete
+            # (``title__icontains``). Only the ILIKE branch of that query
+            # is index-assisted; the ``word_similarity`` annotation is
+            # computed per row regardless. See the migration docstring.
+            GinIndex(
+                fields=["title"],
+                name="subject_title_trgm",
+                opclasses=["gin_trgm_ops"],
+            ),
+        ]
 
 
 class SubjectAncestor(models.Model):

@@ -906,7 +906,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       cache: false,
     },
     resultItem: {
-      highlight: true,
       element: (item, data) => {
         item.style =
           "display: flex; justify-content: space-between; align-items: center;";
@@ -923,6 +922,20 @@ document.addEventListener("DOMContentLoaded", async function () {
       },
     },
     threshold: 2,
+    // The server does the (fuzzy) filtering and ranking; never drop or
+    // reorder results client-side. <mark> literal substring hits;
+    // typo-only hits render as plain text.
+    searchEngine: (query, record) => {
+      const idx = record.toLowerCase().indexOf(query.toLowerCase());
+      if (idx === -1) return record;
+      return (
+        record.slice(0, idx) +
+        "<mark>" +
+        record.slice(idx, idx + query.length) +
+        "</mark>" +
+        record.slice(idx + query.length)
+      );
+    },
     events: {
       input: {
         selection: (event) => {

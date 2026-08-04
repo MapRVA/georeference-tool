@@ -5,6 +5,7 @@ import numpy as np
 import pyoxigraph
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
 from images.models import Collection, CollectionEmbeddingStats, Image, Source
 from images.tasks import (
@@ -12,8 +13,10 @@ from images.tasks import (
     refresh_next_collection_embedding_stats,
 )
 
+from .models import Subject, WikidataItem
 from .similarity import build_subject_query_embedding
 from .sparql_safety import UnsafeSparqlInput, looks_like_pid, looks_like_qid
+from .views import _MAX_AUTOCOMPLETE_QUERY_LEN
 from .wikidata_closure import (
     apply_closure,
     build_graph_payload,
@@ -753,3 +756,78 @@ class ApplyClosureTests(SimpleTestCase):
         )
         first_write = min(i for i, q in enumerate(queries) if "MERGE" in q)
         self.assertLess(last_wipe, first_write)
+
+
+class SubjectAutocompleteTests(TestCase):
+    """The fuzzy subject-tagging autocomplete (subjects/views.py)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        # bulk_create bypasses WikidataItem.save(), which fetches live
+        # Wikidata metadata on insert.
+        items = WikidataItem.objects.bulk_create(
+            [
+                WikidataItem(
+                    wikidata_id="Q101",
+                    title="Church Hill",
+                    description="Neighborhood in Richmond",
+                ),
+                WikidataItem(wikidata_id="Q102", title="Monument Avenue"),
+                WikidataItem(wikidata_id="Q103", title="Monumental Church"),
+                WikidataItem(wikidata_id="Q104", title="Shockoe Bottom"),
+                WikidataItem(wikidata_id="Q105", title="Shokoe Hill"),
+            ]
+        )
+        for item in items:
+            Subject.objects.create(title=item.title, wikidata_item=item)
+        cls.url = reverse("subject_autocomplete")
+
+    def _titles(self, q):
+        response = self.client.get(self.url, {"q": q})
+        self.assertEqual(response.status_code, 200)
+        return [row["title"] for row in response.json()]
+
+    def test_typo_match_found(self):
+        self.assertIn("Church Hill", self._titles("chruch"))
+        self.assertIn("Monument Avenue", self._titles("monumnet"))
+
+    def test_mid_title_substring_still_matches(self):
+        self.assertIn("Monument Avenue", self._titles("avenue"))
+
+    def test_substring_beats_fuzzy(self):
+        titles = self._titles("shockoe")
+        self.assertIn("Shockoe Bottom", titles)
+        self.assertIn("Shokoe Hill", titles)
+        self.assertLess(titles.index("Shockoe Bottom"), titles.index("Shokoe Hill"))
+
+    def test_whole_word_beats_prefix_within_tier(self):
+        # Both are prefix matches for "monument"; the whole-word hit
+        # (similarity 1.0) should sort above the partial-word one.
+        titles = self._titles("monument")
+        self.assertLess(
+            titles.index("Monument Avenue"), titles.index("Monumental Church")
+        )
+
+    def test_short_and_missing_queries_return_empty(self):
+        self.assertEqual(self._titles("a"), [])
+        response = self.client.get(self.url)
+        self.assertEqual(response.json(), [])
+
+    def test_overlong_query_returns_empty(self):
+        self.assertEqual(self._titles("x" * (_MAX_AUTOCOMPLETE_QUERY_LEN + 1)), [])
+
+    def test_response_shape(self):
+        response = self.client.get(self.url, {"q": "church"})
+        rows = response.json()
+        self.assertEqual(set(rows[0]), {"id", "title", "description", "wikidata_id"})
+        by_title = {row["title"]: row for row in rows}
+        self.assertEqual(
+            by_title["Church Hill"]["description"], "Neighborhood in Richmond"
+        )
+        self.assertEqual(by_title["Church Hill"]["wikidata_id"], "Q101")
+
+    def test_single_query(self):
+        # select_related("wikidata_item") keeps the whole response at one
+        # database query despite get_description() touching the item.
+        with self.assertNumQueries(1):
+            self.client.get(self.url, {"q": "church"})

@@ -3,6 +3,7 @@ import logging
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.postgres.search import TrigramWordSimilarity
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import connection, models, transaction
@@ -102,18 +103,47 @@ def _record_subject_activity(
     return activity
 
 
+# Queries longer than this are rejected outright by both autocompletes.
+# For ``browse_autocomplete`` the string travels as a Bolt parameter (no
+# escaping needed), so this is just a DoS bound, sized like the old SPARQL
+# free-text cap.
+_MAX_AUTOCOMPLETE_QUERY_LEN = 100
+
+# Minimum ``word_similarity(query, title)`` for a fuzzy-only autocomplete
+# hit. Deliberately below Postgres's 0.3 default so a transposition in a
+# ~6-letter word still matches (``word_similarity('chruch', 'Church Hill')``
+# is about 0.27).
+_AUTOCOMPLETE_WORD_SIMILARITY_THRESHOLD = 0.25
+
+
 def subject_autocomplete(request):
     if "q" not in request.GET:
         return JsonResponse([], safe=False)
 
     query = request.GET.get("q", "")
-    if len(query) < 2:  # Don't search for very short strings
+    if len(query) < 2 or len(query) > _MAX_AUTOCOMPLETE_QUERY_LEN:
         return JsonResponse([], safe=False)
 
+    # Literal matches (exact, then prefix, then substring) always rank
+    # above fuzzy-only trigram hits; word similarity orders within a tier.
     subjects = (
-        Subject.objects.filter(title__icontains=query)
-        .annotate(lower_title=Lower("title"))
-        .order_by("lower_title")[:10]
+        Subject.objects.annotate(
+            similarity=TrigramWordSimilarity(query, "title"),
+            match_rank=Case(
+                When(title__iexact=query, then=Value(0)),
+                When(title__istartswith=query, then=Value(1)),
+                When(title__icontains=query, then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            ),
+            lower_title=Lower("title"),
+        )
+        .filter(
+            Q(title__icontains=query)
+            | Q(similarity__gte=_AUTOCOMPLETE_WORD_SIMILARITY_THRESHOLD)
+        )
+        .select_related("wikidata_item")
+        .order_by("match_rank", "-similarity", "lower_title")[:10]
     )
 
     results = []
@@ -144,10 +174,6 @@ RETURN s.id AS qid, s.label_en AS label
 ORDER BY label
 LIMIT 10
 """
-
-# The query string travels as a Bolt parameter (no escaping needed), so
-# this cap is just a DoS bound, sized like the old SPARQL free-text cap.
-_MAX_AUTOCOMPLETE_QUERY_LEN = 100
 
 # Top-of-hierarchy Wikidata classes that appear in nearly every entity's
 # P31/P279* closure but are too abstract to be useful filters. They get
