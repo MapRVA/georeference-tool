@@ -17,10 +17,13 @@ logger = logging.getLogger(__name__)
 
 # ``description_en`` holds the first English literal the closure load saw
 # (the write bakes in the ``SAMPLE`` the old SPARQL read did); ``P571``
-# is a list property, so ``head()`` picks the first inception value.
+# (inception) and ``P576`` (dissolved, abolished or demolished) are list
+# properties, so ``head()`` picks the first value of each.
 _SUBJECT_FACTS_QUERY = """\
 MATCH (e:Entity {id: $qid})
-RETURN e.description_en AS description, head(e.P571) AS inception
+RETURN e.description_en AS description,
+       head(e.P571) AS inception,
+       head(e.P576) AS dissolved
 """
 
 
@@ -110,15 +113,35 @@ def fetch_authority_ids(qid):
     return results
 
 
+def _parse_wikidata_date(value):
+    """
+    Parse a Wikidata time literal like ``"1895-01-01T00:00:00Z"`` to a date.
+
+    Returns ``None`` for missing, BCE (leading ``-``), or otherwise
+    unparseable values, matching the leniency of ``extract_seed_metadata``
+    in ``wikidata_closure.py``. Sub-day precision is not recoverable here —
+    the mirror drops the value nodes carrying ``wikibase:timePrecision`` —
+    so year-precision values arrive as ``YYYY-01-01`` and callers are
+    expected to render only the year.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
 def fetch_subject_facts(qid):
     """
-    Return ``{description, inception}`` for one Subject from the mirror.
+    Return ``{description, inception, dissolved}`` for one Subject.
 
     ``description`` is the English description literal (str, omitted if
-    absent). ``inception`` is a ``datetime.date`` parsed from the first
-    ``P571`` value (omitted if absent or unparseable). Returns ``{}`` on
-    Q-ID validation failure or Memgraph error so callers can render the
-    page without the Wikidata fields.
+    absent). ``inception`` and ``dissolved`` are ``datetime.date`` values
+    parsed from the first ``P571`` / ``P576`` value respectively, each
+    omitted if absent or unparseable. Returns ``{}`` on Q-ID validation
+    failure or Memgraph error so callers can render the page without the
+    Wikidata fields.
     """
     try:
         validate_qid(qid)
@@ -139,14 +162,8 @@ def fetch_subject_facts(qid):
     row = rows[0]
     if row.get("description"):
         facts["description"] = row["description"]
-    if row.get("inception"):
-        # P571 lexical values like "1895-01-01T00:00:00Z". BCE years
-        # (leading "-") and partial dates are skipped, matching the
-        # leniency of ``extract_seed_metadata`` in wikidata_closure.py.
-        try:
-            facts["inception"] = datetime.strptime(
-                row["inception"][:10], "%Y-%m-%d"
-            ).date()
-        except (ValueError, TypeError):
-            pass
+    for key in ("inception", "dissolved"):
+        parsed = _parse_wikidata_date(row.get(key))
+        if parsed:
+            facts[key] = parsed
     return facts

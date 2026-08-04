@@ -103,6 +103,13 @@
                                             </div>
                                         {% endif %}
 
+                                        {% if wikidata_facts.dissolved %}
+                                            <div class="mb-2">
+                                                <small class="text-muted d-block">Demolished:</small>
+                                                {{ wikidata_facts.dissolved|date:"Y" }}
+                                            </div>
+                                        {% endif %}
+
 
                                         {% if authority_ids %}
                                             <div class="mb-2">
