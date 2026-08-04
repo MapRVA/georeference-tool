@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load django_vite %}
+
+{% block title %}Georeferences by {{ display_name }} – Yesterdays{% endblock %}
+
+{% block opengraph %}
+	<meta property="og:title" content="Images georeferenced by {{ display_name }} – Yesterdays">
+	<meta property="og:type" content="profile">
+	<meta property="og:url" content="{{ request.build_absolute_uri }}">
+	<meta property="og:description" content="Browse the {{ total_images }} image{{ total_images|pluralize }} {{ display_name }} has placed on the map.">
+{% endblock %}
+
+
+{% block extra_css %}
+<style>
+    #user-georeferences-map {
+        width: 100%;
+        height: 40vh;
+        border-radius: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+    // Configuration object for image grid, bulk operations, and album dropdown
+    window.filterConfig = {
+        isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        urls: {
+            subjectsApi: '{% url "subject_autocomplete" %}',
+            bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
+            userAlbumsApi: '{% url "images:user_albums_api" %}',
+            bulkAddToAlbum: '{% url "images:bulk_add_to_album" %}',
+            bulkCreateAndAddToAlbum: '{% url "images:bulk_create_and_add_to_album" %}',
+            // Single-image album operations
+            addToAlbum: '{% url "images:add_image_to_album" %}',
+            removeFromAlbum: '{% url "images:remove_image_from_album" %}',
+            createAlbum: '{% url "images:create_and_add_to_album" %}'
+        }
+    };
+</script>
+{% vite_asset 'assets/js/pages/user_georeferences.js' %}
+{% endblock %}
+
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">Users</li>
+                <li class="breadcrumb-item"><a href="{% url 'user_profile' display_name %}">{{ display_name }}</a></li>
+                <li class="breadcrumb-item active">Georeferences</li>
+            </ol>
+        </nav>
+
+        <!-- Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
+                    <div class="flex-grow-1 mb-3 mb-md-0">
+                        <h1 class="card-title mb-3 d-flex align-items-center">
+                            {% include 'auth/partials/user_badge.html' with user=profile_user size='1.2em' %}
+                        </h1>
+                        <p class="card-text text-muted mb-0">
+                            {% if is_own_page %}
+                                Every image you've placed on the map.
+                            {% else %}
+                                Every image <a href="{% url 'user_profile' display_name %}" class="text-decoration-none">{{ display_name }}</a> has placed on the map.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4 g-2">
+            <div class="col-4 col-md-4">
+                <div class="card bg-info text-white h-100">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <div class="h4 mb-0">{{ total_images }}</div>
+                        <small>Total Images</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-4 col-md-4">
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <div class="h4 mb-0">{{ map_image_count }}</div>
+                        <small>On the Map</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-4 col-md-4">
+                <div class="card bg-secondary text-white h-100">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <div class="h4 mb-0">{{ aerial_count }}</div>
+                        <small>From Above</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Visualization -->
+        {% if map_image_count > 0 %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map me-2"></i>Georeferenced Images Map
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% include 'images/partials/map_display.html' with georeferenced_by_id=profile_user.id map_id='user-georeferences-map' height='60vh' zoom_to_contents=True %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Images Grid -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="fas fa-images me-2"></i>{{ total_images }} image{{ total_images|pluralize }}</h2>
+        </div>
+
+        {% if is_own_page %}
+            {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True show_toolbar=True empty_message="You haven't georeferenced any images yet. Pick a collection and place your first image on the map!" empty_icon="fa-map-marker-alt" %}
+        {% else %}
+            {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=True buttons=True show_toolbar=True empty_message="This user hasn't georeferenced any images yet." empty_icon="fa-map-marker-alt" %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

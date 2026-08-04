@@ -6,6 +6,7 @@ Usage:
 - Single image: {% include 'images/partials/map_display.html' with image_id=image.id map_id='unique-map-id' height='400px' %}
 - Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
+- A user's georeferences: {% include 'images/partials/map_display.html' with georeferenced_by_id=profile_user.id map_id='user-georeferences-map' %}
 - Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng='-77.44' center_lat='37.53' zoom_level='11.5' %}
 - Geocoder: {% include 'images/partials/map_display.html' with include_geocoder=True %}
 - Scale-based visibility: {% include 'images/partials/map_display.html' with enable_scale_visibility=True %}
@@ -57,6 +58,8 @@ document.addEventListener('DOMContentLoaded', function() {
     urlParams.append('subject', '{{ subject_id }}');
     {% elif album_id %}
     urlParams.append('album', '{{ album_id }}');
+    {% elif georeferenced_by_id %}
+    urlParams.append('georeferenced_by', '{{ georeferenced_by_id }}');
     {% endif %}
 
     let vectorTilesUrl = window.location.origin + '{% url "images:vector_tiles" v=tile_version z=0 x=0 y=0 %}'.replace('/0/0/0.mvt', '/{z}/{x}/{y}.mvt');

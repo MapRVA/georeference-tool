@@ -333,8 +333,11 @@ def vector_tiles_endpoint(request, z, x, y, v=None):
     source_id = request.GET.get("source")
     subject_id = request.GET.get("subject")
     album_id = request.GET.get("album")
+    georeferenced_by = request.GET.get("georeferenced_by")
 
-    is_filtered = any([image_id, collection_id, source_id, subject_id, album_id])
+    is_filtered = any(
+        [image_id, collection_id, source_id, subject_id, album_id, georeferenced_by]
+    )
 
     mvt_data = _generate_tile(
         z,
@@ -346,6 +349,7 @@ def vector_tiles_endpoint(request, z, x, y, v=None):
         source_id,
         subject_id,
         album_id,
+        georeferenced_by,
     )
 
     return _make_tile_response(mvt_data, is_filtered, versioned=v is not None)
@@ -383,6 +387,7 @@ def _generate_tile(
     source_id,
     subject_id,
     album_id,
+    georeferenced_by=None,
 ) -> bytes:
     """Generate MVT tile from database."""
 
@@ -432,6 +437,15 @@ def _generate_tile(
             "image_id IN (SELECT image_id FROM images_albumimage WHERE album_id = %s)"
         )
         where_params.append(album_id)
+    if georeferenced_by:
+        # Matches on georeference_id, not image_id: the materialized view keeps
+        # only the latest georeference per image, so this is "images whose
+        # current georeference is this user's". Images they georeferenced but
+        # someone else has since corrected are deliberately not their pins.
+        where_conditions.append(
+            "georeference_id IN (SELECT id FROM images_georeference WHERE georeferenced_by_id = %s)"
+        )
+        where_params.append(georeferenced_by)
 
     where_clause = " AND ".join(where_conditions)
 

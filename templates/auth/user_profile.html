@@ -52,7 +52,13 @@
                         <strong>Total Georeferences:</strong>
                     </div>
                     <div class="col-sm-9">
-                        {% if georeference_count == 0 %}None{% else %}{{ georeference_count }}{% endif %}
+                        {% if georeference_count == 0 %}
+                        None
+                        {% else %}
+                        <a href="{% url 'user_georeferences' display_name %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-map-marker-alt me-1"></i>View {{ georeference_count }} georeference{{ georeference_count|pluralize }}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
 

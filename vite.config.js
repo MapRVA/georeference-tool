@@ -82,6 +82,10 @@ export default defineConfig({
           __dirname,
           "./assets/js/pages/similar_images.js",
         ),
+        user_georeferences: path.resolve(
+          __dirname,
+          "./assets/js/pages/user_georeferences.js",
+        ),
         map_detail: path.resolve(__dirname, "./assets/js/pages/map_detail.ts"),
         activity_feed: path.resolve(
           __dirname,

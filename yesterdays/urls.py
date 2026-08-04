@@ -115,6 +115,11 @@ urlpatterns = [
         auth_views.user_albums_list,
         name="user_albums_list",
     ),
+    path(
+        "user/<str:username>/georeferences/",
+        auth_views.user_georeferences,
+        name="user_georeferences",
+    ),
     # Backwards-compat redirect: old album URLs to new /album/<id>/ path
     path(
         "user/<str:username>/albums/<uuid:album_id>/",

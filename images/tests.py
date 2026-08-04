@@ -1020,3 +1020,165 @@ class BulkImageFlagTests(TestCase):
         self.client.force_login(self.staff)
         resp = self.client.get(self.FROM_ABOVE_URL)
         self.assertEqual(resp.status_code, 405)
+
+
+class UserGeoreferencesPageTests(TestCase):
+    """The public "images georeferenced by <user>" page at
+    /user/<osm-username>/georeferences/.
+
+    The listing joins two multi-valued relations (point and aerial
+    georeferences) with an OR, so the interesting cases are the ones where that
+    fan-out could duplicate or drop rows: a user who georeferenced the same
+    image twice, and a user with only one kind of georeference.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="osm_1", first_name="Alice")
+        cls.other = User.objects.create_user(username="osm_2", first_name="Bob")
+        cls.source = Source.objects.create(
+            name="Src",
+            slug="src",
+            url="https://example.com",
+            description="",
+            public=True,
+        )
+        cls.collection = Collection.objects.create(
+            source=cls.source,
+            name="Col",
+            slug="col",
+            url="https://example.com",
+            public=True,
+        )
+        # A private collection's images are excluded from the public listing.
+        cls.private_collection = Collection.objects.create(
+            source=cls.source,
+            name="Private",
+            slug="private",
+            url="https://example.com",
+            public=False,
+        )
+
+        cls.img_point = cls._make_image("Point photo")
+        cls._point_georef(cls.img_point, cls.user)
+
+        cls.img_aerial = cls._make_image("Aerial photo", aerial=True)
+        AerialGeoreference.objects.create(
+            image=cls.img_aerial,
+            polygon=Polygon(_SEARCH_POLYGON, srid=4326),
+            confidence="high",
+            georeferenced_by=cls.user,
+        )
+
+        # Georeferenced twice by the same user: must still appear once.
+        cls.img_twice = cls._make_image("Corrected photo")
+        cls._point_georef(cls.img_twice, cls.user)
+        cls._point_georef(cls.img_twice, cls.user)
+
+        # Somebody else's work.
+        cls.img_other = cls._make_image("Bob's photo")
+        cls._point_georef(cls.img_other, cls.other)
+
+        # Our user's work, but on a non-public collection.
+        cls.img_hidden = cls._make_image(
+            "Hidden photo", collection=cls.private_collection
+        )
+        cls._point_georef(cls.img_hidden, cls.user)
+
+        cls.url = "/user/Alice/georeferences/"
+
+    @classmethod
+    def _make_image(cls, title, aerial=False, collection=None):
+        img = Image.objects.create(
+            collection=collection or cls.collection,
+            title=title,
+            permalink=f"https://img.example.com/{title}.jpg",
+            aerial=aerial,
+        )
+        # Pick up the signal-computed is_searchable flag.
+        img.refresh_from_db()
+        return img
+
+    @classmethod
+    def _point_georef(cls, image, user):
+        return Georeference.objects.create(
+            image=image,
+            point=Point(-77.43, 37.54, srid=4326),
+            confidence="high",
+            georeferenced_by=user,
+        )
+
+    def _listed_ids(self, **params):
+        resp = self.client.get(self.url, params)
+        self.assertEqual(resp.status_code, 200)
+        return [img.id for img in resp.context["page_obj"]]
+
+    def test_lists_point_and_aerial_georeferences(self):
+        ids = self._listed_ids()
+        self.assertIn(self.img_point.id, ids)
+        self.assertIn(self.img_aerial.id, ids)
+
+    def test_excludes_another_users_georeferences(self):
+        self.assertNotIn(self.img_other.id, self._listed_ids())
+
+    def test_excludes_images_hidden_from_the_public(self):
+        self.assertNotIn(self.img_hidden.id, self._listed_ids())
+
+    def test_image_georeferenced_twice_appears_once(self):
+        ids = self._listed_ids()
+        self.assertEqual(ids.count(self.img_twice.id), 1)
+        # And the total reflects deduplicated images, not georeference rows.
+        self.assertEqual(len(ids), 3)
+
+    def test_ordered_by_most_recent_georeference_first(self):
+        # img_twice was georeferenced last, so it leads.
+        self.assertEqual(self._listed_ids()[0], self.img_twice.id)
+
+    def test_counts_are_image_counts(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.context["total_images"], 3)
+        self.assertEqual(resp.context["map_image_count"], 2)
+        self.assertEqual(resp.context["aerial_count"], 1)
+
+    def test_map_count_excludes_images_the_tile_layer_drops(self):
+        """The tile layer is built from public_georeferences_mvt, which excludes
+        will_not_georef images. Such an image still belongs in the grid -- the
+        user did georeference it -- but it can never be a pin, so the "on the
+        map" stat (and the map's own visibility gate) must not count it."""
+        skipped = self._make_image("Skipped photo")
+        self._point_georef(skipped, self.user)
+        Image.objects.filter(pk=skipped.pk).update(will_not_georef=True)
+
+        resp = self.client.get(self.url)
+        self.assertIn(skipped.id, [img.id for img in resp.context["page_obj"]])
+        self.assertEqual(resp.context["total_images"], 4)
+        self.assertEqual(resp.context["map_image_count"], 2)
+
+    def test_filter_params_and_paging_are_accepted(self):
+        self.assertEqual(self.client.get(self.url, {"page": 2}).status_code, 200)
+        self.assertEqual(
+            self.client.get(self.url, {"start_year": 1900}).status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(
+                self.url, {"georeference_status": "georeferenced"}
+            ).status_code,
+            200,
+        )
+
+    def test_user_with_no_georeferences_renders_empty(self):
+        User.objects.create_user(username="osm_3", first_name="Carol")
+        resp = self.client.get("/user/Carol/georeferences/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["total_images"], 0)
+        self.assertEqual(len(resp.context["page_obj"]), 0)
+
+    def test_unknown_user_is_404(self):
+        self.assertEqual(
+            self.client.get("/user/Nobody/georeferences/").status_code, 404
+        )
+
+    def test_profile_page_links_to_the_listing(self):
+        resp = self.client.get("/user/Alice/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, self.url)

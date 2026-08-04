@@ -7,13 +7,17 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
+from django.core.paginator import Paginator
+from django.db.models import Max, Q
+from django.db.models.functions import Greatest
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from osm_login_python.core import Auth
 
-from images.models import AerialGeoreference, Album, Georeference
+from images.models import AerialGeoreference, Album, Georeference, Image
+from images.views.browse import apply_image_filters
 
 from .forms import UserPreferencesForm
 from .models import UserPreferences
@@ -304,17 +308,29 @@ def settings_view(request):
     return render(request, "settings/index.html", {"form": form})
 
 
-def user_profile(request, username):
-    """Display public user profile page"""
-    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
+def _get_profile_user(username):
+    """Resolve a public profile URL segment to a User.
+
+    Public profile URLs carry the OSM username, which is stored in first_name
+    (User.username holds the synthetic osm_<id>). The hardcoded_admin account
+    used in local development has no OSM identity, so it matches on username.
+    """
     if settings.DEBUG and username == "hardcoded_admin":
-        user = get_object_or_404(User, username="hardcoded_admin")
-    else:
-        user = get_object_or_404(User, first_name=username)
-    # Get user's display name (from OSM first_name or username)
-    display_name = (
+        return get_object_or_404(User, username="hardcoded_admin")
+    return get_object_or_404(User, first_name=username)
+
+
+def _get_display_name(user):
+    """Display name for a user, falling back to the raw username."""
+    return (
         user.get_display_name() if hasattr(user, "get_display_name") else user.username
     )
+
+
+def user_profile(request, username):
+    """Display public user profile page"""
+    user = _get_profile_user(username)
+    display_name = _get_display_name(user)
     profile_url = user.get_profile_url() if hasattr(user, "get_profile_url") else None
 
     album_count = Album.objects.filter(owner=user).count()
@@ -336,14 +352,8 @@ def user_profile(request, username):
 def user_albums_list(request, username):
     """Display list of user's albums"""
 
-    # Look up by first_name (OSM username) or by username for hardcoded_admin in DEBUG mode
-    if settings.DEBUG and username == "hardcoded_admin":
-        user = get_object_or_404(User, username="hardcoded_admin")
-    else:
-        user = get_object_or_404(User, first_name=username)
-    display_name = (
-        user.get_display_name() if hasattr(user, "get_display_name") else user.username
-    )
+    user = _get_profile_user(username)
+    display_name = _get_display_name(user)
     # Get albums - show all if viewing own, only public if viewing others
     if request.user.is_authenticated and request.user == user:
         albums = Album.objects.filter(owner=user).order_by("-created_at")
@@ -358,3 +368,80 @@ def user_albums_list(request, username):
         "is_own_albums": is_own_albums,
     }
     return render(request, "auth/user_albums_list.html", context)
+
+
+def user_georeferences(request, username):
+    """Display the images a user has georeferenced, point and aerial alike.
+
+    Images are listed once each, ordered by the user's most recent georeference
+    on them. An image the user georeferenced and someone else later corrected
+    still belongs here -- the contribution happened -- so this counts every
+    georeference the user made, not just the ones that are currently the latest.
+    """
+
+    user = _get_profile_user(username)
+    display_name = _get_display_name(user)
+
+    by_user_point = Q(georeferences__georeferenced_by=user)
+    by_user_aerial = Q(aerial_georeferences__georeferenced_by=user)
+
+    images = (
+        Image.objects.filter(is_searchable=True)
+        .filter(by_user_point | by_user_aerial)
+        .select_related("collection__source")
+        .prefetch_related("subjects")
+        .annotate(
+            # Aggregating collapses the fan-out from joining both georeference
+            # relations, so each image appears exactly once. Greatest ignores
+            # NULLs on PostgreSQL, so users with only one kind of georeference
+            # still sort correctly.
+            user_georeferenced_at=Greatest(
+                Max("georeferences__georeferenced_at", filter=by_user_point),
+                Max("aerial_georeferences__georeferenced_at", filter=by_user_aerial),
+            )
+        )
+        .order_by("-user_georeferenced_at", "-id")
+    )
+    images = apply_image_filters(request, images)
+
+    paginator = Paginator(images, 24)  # 24 images per page for grid layout
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    # Counted as images rather than georeference rows, to match what's listed.
+    # map_image_count mirrors the public_georeferences_mvt WHERE clause the tile
+    # layer is built from (is_searchable covers public/duplicate; will_not_georef
+    # is the extra one), so the stat matches the pins. The one divergence left is
+    # the view's latest-georeference-per-image rule, which only bites when
+    # someone else has since corrected this user's work.
+    map_image_count = (
+        Georeference.objects.filter(
+            georeferenced_by=user,
+            image__is_searchable=True,
+            image__will_not_georef=False,
+        )
+        .values("image")
+        .distinct()
+        .count()
+    )
+    aerial_count = (
+        AerialGeoreference.objects.filter(
+            georeferenced_by=user, image__is_searchable=True
+        )
+        .values("image")
+        .distinct()
+        .count()
+    )
+
+    context = {
+        "profile_user": user,
+        "display_name": display_name,
+        "profile_url": user.get_profile_url()
+        if hasattr(user, "get_profile_url")
+        else None,
+        "page_obj": page_obj,
+        "total_images": paginator.count,
+        "map_image_count": map_image_count,
+        "aerial_count": aerial_count,
+        "is_own_page": request.user.is_authenticated and request.user == user,
+    }
+    return render(request, "auth/user_georeferences.html", context)
