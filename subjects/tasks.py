@@ -23,14 +23,14 @@ from urllib3.util.retry import Retry
 
 from images.models import SiteSettings
 
+from .memgraph import GRAPH_ERRORS, MemgraphClient
 from .models import OsmElement, Subject, WikidataItem
-from .oxigraph import OxigraphClient
 from .project_graph import rebuild_project_graph
 from .subject_ancestors import update_subject_ancestors
 from .wikidata_closure import (
     SEED_METADATA_FIELDS,
     ClosureLoadError,
-    commit_closure_to_oxigraph,
+    commit_closure_to_memgraph,
     fetch_seed_data,
 )
 
@@ -68,11 +68,11 @@ def create_request_session():
 
 
 def _do_refresh_wikidata_item(item):
-    """Re-pull a WikidataItem's closure from WDQS and refresh its named graphs.
+    """Re-pull a WikidataItem's closure from WDQS and refresh its mirror.
 
     One CONSTRUCT to WDQS gives us the seed's metadata fields and its
     closure neighbourhood; the seed row gets the metadata, each entity's
-    Oxigraph named graph gets atomically swapped, and ancestors discovered
+    Memgraph mirror gets atomically swapped, and ancestors discovered
     along the way are linked back to the seed's Subject via
     ``discovered_via``.
     """
@@ -112,27 +112,27 @@ def _do_refresh_wikidata_item(item):
             item.sparql_last_loaded_at = timezone.now()
             item.sparql_fetch_failures = 0
             item.save(update_fields=list(SEED_METADATA_FIELDS))
-            commit_closure_to_oxigraph(
+            commit_closure_to_memgraph(
                 item.wikidata_id,
                 data["groups"],
                 data["labels"],
                 discovered_via=seed_subject,
             )
-    except requests.RequestException as e:
+    except GRAPH_ERRORS as e:
         WikidataItem.objects.filter(pk=item.pk).update(
             sparql_fetch_failures=F("sparql_fetch_failures") + 1,
         )
-        logger.error(f"Oxigraph update failed for {item.wikidata_id}: {e}")
+        logger.error(f"Memgraph update failed for {item.wikidata_id}: {e}")
         return {"status": "error", "wikidata_id": item.wikidata_id, "message": str(e)}
 
     # Project the seed's category ancestors into Postgres. Best-effort:
-    # if this fails we keep the successful Oxigraph commit, and the next
+    # if this fails we keep the successful Memgraph commit, and the next
     # refresh of the same Subject will re-attempt the projection.
     if seed_subject is not None:
         try:
-            with OxigraphClient() as client:
+            with MemgraphClient() as client:
                 update_subject_ancestors(seed_subject, client)
-        except requests.RequestException as e:
+        except GRAPH_ERRORS as e:
             logger.warning(
                 "SubjectAncestor refresh failed for %s: %s — "
                 "will retry on next refresh of this Subject",
@@ -379,12 +379,12 @@ def fetch_osm_features(
 
 def get_next_stale_wikidata_item():
     """
-    Find the next WikidataItem whose Oxigraph closure needs refreshing.
+    Find the next WikidataItem whose graph closure needs refreshing.
 
     Only items attached to a Subject are refreshed on their own schedule.
     Ancestor items discovered via closure fetches don't need one: their
-    named graphs are replaced whenever a seed's closure includes them, and
-    ``commit_closure_to_oxigraph`` bumps their freshness timestamps then.
+    mirrored data is replaced whenever a seed's closure includes them, and
+    ``commit_closure_to_memgraph`` bumps their freshness timestamps then.
     Enrolling them here made the rotation unbounded — each ancestor refresh
     fetched *its* closure, discovering ever-deeper ancestors, until the
     queue (200k+ items) could never drain within the staleness window.
@@ -470,7 +470,7 @@ def refresh_next_wikidata_item():
 
 @shared_task(ignore_result=True)
 def hydrate_wikidata_item(wikidata_id):
-    """Load a single WikidataItem's closure into Oxigraph.
+    """Load a single WikidataItem's closure into Memgraph.
 
     Enqueued from ``WikidataItem.save()`` on the urgent queue after the
     cheap entity-JSON validation has already created the row. Same body
@@ -513,10 +513,10 @@ def refresh_next_osm_element():
 
 @shared_task(ignore_result=True)
 def reconcile_project_graph():
-    """Wholesale-rebuild the Oxigraph project graph from Subject rows.
+    """Wholesale-rebuild the project-subject markers from Subject rows.
 
-    The project graph is maintained incrementally by post_save/post_delete
-    signals, but those don't backfill after a fresh Oxigraph volume or
+    The markers are maintained incrementally by post_save/post_delete
+    signals, but those don't backfill after a fresh Memgraph volume or
     cover signal failures. This periodic reconcile self-heals any drift.
     """
     count = rebuild_project_graph()

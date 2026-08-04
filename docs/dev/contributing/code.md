@@ -8,7 +8,7 @@ There are two ways to run Yesterdays locally:
 ## Quick start (Docker Compose)
 
 !!! tip "This is the recommended path for most contributors."
-    `docker compose` builds a single image containing the Django app, the Celery workers, and Vite, then runs them alongside PostgreSQL, RabbitMQ, and Oxigraph. The worktree is mounted into the containers, so code edits reload live.
+    `docker compose` builds a single image containing the Django app, the Celery workers, and Vite, then runs them alongside PostgreSQL, RabbitMQ, and Memgraph. The worktree is mounted into the containers, so code edits reload live.
 
 You only need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
@@ -43,7 +43,7 @@ export PROTOMAPS_API_KEY=6f7a752e00e84ef9
 docker compose up --build
 ```
 
-This builds the image (on the first run) and starts PostgreSQL, RabbitMQ, Oxigraph, the Django dev server, two Celery workers, the Beat scheduler, and Vite. Database migrations run automatically as the web service comes up.
+This builds the image (on the first run) and starts PostgreSQL, RabbitMQ, Memgraph (with the Memgraph Lab UI), the Django dev server, two Celery workers, the Beat scheduler, and Vite. Database migrations run automatically as the web service comes up.
 
 Once the logs settle, the site is live:
 
@@ -52,6 +52,7 @@ Once the logs settle, the site is live:
 | Yesterdays          | <http://localhost:8000>       | –                 |
 | Django admin        | <http://localhost:8000/admin> | `admin` / `admin` |
 | RabbitMQ management | <http://localhost:15672>      | `guest` / `guest` |
+| Memgraph Lab        | <http://localhost:3000>       | –                 |
 
 ### Subsequent runs
 
@@ -67,7 +68,7 @@ Here's what you need to run Yesterdays manually:
 - [`bun`](https://bun.com/),
 - a PostgreSQL instance with the pgvector and PostGIS extensions,
 - a RabbitMQ instance for running background tasks (optional),
-- an Oxigraph instance for caching and querying Wikidata relationships (optional).
+- a Memgraph instance for caching and querying Wikidata relationships (optional).
 
 ### Set up environment variables
 
@@ -84,6 +85,9 @@ export PG_SSL_MODE=disable
 
 # RabbitMQ Connection
 export CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
+
+# Memgraph Connection (only needed if you run the optional graph database)
+export MEMGRAPH_URL=bolt://localhost:7687
 
 # Local Development Settings
 export LOCAL_DEV=0
@@ -187,30 +191,28 @@ uv run celery -A yesterdays beat --loglevel=info
 
 ### (Optional) Run Graph Database
 
-Yesterdays uses a graph database, Oxigraph, to cache and query Wikidata relationships for our [subjects](/usage/subjects/). This example uses a volume to persist the database between restarts, similar to the PostgreSQL example above:
+Yesterdays uses a graph database, Memgraph, to cache and query Wikidata relationships for our [subjects](/usage/subjects/). This example uses a volume to persist the database between restarts, similar to the PostgreSQL example above:
 
 === "podman"
 
     ```
     podman run -d \
-        --name oxigraph \
-        -p 127.0.0.1:7878:7878 \
-        -v oxigraph-data:/data \
+        --name memgraph \
+        -p 127.0.0.1:7687:7687 \
+        -v memgraph-data:/var/lib/memgraph \
         --restart=unless-stopped \
-        ghcr.io/oxigraph/oxigraph:0.5.8 \
-        serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+        docker.io/memgraph/memgraph-mage:3.12.0
     ```
 
 === "docker"
 
     ```
     docker run -d \
-        --name oxigraph \
-        -p 127.0.0.1:7878:7878 \
-        -v oxigraph-data:/data \
+        --name memgraph \
+        -p 127.0.0.1:7687:7687 \
+        -v memgraph-data:/var/lib/memgraph \
         --restart=unless-stopped \
-        ghcr.io/oxigraph/oxigraph:0.5.8 \
-        serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+        memgraph/memgraph-mage:3.12.0
     ```
 
 ### Install dependencies

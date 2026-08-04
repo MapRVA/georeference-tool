@@ -445,9 +445,9 @@ METADATA_REFRESH_POSTPASS_TIMEOUT = int(
     os.getenv("METADATA_REFRESH_POSTPASS_TIMEOUT", "60")
 )
 
-# Oxigraph SPARQL store for the Wikidata subject mirror
-OXIGRAPH_URL = os.getenv("OXIGRAPH_URL", "http://localhost:7878")
-OXIGRAPH_TIMEOUT = int(os.getenv("OXIGRAPH_TIMEOUT", "60"))
+# Memgraph property-graph store (Bolt) for the Wikidata subject mirror
+MEMGRAPH_URL = os.getenv("MEMGRAPH_URL", "bolt://localhost:7687")
+MEMGRAPH_TIMEOUT = int(os.getenv("MEMGRAPH_TIMEOUT", "60"))
 
 # How long the subjects-map info panel's JSON responses may be cached.
 SUBJECT_MAP_INFO_CACHE_SECONDS = int(os.getenv("SUBJECT_MAP_INFO_CACHE_SECONDS", "300"))

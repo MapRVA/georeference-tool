@@ -1,7 +1,6 @@
 import json
 import logging
 
-import requests
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -25,17 +24,14 @@ from activity.models import (
 )
 from images.models import Image, SubjectMapping, SubjectMappingActivity
 
+from .memgraph import GRAPH_ERRORS, MemgraphClient
 from .models import Subject, SubjectAncestor, WikidataItem
-from .oxigraph import OxigraphClient
-from .project_graph import PROJECT_GRAPH_IRI, SUBJECT_CLASS_IRI
 from .similarity import build_subject_query_embedding
 from .sparql_safety import (
     UnsafeSparqlInput,
-    sparql_string_literal,
     validate_qid,
 )
 from .subject_facts import fetch_authority_ids, fetch_subject_facts
-from .wikidata_closure import iri_to_qid
 
 logger = logging.getLogger(__name__)
 
@@ -135,22 +131,23 @@ def subject_autocomplete(request):
     return JsonResponse(results, safe=False)
 
 
-# SPARQL CONSTRUCT for the subjects half of the browse-page autocomplete.
-# Uses LCASE+CONTAINS for case-insensitive substring match against English
-# labels in the per-entity graphs.
+# Cypher for the subjects half of the browse-page autocomplete:
+# case-insensitive substring match against the mirrored English label of
+# every :ProjectSubject-marked entity. Marker-only stubs without a
+# mirrored label are excluded, matching the old query's mandatory
+# rdfs:label join.
 _BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY = """\
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX project: <urn:yesterdays:>
-
-SELECT ?subject ?label WHERE {{
-  GRAPH <{project_graph}> {{ ?subject a <{subject_class}> . }}
-  ?subject rdfs:label ?label .
-  FILTER(LANG(?label) = "en")
-  FILTER(CONTAINS(LCASE(STR(?label)), LCASE({q_literal})))
-}}
-ORDER BY ?label
+MATCH (s:ProjectSubject)
+WHERE s.label_en IS NOT NULL
+  AND toLower(s.label_en) CONTAINS toLower($q)
+RETURN s.id AS qid, s.label_en AS label
+ORDER BY label
 LIMIT 10
 """
+
+# The query string travels as a Bolt parameter (no escaping needed), so
+# this cap is just a DoS bound, sized like the old SPARQL free-text cap.
+_MAX_AUTOCOMPLETE_QUERY_LEN = 100
 
 # Top-of-hierarchy Wikidata classes that appear in nearly every entity's
 # P31/P279* closure but are too abstract to be useful filters. They get
@@ -183,34 +180,27 @@ def browse_autocomplete(request):
     so the frontend can navigate directly; categories with their Q-ID so
     the frontend can apply a ``?category=`` filter.
 
-    Subjects come from Oxigraph; categories come from the ``SubjectAncestor``
-    materialization in Postgres (indexed substring match against the
-    mirrored English label in ``WikidataItem.title``, no SPARQL property-
-    path traversal per request).
+    Subjects come from the Memgraph mirror; categories come from the
+    ``SubjectAncestor`` materialization in Postgres (indexed substring
+    match against the mirrored English label in ``WikidataItem.title``,
+    no graph traversal per request).
     """
     q = (request.GET.get("q") or "").strip()
     if len(q) < 2:
         return JsonResponse({"categories": [], "subjects": []})
+    if len(q) > _MAX_AUTOCOMPLETE_QUERY_LEN:
+        return HttpResponseBadRequest(
+            f"invalid q: exceeds {_MAX_AUTOCOMPLETE_QUERY_LEN} characters"
+        )
 
     try:
-        q_literal = sparql_string_literal(q)
-    except UnsafeSparqlInput as e:
-        return HttpResponseBadRequest(f"invalid q: {e}")
-
-    subjects_query = _BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY.format(
-        project_graph=PROJECT_GRAPH_IRI,
-        subject_class=SUBJECT_CLASS_IRI,
-        q_literal=q_literal,
-    )
-
-    try:
-        with OxigraphClient() as client:
-            subject_rows = client.select(subjects_query)
-    except requests.RequestException as e:
-        logger.warning("Oxigraph autocomplete subjects query failed: %s", e)
+        with MemgraphClient() as client:
+            subject_rows = client.read(_BROWSE_AUTOCOMPLETE_SUBJECTS_QUERY, q=q)
+    except GRAPH_ERRORS as e:
+        logger.warning("Memgraph autocomplete subjects query failed: %s", e)
         subject_rows = []
 
-    matched_qids = [iri_to_qid(row["subject"]) for row in subject_rows]
+    matched_qids = [row["qid"] for row in subject_rows]
     subjects_by_qid = {
         s.wikidata_item.wikidata_id: s
         for s in Subject.objects.select_related("wikidata_item").filter(
@@ -810,7 +800,7 @@ def subject_map_info(request, subject_slug):
     """Compact subject summary for the subjects-map hover/pin panel.
 
     Vector tiles only carry a subject's title and slug, so the panel fetches
-    the rest here. Kept deliberately cheap — no Oxigraph round-trips — because
+    the rest here. Kept deliberately cheap — no graph round-trips — because
     it is requested on hover.
     """
     subject = get_object_or_404(

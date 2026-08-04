@@ -24,6 +24,7 @@ dependencies = [
     "geopy~=2.4.1",
     "iiif-prezi3==3.1.1",
     "markdown~=3.10.2",
+    "neo4j~=5.28",
     "nh3~=0.3.6",
     "numpy>=2.5.1",
     "osm-login-python~=2.1.4",

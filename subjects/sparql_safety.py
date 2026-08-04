@@ -1,23 +1,16 @@
 """
-Safely place untrusted input into SPARQL queries.
+Validate untrusted input headed for graph queries.
 
-SPARQL has no parameterized-query mechanism, so we escape per the
-SPARQL 1.1 string literal grammar and tightly validate the IRI fragments
-we accept. Use these helpers anywhere user-derived input (request data
-or model values that originated from user submissions) lands in a SPARQL
-query string.
+Two consumers share these validators:
 
-The SPARQL 1.1 string-literal escape rules (STRING_LITERAL2, §19.2 of the
-spec):
-
-    "  -> \\"
-    \\  -> \\\\
-    plus the named control-character escapes (\\n \\r \\t \\b \\f).
-
-We additionally *reject* raw control characters (U+0000..U+001F) rather
-than escaping them, since they shouldn't appear in legitimate
-autocomplete input and rejecting them defends against odd injection
-shapes (e.g., a literal newline trying to break out of a comment).
+- The WDQS closure CONSTRUCT (``wikidata_closure.closure_query``) is
+  still SPARQL, which has no parameterized-query mechanism — the seed
+  Q-ID and mirror language tags are interpolated into the query text and
+  must be validated first.
+- The Memgraph Cypher queries take real Bolt parameters for values, but
+  Cypher cannot parameterize relationship *types* — every PID that
+  becomes a ``[:P{n}]`` type is interpolated and must pass
+  ``validate_pid`` first (see ``wikidata_closure.apply_closure``).
 """
 
 import re
@@ -25,13 +18,10 @@ import re
 _QID_RE = re.compile(r"^Q[1-9]\d{0,19}$")
 _PID_RE = re.compile(r"^P[1-9]\d{0,19}$")
 _LANG_TAG_RE = re.compile(r"^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$")
-_MAX_FREE_TEXT_LEN = 100
-
-WIKIDATA_ENTITY_IRI_BASE = "http://www.wikidata.org/entity/"
 
 
 class UnsafeSparqlInput(ValueError):
-    """Raised when input cannot be safely placed into a SPARQL query."""
+    """Raised when input cannot be safely placed into a query string."""
 
 
 def validate_qid(qid):
@@ -51,36 +41,19 @@ def looks_like_pid(value):
     return isinstance(value, str) and bool(_PID_RE.match(value))
 
 
+def validate_pid(pid):
+    """Return ``pid`` if it matches the Wikidata property-ID grammar; else raise.
+
+    The raising twin of ``looks_like_pid``, for the spots where a PID is
+    interpolated into Cypher text as a relationship type.
+    """
+    if not isinstance(pid, str) or not _PID_RE.match(pid):
+        raise UnsafeSparqlInput(f"invalid Wikidata P-ID: {pid!r}")
+    return pid
+
+
 def validate_language_tag(lang):
     """Return ``lang`` if it matches the BCP47 language-tag grammar; else raise."""
     if not isinstance(lang, str) or not _LANG_TAG_RE.match(lang):
         raise UnsafeSparqlInput(f"invalid BCP47 language tag: {lang!r}")
     return lang
-
-
-def sparql_wikidata_entity_iri(qid):
-    """Validate ``qid`` and return its IRI in SPARQL angle-bracket form."""
-    validate_qid(qid)
-    return f"<{WIKIDATA_ENTITY_IRI_BASE}{qid}>"
-
-
-def sparql_string_literal(value, lang=None):
-    """Return a SPARQL string literal, escaped per SPARQL 1.1.
-
-    Raises ``UnsafeSparqlInput`` if ``value`` exceeds the length cap or
-    contains a raw control character.
-    """
-    if not isinstance(value, str):
-        raise UnsafeSparqlInput("string literal value must be a str")
-    if len(value) > _MAX_FREE_TEXT_LEN:
-        raise UnsafeSparqlInput(f"value exceeds {_MAX_FREE_TEXT_LEN}-char limit")
-    for ch in value:
-        if ord(ch) < 0x20 or ord(ch) == 0x7F:
-            raise UnsafeSparqlInput(f"control character U+{ord(ch):04X} not allowed")
-
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    out = f'"{escaped}"'
-    if lang is not None:
-        validate_language_tag(lang)
-        out = f"{out}@{lang}"
-    return out

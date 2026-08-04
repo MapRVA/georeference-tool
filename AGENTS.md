@@ -13,7 +13,7 @@ Besides placing images on the map (our core goal), this app provides a growing r
 The Django project package is `yesterdays/` (settings, root `urls.py`, Celery app). The feature apps are:
 
 - **`images`** — the core app. Holds `Source`, `Collection`, `Image` (with EDTF dates, IIIF tiling, CLIP embeddings, transforms), the curation staging models (`PreCollection`, `PreImage`), point and aerial (`Georeference`, `AerialGeoreference`) georeferences plus their validations, subject tagging (`SubjectMapping`), `Album`, `Comment`/`ImageRating`, `ImageOfTheDay`, and singletons `SiteSettings` and `TileVersion`.
-- **`subjects`** — named entities attached to images. `Subject` links to a `WikidataItem` (cached Wikidata JSON) and `OsmElement` (cached OSM geometry). `SubjectAncestor` is a denormalized P31/P279 closure projected out of the Oxigraph RDF mirror.
+- **`subjects`** — named entities attached to images. `Subject` links to a `WikidataItem` (cached Wikidata JSON) and `OsmElement` (cached OSM geometry). `SubjectAncestor` is a denormalized P31/P279 closure projected out of the Memgraph Wikidata mirror.
 - **`activity`** — the activity feed and milestones (`GeoreferenceGroup`, `UserMilestone`, `SitewideMilestone`, `SubjectIntroduction`).
 - **`maps`** — curated map layers (`MapLayer`, `LayerCollection`): PMTiles, XYZ, and MapLibre styles shown on the map. Served under `/layers/` (`/maps/` redirects there for backwards compatibility).
 - **`osm_auth`** — OpenStreetMap OAuth login (via `osm_login_python`), plus `UserProfile` and `UserPreferences`. Provides the auth backend and user-settings pages.
@@ -31,16 +31,17 @@ Local development runs as a Docker Compose stack. **`docker compose up`** starts
 - **`web`** — Django dev server on **port 8000** (runs `migrate` then `runserver`)
 - **`postgres`** — PostGIS + pgvector (image `ghcr.io/maprva/postgis-pgvector-local`)
 - **`rabbitmq`** — Celery broker; management UI on **port 15672** (guest/guest)
-- **`oxigraph`** — RDF/SPARQL triplestore for the Wikidata subject mirror
+- **`memgraph`** — property-graph database (Cypher over Bolt) for the Wikidata subject mirror
+- **`lab`** — Memgraph Lab web UI on **port 3000**, for inspecting/querying the mirror
 - **`worker-urgent`** and **`worker-background`** — Celery workers, one per queue
 - **`beat`** — Celery Beat scheduler
 - **`vite`** — frontend bundler on **port 5173**
 
-Only `web` (8000), `vite` (5173), and the RabbitMQ management UI (15672) publish host ports. **Postgres, the broker, and Oxigraph are internal to the Compose network**, so `localhost` does not reach them from the host. Run Django and Celery commands inside the `web` container:
+Only `web` (8000), `vite` (5173), the RabbitMQ management UI (15672), Memgraph (Bolt 7687 + log websocket 7444, for host-side clients and Lab), and Memgraph Lab (3000) publish host ports. **Postgres and the broker are internal to the Compose network**, so `localhost` does not reach them from the host. Run Django and Celery commands inside the `web` container:
 
 `docker compose exec web uv run manage.py <command>`
 
-`my.env` (gitignored) now holds **only external secrets** (Cloudflare R2, Protomaps, OpenRouter). Every dev connection setting and feature flag is supplied by the `environment:` block in `compose.yaml`, which points the services at each other by name (`PG_HOST=postgres`, `CELERY_BROKER_URL=amqp://…@rabbitmq…`, `OXIGRAPH_URL=http://oxigraph:7878`).
+`my.env` (gitignored) now holds **only external secrets** (Cloudflare R2, Protomaps, OpenRouter). Every dev connection setting and feature flag is supplied by the `environment:` block in `compose.yaml`, which points the services at each other by name (`PG_HOST=postgres`, `CELERY_BROKER_URL=amqp://…@rabbitmq…`, `MEMGRAPH_URL=bolt://memgraph:7687`).
 
 The Python venv and `node_modules` live **inside the image**, not in the bind-mounted source, so after changing dependencies (`pyproject.toml`/`uv.lock` or `package.json`) you must `docker compose build`. Python deps are managed with **`uv`**; frontend deps with **`bun`**.
 
@@ -70,7 +71,7 @@ When modifying models or fields in `images`, `subjects`, or `activity`, check wh
 
 ## Background tasks (Celery)
 
-Celery handles background work (thumbnail and IIIF tile generation, embedding generation, metadata refresh) with **RabbitMQ** as the broker and **django-celery-results** for results. Tasks are routed across two queues, **`urgent`** and **`background`**, each served by its own worker. Celery Beat schedules periodic tasks, including rate-limited refreshes of external data from Wikidata and OpenStreetMap (one item per interval, so request volume is independent of worker count) and reconciliation of the Oxigraph subject graph.
+Celery handles background work (thumbnail and IIIF tile generation, embedding generation, metadata refresh) with **RabbitMQ** as the broker and **django-celery-results** for results. Tasks are routed across two queues, **`urgent`** and **`background`**, each served by its own worker. Celery Beat schedules periodic tasks, including rate-limited refreshes of external data from Wikidata and OpenStreetMap (one item per interval, so request volume is independent of worker count) and reconciliation of the Memgraph subject graph.
 
 ## Semantic search (CLIP) and the database
 
@@ -80,7 +81,7 @@ The database is **PostgreSQL with PostGIS, pgvector, and pg_trgm** (trigram text
 
 ## External integrations
 
-- **Wikidata** — subject metadata via WDQS; closures mirrored into **Oxigraph** (RDF store).
+- **Wikidata** — subject metadata via WDQS; closures mirrored into **Memgraph** (property-graph store).
 - **OpenStreetMap** — geometry via the **Postpass** API; login via OAuth (`osm_auth`).
 - **Nominatim** — address geocoding.
 - **OpenRouter** — the LLM behind the `directories` OCR pipeline.

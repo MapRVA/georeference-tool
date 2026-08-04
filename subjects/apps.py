@@ -6,8 +6,8 @@ class SubjectsConfig(AppConfig):
 
     def ready(self):
         # Importing this module wires up the post_save / post_delete
-        # signals that keep the Oxigraph project graph in sync with the
-        # Subject table.
+        # signals that keep the project-subject markers in Memgraph in
+        # sync with the Subject table.
         from . import (
             project_graph,  # noqa: F401
             signals,  # noqa: F401

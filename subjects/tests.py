@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import numpy as np
@@ -14,7 +15,8 @@ from images.tasks import (
 from .similarity import build_subject_query_embedding
 from .sparql_safety import UnsafeSparqlInput, looks_like_pid, looks_like_qid
 from .wikidata_closure import (
-    build_atomic_update,
+    apply_closure,
+    build_graph_payload,
     closure_query,
     extract_seed_metadata,
     parse_closure,
@@ -523,8 +525,231 @@ _:blank rdfs:label "anonymous"@en .
         self.assertEqual(self.labels["Q200"], "building")
         self.assertNotIn("P5473", self.labels)
 
-    def test_atomic_update_swaps_each_graph(self):
-        update = build_atomic_update(self.groups)
-        self.assertEqual(update.count("DROP SILENT GRAPH"), len(self.groups))
-        self.assertEqual(update.count("INSERT DATA"), len(self.groups))
-        self.assertIn(f"GRAPH <{_WD}P5473>", update)
+    def test_payload_covers_every_group(self):
+        payload = build_graph_payload(self.groups)
+        node_ids = {e["id"] for e in payload["entities"]} | {
+            p["id"] for p in payload["properties"]
+        }
+        self.assertEqual(node_ids, {iri.removeprefix(_WD) for iri in self.groups})
+        self.assertEqual({p["id"] for p in payload["properties"]}, {"P5473"})
+
+    def test_legacy_lowercase_statements_keep_their_owner(self):
+        payload = build_graph_payload(self.groups)
+        owners = {s["id"]: s["owner"] for s in payload["statements"]}
+        self.assertEqual(
+            owners, {"Q100-aaaa-bbbb": "Q100", "q100-cccc-dddd": "Q100"}
+        )
+
+
+class BuildGraphPayloadTests(SimpleTestCase):
+    """The RDF-triples → property-graph transform behind the Memgraph load."""
+
+    # Shaped like a closure CONSTRUCT response, exercising every predicate
+    # class the transform routes: multi-valued literals, language-keyed
+    # labels/aliases, entity vs literal vs external-IRI claim objects,
+    # statement bodies with qualifiers/rank/references, property
+    # descriptors, and the namespaces that must be dropped (wdtn:, psv:).
+    TTL = """\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix wds: <http://www.wikidata.org/entity/statement/> .
+@prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix wdtn: <http://www.wikidata.org/prop/direct-normalized/> .
+@prefix p: <http://www.wikidata.org/prop/> .
+@prefix ps: <http://www.wikidata.org/prop/statement/> .
+@prefix psv: <http://www.wikidata.org/prop/statement/value/> .
+@prefix pq: <http://www.wikidata.org/prop/qualifier/> .
+@prefix wikibase: <http://wikiba.se/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix schema: <http://schema.org/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+wd:Q100 rdfs:label "Test Hall"@en, "Second Label"@en, "Salão"@pt-BR ;
+    schema:description "historic building"@en ;
+    skos:altLabel "The Hall"@en, "Old Hall"@en ;
+    wdt:P31 wd:Q200 ;
+    wdt:P31 wd:Q200 ;
+    wdt:P571 "1895-01-01T00:00:00Z"^^xsd:dateTime,
+             "1896-01-01T00:00:00Z"^^xsd:dateTime ;
+    wdt:P5473 "127-0345" ;
+    wdt:P18 <http://commons.wikimedia.org/wiki/Special:FilePath/hall.jpg> ;
+    wdtn:P5473 <https://register.example/entity/127-0345> ;
+    p:P1435 wds:Q100-aaaa-bbbb .
+
+wds:Q100-aaaa-bbbb ps:P1435 wd:Q400 ;
+    psv:P1435 wd:Q999 ;
+    pq:P361 wd:Q500 ;
+    pq:P580 "1936-01-01T00:00:00Z"^^xsd:dateTime ;
+    wikibase:rank wikibase:NormalRank ;
+    prov:wasDerivedFrom <http://www.wikidata.org/reference/abc> .
+
+wd:Q200 rdfs:label "building"@en ;
+    wdt:P279 wd:Q210 .
+
+wd:Q400 rdfs:label "historic landmark"@en .
+wd:Q500 rdfs:label "Test District"@en .
+
+wd:P5473 wikibase:directClaim wdt:P5473 ;
+    rdfs:label "Test Register number"@en ;
+    wdt:P31 wd:Q18618628 ;
+    wdt:P1630 "https://register.example/$1" ;
+    wdt:P1629 wd:Q600 .
+
+wd:Q600 rdfs:label "Test Register"@en .
+"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        groups, _ = parse_closure(cls.TTL.encode())
+        cls.payload = build_graph_payload(groups)
+        cls.entity_props = {e["id"]: e["props"] for e in cls.payload["entities"]}
+        cls.property_props = {p["id"]: p["props"] for p in cls.payload["properties"]}
+
+    def test_labels_language_keyed_first_literal_wins(self):
+        props = self.entity_props["Q100"]
+        self.assertEqual(props["label_en"], "Test Hall")
+        self.assertEqual(props["label_pt_br"], "Salão")
+        self.assertEqual(props["description_en"], "historic building")
+
+    def test_aliases_collect_into_lists(self):
+        self.assertEqual(
+            self.entity_props["Q100"]["aliases_en"], ["The Hall", "Old Hall"]
+        )
+
+    def test_literal_claims_become_multivalue_lists(self):
+        props = self.entity_props["Q100"]
+        self.assertEqual(
+            props["P571"],
+            ["1895-01-01T00:00:00Z", "1896-01-01T00:00:00Z"],
+        )
+        self.assertEqual(props["P5473"], ["127-0345"])
+
+    def test_external_iri_claims_keep_their_iri_string(self):
+        self.assertEqual(
+            self.entity_props["Q100"]["P18"],
+            ["http://commons.wikimedia.org/wiki/Special:FilePath/hall.jpg"],
+        )
+
+    def test_normalized_values_dropped(self):
+        # wdtn:P5473 must not pollute the P5473 literal list, and psv:
+        # value nodes must not become statement props or edges.
+        self.assertEqual(self.entity_props["Q100"]["P5473"], ["127-0345"])
+        stmt = self.payload["statements"][0]
+        self.assertNotIn("ps_P1435", stmt["props"])
+        self.assertFalse(
+            any(e["dst"] == "Q999" for e in self.payload["statement_edges"])
+        )
+
+    def test_entity_claims_become_typed_edges_deduped(self):
+        edges = self.payload["direct_edges"]
+        self.assertEqual(
+            edges[("Entity", "P31", "Entity")], [{"src": "Q100", "dst": "Q200"}]
+        )
+        self.assertEqual(
+            edges[("Entity", "P279", "Entity")], [{"src": "Q200", "dst": "Q210"}]
+        )
+        # Edge targets outside the closure stay stubs, not payload nodes.
+        self.assertNotIn("Q210", self.entity_props)
+
+    def test_statement_node_shape(self):
+        (stmt,) = self.payload["statements"]
+        self.assertEqual(stmt["id"], "Q100-aaaa-bbbb")
+        self.assertEqual(stmt["owner"], "Q100")
+        self.assertEqual(stmt["pid"], "P1435")
+        self.assertEqual(stmt["props"]["rank"], "NormalRank")
+        self.assertEqual(
+            stmt["props"]["derived_from"], ["http://www.wikidata.org/reference/abc"]
+        )
+        self.assertEqual(stmt["props"]["pq_P580"], ["1936-01-01T00:00:00Z"])
+
+    def test_statement_entity_objects_become_edges(self):
+        self.assertEqual(
+            self.payload["statement_edges"],
+            [
+                {
+                    "stmt": "Q100-aaaa-bbbb",
+                    "kind": "VALUE",
+                    "pid": "P1435",
+                    "dst": "Q400",
+                },
+                {
+                    "stmt": "Q100-aaaa-bbbb",
+                    "kind": "QUALIFIER",
+                    "pid": "P361",
+                    "dst": "Q500",
+                },
+            ],
+        )
+
+    def test_property_descriptor_shape(self):
+        props = self.property_props["P5473"]
+        self.assertEqual(props["label_en"], "Test Register number")
+        self.assertEqual(props["P1630"], ["https://register.example/$1"])
+        # wikibase:directClaim is dropped — its join became id equality.
+        self.assertEqual(set(props), {"label_en", "P1630"})
+        edges = self.payload["direct_edges"]
+        self.assertEqual(
+            edges[("Property", "P31", "Entity")],
+            [{"src": "P5473", "dst": "Q18618628"}],
+        )
+        self.assertEqual(
+            edges[("Property", "P1629", "Entity")],
+            [{"src": "P5473", "dst": "Q600"}],
+        )
+
+
+class _RecordingTx:
+    """Stand-in for a neo4j transaction, capturing (query, params) calls."""
+
+    def __init__(self):
+        self.calls = []
+
+    def run(self, query, **params):
+        self.calls.append((query, params))
+
+
+class ApplyClosureTests(SimpleTestCase):
+    """The Cypher generation applying a payload to Memgraph."""
+
+    def _payload(self):
+        groups, _ = parse_closure(BuildGraphPayloadTests.TTL.encode())
+        return build_graph_payload(groups)
+
+    def test_interpolated_relationship_types_are_validated(self):
+        tx = _RecordingTx()
+        apply_closure(tx, self._payload())
+        fixed_types = {"STATEMENT", "VALUE", "QUALIFIER"}
+        for query, _ in tx.calls:
+            for rel_type in re.findall(r"\[:(\w+)", query):
+                self.assertTrue(
+                    rel_type in fixed_types or re.fullmatch(r"P[1-9]\d*", rel_type),
+                    f"unexpected relationship type {rel_type!r} in {query!r}",
+                )
+
+    def test_rejects_unvalidated_pid_before_interpolation(self):
+        payload = self._payload()
+        payload["direct_edges"][("Entity", "P31]->() CREATE (m)", "Entity")] = [
+            {"src": "Q100", "dst": "Q200"}
+        ]
+        with self.assertRaises(UnsafeSparqlInput):
+            apply_closure(_RecordingTx(), payload)
+
+    def test_rejects_unknown_node_labels(self):
+        payload = self._payload()
+        payload["direct_edges"][("Gadget", "P31", "Entity")] = [
+            {"src": "Q100", "dst": "Q200"}
+        ]
+        with self.assertRaises(UnsafeSparqlInput):
+            apply_closure(_RecordingTx(), payload)
+
+    def test_wipes_owned_data_before_rewriting(self):
+        tx = _RecordingTx()
+        apply_closure(tx, self._payload())
+        queries = [q for q, _ in tx.calls]
+        last_wipe = max(
+            i for i, q in enumerate(queries) if "DELETE" in q and "MERGE" not in q
+        )
+        first_write = min(i for i, q in enumerate(queries) if "MERGE" in q)
+        self.assertLess(last_wipe, first_write)

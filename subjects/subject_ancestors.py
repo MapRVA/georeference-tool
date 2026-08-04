@@ -1,56 +1,58 @@
 """Maintain the ``SubjectAncestor`` materialization.
 
-Per-subject SPARQL SELECT against Oxigraph produces the same set of
-category-relevant ancestors the autocomplete used to walk on the fly
-(class chain, brand, direct part-of, qualifier-shaped part-of). The
-result is atomically swapped into Postgres so the autocomplete can run
-as a simple indexed Django ORM query instead of a property-path traversal
-that OOMs on non-trivial datasets.
+Per-subject Cypher traversal against the Memgraph mirror produces the
+same set of category-relevant ancestors the autocomplete used to walk on
+the fly (class chain, brand, direct part-of, qualifier-shaped part-of).
+The result is atomically swapped into Postgres so the autocomplete can
+run as a simple indexed Django ORM query instead of a graph traversal.
 
-Per-subject scoping is what makes this tractable. Same SPARQL shape
-that exhausts memory when run over all Subjects at once is bounded
-when the seed is a single IRI — the engine isn't tracking N parallel
-walks, just one.
+Per-subject scoping (inherited from the SPARQL era, where the
+all-Subjects-at-once form OOMed the engine) keeps each traversal bounded:
+the engine tracks one walk from one seed, not N parallel walks.
 """
 
 import logging
 
 from django.db import transaction
 
+from .memgraph import MemgraphClient
 from .models import SubjectAncestor, WikidataItem
-from .oxigraph import OxigraphClient
-from .sparql_safety import sparql_wikidata_entity_iri
-from .wikidata_closure import iri_to_qid
+from .sparql_safety import validate_qid
 
 logger = logging.getLogger(__name__)
 
 
-_ANCESTOR_SELECT = """\
-PREFIX wdt: <http://www.wikidata.org/prop/direct/>
-PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
-
-SELECT DISTINCT ?ancestor WHERE {{
-  {{
-    {seed} (wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361) ?ancestor .
-  }} UNION {{
-    {seed} ?stmt_pred ?stmt .
-    ?stmt pq:P361 ?ancestor .
-  }}
-  FILTER(?ancestor != {seed})
-  FILTER(STRSTARTS(STR(?ancestor), "http://www.wikidata.org/entity/Q"))
-}}
+# Three UNIONed arms, mirroring the old SPARQL property path
+# ``(wdt:P31?/wdt:P279*|wdt:P1716|wdt:P361)`` plus the qualifier arm:
+#   1. optional instance-of hop, then any number of subclass-of hops
+#      (``*0..`` includes the zero-length path, so the seed binds as its
+#      own ancestor and is excluded by the id filter, as in SPARQL);
+#   2. brand (P1716) or part-of (P361) direct claims;
+#   3. part-of expressed as a statement qualifier (``pq:P361``).
+_ANCESTOR_QUERY = """\
+MATCH (s:Entity {id: $qid})-[:P31*0..1]->()-[:P279*0..]->(a:Entity)
+WHERE a.id <> $qid
+RETURN DISTINCT a.id AS ancestor
+UNION
+MATCH (s:Entity {id: $qid})-[:P1716|P361]->(a:Entity)
+WHERE a.id <> $qid
+RETURN DISTINCT a.id AS ancestor
+UNION
+MATCH (s:Entity {id: $qid})-[:STATEMENT]->(:Statement)-[q:QUALIFIER]->(a:Entity)
+WHERE q.pid = 'P361' AND a.id <> $qid
+RETURN DISTINCT a.id AS ancestor
 """
 
 
 def _select_ancestor_qids(client, qid):
-    """Return distinct ancestor Q-IDs for ``qid`` via the per-subject SELECT."""
-    seed = sparql_wikidata_entity_iri(qid)
-    rows = client.select(_ANCESTOR_SELECT.format(seed=seed))
-    return [iri_to_qid(row["ancestor"]) for row in rows]
+    """Return distinct ancestor Q-IDs for ``qid`` via the per-seed traversal."""
+    validate_qid(qid)
+    rows = client.read(_ANCESTOR_QUERY, qid=qid)
+    return [row["ancestor"] for row in rows]
 
 
 def update_subject_ancestors(subject, client):
-    """Replace ``subject``'s ``SubjectAncestor`` rows from Oxigraph.
+    """Replace ``subject``'s ``SubjectAncestor`` rows from the Memgraph mirror.
 
     Atomic to concurrent readers: the delete + bulk_create inside
     ``transaction.atomic()`` swaps the row set as one Postgres
@@ -60,9 +62,9 @@ def update_subject_ancestors(subject, client):
     Returns the number of rows written.
 
     Ancestors whose ``WikidataItem`` row doesn't yet exist are dropped
-    silently — shouldn't happen post-``commit_closure_to_oxigraph`` (it
+    silently — shouldn't happen post-``commit_closure_to_memgraph`` (it
     bulk-creates them), but defensive against future drift between the
-    Oxigraph load and the Postgres mirror.
+    graph load and the Postgres mirror.
     """
     qid = subject.wikidata_item.wikidata_id
     ancestor_qids = _select_ancestor_qids(client, qid)
@@ -87,7 +89,7 @@ def update_subject_ancestors(subject, client):
 
 
 def rebuild_all_subject_ancestors():
-    """Replace every Subject's ancestor rows from Oxigraph.
+    """Replace every Subject's ancestor rows from the Memgraph mirror.
 
     Backfill / one-off entry point — callable from a Django shell when
     you need to populate the table without waiting for each Subject's
@@ -96,7 +98,7 @@ def rebuild_all_subject_ancestors():
     from .models import Subject
 
     count = 0
-    with OxigraphClient() as client:
+    with MemgraphClient() as client:
         for subject in (
             Subject.objects.filter(wikidata_item__isnull=False)
             .select_related("wikidata_item")

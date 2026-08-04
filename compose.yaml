@@ -1,5 +1,5 @@
-# Local dev stack: Postgres, RabbitMQ, oxigraph, Django, two Celery workers,
-# and Vite. Run with `docker compose up`.
+# Local dev stack: Postgres, RabbitMQ, Memgraph (+ Lab), Django, two Celery
+# workers, and Vite. Run with `docker compose up`.
 #
 # Django/Celery/Vite share one image (the `dev` target in Containerfile, with
 # uv and bun). Source is bind-mounted for live reload; the venv lives in the
@@ -7,9 +7,10 @@
 #
 # my.env only supplies the external secrets (Cloudflare R2, Protomaps); every
 # dev connection setting and feature flag is set in the `environment:` block
-# below, pointing at the sibling services. Only web, vite, and the RabbitMQ
-# management UI publish host ports; everything else (Postgres, the RabbitMQ
-# broker, oxigraph) talks over the Compose network by service name, so those
+# below, pointing at the sibling services. Only web, vite, the RabbitMQ
+# management UI, Memgraph (Bolt + log websocket, for host-side clients and
+# Lab), and Memgraph Lab publish host ports; everything else (Postgres, the
+# RabbitMQ broker) talks over the Compose network by service name, so those
 # ports stay internal. Run host-side Django/Celery via
 # `docker compose exec web …` since localhost no longer reaches the DB/broker.
 
@@ -35,7 +36,7 @@ x-app: &app
     PG_SSL_MODE: disable
     # Broker, graph store, and CLIP embedding service, reached by service name.
     CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
-    OXIGRAPH_URL: http://oxigraph:7878
+    MEMGRAPH_URL: bolt://memgraph:7687
     CLIP_SERVICE_URL: http://clip:8000
     # Non-secret dev settings; real secrets (R2, Protomaps) stay in my.env.
     LOCAL_DEV: "0"
@@ -52,7 +53,7 @@ x-app: &app
       condition: service_healthy
     rabbitmq:
       condition: service_healthy
-    oxigraph:
+    memgraph:
       condition: service_started
     clip:
       condition: service_started
@@ -85,12 +86,28 @@ services:
       timeout: 5s
       retries: 12
 
-  oxigraph:
-    image: ghcr.io/oxigraph/oxigraph:0.5.9
-    command: serve --location /data --bind 0.0.0.0:7878 --union-default-graph
+  memgraph:
+    image: docker.io/memgraph/memgraph-mage:3.12.0
+    ports:
+      # Bolt (7687) and the log-streaming websocket (7444), published on
+      # Memgraph's standard ports so host-side clients and Lab (in the
+      # browser) can reach them.
+      - "7687:7687"
+      - "7444:7444"
     volumes:
-      - oxigraph-data:/data
-    restart: unless-stopped
+      # Snapshots + write-ahead log, so the graph survives restarts.
+      - memgraph-data:/var/lib/memgraph
+
+  lab:
+    image: docker.io/memgraph/lab:3.12.0
+    ports:
+      # Host port is configurable to dodge collisions with other projects:
+      # `LAB_PORT=3001 docker compose up`. The container always listens on 3000.
+      - "${LAB_PORT:-3000}:3000"
+    environment:
+      QUICK_CONNECT_MG_HOST: memgraph
+    depends_on:
+      - memgraph
 
   web:
     <<: *app
@@ -150,7 +167,8 @@ volumes:
     # restore a dump or migrate into it.
     name: georef-postgres-data
     external: true
-  oxigraph-data:
-    # Regenerable RDF store, repopulated from Wikidata/OSM by Celery Beat. Safe
-    # to drop; Compose-managed, so it won't inherit any old podman volume.
-    name: oxigraph-data
+  memgraph-data:
+    # Memgraph's storage directory (snapshots + WAL) holding the Wikidata
+    # subject mirror. Regenerable — repopulated from WDQS by Celery Beat —
+    # so it's safe to drop.
+    name: memgraph-data

@@ -4,8 +4,10 @@ Strategy: one CONSTRUCT query per subject to WDQS that returns the seed's
 triples plus its neighbourhood — statement bodies, labels and class edges
 for referenced entities and class ancestors, and descriptors of the
 properties the seed uses. The response is parsed client-side with
-pyoxigraph, grouped by Wikidata entity IRI, and loaded into Oxigraph via
-a single SPARQL Update that atomically replaces each entity's named graph.
+pyoxigraph, grouped by Wikidata entity IRI, transformed into a
+property-graph payload (``build_graph_payload``), and applied to Memgraph
+in a single Bolt transaction that atomically replaces each entity's
+mirrored data (``apply_closure``).
 
 This means one external request per subject refresh instead of one per
 entity, and a consistent snapshot (no risk of upstream edits landing
@@ -24,6 +26,7 @@ from .sparql_safety import (
     looks_like_pid,
     looks_like_qid,
     validate_language_tag,
+    validate_pid,
     validate_qid,
 )
 
@@ -63,6 +66,24 @@ WDT_P84_IRI = "http://www.wikidata.org/prop/direct/P84"
 WDT_P571_IRI = "http://www.wikidata.org/prop/direct/P571"
 COMMONS_FILEPATH_PREFIX = "http://commons.wikimedia.org/wiki/Special:FilePath/"
 EN_WIKIPEDIA_PREFIX = "https://en.wikipedia.org/"
+
+# IRI namespaces classified by ``build_graph_payload``. ``wdt:`` direct
+# claims, ``p:`` statement links, and ``ps:``/``pq:`` statement
+# predicates all share the ``/prop/`` base, so the specific prefixes
+# must be matched before the bare ``p:`` catch-all.
+WDT_IRI_BASE = "http://www.wikidata.org/prop/direct/"
+WDT_NORM_IRI_BASE = "http://www.wikidata.org/prop/direct-normalized/"
+P_IRI_BASE = "http://www.wikidata.org/prop/"
+PS_IRI_BASE = "http://www.wikidata.org/prop/statement/"
+PQ_IRI_BASE = "http://www.wikidata.org/prop/qualifier/"
+SKOS_ALT_LABEL_IRI = "http://www.w3.org/2004/02/skos/core#altLabel"
+WIKIBASE_RANK_IRI = "http://wikiba.se/ontology#rank"
+WIKIBASE_DIRECT_CLAIM_IRI = "http://wikiba.se/ontology#directClaim"
+PROV_DERIVED_FROM_IRI = "http://www.w3.org/ns/prov#wasDerivedFrom"
+
+# The only node labels ``build_graph_payload`` emits; ``apply_closure``
+# refuses anything else before interpolating a label into Cypher.
+_NODE_LABELS = frozenset({"Entity", "Property"})
 
 # ---------------------------------------------------------------------------
 # Closure CONSTRUCT assembly.
@@ -332,11 +353,10 @@ def parse_closure(turtle_bytes):
         suffix = iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
 
         # Property descriptors (``wd:Pxxx`` subjects) mirror into
-        # per-property named graphs, refreshed whenever any subject using
-        # the property refreshes. ``looks_like_pid`` validates the suffix,
-        # so the IRI is safe to reach ``build_atomic_update``'s
-        # ``GRAPH <iri>`` f-string. Skipped by the label collection below:
-        # ``WikidataItem`` rows are Q-entities only.
+        # per-property groups (``:Property`` nodes downstream), refreshed
+        # whenever any subject using the property refreshes. Skipped by
+        # the label collection below: ``WikidataItem`` rows are
+        # Q-entities only.
         if looks_like_pid(suffix):
             groups.setdefault(iri, []).append(
                 pyoxigraph.Triple(quad.subject, quad.predicate, quad.object)
@@ -344,9 +364,9 @@ def parse_closure(turtle_bytes):
             continue
 
         # Reject anything whose suffix isn't a Q-ID before it lands in
-        # ``groups`` and gets f-stringed into the ``GRAPH <iri>`` clause
-        # in ``build_atomic_update``. Drops properties (P31) that share
-        # the entity-IRI prefix but aren't graph subjects we want.
+        # ``groups`` and becomes a node id downstream. Drops subjects
+        # that share the entity-IRI prefix but aren't entities we want
+        # to mirror.
         qid = suffix
         try:
             validate_qid(qid)
@@ -444,24 +464,281 @@ def extract_seed_metadata(turtle_bytes, qid):
     }
 
 
-def build_atomic_update(groups):
-    """Build the SPARQL Update body that replaces each entity's named graph.
+def _append_value(props, key, value):
+    """Append ``value`` to the list at ``props[key]``, deduping (RDF sets)."""
+    values = props.setdefault(key, [])
+    if value not in values:
+        values.append(value)
 
-    One ``DROP SILENT GRAPH`` + ``INSERT DATA { GRAPH <iri> { ... } }`` pair
-    per entity, joined with ``;``. Submitted as a single Update request,
-    this is one Oxigraph transaction - all graphs swap together or none do.
+
+def _language_key(base, literal):
+    """Property key like ``label_en`` / ``description_en_gb`` for a literal.
+
+    Returns ``None`` (drop) for untagged or malformed language tags —
+    Wikidata labels, descriptions, and aliases are always tagged.
     """
-    if not groups:
-        return ""
-    operations = []
-    for iri, triples in groups.items():
-        nt = pyoxigraph.serialize(
-            triples,
-            format=pyoxigraph.RdfFormat.N_TRIPLES,
-        ).decode("utf-8")
-        operations.append(f"DROP SILENT GRAPH <{iri}>")
-        operations.append(f"INSERT DATA {{ GRAPH <{iri}> {{\n{nt}}} }}")
-    return " ;\n".join(operations)
+    lang = literal.language
+    if not lang:
+        return None
+    try:
+        validate_language_tag(lang)
+    except UnsafeSparqlInput:
+        return None
+    return f"{base}_{lang.lower().replace('-', '_')}"
+
+
+def _wikidata_suffix(term):
+    """The Q/P suffix of a ``wd:`` NamedNode, or ``None`` for anything else."""
+    if not isinstance(term, pyoxigraph.NamedNode):
+        return None
+    iri = term.value
+    if iri.startswith(WIKIDATA_STATEMENT_IRI_BASE):
+        return None
+    if not iri.startswith(WIKIDATA_ENTITY_IRI_BASE):
+        return None
+    return iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
+
+
+def _apply_statement_triple(record, pred, obj, add_statement_edge):
+    """Fold one statement-subject triple into its ``:Statement`` record."""
+    if pred == WIKIBASE_RANK_IRI:
+        if isinstance(obj, pyoxigraph.NamedNode) and "rank" not in record["props"]:
+            record["props"]["rank"] = obj.value.rsplit("#", 1)[-1]
+        return
+    if pred == PROV_DERIVED_FROM_IRI:
+        if isinstance(obj, pyoxigraph.NamedNode):
+            _append_value(record["props"], "derived_from", obj.value)
+        return
+    for base, kind, prop_prefix in (
+        (PS_IRI_BASE, "VALUE", "ps_"),
+        (PQ_IRI_BASE, "QUALIFIER", "pq_"),
+    ):
+        if pred.startswith(base):
+            pid = pred.removeprefix(base)
+            if not looks_like_pid(pid):
+                return  # psv:/psn:/pqv:/pqn: value nodes
+            if kind == "VALUE" and record["pid"] is None:
+                # The main-value predicate names the statement's property;
+                # normally the entity's p: link sets this first.
+                record["pid"] = pid
+            suffix = _wikidata_suffix(obj)
+            if suffix is not None and looks_like_qid(suffix):
+                add_statement_edge(record["id"], kind, pid, suffix)
+            elif isinstance(obj, (pyoxigraph.Literal, pyoxigraph.NamedNode)):
+                _append_value(record["props"], f"{prop_prefix}{pid}", obj.value)
+            return
+    logger.debug("build_graph_payload: dropping statement predicate %s", pred)
+
+
+def build_graph_payload(groups):
+    """Transform ``parse_closure`` groups into a property-graph payload.
+
+    Pure function, no I/O — the unit-testable spec of the data model that
+    ``apply_closure`` writes to Memgraph:
+
+    - ``entities`` / ``properties``: one node per group (``:Entity`` for
+      Q-suffixed groups, ``:Property`` for P-suffixed descriptor groups)
+      carrying ``label_{lang}`` / ``description_{lang}`` (first literal
+      wins, baking in the old reads' ``SAMPLE``), ``aliases_{lang}``
+      lists, and a ``P{n}`` list per literal-valued direct claim.
+    - ``direct_edges``: entity-valued ``wdt:`` claims, keyed by
+      ``(source label, PID, target label)`` — each key becomes one batch
+      of dynamically typed ``[:P{n}]`` relationships.
+    - ``statements`` / ``statement_edges``: reified statements as
+      ``:Statement`` nodes owned by their group's entity, carrying
+      ``ps_P{n}`` / ``pq_P{n}`` literal lists, ``rank``,
+      ``derived_from``, and ``VALUE`` / ``QUALIFIER`` edges (with a
+      ``pid`` property) for entity-valued statement objects.
+
+    Dropped, matching what the RDF reads never consumed: normalized
+    values (``wdtn:`` / ``psv:`` / ``psn:`` / ``pqv:`` / ``pqn:``),
+    ``wikibase:directClaim`` (that join becomes node-id equality),
+    blank-node objects (unknown values), and unclassified ontology
+    predicates (debug-logged).
+    """
+    entities = []
+    properties = []
+    direct_edges = {}
+    statements = {}
+    statement_edges = []
+    seen_direct_edges = set()
+    seen_statement_edges = set()
+
+    def touch_statement(stmt_id, owner):
+        record = statements.get(stmt_id)
+        if record is None:
+            record = {"id": stmt_id, "owner": owner, "pid": None, "props": {}}
+            statements[stmt_id] = record
+        return record
+
+    def add_direct_edge(src_label, pid, src, dst_label, dst):
+        key = (src, pid, dst)
+        if key in seen_direct_edges:
+            return
+        seen_direct_edges.add(key)
+        direct_edges.setdefault((src_label, pid, dst_label), []).append(
+            {"src": src, "dst": dst}
+        )
+
+    def add_statement_edge(stmt_id, kind, pid, dst):
+        key = (stmt_id, kind, pid, dst)
+        if key in seen_statement_edges:
+            return
+        seen_statement_edges.add(key)
+        statement_edges.append({"stmt": stmt_id, "kind": kind, "pid": pid, "dst": dst})
+
+    for graph_iri, triples in groups.items():
+        owner = graph_iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
+        node_label = "Property" if looks_like_pid(owner) else "Entity"
+        node_props = {}
+
+        for triple in triples:
+            pred = triple.predicate.value
+            obj = triple.object
+
+            if triple.subject.value.startswith(WIKIDATA_STATEMENT_IRI_BASE):
+                stmt_id = triple.subject.value.removeprefix(
+                    WIKIDATA_STATEMENT_IRI_BASE
+                )
+                _apply_statement_triple(
+                    touch_statement(stmt_id, owner), pred, obj, add_statement_edge
+                )
+                continue
+
+            if pred in (RDFS_LABEL_IRI, SCHEMA_DESCRIPTION_IRI):
+                if not isinstance(obj, pyoxigraph.Literal):
+                    continue
+                base = "label" if pred == RDFS_LABEL_IRI else "description"
+                key = _language_key(base, obj)
+                if key is not None and key not in node_props:
+                    node_props[key] = obj.value
+            elif pred == SKOS_ALT_LABEL_IRI:
+                if isinstance(obj, pyoxigraph.Literal):
+                    key = _language_key("aliases", obj)
+                    if key is not None:
+                        _append_value(node_props, key, obj.value)
+            elif pred == WIKIBASE_DIRECT_CLAIM_IRI or pred.startswith(
+                WDT_NORM_IRI_BASE
+            ):
+                continue
+            elif pred.startswith(WDT_IRI_BASE):
+                pid = pred.removeprefix(WDT_IRI_BASE)
+                if not looks_like_pid(pid):
+                    continue
+                suffix = _wikidata_suffix(obj)
+                if suffix is not None and looks_like_qid(suffix):
+                    add_direct_edge(node_label, pid, owner, "Entity", suffix)
+                elif suffix is not None and looks_like_pid(suffix):
+                    add_direct_edge(node_label, pid, owner, "Property", suffix)
+                elif isinstance(obj, (pyoxigraph.Literal, pyoxigraph.NamedNode)):
+                    # Literals and non-entity IRIs (Commons file paths,
+                    # external URLs) both keep their string form.
+                    _append_value(node_props, pid, obj.value)
+            elif pred.startswith(PS_IRI_BASE) or pred.startswith(PQ_IRI_BASE):
+                continue  # statement predicate on a non-statement subject
+            elif pred.startswith(P_IRI_BASE):
+                pid = pred.removeprefix(P_IRI_BASE)
+                if not looks_like_pid(pid):
+                    continue
+                if isinstance(obj, pyoxigraph.NamedNode) and obj.value.startswith(
+                    WIKIDATA_STATEMENT_IRI_BASE
+                ):
+                    stmt_id = obj.value.removeprefix(WIKIDATA_STATEMENT_IRI_BASE)
+                    record = touch_statement(stmt_id, owner)
+                    if record["pid"] is None:
+                        record["pid"] = pid
+            else:
+                logger.debug("build_graph_payload: dropping predicate %s", pred)
+
+        target = entities if node_label == "Entity" else properties
+        target.append({"id": owner, "props": node_props})
+
+    return {
+        "entities": entities,
+        "properties": properties,
+        "direct_edges": direct_edges,
+        "statements": list(statements.values()),
+        "statement_edges": statement_edges,
+    }
+
+
+def apply_closure(tx, payload):
+    """Apply a ``build_graph_payload`` result inside one write transaction.
+
+    Reproduces the old per-entity ``DROP GRAPH`` + ``INSERT DATA``
+    semantics: each mirrored node's *owned* data — its properties (except
+    ``id``), outgoing relationships, and ``:Statement`` nodes — is wiped
+    and rewritten, while the node itself, its incoming edges (written by
+    other entities' closures), and its extra labels (``:ProjectSubject``)
+    survive. Runs inside one managed transaction, so all entities swap
+    together or none do, and the write is idempotent for the driver's
+    transient-error retries.
+    """
+    entity_ids = [entity["id"] for entity in payload["entities"]]
+    property_ids = [prop["id"] for prop in payload["properties"]]
+
+    tx.run(
+        "UNWIND $ids AS id "
+        "MATCH (:Entity {id: id})-[:STATEMENT]->(st:Statement) "
+        "DETACH DELETE st",
+        ids=entity_ids,
+    )
+    for label, ids in (("Entity", entity_ids), ("Property", property_ids)):
+        tx.run(
+            f"UNWIND $ids AS id MATCH (:{label} {{id: id}})-[r]->() DELETE r",
+            ids=ids,
+        )
+
+    for label, nodes in (
+        ("Entity", payload["entities"]),
+        ("Property", payload["properties"]),
+    ):
+        tx.run(
+            f"UNWIND $nodes AS node "
+            f"MERGE (n:{label} {{id: node.id}}) "
+            f"SET n = {{id: node.id}} "
+            f"SET n += node.props",
+            nodes=nodes,
+        )
+
+    # Relationship types cannot be parameterized in Cypher, so the PID
+    # (and the label pair) are validated before interpolation. MERGE on
+    # the target creates propertyless stubs for entities the closure
+    # references but doesn't mirror.
+    for (src_label, pid, dst_label), rows in payload["direct_edges"].items():
+        if src_label not in _NODE_LABELS or dst_label not in _NODE_LABELS:
+            raise UnsafeSparqlInput(
+                f"invalid node label pair: {src_label!r}/{dst_label!r}"
+            )
+        validate_pid(pid)
+        tx.run(
+            f"UNWIND $rows AS row "
+            f"MATCH (s:{src_label} {{id: row.src}}) "
+            f"MERGE (t:{dst_label} {{id: row.dst}}) "
+            f"CREATE (s)-[:{pid}]->(t)",
+            rows=rows,
+        )
+
+    if payload["statements"]:
+        tx.run(
+            "UNWIND $stmts AS stmt "
+            "MATCH (e:Entity {id: stmt.owner}) "
+            "CREATE (e)-[:STATEMENT {pid: stmt.pid}]->"
+            "(st:Statement {id: stmt.id, pid: stmt.pid}) "
+            "SET st += stmt.props",
+            stmts=payload["statements"],
+        )
+
+    for kind in ("VALUE", "QUALIFIER"):
+        rows = [edge for edge in payload["statement_edges"] if edge["kind"] == kind]
+        if rows:
+            tx.run(
+                f"UNWIND $rows AS row "
+                f"MATCH (st:Statement {{id: row.stmt}}) "
+                f"MERGE (t:Entity {{id: row.dst}}) "
+                f"CREATE (st)-[:{kind} {{pid: row.pid}}]->(t)",
+                rows=rows,
+            )
 
 
 def iri_to_qid(iri):
@@ -481,7 +758,7 @@ def fetch_seed_data(qid, *, session=None, timeout=60):
     """Run the WDQS closure CONSTRUCT for ``qid`` and parse the response.
 
     One HTTP request to WDQS, then three passes over the Turtle: grouping
-    by entity for the Oxigraph load, label extraction for ancestor rows,
+    by entity for the graph load, label extraction for ancestor rows,
     metadata extraction for the seed's ``WikidataItem`` fields.
 
     Returns a dict with keys ``turtle``, ``groups``, ``labels``,
@@ -518,12 +795,13 @@ def fetch_seed_data(qid, *, session=None, timeout=60):
     }
 
 
-def commit_closure_to_oxigraph(
+def commit_closure_to_memgraph(
     seed_qid, groups, labels, *, discovered_via=None, client=None
 ):
-    """Push parsed closure to Oxigraph and reconcile ``WikidataItem`` rows.
+    """Push parsed closure to Memgraph and reconcile ``WikidataItem`` rows.
 
-    - Atomically replaces each entity's named graph in Oxigraph.
+    - Atomically replaces each closure entity's mirrored data in one Bolt
+      transaction — all entities swap together or none do.
     - Bumps ``sparql_last_loaded_at`` on already-existing ``WikidataItem``
       rows in the closure (the seed itself is skipped here; its caller -
       typically ``WikidataItem.save()`` - sets that field in-place before
@@ -536,20 +814,23 @@ def commit_closure_to_oxigraph(
     """
     from django.utils import timezone
 
+    from .memgraph import MemgraphClient, ensure_schema
     from .models import WikidataItem
-    from .oxigraph import OxigraphClient
+
+    payload = build_graph_payload(groups)
 
     owns_client = client is None
     if owns_client:
-        client = OxigraphClient()
+        client = MemgraphClient()
     try:
-        client.update(build_atomic_update(groups))
+        ensure_schema(client)
+        client.write_tx(lambda tx: apply_closure(tx, payload))
     finally:
         if owns_client:
             client.close()
 
     now = timezone.now()
-    # Property-descriptor graphs (wd:Pxxx) live only in Oxigraph;
+    # Property-descriptor nodes (:Property) live only in Memgraph;
     # WikidataItem rows track Q-entities alone.
     qids = [q for q in (iri_to_qid(iri) for iri in groups) if looks_like_qid(q)]
     existing_qids = set(

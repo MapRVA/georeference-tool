@@ -2,8 +2,8 @@ import "../../styles/pages/browse-subjects.css";
 
 /**
  * Alpine.js component for subject browsing with search, "Load More", and a
- * two-section autocomplete (Subjects + Categories powered by the Oxigraph
- * SPARQL mirror).
+ * two-section autocomplete (Subjects + Categories powered by the Memgraph
+ * Wikidata mirror).
  */
 window.Alpine.data("subjectBrowser", function () {
   const config = window.subjectBrowserConfig || {};

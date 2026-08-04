@@ -55,9 +55,9 @@ class WikidataItem(models.Model):
         help_text="Consecutive fetch failures (resets on success)",
     )
 
-    # SPARQL mirror tracking - separate cadence from the JSON metadata fetch
-    # above. Populated when we load this entity's RDF into its Oxigraph named
-    # graph.
+    # WDQS mirror tracking - separate cadence from the JSON metadata fetch
+    # above. Populated when we load this entity's closure (fetched from
+    # WDQS via SPARQL) into the Memgraph mirror.
     sparql_last_loaded_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -218,7 +218,7 @@ class WikidataItem(models.Model):
                 self.title = self.wikidata_id
             # Sync path is only the cheap entity-JSON fetch: confirms the
             # Q-ID resolves and gives us a label/description to return to
-            # the caller. The P31?/P279* ancestor walk + Oxigraph load is
+            # the caller. The P31?/P279* ancestor walk + Memgraph load is
             # deferred to ``hydrate_wikidata_item`` on the urgent queue.
             # ``sparql_last_loaded_at`` stays NULL so the Beat refresher
             # picks the row up too if that task never runs.
@@ -427,11 +427,11 @@ class SubjectAncestor(models.Model):
     """Materialized ``Subject -> WikidataItem`` ancestor relation.
 
     A flat projection of each Subject's category-relevant ancestors, derived
-    from the same SPARQL paths the autocomplete used to traverse on the fly
-    (``wdt:P31?/wdt:P279*``, ``wdt:P1716``, ``wdt:P361``, ``pq:P361`` on any
-    of the Subject's statements). Refreshed per-subject after each Oxigraph
+    from the same graph paths the autocomplete used to traverse on the fly
+    (``P31?/P279*``, ``P1716``, ``P361``, and ``P361`` as a qualifier on any
+    of the Subject's statements). Refreshed per-subject after each Memgraph
     closure load; query-time aggregation/substring-match runs against this
-    table with proper indexes instead of via SPARQL property paths.
+    table with proper indexes instead of via graph traversal.
     """
 
     subject = models.ForeignKey(

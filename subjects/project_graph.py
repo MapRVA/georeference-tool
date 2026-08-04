@@ -1,53 +1,56 @@
-"""Maintain the ``<urn:yesterdays:subjects>`` named graph in Oxigraph.
+"""Maintain the ``:ProjectSubject`` markers in the Memgraph mirror.
 
-The graph is small - one marker triple per Subject that has a linked
-WikidataItem *and* at least one image tagged with it - and exists so
-that SPARQL queries can join across Wikidata data and our own notion
+The marker set is small - one labeled ``:Entity`` node per Subject that
+has a linked WikidataItem *and* at least one image tagged with it - and
+exists so graph queries can join across Wikidata data and our own notion
 of "which entities are Subjects with images in this project."
 
-Triples have the shape::
-
-    <http://www.wikidata.org/entity/Q12345> a <urn:yesterdays:Subject> .
-
-The graph rebuilds wholesale (it's tiny) on demand. Django signals on
-Subject and SubjectMapping save/delete issue targeted INSERT/DELETE so
-the graph stays warm between rebuilds. Signal failures are logged and
-swallowed - they must not break user writes, and the next rebuild
-fixes any drift.
+Markers rebuild wholesale (the set is tiny) on demand. Django signals on
+Subject and SubjectMapping save/delete issue targeted label SET/REMOVE so
+the markers stay warm between rebuilds. Signal failures are logged and
+swallowed - they must not break user writes, and the next rebuild fixes
+any drift.
 """
 
 import logging
 
-import requests
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
+from .memgraph import GRAPH_ERRORS, MemgraphClient, ensure_schema
 from .models import Subject
-from .oxigraph import OxigraphClient
-from .sparql_safety import UnsafeSparqlInput, sparql_wikidata_entity_iri
+from .sparql_safety import looks_like_qid
 
 logger = logging.getLogger(__name__)
 
-PROJECT_GRAPH_IRI = "urn:yesterdays:subjects"
-SUBJECT_CLASS_IRI = "urn:yesterdays:Subject"
-RDF_TYPE_IRI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+PROJECT_SUBJECT_LABEL = "ProjectSubject"
 
+_CLEAR_MARKERS_QUERY = "MATCH (n:ProjectSubject) REMOVE n:ProjectSubject"
 
-def _marker_triple(qid):
-    """Single ``<wd:Qxxx> rdf:type <project:Subject> .`` triple for ``qid``."""
-    return f"{sparql_wikidata_entity_iri(qid)} <{RDF_TYPE_IRI}> <{SUBJECT_CLASS_IRI}> ."
+# MERGE keeps the old RDF behavior of markers existing for entities that
+# aren't mirrored yet: the stub node is invisible to the autocomplete
+# (no ``label_en``) until the closure load fills it in.
+_SET_MARKERS_QUERY = """\
+UNWIND $qids AS qid
+MERGE (e:Entity {id: qid})
+SET e:ProjectSubject
+"""
+
+_UPSERT_MARKER_QUERY = "MERGE (e:Entity {id: $qid}) SET e:ProjectSubject"
+
+_REMOVE_MARKER_QUERY = "MATCH (e:Entity {id: $qid}) REMOVE e:ProjectSubject"
 
 
 def rebuild_project_graph(client=None):
-    """Wholesale-rebuild the project graph from the current Subject rows.
+    """Wholesale-rebuild the marker set from the current Subject rows.
 
-    Cheap because the graph is tiny (one triple per Subject that both
-    has a linked WikidataItem and at least one image mapping).
-    Idempotent. Returns the count of marker triples written.
+    Cheap because the marker set is tiny (one labeled node per Subject
+    that both has a linked WikidataItem and at least one image mapping).
+    Idempotent. Returns the count of markers written.
     """
     owns_client = client is None
     if owns_client:
-        client = OxigraphClient()
+        client = MemgraphClient()
     try:
         qids = list(
             Subject.objects.filter(
@@ -58,30 +61,30 @@ def rebuild_project_graph(client=None):
             .values_list("wikidata_item__wikidata_id", flat=True)
         )
 
-        triples = []
+        valid_qids = []
         skipped = 0
         for qid in qids:
-            try:
-                triples.append(_marker_triple(qid))
-            except UnsafeSparqlInput as e:
-                logger.warning("Skipping invalid Q-ID %r: %s", qid, e)
+            if looks_like_qid(qid):
+                valid_qids.append(qid)
+            else:
+                logger.warning("Skipping invalid Q-ID %r", qid)
                 skipped += 1
 
-        triples_block = "\n".join(triples)
-        update = (
-            f"DROP SILENT GRAPH <{PROJECT_GRAPH_IRI}> ;\n"
-            f"INSERT DATA {{ GRAPH <{PROJECT_GRAPH_IRI}> {{\n"
-            f"{triples_block}\n"
-            f"}} }}"
-        )
-        client.update(update)
+        ensure_schema(client)
+
+        def _rebuild(tx):
+            tx.run(_CLEAR_MARKERS_QUERY)
+            if valid_qids:
+                tx.run(_SET_MARKERS_QUERY, qids=valid_qids)
+
+        client.write_tx(_rebuild)
 
         logger.info(
-            "Rebuilt project graph: %d marker triples (%d skipped)",
-            len(triples),
+            "Rebuilt project markers: %d subject(s) (%d skipped)",
+            len(valid_qids),
             skipped,
         )
-        return len(triples)
+        return len(valid_qids)
     finally:
         if owns_client:
             client.close()
@@ -104,49 +107,47 @@ def sync_subject_marker(subject, client=None):
 
 
 def upsert_subject_marker(qid, client=None):
-    """Ensure the marker triple for ``qid`` is present in the project graph.
+    """Ensure the ``:ProjectSubject`` label is set for ``qid``.
 
-    RDF graphs are sets, so ``INSERT DATA`` is idempotent — re-inserting an
-    existing triple is a no-op. No prior DELETE needed.
+    ``MERGE`` + ``SET`` label is idempotent — re-marking a marked entity
+    is a no-op, like the ``INSERT DATA`` it replaces.
     """
-    try:
-        marker = _marker_triple(qid)
-    except UnsafeSparqlInput as e:
-        logger.warning("Refusing to upsert invalid Q-ID %r: %s", qid, e)
+    if not looks_like_qid(qid):
+        logger.warning("Refusing to upsert marker for invalid Q-ID %r", qid)
         return
-    update = f"INSERT DATA {{ GRAPH <{PROJECT_GRAPH_IRI}> {{ {marker} }} }}"
-    _safe_update(update, client, action=f"upsert marker for {qid}")
+    _safe_write(
+        _UPSERT_MARKER_QUERY, client, qid=qid, action=f"upsert marker for {qid}"
+    )
 
 
 def remove_subject_marker(qid, client=None):
-    """Remove the marker triple for ``qid`` from the project graph."""
-    try:
-        marker = _marker_triple(qid)
-    except UnsafeSparqlInput as e:
-        logger.warning("Refusing to remove invalid Q-ID %r: %s", qid, e)
+    """Remove the ``:ProjectSubject`` label from ``qid`` (no-op if absent)."""
+    if not looks_like_qid(qid):
+        logger.warning("Refusing to remove marker for invalid Q-ID %r", qid)
         return
-    update = f"DELETE WHERE {{ GRAPH <{PROJECT_GRAPH_IRI}> {{ {marker} }} }}"
-    _safe_update(update, client, action=f"remove marker for {qid}")
+    _safe_write(
+        _REMOVE_MARKER_QUERY, client, qid=qid, action=f"remove marker for {qid}"
+    )
 
 
-def _safe_update(update, client, action):
-    """Run a SPARQL Update; swallow only network/HTTP failures.
+def _safe_write(query, client, *, qid, action):
+    """Run a marker write; swallow only graph/transport failures.
 
     Called from post_save/post_delete signal handlers — uncaught exceptions
     would propagate through ``Subject.save()`` and break user writes.
-    ``requests.RequestException`` (network blips, Oxigraph 5xx) is swallowed
+    ``GRAPH_ERRORS`` (network blips, Memgraph server errors) is swallowed
     on the assumption that the next ``rebuild_project_graph`` reconciles
     the drift. Programming errors are intentionally allowed to propagate
-    so they surface instead of silently corrupting the project graph.
+    so they surface instead of silently corrupting the marker set.
     """
     owns_client = client is None
     if owns_client:
-        client = OxigraphClient()
+        client = MemgraphClient()
     try:
-        client.update(update)
-    except requests.RequestException as e:
+        client.write(query, qid=qid)
+    except GRAPH_ERRORS as e:
         logger.warning(
-            "Oxigraph update failed during %s (network): %s — "
+            "Memgraph write failed during %s: %s — "
             "next rebuild_project_graph will reconcile",
             action,
             e,

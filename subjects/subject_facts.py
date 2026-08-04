@@ -1,64 +1,44 @@
-"""Read per-Subject Wikidata facts from the Oxigraph mirror.
+"""Read per-Subject Wikidata facts from the Memgraph mirror.
 
-Counterpart to ``wikidata_closure.py``, which writes them. Queries here
-are anchored on the entity IRI (bound subject, scoped to the entity's
-named graph) so the planner can't pick the bad plan we hit when an
-``rdfs:label`` lookup over the whole graph appears before a small
-intermediate result has been built. See the timing notes in this
-module's PR for what that looks like in practice.
+Counterpart to ``wikidata_closure.py``, which writes them. Both queries
+anchor on the entity node's indexed ``id``, so lookups stay bounded no
+matter how large the mirror grows.
 """
 
 import logging
 from datetime import datetime
 from urllib.parse import urlsplit
 
-import requests
-
-from .oxigraph import OxigraphClient, entity_graph_iri
+from .memgraph import GRAPH_ERRORS, MemgraphClient
 from .sparql_safety import UnsafeSparqlInput, validate_qid
 
 logger = logging.getLogger(__name__)
 
 
-# ``SAMPLE`` collapses to exactly one row even if a closure load emits
-# duplicate literals -- ``wikidata_closure.parse_closure`` doesn't dedupe
-# per (predicate, lang), and ``WIKIDATA_MIRROR_LANGUAGES`` may mirror
-# more languages than the English these reads pick out.
+# ``description_en`` holds the first English literal the closure load saw
+# (the write bakes in the ``SAMPLE`` the old SPARQL read did); ``P571``
+# is a list property, so ``head()`` picks the first inception value.
 _SUBJECT_FACTS_QUERY = """\
-PREFIX wd:     <http://www.wikidata.org/entity/>
-PREFIX wdt:    <http://www.wikidata.org/prop/direct/>
-PREFIX schema: <http://schema.org/>
-
-SELECT (SAMPLE(?d) AS ?description) (SAMPLE(?i) AS ?inception)
-WHERE {{
-  GRAPH <{graph}> {{
-    OPTIONAL {{ wd:{qid} schema:description ?d . FILTER(LANG(?d) = "en") }}
-    OPTIONAL {{ wd:{qid} wdt:P571 ?i }}
-  }}
-}}
+MATCH (e:Entity {id: $qid})
+RETURN e.description_en AS description, head(e.P571) AS inception
 """
 
 
+# The old cross-graph ``wikibase:directClaim`` join becomes node-id
+# equality: literal-valued claims are stored as PID-keyed list
+# properties, and only PID keys can match a ``:Property`` node's id
+# (``label_en`` and friends filter out naturally). Q18618628 marks
+# cultural-heritage authority-control properties.
 _AUTHORITY_IDS_QUERY = """\
-PREFIX wd:       <http://www.wikidata.org/entity/>
-PREFIX wdt:      <http://www.wikidata.org/prop/direct/>
-PREFIX wikibase: <http://wikiba.se/ontology#>
-PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?prop ?propLabel ?value ?formatter ?itemLabel WHERE {{
-  GRAPH <{graph}> {{ wd:{qid} ?p ?value . }}
-  GRAPH ?prop_g {{
-    ?prop wikibase:directClaim ?p ;
-          wdt:P31 wd:Q18618628 .
-    OPTIONAL {{ ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "en") }}
-    OPTIONAL {{ ?prop wdt:P1630 ?formatter }}
-  }}
-  OPTIONAL {{
-    GRAPH ?prop_g {{ ?prop wdt:P1629 ?item }}
-    GRAPH ?item_g {{ ?item rdfs:label ?itemLabel . FILTER(LANG(?itemLabel) = "en") }}
-  }}
-}}
-ORDER BY ?propLabel ?value
+MATCH (e:Entity {id: $qid})
+WITH properties(e) AS claims
+UNWIND keys(claims) AS pid
+MATCH (p:Property {id: pid})-[:P31]->(:Entity {id: 'Q18618628'})
+OPTIONAL MATCH (p)-[:P1629]->(item:Entity)
+UNWIND claims[pid] AS value
+RETURN p.id AS prop, p.label_en AS propLabel, value,
+       head(p.P1630) AS formatter, item.label_en AS itemLabel
+ORDER BY propLabel, value
 """
 
 
@@ -87,7 +67,7 @@ def fetch_authority_ids(qid):
     Return authority-control external identifiers for one Subject.
 
     Pairs each cultural-heritage authority-control property the subject
-    uses (found via the per-property descriptor graphs ``wikidata_closure``
+    uses (found via the property descriptors ``wikidata_closure``
     mirrors) with the subject's own identifier value(s), yielding
     display-ready external links. Returns a list of
     ``{property, value, url, item_label}`` dicts, ordered by property
@@ -95,20 +75,18 @@ def fetch_authority_ids(qid):
     URL (or the formatter would produce a non-``http(s)`` link), and
     ``item_label`` is ``None`` unless the property has a P1629
     ("Wikidata item of this property") target with a mirrored English
-    label. Returns ``[]`` on Q-ID validation failure or Oxigraph transport
-    error, so callers can render the page without the section.
+    label. Returns ``[]`` on Q-ID validation failure or Memgraph error,
+    so callers can render the page without the section.
     """
     try:
         validate_qid(qid)
     except UnsafeSparqlInput:
         return []
 
-    query = _AUTHORITY_IDS_QUERY.format(qid=qid, graph=entity_graph_iri(qid))
-
     try:
-        with OxigraphClient() as client:
-            rows = client.select(query)
-    except requests.RequestException as e:
+        with MemgraphClient() as client:
+            rows = client.read(_AUTHORITY_IDS_QUERY, qid=qid)
+    except GRAPH_ERRORS as e:
         logger.warning("fetch_authority_ids(%s) failed: %s", qid, e)
         return []
 
@@ -120,7 +98,7 @@ def fetch_authority_ids(qid):
         formatter = row.get("formatter")
         # Fall back to the bare P-ID if a property somehow lacks an English
         # label, so the row still renders with an identifier prefix.
-        label = row.get("propLabel") or row.get("prop", "").rsplit("/", 1)[-1]
+        label = row.get("propLabel") or row.get("prop")
         results.append(
             {
                 "property": label,
@@ -134,25 +112,23 @@ def fetch_authority_ids(qid):
 
 def fetch_subject_facts(qid):
     """
-    Return ``{description, inception}`` for one Subject from Oxigraph.
+    Return ``{description, inception}`` for one Subject from the mirror.
 
-    ``description`` is the English ``schema:description`` literal (str,
-    omitted if absent). ``inception`` is a ``datetime.date`` parsed from
-    the first ``wdt:P571`` literal (omitted if absent or unparseable).
-    Returns ``{}`` on Q-ID validation failure or Oxigraph transport
-    error so callers can render the page without the Wikidata fields.
+    ``description`` is the English description literal (str, omitted if
+    absent). ``inception`` is a ``datetime.date`` parsed from the first
+    ``P571`` value (omitted if absent or unparseable). Returns ``{}`` on
+    Q-ID validation failure or Memgraph error so callers can render the
+    page without the Wikidata fields.
     """
     try:
         validate_qid(qid)
     except UnsafeSparqlInput:
         return {}
 
-    query = _SUBJECT_FACTS_QUERY.format(qid=qid, graph=entity_graph_iri(qid))
-
     try:
-        with OxigraphClient() as client:
-            rows = client.select(query)
-    except requests.RequestException as e:
+        with MemgraphClient() as client:
+            rows = client.read(_SUBJECT_FACTS_QUERY, qid=qid)
+    except GRAPH_ERRORS as e:
         logger.warning("fetch_subject_facts(%s) failed: %s", qid, e)
         return {}
 
@@ -164,9 +140,9 @@ def fetch_subject_facts(qid):
     if row.get("description"):
         facts["description"] = row["description"]
     if row.get("inception"):
-        # P571 RDF literals like "1895-01-01T00:00:00Z". BCE years (leading
-        # "-") and partial dates are skipped, matching the leniency of
-        # ``extract_seed_metadata`` in wikidata_closure.py.
+        # P571 lexical values like "1895-01-01T00:00:00Z". BCE years
+        # (leading "-") and partial dates are skipped, matching the
+        # leniency of ``extract_seed_metadata`` in wikidata_closure.py.
         try:
             facts["inception"] = datetime.strptime(
                 row["inception"][:10], "%Y-%m-%d"
