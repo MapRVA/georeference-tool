@@ -9,7 +9,7 @@ There is additional information available for developers interested in [accessin
 
 ## Join Us!
 
-You are invited to contribute to Yesterdays. [Click here](getting-started/intro) for a beginner's guide.
+You are invited to contribute to Yesterdays. [Click here](getting-started/) for a beginner's guide.
 
 Join the [OpenStreetMap US Slack](https://openstreetmap.us/slack/), where we collaborate on development and contributions to Yesterdays in the `#yesterdays` channel.
 Anyone is welcome to participate.
