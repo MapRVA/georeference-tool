@@ -54,6 +54,7 @@ SEED_METADATA_FIELDS = (
     "architect",
     "image_url",
     "inception",
+    "demolished",
     "sparql_last_loaded_at",
     "sparql_fetch_failures",
 )
@@ -64,6 +65,7 @@ SCHEMA_ABOUT_IRI = "http://schema.org/about"
 WDT_P18_IRI = "http://www.wikidata.org/prop/direct/P18"
 WDT_P84_IRI = "http://www.wikidata.org/prop/direct/P84"
 WDT_P571_IRI = "http://www.wikidata.org/prop/direct/P571"
+WDT_P576_IRI = "http://www.wikidata.org/prop/direct/P576"
 COMMONS_FILEPATH_PREFIX = "http://commons.wikimedia.org/wiki/Special:FilePath/"
 EN_WIKIPEDIA_PREFIX = "https://en.wikipedia.org/"
 
@@ -387,6 +389,18 @@ def parse_closure(turtle_bytes):
     return groups, labels
 
 
+def _parse_closure_date(literal):
+    """Parse a ``wdt:`` time literal to a ``date``, or ``None`` if unusable.
+
+    CE dates only: BCE literals carry a leading ``-`` and so fail the
+    ``%Y-%m-%d`` parse, matching the entity-JSON path's behaviour.
+    """
+    try:
+        return datetime.strptime(literal.value[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
 def extract_seed_metadata(turtle_bytes, qid):
     """Pull ``WikidataItem`` metadata fields for ``qid`` out of the closure Turtle.
 
@@ -405,6 +419,8 @@ def extract_seed_metadata(turtle_bytes, qid):
         ``wdt:P18``, or ``""``
       - ``inception``: ``datetime.date`` from ``wdt:P571`` (CE dates
         only - matches the JSON path's behavior), or ``None``
+      - ``demolished``: ``datetime.date`` from ``wdt:P576`` (dissolved,
+        abolished or demolished), same parsing rules, or ``None``
     """
     seed_iri = f"{WIKIDATA_ENTITY_IRI_BASE}{qid}"
     title = ""
@@ -413,6 +429,7 @@ def extract_seed_metadata(turtle_bytes, qid):
     architects = []
     image_url = ""
     inception = None
+    demolished = None
 
     for quad in pyoxigraph.parse(turtle_bytes, format=pyoxigraph.RdfFormat.TURTLE):
         subj = quad.subject
@@ -441,10 +458,10 @@ def extract_seed_metadata(turtle_bytes, qid):
                     )
             elif pred == WDT_P571_IRI and isinstance(obj, pyoxigraph.Literal):
                 if inception is None:
-                    try:
-                        inception = datetime.strptime(obj.value[:10], "%Y-%m-%d").date()
-                    except (ValueError, TypeError):
-                        pass
+                    inception = _parse_closure_date(obj)
+            elif pred == WDT_P576_IRI and isinstance(obj, pyoxigraph.Literal):
+                if demolished is None:
+                    demolished = _parse_closure_date(obj)
         elif (
             pred == SCHEMA_ABOUT_IRI
             and isinstance(obj, pyoxigraph.NamedNode)
@@ -461,6 +478,7 @@ def extract_seed_metadata(turtle_bytes, qid):
         "architect": ", ".join(architects),
         "image_url": image_url,
         "inception": inception,
+        "demolished": demolished,
     }
 
 

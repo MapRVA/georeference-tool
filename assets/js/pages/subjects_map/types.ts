@@ -31,6 +31,9 @@ export interface SubjectMapInfo {
   georeferenced_images: number;
   wikidata_id: string | null;
   wikidata_url: string | null;
+  // Year range built from the subject's Wikidata inception/demolished
+  // dates, e.g. "1901–1910" or "1950–". Empty when neither date is known.
+  date_range: string;
 }
 
 // Tile URLs templated by the page, read off the wrapper's data attributes.

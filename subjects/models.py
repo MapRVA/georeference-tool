@@ -14,6 +14,23 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
+def _first_time_claim(claims, pid):
+    """Return the first CE date of entity-JSON claim ``pid`` as ``YYYY-MM-DD``.
+
+    Wikidata time literals look like ``"+1895-01-01T00:00:00Z"``; the
+    leading sign is a BCE marker, so ``-`` values are skipped rather than
+    misparsed. Returns ``None`` when the property is absent or carries no
+    usable value.
+    """
+    for claim in claims.get(pid, []):
+        if claim.get("mainsnak", {}).get("snaktype") != "value":
+            continue
+        time_data = claim["mainsnak"]["datavalue"]["value"]
+        if "time" in time_data and time_data["time"].startswith("+"):
+            return time_data["time"][1:11]
+    return None
+
+
 class WikidataItem(models.Model):
     """Wikidata item with cached metadata"""
 
@@ -38,6 +55,11 @@ class WikidataItem(models.Model):
     )
     inception = models.DateField(
         null=True, blank=True, help_text="Date of construction/inception"
+    )
+    demolished = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of demolition/dissolution (Wikidata P576)",
     )
     last_updated = models.DateTimeField(
         auto_now=True, help_text="When this row was last modified"
@@ -88,6 +110,25 @@ class WikidataItem(models.Model):
         """Generate Wikidata URL from ID"""
         return f"https://www.wikidata.org/wiki/{self.wikidata_id}"
 
+    @property
+    def date_range(self):
+        """Render ``inception``/``demolished`` as a display year range.
+
+        Yields ``"1901–1910"``, an open-ended ``"1950–"`` when the subject
+        was never demolished (or the date is unknown), ``"?–1910"`` when
+        only the end is known, and ``""`` when neither date is set.
+
+        Years only: neither write path records Wikidata's
+        ``timePrecision``, so a year-precision claim is indistinguishable
+        from a real January 1st and anything finer would invent precision
+        we don't have.
+        """
+        if not self.inception and not self.demolished:
+            return ""
+        start = self.inception.year if self.inception else "?"
+        end = self.demolished.year if self.demolished else ""
+        return f"{start}–{end}"
+
     def _fetch_wikidata_info(self):
         """Internal method to fetch and parse data from Wikidata API."""
         # Configure session with retry strategy
@@ -130,7 +171,6 @@ class WikidataItem(models.Model):
 
             architect = ""
             image_url = ""
-            inception = None
 
             claims = entity.get("claims", {})
             if "P84" in claims:
@@ -151,21 +191,14 @@ class WikidataItem(models.Model):
                         image_url = f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{filename_encoded}&width=300"
                         break
 
-            if "P571" in claims:
-                for claim in claims["P571"]:
-                    if claim.get("mainsnak", {}).get("snaktype") == "value":
-                        time_data = claim["mainsnak"]["datavalue"]["value"]
-                        if "time" in time_data and time_data["time"].startswith("+"):
-                            inception = time_data["time"][1:11]
-                            break
-
             return {
                 "title": title or self.wikidata_id,
                 "description": description,
                 "wikipedia_url": wikipedia_url,
                 "architect": architect,
                 "image_url": image_url,
-                "inception": inception,
+                "inception": _first_time_claim(claims, "P571"),
+                "demolished": _first_time_claim(claims, "P576"),
             }
 
         except requests.RequestException as e:
@@ -190,13 +223,15 @@ class WikidataItem(models.Model):
             self.architect = wikidata_info["architect"]
             self.image_url = wikidata_info["image_url"]
 
-            if wikidata_info["inception"]:
-                try:
-                    self.inception = datetime.strptime(
-                        wikidata_info["inception"], "%Y-%m-%d"
-                    ).date()
-                except (ValueError, TypeError):
-                    pass
+            for field in ("inception", "demolished"):
+                if wikidata_info[field]:
+                    try:
+                        parsed = datetime.strptime(
+                            wikidata_info[field], "%Y-%m-%d"
+                        ).date()
+                    except (ValueError, TypeError):
+                        continue
+                    setattr(self, field, parsed)
             return True
         return False
 
@@ -209,6 +244,8 @@ class WikidataItem(models.Model):
         self.image_url = meta["image_url"]
         if meta["inception"]:
             self.inception = meta["inception"]
+        if meta["demolished"]:
+            self.demolished = meta["demolished"]
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

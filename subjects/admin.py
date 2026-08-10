@@ -23,9 +23,10 @@ class WikidataItemAdmin(admin.ModelAdmin):
         "description_truncated",
         "va_landmark_id",
         "inception",
+        "demolished",
         "last_updated",
     )
-    list_filter = ("last_updated", "inception")
+    list_filter = ("last_updated", "inception", "demolished")
     search_fields = ("wikidata_id", "title", "description", "va_landmark_id")
     readonly_fields = ("created_at", "last_updated", "wikidata_url", "refresh_button")
     actions = ["refresh_selected_wikidata_items"]
@@ -153,7 +154,13 @@ class WikidataItemAdmin(admin.ModelAdmin):
         (
             "Additional Metadata",
             {
-                "fields": ("va_landmark_id", "architect", "image_url", "inception"),
+                "fields": (
+                    "va_landmark_id",
+                    "architect",
+                    "image_url",
+                    "inception",
+                    "demolished",
+                ),
                 "description": "Optional additional information about the subject",
             },
         ),

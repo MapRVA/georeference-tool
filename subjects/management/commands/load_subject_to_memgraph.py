@@ -101,6 +101,7 @@ class Command(BaseCommand):
                 architect=metadata["architect"],
                 image_url=metadata["image_url"],
                 inception=metadata["inception"],
+                demolished=metadata["demolished"],
                 sparql_last_loaded_at=now,
                 sparql_fetch_failures=0,
             )

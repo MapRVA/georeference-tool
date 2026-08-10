@@ -852,6 +852,7 @@ def subject_map_info(request, subject_slug):
             "georeferenced_images": subject.georeferenced_images,
             "wikidata_id": wikidata_item.wikidata_id if wikidata_item else None,
             "wikidata_url": wikidata_item.wikidata_url if wikidata_item else None,
+            "date_range": wikidata_item.date_range if wikidata_item else "",
         }
     )
 

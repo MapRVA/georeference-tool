@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -701,6 +702,72 @@ wd:Q600 rdfs:label "Test Register"@en .
             edges[("Property", "P1629", "Entity")],
             [{"src": "P5473", "dst": "Q600"}],
         )
+
+
+class ExtractSeedMetadataTests(SimpleTestCase):
+    """The WikidataItem field values pulled out of the closure Turtle."""
+
+    PREFIXES = """\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+"""
+
+    def _extract(self, body, qid="Q100"):
+        return extract_seed_metadata((self.PREFIXES + body).encode(), qid)
+
+    def test_inception_and_demolished_parsed_first_value_wins(self):
+        meta = self._extract(
+            """\
+wd:Q100 wdt:P571 "1901-01-01T00:00:00Z"^^xsd:dateTime ;
+    wdt:P576 "1910-06-15T00:00:00Z"^^xsd:dateTime .
+"""
+        )
+        self.assertEqual(meta["inception"], date(1901, 1, 1))
+        self.assertEqual(meta["demolished"], date(1910, 6, 15))
+
+    def test_dates_absent_when_properties_missing(self):
+        meta = self._extract("wd:Q100 wdt:P31 wd:Q200 .\n")
+        self.assertIsNone(meta["inception"])
+        self.assertIsNone(meta["demolished"])
+
+    def test_bce_dates_rejected(self):
+        # BCE literals carry a leading "-" and must not be misparsed.
+        meta = self._extract(
+            'wd:Q100 wdt:P576 "-0044-03-15T00:00:00Z"^^xsd:dateTime .\n'
+        )
+        self.assertIsNone(meta["demolished"])
+
+    def test_dates_only_read_off_the_seed(self):
+        # A neighbour's own P571/P576 must not leak onto the seed's row.
+        meta = self._extract(
+            """\
+wd:Q100 wdt:P31 wd:Q200 .
+wd:Q200 wdt:P571 "1800-01-01T00:00:00Z"^^xsd:dateTime ;
+    wdt:P576 "1850-01-01T00:00:00Z"^^xsd:dateTime .
+"""
+        )
+        self.assertIsNone(meta["inception"])
+        self.assertIsNone(meta["demolished"])
+
+
+class WikidataItemDateRangeTests(SimpleTestCase):
+    """The display string built from inception/demolished."""
+
+    def test_both_dates(self):
+        item = WikidataItem(inception=date(1901, 5, 1), demolished=date(1910, 1, 1))
+        self.assertEqual(item.date_range, "1901–1910")
+
+    def test_open_ended_when_still_standing(self):
+        item = WikidataItem(inception=date(1950, 1, 1))
+        self.assertEqual(item.date_range, "1950–")
+
+    def test_unknown_start(self):
+        item = WikidataItem(demolished=date(1910, 1, 1))
+        self.assertEqual(item.date_range, "?–1910")
+
+    def test_empty_without_dates(self):
+        self.assertEqual(WikidataItem().date_range, "")
 
 
 class _RecordingTx:

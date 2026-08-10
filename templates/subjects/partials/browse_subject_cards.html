@@ -34,8 +34,8 @@
                                 <i class="fas fa-external-link-alt ms-1"></i>
                             </a>
                         </small>
-                        {% if subject.wikidata_item.inception %}
-                            <br><small class="text-muted">Built: {{ subject.wikidata_item.inception|date:"Y" }}</small>
+                        {% if subject.wikidata_item.date_range %}
+                            <br><small class="text-muted">{{ subject.wikidata_item.date_range }}</small>
                         {% endif %}
                         {% if subject.wikidata_item.va_landmark_id %}
                             <br><small class="text-muted">VA Landmark: {{ subject.wikidata_item.va_landmark_id }}</small>
