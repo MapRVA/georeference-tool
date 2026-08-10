@@ -5,6 +5,11 @@ on:
       - trunk
     paths:
       - docs/**
+      - assets/images/surveillance-direction.png
+      - assets/js/components/image_viewer.js
+      - assets/js/components/osd_buttons.js
+      - assets/styles/components/georeference-joystick.css
+      - assets/styles/components/image-viewer.css
       - zensical.toml
       - pyproject.toml
       - uv.lock
