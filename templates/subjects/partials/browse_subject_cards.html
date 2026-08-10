@@ -1,3 +1,8 @@
+{% comment %}
+Card format mirrors the subjects-map info panel (subjects/subjects_map.html).
+That one is Alpine-bound to fetched JSON and this one is server-rendered, so
+they can't share a template — keep the two in step by hand.
+{% endcomment %}
 {% for subject in subjects %}
     <div class="col-lg-6 col-xl-4 mb-4 subject-card-wrapper">
         <div class="card h-100 shadow-sm">
@@ -14,41 +19,37 @@
                     <i class="fas fa-map-pin fa-4x text-muted"></i>
                 </a>
             {% endif %}
-            <div class="card-body">
-                <h5 class="card-title mb-2">
+            <div class="card-body d-flex flex-column">
+                <h2 class="h6 card-title mb-1">
                     <a href="{{ subject.get_absolute_url }}" class="text-decoration-none">
                         {{ subject.title }}
                     </a>
-                    <small class="text-muted d-block mt-1">{{ subject.total_images }} image{{ subject.total_images|pluralize }}</small>
-                </h5>
+                </h2>
+
+                {% if subject.wikidata_item.date_range %}
+                    <p class="small text-muted mb-1">{{ subject.wikidata_item.date_range }}</p>
+                {% endif %}
 
                 {% if subject.wikidata_item.description %}
-                    <p class="card-text text-muted small">{{ subject.wikidata_item.description|truncatewords:20 }}</p>
+                    <p class="small text-muted mb-2">{{ subject.wikidata_item.description|truncatewords:20 }}</p>
                 {% endif %}
 
-                {% if subject.wikidata_item %}
-                    <div>
-                        <small class="text-muted">
-                            <a href="{{ subject.wikidata_item.wikidata_url }}" target="_blank" class="text-decoration-none">
-                                {{ subject.wikidata_item.wikidata_id }}
-                                <i class="fas fa-external-link-alt ms-1"></i>
-                            </a>
-                        </small>
-                        {% if subject.wikidata_item.date_range %}
-                            <br><small class="text-muted">{{ subject.wikidata_item.date_range }}</small>
-                        {% endif %}
-                        {% if subject.wikidata_item.va_landmark_id %}
-                            <br><small class="text-muted">VA Landmark: {{ subject.wikidata_item.va_landmark_id }}</small>
-                        {% endif %}
-                    </div>
-                {% endif %}
-            </div>
-            <div class="card-footer bg-body border-top-0">
-                <div class="d-flex justify-content-end">
-                    {% if subject.pending_images > 0 %}
-                    <a href="{% url 'images:georeference_interface' %}?subject={{ subject.slug }}" class="btn btn-success">
-                        <i class="fas fa-map-marker-alt me-1"></i>Georeference
+                {# mt-auto on the button row below lines it up across cards. #}
+                <p class="small mb-3">{{ subject.total_images }} image{{ subject.total_images|pluralize }}{% if subject.georeferenced_images %} · {{ subject.georeferenced_images }} georeferenced{% endif %}</p>
+
+                <div class="d-flex gap-2 mt-auto">
+                    <a class="btn btn-sm btn-primary" href="{{ subject.get_absolute_url }}">
+                        View subject
                     </a>
+
+                    {% if subject.wikidata_item %}
+                        <a class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                           target="_blank" rel="noopener"
+                           href="{{ subject.wikidata_item.wikidata_url }}"
+                           title="View on Wikidata ({{ subject.wikidata_item.wikidata_id }})">
+                            {% include 'subjects/partials/wikidata_logo.html' %}
+                            <span class="visually-hidden">View on Wikidata</span>
+                        </a>
                     {% endif %}
                 </div>
             </div>

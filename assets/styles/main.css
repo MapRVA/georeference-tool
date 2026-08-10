@@ -21,10 +21,15 @@
 }
 
 /* Wikidata brand mark, inlined by templates/subjects/partials/wikidata_logo.html.
-   The source viewBox is 32x18, so setting height alone fixes both dimensions. */
+   That viewBox is cropped to the bars, so setting height alone fixes both
+   dimensions. The bars are transparent between them, so the mark sits on its
+   own white plate rather than on whatever is behind it — hardcoded, not
+   themed, so it survives the button's hover fill and stays legible in dark
+   mode. No padding: the plate hugs the bars exactly. */
 .wikidata-logo {
     height: 1em;
     vertical-align: middle;
+    background-color: #fff;
 }
 
 .action-button {

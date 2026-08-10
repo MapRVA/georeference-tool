@@ -790,9 +790,6 @@ def browse_subjects(request):
     has_more = len(subject_list) > PER_PAGE
     subject_list = subject_list[:PER_PAGE]
 
-    for subject in subject_list:
-        subject.pending_images = subject.total_images - subject.georeferenced_images
-
     if is_ajax:
         return render(
             request,
