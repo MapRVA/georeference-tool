@@ -1,4 +1,12 @@
 import type { ExpressionSpecification } from "maplibre-gl";
+import {
+  detailCircleLayer,
+  directionSymbolLayer,
+  heatmapCircleLayer,
+  simpleCircleLayer,
+  simpleDirectionSymbolLayer,
+  type ImagePointLayerOptions,
+} from "./image_point_layers";
 import { DIRECTION_SPRITE_ID, LAYER_IDS, SOURCE_IDS } from "./layer_ids";
 import type { MapDisplayContext } from "./types";
 
@@ -48,194 +56,43 @@ export async function setupMapDataLayers(ctx: MapDisplayContext): Promise<void> 
         ? ["!=", ["get", "id"], parseInt(imageId, 10)]
         : null;
 
-    // Add blurred background circles (heatmap effect, fades out at higher zoom)
-    map.addLayer({
-      id: LAYER_IDS.imageHeatmap,
-      type: "circle",
+    const layerOptions: ImagePointLayerOptions = {
       source: SOURCE_IDS.images,
-      "source-layer": "image_points",
-      filter: excludeCurrentFilter || ["literal", true],
-      maxzoom: 17,
-      layout: {
-        visibility: initialVisibility,
-      },
-      paint: {
-        "circle-blur": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          14.5,
-          1.5,
-          16,
-          3,
-        ],
-        "circle-opacity": [
-          "interpolate",
-          ["exponential", 5],
-          ["zoom"],
-          14,
-          1,
-          17,
-          0,
-        ],
-        "circle-radius": [
-          "interpolate",
-          ["exponential", 2],
-          ["zoom"],
-          10,
-          25,
-          20,
-          100,
-        ],
-        "circle-color": colors.primary,
-        "circle-pitch-alignment": "map",
-        "circle-pitch-scale": "map",
-      },
-    });
+      color: colors.primary,
+      extraFilter: excludeCurrentFilter,
+      visibility: initialVisibility,
+    };
+
+    // Add blurred background circles (heatmap effect, fades out at higher zoom)
+    map.addLayer(heatmapCircleLayer(LAYER_IDS.imageHeatmap, layerOptions));
 
     // Add direction markers (fade in at higher zoom, rendered under circles)
     if (map.hasImage(DIRECTION_SPRITE_ID)) {
-      map.addLayer({
-        id: LAYER_IDS.imageDirections,
-        type: "symbol",
-        source: SOURCE_IDS.images,
-        "source-layer": "image_points",
-        minzoom: 15,
-        filter: excludeCurrentFilter
-          ? ["all", ["has", "direction"], excludeCurrentFilter]
-          : ["has", "direction"],
-        layout: {
-          "icon-image": DIRECTION_SPRITE_ID,
-          "icon-overlap": "always",
-          "icon-size": [
-            "interpolate",
-            ["exponential", 0.7],
-            ["zoom"],
-            15,
-            0.3,
-            20,
-            1,
-          ],
-          "icon-rotate": ["to-number", ["get", "direction"]],
-          "icon-rotation-alignment": "map",
-          "icon-pitch-alignment": "map",
-          visibility: initialVisibility,
-        },
-      });
+      map.addLayer(
+        directionSymbolLayer(LAYER_IDS.imageDirections, layerOptions),
+      );
     }
 
     // Add detail circles (blur transitions from blurry to sharp, on top of directions)
-    map.addLayer({
-      id: LAYER_IDS.imageCircles,
-      type: "circle",
-      source: SOURCE_IDS.images,
-      "source-layer": "image_points",
-      minzoom: 7,
-      filter: excludeCurrentFilter || ["literal", true],
-      layout: {
-        visibility: initialVisibility,
-      },
-      paint: {
-        "circle-blur": [
-          "interpolate",
-          ["exponential", 1.5],
-          ["zoom"],
-          9,
-          5,
-          13,
-          1,
-          15,
-          0,
-        ],
-        "circle-opacity": [
-          "interpolate",
-          ["exponential", 1.5],
-          ["zoom"],
-          7,
-          0,
-          10,
-          1,
-        ],
-        "circle-radius": [
-          "interpolate",
-          ["exponential", 0.6],
-          ["zoom"],
-          7,
-          1,
-          15,
-          3,
-          20,
-          9,
-        ],
-        "circle-color": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          14,
-          "#fff",
-          15,
-          colors.primary,
-        ],
-        "circle-stroke-color": "#fff",
-        "circle-stroke-width": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          13.5,
-          0,
-          15,
-          1,
-          20,
-          2,
-        ],
-        "circle-pitch-alignment": "map",
-        "circle-pitch-scale": "map",
-      },
-    });
+    map.addLayer(detailCircleLayer(LAYER_IDS.imageCircles, layerOptions));
 
     // === Simple style layers (hidden by default) ===
+    const simpleLayerOptions = { ...layerOptions, visibility: "none" as const };
 
     // Add simple direction markers (rendered under simple circles)
     if (map.hasImage(DIRECTION_SPRITE_ID)) {
-      map.addLayer({
-        id: LAYER_IDS.imageDirectionsSimple,
-        type: "symbol",
-        source: SOURCE_IDS.images,
-        "source-layer": "image_points",
-        filter: excludeCurrentFilter
-          ? ["all", ["has", "direction"], excludeCurrentFilter]
-          : ["has", "direction"],
-        layout: {
-          "icon-image": DIRECTION_SPRITE_ID,
-          "icon-overlap": "always",
-          "icon-size": 1,
-          "icon-rotate": ["to-number", ["get", "direction"]],
-          "icon-rotation-alignment": "map",
-          "icon-pitch-alignment": "map",
-          visibility: "none",
-        },
-      });
+      map.addLayer(
+        simpleDirectionSymbolLayer(
+          LAYER_IDS.imageDirectionsSimple,
+          simpleLayerOptions,
+        ),
+      );
     }
 
     // Add simple circle layer (always visible at all zooms, on top of simple directions)
-    map.addLayer({
-      id: LAYER_IDS.imageCirclesSimple,
-      type: "circle",
-      source: SOURCE_IDS.images,
-      "source-layer": "image_points",
-      filter: excludeCurrentFilter || ["literal", true],
-      layout: {
-        visibility: "none",
-      },
-      paint: {
-        "circle-radius": 8,
-        "circle-color": colors.primary,
-        "circle-stroke-color": "#fff",
-        "circle-stroke-width": 2,
-        "circle-pitch-alignment": "map",
-        "circle-pitch-scale": "map",
-      },
-    });
+    map.addLayer(
+      simpleCircleLayer(LAYER_IDS.imageCirclesSimple, simpleLayerOptions),
+    );
   }
 
   // Add current image as GeoJSON layer (always visible, distinct color, on top)

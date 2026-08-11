@@ -16,9 +16,19 @@ import {
   LayerControl,
 } from "../../components/layer_control";
 import { initImageViewer } from "../../components/image_viewer";
+import {
+  computeYearRange,
+  watchFirstSourceFeatures,
+} from "../../components/map_display/features";
+import {
+  insertTimeSlider,
+  TimeSliderControl,
+} from "../../components/map_display/time_slider_control";
 import { addResponsiveGeocoder } from "../../components/responsive_geocoder";
 import { initSubjectEditor } from "../../components/subject_editor.js";
 import {
+  CONTEXT_LAYER_IDS,
+  contextTimeSliderTargets,
   createContextImagesController,
   initContextDisplayControls,
 } from "./context_images";
@@ -237,6 +247,31 @@ function initializeGeoreferenceInterface(
     map.on("moveend", () => updateMapSwapLink(map));
 
     restoreOverlayState(ctx);
+
+    // Add the date slider once the first context images load and reveal a
+    // filterable date range (mirrors the sitewide maps)
+    watchFirstSourceFeatures(
+      map,
+      {
+        sourceId: "context-images",
+        sourceLayer: "image_points",
+        fallbackLayerId: CONTEXT_LAYER_IDS.circles,
+      },
+      (features) => {
+        const range = computeYearRange(features);
+        if (!range || range.minYear >= range.maxYear) return;
+        const timeSlider = new TimeSliderControl(
+          range.minYear,
+          range.maxYear,
+          map.getContainer().id,
+          contextTimeSliderTargets(image),
+        );
+        insertTimeSlider(map, timeSlider);
+        // The slider may arrive while context images are hidden
+        timeSlider.setVisible(state.contextDisplayMode !== "hidden");
+        ctx.timeSlider = timeSlider;
+      },
+    );
   });
 
   map.on("click", (e) => {
@@ -247,8 +282,18 @@ function initializeGeoreferenceInterface(
       return;
     }
 
-    // Don't place pin if clicking on a context image
-    if (state.isHoveringContextImage) return;
+    // Don't place pin if clicking on a context image in clickable mode (the
+    // layer's own click handler opens a popup instead). Queried rather than
+    // tracked via hover state so it also works on touch devices.
+    if (
+      state.contextDisplayMode === "clickable" &&
+      map.getLayer(CONTEXT_LAYER_IDS.circles) &&
+      map.queryRenderedFeatures(e.point, {
+        layers: [CONTEXT_LAYER_IDS.circles],
+      }).length > 0
+    ) {
+      return;
+    }
 
     const { lng, lat } = e.lngLat;
     map

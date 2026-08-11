@@ -8,10 +8,19 @@ import {
   dangerColor,
   darkColor,
   lightColor,
-  secondaryColor,
 } from "../../components/map_display/colors";
 import { ensureDirectionSprite } from "../../components/map_display/direction_sprite";
+import {
+  detailCircleLayer,
+  directionSymbolLayer,
+  heatmapCircleLayer,
+} from "../../components/map_display/image_point_layers";
 import { DIRECTION_SPRITE_ID } from "../../components/map_display/layer_ids";
+import {
+  CONTEXT_LAYER_IDS,
+  contextImageExtraFilter,
+  contextModeAppearance,
+} from "./context_images";
 import { emptyFeatureCollection, pinFeatureCollection } from "./geojson";
 import { updateBearingLine } from "./pin_direction";
 import type { GeoreferenceContext, LocationHintType } from "./types";
@@ -28,8 +37,9 @@ export const OVERLAY_LAYER_IDS: string[] = [
   "bearing-line",
   "pin-circle",
   "pin-symbol",
-  "context-image-circles",
-  "context-image-directions",
+  CONTEXT_LAYER_IDS.heatmap,
+  CONTEXT_LAYER_IDS.directions,
+  CONTEXT_LAYER_IDS.circles,
 ];
 
 // Hint marker colors by type: georeference = yellow, source = teal,
@@ -173,9 +183,11 @@ export async function addMapSourcesAndLayers(
     });
   }
 
-  // Add all existing georeferenced images for context using vector tiles.
-  // These are added BEFORE the pin layers so the user's pin always renders
-  // on top.
+  // Add all existing georeferenced images for context using vector tiles,
+  // rendered with the same zoom-graduated styling as the sitewide maps
+  // (map_display/image_point_layers). These are added BEFORE the pin layers
+  // so the user's pin always renders on top. Initial styling reflects the
+  // current display mode; restoreOverlayState re-applies it afterwards.
   try {
     // Build vector tiles URL (version is already included from template)
     const contextVectorTilesUrl =
@@ -185,49 +197,28 @@ export async function addMapSourcesAndLayers(
     map.addSource("context-images", {
       type: "vector",
       tiles: [contextVectorTilesUrl],
-      minzoom: 16,
+      minzoom: 0,
+      maxzoom: 14,
     });
 
-    // Add circles for existing images (styling depends on mode)
-    map.addLayer({
-      id: "context-image-circles",
-      type: "circle",
+    const appearance = contextModeAppearance(state.contextDisplayMode);
+    const layerOptions = {
       source: "context-images",
-      "source-layer": "image_points",
-      paint: {
-        "circle-radius": 6,
-        "circle-color": secondaryColor,
-        "circle-opacity": 0.6,
-        "circle-stroke-color": "#fff",
-        "circle-stroke-width": 1,
-        "circle-stroke-opacity": 0.8,
-      },
-      layout: {
-        visibility: "visible",
-      },
-    });
+      color: appearance.color,
+      opacity: appearance.opacity,
+      extraFilter: contextImageExtraFilter(ctx.image),
+      visibility: appearance.visible ? ("visible" as const) : ("none" as const),
+    };
 
-    // Add de-emphasized direction markers for existing images
+    map.addLayer(heatmapCircleLayer(CONTEXT_LAYER_IDS.heatmap, layerOptions));
+
     if (map.hasImage(DIRECTION_SPRITE_ID)) {
-      map.addLayer({
-        id: "context-image-directions",
-        type: "symbol",
-        source: "context-images",
-        "source-layer": "image_points",
-        layout: {
-          "icon-image": DIRECTION_SPRITE_ID,
-          "icon-overlap": "always",
-          "icon-size": ["interpolate", ["linear"], ["zoom"], 5, 0.3, 15, 1],
-          "icon-rotate": ["to-number", ["get", "direction"]],
-          "icon-rotation-alignment": "map",
-          "icon-pitch-alignment": "map",
-        },
-        filter: ["has", "direction"],
-      });
+      map.addLayer(
+        directionSymbolLayer(CONTEXT_LAYER_IDS.directions, layerOptions),
+      );
     }
 
-    // Update context images display based on current mode
-    ctx.contextImages?.updateDisplay();
+    map.addLayer(detailCircleLayer(CONTEXT_LAYER_IDS.circles, layerOptions));
   } catch (error) {
     console.warn("Could not load context images:", error);
   }
@@ -335,4 +326,8 @@ export function restoreOverlayState(ctx: GeoreferenceContext): void {
 
   // Re-apply context image display mode and re-attach interaction handlers
   ctx.contextImages?.updateDisplay();
+
+  // Recreated layers come back with their base filters; re-apply the date
+  // slider's range
+  ctx.timeSlider?.applyFilter();
 }

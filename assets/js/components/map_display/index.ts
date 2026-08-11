@@ -90,7 +90,12 @@ export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
     showImageLayerToggle: true,
     overlayLayerIds: OVERLAY_LAYER_IDS,
     beforeLayerId: LAYER_IDS.imageHeatmap,
-    onStyleSwap: () => setupMapDataLayers(ctx),
+    onStyleSwap: async () => {
+      await setupMapDataLayers(ctx);
+      // Recreated layers come back with their base filters; re-apply the
+      // slider's date range
+      ctx.timeSlider?.applyFilter();
+    },
   });
   ctx.layerControl = layerControl;
   const navControl = new maplibregl.NavigationControl();

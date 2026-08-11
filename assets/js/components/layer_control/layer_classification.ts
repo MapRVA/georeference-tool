@@ -4,12 +4,14 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import { LAYER_IDS } from "../map_display/layer_ids";
 
 // Overlay layers owned by other pages: the georeference interfaces (pins,
-// context images) and the map/subject detail maps (polygons).
+// context images — see pages/georeference_interface/context_images.ts) and
+// the map/subject detail maps (polygons).
 const PAGE_OVERLAY_LAYER_IDS = [
   "pin-circle",
   "pin-symbol",
-  "context-image-circles",
+  "context-image-heatmap",
   "context-image-directions",
+  "context-image-circles",
   "polygon-fill",
   "polygon-outline",
 ] as const;
@@ -48,8 +50,9 @@ const BEFORE_LAYER_CANDIDATES: readonly string[] = [
   "subject-hints-label",
   "location-hint-pulse",
   "location-hint-label",
-  "context-image-circles",
+  "context-image-heatmap",
   "context-image-directions",
+  "context-image-circles",
   "pin-circle",
   "pin-symbol",
   LAYER_IDS.imageHeatmap,

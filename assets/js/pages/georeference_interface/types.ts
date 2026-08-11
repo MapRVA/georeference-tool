@@ -2,6 +2,7 @@
 // window.georeferenceConfig object serialized by
 // templates/images/georeference_interface.html.
 import type { Map as MapLibreMap, Popup } from "maplibre-gl";
+import type { TimeSliderControl } from "../../components/map_display/time_slider_control";
 
 export type Difficulty = "easy" | "medium" | "hard";
 export type DifficultyFilter = Difficulty | "unlabeled";
@@ -112,6 +113,8 @@ export interface GeoreferenceContext {
   els: GeoreferenceElements;
   state: GeoreferenceState;
   contextImages?: ContextImagesController;
+  // Assigned once the context images reveal a filterable date range
+  timeSlider?: TimeSliderControl;
 }
 
 // JSON response shape of the georeference and skip endpoints.

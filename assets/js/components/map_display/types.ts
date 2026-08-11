@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MultiPolygon, Polygon } from "geojson";
 import type { LayerControl } from "../layer_control";
+import type { TimeSliderControl } from "./time_slider_control";
 
 // Zoom thresholds for a map scale (1-5): pinpointZoom is where points become
 // visible, fullDetailZoom is where they become interactive.
@@ -56,11 +57,13 @@ export interface ResolvedMapDisplayConfig {
 
 // Shared state threaded through the map_display modules for one map instance.
 // layerControl is assigned right after construction (its onStyleSwap callback
-// closes over the context, so the context must exist first).
+// closes over the context, so the context must exist first); timeSlider is
+// assigned once the initial features reveal a filterable date range.
 export interface MapDisplayContext {
   map: MapLibreMap;
   config: ResolvedMapDisplayConfig;
   colors: { primary: string; danger: string };
   scaleHelpers: ScaleHelpers;
   layerControl?: LayerControl;
+  timeSlider?: TimeSliderControl;
 }

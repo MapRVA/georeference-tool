@@ -1,11 +1,29 @@
 import type maplibregl from "maplibre-gl";
 import { LAYER_IDS } from "./layer_ids";
 
+// A layer the slider filters by date range. requiresDirection and extraFilter
+// reproduce the layer's base filter, which setFilter() overwrites wholesale.
+export interface TimeSliderTarget {
+  layerId: string;
+  requiresDirection?: boolean;
+  extraFilter?: maplibregl.ExpressionSpecification | null;
+}
+
+// The map_display image point layers, filtered by default.
+export const DEFAULT_TIME_SLIDER_TARGETS: TimeSliderTarget[] = [
+  { layerId: LAYER_IDS.imageHeatmap },
+  { layerId: LAYER_IDS.imageCircles },
+  { layerId: LAYER_IDS.imageDirections, requiresDirection: true },
+  { layerId: LAYER_IDS.imageCirclesSimple },
+  { layerId: LAYER_IDS.imageDirectionsSimple, requiresDirection: true },
+];
+
 // Time Slider Control Class
 export class TimeSliderControl implements maplibregl.IControl {
   _minYear: number;
   _maxYear: number;
   _mapId: string;
+  _targets: TimeSliderTarget[];
   _map: maplibregl.Map | undefined;
   _outerContainer!: HTMLDivElement;
   _sliderPanel!: HTMLElement;
@@ -14,10 +32,16 @@ export class TimeSliderControl implements maplibregl.IControl {
   _rangeLabel!: HTMLElement;
   _sliderRange!: HTMLElement;
 
-  constructor(minYear: number, maxYear: number, mapId: string) {
+  constructor(
+    minYear: number,
+    maxYear: number,
+    mapId: string,
+    targets: TimeSliderTarget[] = DEFAULT_TIME_SLIDER_TARGETS,
+  ) {
     this._minYear = minYear;
     this._maxYear = maxYear;
     this._mapId = mapId;
+    this._targets = targets;
   }
 
   onAdd(map: maplibregl.Map) {
@@ -120,6 +144,8 @@ export class TimeSliderControl implements maplibregl.IControl {
     this._sliderRange.style.width = `${endPercent - startPercent}%`;
   }
 
+  // Also called from outside after style swaps recreate the target layers
+  // with their base filters, which would otherwise silently drop the range.
   applyFilter() {
     const map = this._map;
     if (!map) return;
@@ -127,35 +153,34 @@ export class TimeSliderControl implements maplibregl.IControl {
     const startYear = parseInt(this._startSlider.value);
     const endYear = parseInt(this._endSlider.value);
 
-    const dateRange: maplibregl.ExpressionSpecification[] = [
-      ["<=", ["get", "fuzzy_start_decdate"], endYear],
-      [">=", ["get", "fuzzy_end_decdate"], startYear],
-    ];
+    // At the full range, restore the base filters instead of date-filtering,
+    // so undated images stay visible until the range is actually narrowed.
+    const fullRange =
+      startYear === this._minYear && endYear === this._maxYear;
+    const dateRange: maplibregl.ExpressionSpecification[] = fullRange
+      ? []
+      : [
+          ["<=", ["get", "fuzzy_start_decdate"], endYear],
+          [">=", ["get", "fuzzy_end_decdate"], startYear],
+        ];
 
-    const filter: maplibregl.ExpressionSpecification = ["all", ...dateRange];
-    const directionFilter: maplibregl.ExpressionSpecification = [
-      "all",
-      ["has", "direction"],
-      ...dateRange,
-    ];
+    for (const target of this._targets) {
+      if (!map.getLayer(target.layerId)) continue;
 
-    // Heatmap style layers
-    if (map.getLayer(LAYER_IDS.imageHeatmap)) {
-      map.setFilter(LAYER_IDS.imageHeatmap, filter);
-    }
-    if (map.getLayer(LAYER_IDS.imageCircles)) {
-      map.setFilter(LAYER_IDS.imageCircles, filter);
-    }
-    if (map.getLayer(LAYER_IDS.imageDirections)) {
-      map.setFilter(LAYER_IDS.imageDirections, directionFilter);
-    }
+      const clauses: maplibregl.ExpressionSpecification[] = [];
+      if (target.requiresDirection) clauses.push(["has", "direction"]);
+      if (target.extraFilter) clauses.push(target.extraFilter);
+      clauses.push(...dateRange);
 
-    // Simple style layers
-    if (map.getLayer(LAYER_IDS.imageCirclesSimple)) {
-      map.setFilter(LAYER_IDS.imageCirclesSimple, filter);
+      map.setFilter(target.layerId, clauses.length ? ["all", ...clauses] : null);
     }
-    if (map.getLayer(LAYER_IDS.imageDirectionsSimple)) {
-      map.setFilter(LAYER_IDS.imageDirectionsSimple, directionFilter);
+  }
+
+  // Show or hide the whole control (e.g. while the layers it filters are
+  // hidden). The filter state is preserved either way.
+  setVisible(visible: boolean) {
+    if (this._outerContainer) {
+      this._outerContainer.style.display = visible ? "" : "none";
     }
   }
 
@@ -164,5 +189,27 @@ export class TimeSliderControl implements maplibregl.IControl {
       this._outerContainer.parentNode.removeChild(this._outerContainer);
     }
     this._map = undefined;
+  }
+}
+
+/**
+ * Insert the slider directly after the layer control so it sits between the
+ * layer control and the navigation controls; falls back to addControl when no
+ * layer control is on the map.
+ */
+export function insertTimeSlider(
+  map: maplibregl.Map,
+  slider: TimeSliderControl,
+): void {
+  const layerControlElement = map
+    .getContainer()
+    .querySelector(".layer-control");
+  if (layerControlElement && layerControlElement.parentNode) {
+    layerControlElement.parentNode.insertBefore(
+      slider.onAdd(map),
+      layerControlElement.nextSibling,
+    );
+  } else {
+    map.addControl(slider, "top-right");
   }
 }

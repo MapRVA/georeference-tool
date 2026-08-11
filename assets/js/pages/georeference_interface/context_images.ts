@@ -1,7 +1,10 @@
 // Display modes for the already-georeferenced context images: hidden, ghost
-// (visible but inert), or clickable (popups on click, pointer cursor).
+// (visible but de-emphasized and inert), or clickable (popups on click,
+// pointer cursor). The layers share their look with the sitewide maps via
+// map_display/image_point_layers, but live under their own ids so
+// LayerControl's image-panel state never touches them.
 import maplibregl from "maplibre-gl";
-import type { MapLayerMouseEvent } from "maplibre-gl";
+import type { ExpressionSpecification, MapLayerMouseEvent } from "maplibre-gl";
 import {
   buildPopupWrapper,
   deduplicateFeatures,
@@ -10,23 +13,84 @@ import {
   primaryColor,
   secondaryColor,
 } from "../../components/map_display/colors";
+import {
+  detailColorRamp,
+  detailOpacityRamp,
+  heatmapOpacityRamp,
+} from "../../components/map_display/image_point_layers";
+import type { TimeSliderTarget } from "../../components/map_display/time_slider_control";
 import type {
   ContextDisplayMode,
   ContextImagesController,
+  CurrentImageConfig,
   GeoreferenceContext,
 } from "./types";
+
+// Stacking order: heatmap (bottom), directions, circles (top). Keep
+// map_layers.ts OVERLAY_LAYER_IDS and the shared
+// layer_control/layer_classification.ts lists in sync with these.
+export const CONTEXT_LAYER_IDS = {
+  heatmap: "context-image-heatmap",
+  directions: "context-image-directions",
+  circles: "context-image-circles",
+} as const;
+
+const GHOST_OPACITY = 0.6;
+
+export interface ContextModeAppearance {
+  color: string;
+  opacity: number;
+  visible: boolean;
+}
+
+export function contextModeAppearance(
+  mode: ContextDisplayMode,
+): ContextModeAppearance {
+  switch (mode) {
+    case "hidden":
+      return { color: secondaryColor, opacity: GHOST_OPACITY, visible: false };
+    case "ghost":
+      return { color: secondaryColor, opacity: GHOST_OPACITY, visible: true };
+    case "clickable":
+      return { color: primaryColor, opacity: 1, visible: true };
+  }
+}
+
+// When correcting an existing georeference, the current image is already in
+// the tiles; its old point would duplicate the location hint, so exclude it.
+export function contextImageExtraFilter(
+  image: CurrentImageConfig,
+): ExpressionSpecification | null {
+  return image.isGeoreferenced ? ["!=", ["get", "id"], image.id] : null;
+}
+
+// The context layers the date slider filters, preserving each layer's base
+// filter.
+export function contextTimeSliderTargets(
+  image: CurrentImageConfig,
+): TimeSliderTarget[] {
+  const extraFilter = contextImageExtraFilter(image);
+  return [
+    { layerId: CONTEXT_LAYER_IDS.heatmap, extraFilter },
+    { layerId: CONTEXT_LAYER_IDS.circles, extraFilter },
+    {
+      layerId: CONTEXT_LAYER_IDS.directions,
+      requiresDirection: true,
+      extraFilter,
+    },
+  ];
+}
 
 export function createContextImagesController(
   ctx: GeoreferenceContext,
 ): ContextImagesController {
   const { map, state } = ctx;
 
+  // Pin placement is suppressed separately: the map click handler in index.ts
+  // queries the circles layer at the click point before placing the pin.
   const onClick = (e: MapLayerMouseEvent): void => {
     // Only show popup if in clickable mode
     if (state.contextDisplayMode !== "clickable") return;
-
-    // Prevent the map click handler from firing when clicking on context images
-    e.originalEvent.stopPropagation();
 
     const features = deduplicateFeatures(e.features ?? []);
     if (features.length === 0) return;
@@ -62,15 +126,15 @@ export function createContextImagesController(
 
   const onMouseLeave = (): void => {
     if (state.contextDisplayMode === "clickable") {
-      map.getCanvas().style.cursor = "";
+      map.getCanvas().style.cursor = "crosshair";
       state.isHoveringContextImage = false;
     }
   };
 
   function detachHandlers(): void {
-    map.off("click", "context-image-circles", onClick);
-    map.off("mouseenter", "context-image-circles", onMouseEnter);
-    map.off("mouseleave", "context-image-circles", onMouseLeave);
+    map.off("click", CONTEXT_LAYER_IDS.circles, onClick);
+    map.off("mouseenter", CONTEXT_LAYER_IDS.circles, onMouseEnter);
+    map.off("mouseleave", CONTEXT_LAYER_IDS.circles, onMouseLeave);
   }
 
   function closeActivePopup(): void {
@@ -80,78 +144,75 @@ export function createContextImagesController(
     }
   }
 
-  function setDirectionsVisibility(visibility: "visible" | "none"): void {
-    if (map.getLayer("context-image-directions")) {
-      map.setLayoutProperty(
-        "context-image-directions",
-        "visibility",
-        visibility,
+  function updateDisplay(): void {
+    if (!map.getLayer(CONTEXT_LAYER_IDS.circles)) return;
+
+    const appearance = contextModeAppearance(state.contextDisplayMode);
+    const visibility = appearance.visible ? "visible" : "none";
+    for (const layerId of Object.values(CONTEXT_LAYER_IDS)) {
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", visibility);
+      }
+    }
+
+    // The date slider only filters these layers, so hide it with them
+    ctx.timeSlider?.setVisible(appearance.visible);
+
+    // Re-apply the mode-dependent paint ramps (the zoom-graduated blur and
+    // radius ramps are mode-independent and set at layer creation)
+    if (map.getLayer(CONTEXT_LAYER_IDS.heatmap)) {
+      map.setPaintProperty(
+        CONTEXT_LAYER_IDS.heatmap,
+        "circle-color",
+        appearance.color,
+      );
+      map.setPaintProperty(
+        CONTEXT_LAYER_IDS.heatmap,
+        "circle-opacity",
+        heatmapOpacityRamp(appearance.opacity),
       );
     }
-  }
+    map.setPaintProperty(
+      CONTEXT_LAYER_IDS.circles,
+      "circle-color",
+      detailColorRamp(appearance.color),
+    );
+    map.setPaintProperty(
+      CONTEXT_LAYER_IDS.circles,
+      "circle-opacity",
+      detailOpacityRamp(appearance.opacity),
+    );
+    map.setPaintProperty(
+      CONTEXT_LAYER_IDS.circles,
+      "circle-stroke-opacity",
+      appearance.opacity,
+    );
+    if (map.getLayer(CONTEXT_LAYER_IDS.directions)) {
+      map.setPaintProperty(
+        CONTEXT_LAYER_IDS.directions,
+        "icon-opacity",
+        appearance.opacity,
+      );
+    }
 
-  function updateDisplay(): void {
-    if (!map.getLayer("context-image-circles")) return;
-
-    switch (state.contextDisplayMode) {
-      case "hidden":
-        map.setLayoutProperty("context-image-circles", "visibility", "none");
-        setDirectionsVisibility("none");
-        closeActivePopup();
-        detachHandlers();
-        state.isHoveringContextImage = false;
-        map.getCanvas().style.cursor = "crosshair";
-        break;
-
-      case "ghost":
-        map.setLayoutProperty("context-image-circles", "visibility", "visible");
-        setDirectionsVisibility("visible");
-        // De-emphasized styling, completely non-interactive
-        map.setPaintProperty(
-          "context-image-circles",
-          "circle-color",
-          secondaryColor,
-        );
-        map.setPaintProperty("context-image-circles", "circle-opacity", 0.6);
-        map.setPaintProperty(
-          "context-image-circles",
-          "circle-stroke-opacity",
-          0.8,
-        );
-        closeActivePopup();
-        detachHandlers();
-        state.isHoveringContextImage = false;
-        map.getCanvas().style.cursor = "crosshair";
-        break;
-
-      case "clickable":
-        map.setLayoutProperty("context-image-circles", "visibility", "visible");
-        setDirectionsVisibility("visible");
-        // Active styling
-        map.setPaintProperty(
-          "context-image-circles",
-          "circle-color",
-          primaryColor,
-        );
-        map.setPaintProperty("context-image-circles", "circle-opacity", 1.0);
-        map.setPaintProperty(
-          "context-image-circles",
-          "circle-stroke-opacity",
-          1.0,
-        );
-        // Detach first so re-entering clickable mode never stacks handlers
-        detachHandlers();
-        map.on("click", "context-image-circles", onClick);
-        map.on("mouseenter", "context-image-circles", onMouseEnter);
-        map.on("mouseleave", "context-image-circles", onMouseLeave);
-        break;
+    // Detach first so re-entering clickable mode never stacks handlers
+    detachHandlers();
+    if (state.contextDisplayMode === "clickable") {
+      map.on("click", CONTEXT_LAYER_IDS.circles, onClick);
+      map.on("mouseenter", CONTEXT_LAYER_IDS.circles, onMouseEnter);
+      map.on("mouseleave", CONTEXT_LAYER_IDS.circles, onMouseLeave);
+    } else {
+      closeActivePopup();
+      state.isHoveringContextImage = false;
+      map.getCanvas().style.cursor = "crosshair";
     }
   }
 
   return { updateDisplay };
 }
 
-// Wire the display-mode radios and read the initial mode from the checked one.
+// Wire the display-mode radios and read the initial mode from the checked one
+// (pre-checked by the template from the user's saved preference).
 export function initContextDisplayControls(
   ctx: GeoreferenceContext,
   controller: ContextImagesController,
