@@ -19,6 +19,8 @@
     #source-map {
         width: 100%;
         height: 40vh;
+        border-bottom-left-radius: var(--bs-card-inner-border-radius);
+        border-bottom-right-radius: var(--bs-card-inner-border-radius);
     }
     .progress {
         border-radius: 3px;
@@ -106,7 +108,7 @@
                         <i class="fas fa-map me-2"></i>Georeferenced Images Map
                     </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' zoom_to_contents=True %}
                 </div>
             </div>
