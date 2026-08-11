@@ -5,14 +5,37 @@
     --border-radius-sm: 0.375rem;
     --border-radius: 0.5rem;
     --border-radius-lg: 0.75rem;
-    --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+
+    /* Aliases for Bootstrap's shadow tokens rather than copies of their values,
+       so the dark-mode overrides below reach our shadows and the .shadow-*
+       utilities alike. Templates apply both (`class="card shadow-sm"`), and the
+       utility carries !important, so duplicated values would silently diverge. */
+    --shadow-sm: var(--bs-box-shadow-sm);
+    --shadow: var(--bs-box-shadow);
+    --shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Bootstrap 5.3 themes colors and border colors for dark mode but leaves
+   --bs-box-shadow-* alone, so a black shadow at 7.5% alpha is invisible against
+   our $body-bg-dark (#0b1722) and elevated surfaces lose their edge entirely.
+   Raising the alpha restores the shadow; --shadow-edge adds a cream hairline
+   (our $light) so the edge stays crisp rather than reading as a blurry halo.
+   To compare treatments, swap --shadow-edge for the alternative below. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --shadow-edge: 0 0 0 1px rgba(244, 236, 214, 0.12);
+        /* --shadow-edge: 0 0 transparent; */ /* shadow only, no hairline */
+
+        --bs-box-shadow-sm: var(--shadow-edge), 0 0.125rem 0.25rem rgba(0, 0, 0, 0.4);
+        --bs-box-shadow: var(--shadow-edge), 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
+        --bs-box-shadow-lg: var(--shadow-edge), 0 1rem 3rem rgba(0, 0, 0, 0.6);
+        --shadow-hover: var(--shadow-edge), 0 4px 8px rgba(0, 0, 0, 0.45);
+    }
 }
 
 /* Global utility classes that extend Bootstrap */
 .card {
     box-shadow: var(--shadow-sm);
-    border: 1px solid rgba(0, 0, 0, 0.125);
 }
 
 .breadcrumb {
@@ -37,7 +60,7 @@
 }
 
 .action-button:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-hover);
 }
 
 /* Directory entry annotation overlays on OpenSeadragon viewers.
