@@ -1,11 +1,73 @@
 import "../../styles/pages/browse-subjects.css";
 
+export interface SubjectCategory {
+  qid: string;
+  label: string;
+}
+
+export interface SubjectBrowserConfig {
+  perPage?: number;
+  hasMore?: boolean;
+  autocompleteUrl?: string | null;
+  selectedCategory?: SubjectCategory | null;
+}
+
+interface CategorySuggestion extends SubjectCategory {
+  subject_count: number;
+}
+
+interface SubjectSuggestion {
+  slug: string;
+  title: string;
+}
+
+interface Suggestions {
+  categories: CategorySuggestion[];
+  subjects: SubjectSuggestion[];
+}
+
+interface AutocompleteResponse {
+  categories?: CategorySuggestion[];
+  subjects?: SubjectSuggestion[];
+}
+
+interface SubjectBrowser {
+  query: string;
+  offset: number;
+  hasMore: boolean;
+  loading: boolean;
+  noResults: boolean;
+  suggestions: Suggestions;
+  showDropdown: boolean;
+  selectedCategory: SubjectCategory | null;
+  _autocompleteController: AbortController | null;
+  _searchController: AbortController | null;
+  _isLoadingMore: boolean;
+  _pendingFetch: Promise<string> | null;
+  _loadingTimer: ReturnType<typeof setTimeout> | undefined;
+  onInput(): void;
+  onFocus(): void;
+  _fetchSuggestions(): Promise<void>;
+  selectCategory(category: CategorySuggestion): void;
+  clearCategory(): void;
+  _syncUrl(): void;
+  search(): Promise<void>;
+  prefetchMore(): void;
+  loadMore(): Promise<void>;
+  _fetch(signal?: AbortSignal): Promise<string>;
+  _parseHasMore(html: string): void;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 /**
  * Alpine.js component for subject browsing with search, "Load More", and a
  * two-section autocomplete (Subjects + Categories powered by the Memgraph
  * Wikidata mirror).
  */
-window.Alpine.data("subjectBrowser", function () {
+window.Alpine.data("subjectBrowser", function (): SubjectBrowser {
   const config = window.subjectBrowserConfig || {};
   const perPage = config.perPage || 12;
   const autocompleteUrl = config.autocompleteUrl || null;
@@ -26,7 +88,7 @@ window.Alpine.data("subjectBrowser", function () {
 
     _isLoadingMore: false,
     _pendingFetch: null,
-    _loadingTimer: null,
+    _loadingTimer: undefined,
 
     onInput() {
       // One Alpine listener, two side effects: refresh the suggestion
@@ -66,7 +128,7 @@ window.Alpine.data("subjectBrowser", function () {
           signal: this._autocompleteController.signal,
         });
         if (!response.ok) return;
-        const data = await response.json();
+        const data = (await response.json()) as AutocompleteResponse;
         this.suggestions = {
           categories: data.categories || [],
           subjects: data.subjects || [],
@@ -75,7 +137,7 @@ window.Alpine.data("subjectBrowser", function () {
           this.suggestions.categories.length > 0 ||
           this.suggestions.subjects.length > 0;
       } catch (error) {
-        if (error.name !== "AbortError") {
+        if (!isAbortError(error)) {
           console.error("Autocomplete error:", error);
         }
       }
@@ -134,13 +196,14 @@ window.Alpine.data("subjectBrowser", function () {
         const html = await this._fetch(signal);
         if (signal.aborted) return;
         const grid = document.getElementById("subject-grid");
+        if (!grid) throw new Error("Subject grid not found");
         grid.innerHTML = html;
         this._parseHasMore(html);
         this.noResults =
           grid.querySelectorAll(".subject-card-wrapper").length === 0;
         this.offset = perPage;
       } catch (error) {
-        if (error.name !== "AbortError") {
+        if (!isAbortError(error)) {
           console.error("Error searching subjects:", error);
         }
       } finally {
@@ -181,6 +244,7 @@ window.Alpine.data("subjectBrowser", function () {
 
           if (newItems.length > 0) {
             const grid = document.getElementById("subject-grid");
+            if (!grid) throw new Error("Subject grid not found");
             grid.insertAdjacentHTML("beforeend", html);
             const addedTemplate = grid.querySelector("[data-has-more]");
             if (addedTemplate) addedTemplate.remove();
@@ -202,9 +266,9 @@ window.Alpine.data("subjectBrowser", function () {
       }
     },
 
-    async _fetch(signal) {
+    async _fetch(signal?: AbortSignal) {
       const url = new URL(window.location.origin + window.location.pathname);
-      url.searchParams.set("offset", this.offset);
+      url.searchParams.set("offset", String(this.offset));
       if (this.query) url.searchParams.set("filter", this.query);
       if (this.selectedCategory) {
         url.searchParams.set("category", this.selectedCategory.qid);
@@ -221,7 +285,7 @@ window.Alpine.data("subjectBrowser", function () {
     _parseHasMore(html) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
-      const el = doc.querySelector("[data-has-more]");
+      const el = doc.querySelector<HTMLElement>("[data-has-more]");
       this.hasMore = el ? el.dataset.hasMore === "true" : false;
     },
   };

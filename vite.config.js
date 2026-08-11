@@ -57,7 +57,7 @@ export default defineConfig({
         search: path.resolve(__dirname, "./assets/js/pages/search.js"),
         browse_subjects: path.resolve(
           __dirname,
-          "./assets/js/pages/browse_subjects.js",
+          "./assets/js/pages/browse_subjects.ts",
         ),
         subjects_map: path.resolve(
           __dirname,

@@ -328,14 +328,14 @@ export async function setupMapDataLayers(ctx: MapDisplayContext): Promise<void> 
     });
   }
 
-  // Restore image layer visibility to match LayerControl state
+  // Restore visibility, display style, and point size from LayerControl state
   if (ctx.layerControl) {
-    ctx.layerControl.applyImageLayerVisibility();
+    ctx.layerControl.applyImageLayerState();
   }
 
   // When "Show Other Images" toggle controls visibility, re-hide layers
-  // unless the toggle checkbox is currently checked (applyImageLayerVisibility
-  // above doesn't know about the toggle and would make them visible).
+  // unless the toggle checkbox is currently checked (applyImageLayerState
+  // above doesn't know about the separate toggle and would make them visible).
   if (showOtherImages && imageId) {
     const toggle = document.getElementById(
       "show-other-images-toggle",

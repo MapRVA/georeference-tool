@@ -177,16 +177,17 @@ export class LayerControl implements IControl {
   }
 
   /**
-   * Apply the current image layer visibility. Called after a style swap, once
-   * map_display has re-added its layers.
+   * Apply all control-owned image layer state. Called whenever map_display has
+   * added or recreated its layers.
    */
-  applyImageLayerVisibility(): void {
+  applyImageLayerState(): void {
     if (!this.map) return;
     updateImageLayerVisibility(
       this.map,
       this.imageLayersVisible,
       this.imageDisplayStyle,
     );
+    updateSimpleCircleRadius(this.map, this.simpleCircleRadius);
   }
 
   private handleFullscreenChange(): void {
@@ -456,6 +457,12 @@ export class LayerControl implements IControl {
         console.error("Failed to restore layers after style swap:", error);
       } finally {
         try {
+          this.applyImageLayerState();
+        } catch (error) {
+          console.error("Failed to restore image layer state:", error);
+        }
+
+        try {
           if (savedOverlay) {
             // Reset so switchToOverlayLayer re-adds instead of toggling off
             this.currentOverlay = null;
@@ -508,14 +515,14 @@ export class LayerControl implements IControl {
 
   private toggleImageLayers(): void {
     this.imageLayersVisible = !this.imageLayersVisible;
-    this.applyImageLayerVisibility();
+    this.applyImageLayerState();
     this.imagePanel?.setImageLayersActive(this.imageLayersVisible);
     this.imagePanel?.setControlsEnabled(this.imageLayersVisible);
   }
 
   private setImageDisplayStyle(style: ImageDisplayStyle): void {
     this.imageDisplayStyle = style;
-    this.applyImageLayerVisibility();
+    this.applyImageLayerState();
     this.imagePanel?.setRadiusVisible(style === "simple");
   }
 

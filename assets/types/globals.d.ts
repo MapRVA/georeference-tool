@@ -5,6 +5,7 @@ import type {
 } from "../js/components/layer_control/types";
 import type { MapDisplayConfig } from "../js/components/map_display/types";
 import type { GeoreferenceConfig } from "../js/pages/georeference_interface/types";
+import type { SubjectBrowserConfig } from "../js/pages/browse_subjects";
 
 declare global {
   // Minimal shape of the Bootstrap bundle assets/index.js puts on window. The
@@ -61,6 +62,10 @@ declare global {
     // Django-serialized configuration for the point georeference interface,
     // set inline by templates/images/georeference_interface.html
     georeferenceConfig?: GeoreferenceConfig;
+
+    // Django-serialized configuration for the subject browser, set inline by
+    // templates/subjects/browse_subjects.html.
+    subjectBrowserConfig?: SubjectBrowserConfig;
 
     // Protomaps basemap key, set by pages that build their own basemap style
     PROTOMAPS_API_KEY?: string;
