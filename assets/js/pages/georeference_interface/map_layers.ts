@@ -13,11 +13,11 @@ import { ensureDirectionSprite } from "../../components/map_display/direction_sp
 import {
   detailCircleLayer,
   directionSymbolLayer,
-  heatmapCircleLayer,
 } from "../../components/map_display/image_point_layers";
 import { DIRECTION_SPRITE_ID } from "../../components/map_display/layer_ids";
 import {
   CONTEXT_LAYER_IDS,
+  CONTEXT_MIN_ZOOM,
   contextImageExtraFilter,
   contextModeAppearance,
 } from "./context_images";
@@ -37,7 +37,6 @@ export const OVERLAY_LAYER_IDS: string[] = [
   "bearing-line",
   "pin-circle",
   "pin-symbol",
-  CONTEXT_LAYER_IDS.heatmap,
   CONTEXT_LAYER_IDS.directions,
   CONTEXT_LAYER_IDS.circles,
 ];
@@ -185,9 +184,10 @@ export async function addMapSourcesAndLayers(
 
   // Add all existing georeferenced images for context using vector tiles,
   // rendered with the same zoom-graduated styling as the sitewide maps
-  // (map_display/image_point_layers). These are added BEFORE the pin layers
-  // so the user's pin always renders on top. Initial styling reflects the
-  // current display mode; restoreOverlayState re-applies it afterwards.
+  // (map_display/image_point_layers), but only from CONTEXT_MIN_ZOOM up.
+  // These are added BEFORE the pin layers so the user's pin always renders on
+  // top. Initial styling reflects the current display mode; restoreOverlayState
+  // re-applies it afterwards.
   try {
     // Build vector tiles URL (version is already included from template)
     const contextVectorTilesUrl =
@@ -208,9 +208,8 @@ export async function addMapSourcesAndLayers(
       opacity: appearance.opacity,
       extraFilter: contextImageExtraFilter(ctx.image),
       visibility: appearance.visible ? ("visible" as const) : ("none" as const),
+      minzoom: CONTEXT_MIN_ZOOM,
     };
-
-    map.addLayer(heatmapCircleLayer(CONTEXT_LAYER_IDS.heatmap, layerOptions));
 
     if (map.hasImage(DIRECTION_SPRITE_ID)) {
       map.addLayer(

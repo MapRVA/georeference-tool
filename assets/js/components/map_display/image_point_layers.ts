@@ -23,6 +23,12 @@ export interface ImagePointLayerOptions {
   /** Extra filter ANDed into the layer filter (e.g. exclude current image). */
   extraFilter?: ExpressionSpecification | null;
   visibility?: "visible" | "none";
+  /**
+   * Overrides the layer's default zoom floor. The georeference interface
+   * raises it so context images stay out of the way until you are zoomed in
+   * far enough to place a pin (see context_images.ts CONTEXT_MIN_ZOOM).
+   */
+  minzoom?: number;
 }
 
 function circleFilter(
@@ -39,11 +45,11 @@ function directionFilter(
     : ["has", "direction"];
 }
 
-// The mode-dependent paint ramps are exported separately so the georeference
+// The mode-dependent detail ramps are exported separately so the georeference
 // interface can re-apply them via setPaintProperty when its display mode
 // changes, without recreating the layers.
 
-export function heatmapOpacityRamp(opacity: number): ExpressionSpecification {
+function heatmapOpacityRamp(opacity: number): ExpressionSpecification {
   return ["interpolate", ["exponential", 5], ["zoom"], 14, opacity, 17, 0];
 }
 
@@ -105,13 +111,14 @@ export function detailCircleLayer(
     opacity = 1,
     extraFilter = null,
     visibility = "visible",
+    minzoom = 7,
   } = options;
   return {
     id,
     type: "circle",
     source,
     "source-layer": SOURCE_LAYER,
-    minzoom: 7,
+    minzoom,
     filter: circleFilter(extraFilter),
     layout: { visibility },
     paint: {
@@ -168,13 +175,14 @@ export function directionSymbolLayer(
     opacity = 1,
     extraFilter = null,
     visibility = "visible",
+    minzoom = 15,
   } = options;
   return {
     id,
     type: "symbol",
     source,
     "source-layer": SOURCE_LAYER,
-    minzoom: 15,
+    minzoom,
     filter: directionFilter(extraFilter),
     layout: {
       "icon-image": DIRECTION_SPRITE_ID,

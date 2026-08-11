@@ -16,7 +16,6 @@ import {
 import {
   detailColorRamp,
   detailOpacityRamp,
-  heatmapOpacityRamp,
 } from "../../components/map_display/image_point_layers";
 import type { TimeSliderTarget } from "../../components/map_display/time_slider_control";
 import type {
@@ -26,14 +25,19 @@ import type {
   GeoreferenceContext,
 } from "./types";
 
-// Stacking order: heatmap (bottom), directions, circles (top). Keep
-// map_layers.ts OVERLAY_LAYER_IDS and the shared
-// layer_control/layer_classification.ts lists in sync with these.
+// Stacking order: directions (bottom), circles (top). Keep map_layers.ts
+// OVERLAY_LAYER_IDS and the shared layer_control/layer_classification.ts
+// lists in sync with these. The sitewide maps' low-zoom heatmap layer has no
+// counterpart here: context images are gated at CONTEXT_MIN_ZOOM, above which
+// the heatmap has already faded out.
 export const CONTEXT_LAYER_IDS = {
-  heatmap: "context-image-heatmap",
   directions: "context-image-directions",
   circles: "context-image-circles",
 } as const;
+
+// Context images stay hidden until you are zoomed in far enough to be placing
+// a pin, so the map reads clean while you pan around looking for the spot.
+export const CONTEXT_MIN_ZOOM = 16;
 
 const GHOST_OPACITY = 0.6;
 
@@ -71,7 +75,6 @@ export function contextTimeSliderTargets(
 ): TimeSliderTarget[] {
   const extraFilter = contextImageExtraFilter(image);
   return [
-    { layerId: CONTEXT_LAYER_IDS.heatmap, extraFilter },
     { layerId: CONTEXT_LAYER_IDS.circles, extraFilter },
     {
       layerId: CONTEXT_LAYER_IDS.directions,
@@ -160,18 +163,6 @@ export function createContextImagesController(
 
     // Re-apply the mode-dependent paint ramps (the zoom-graduated blur and
     // radius ramps are mode-independent and set at layer creation)
-    if (map.getLayer(CONTEXT_LAYER_IDS.heatmap)) {
-      map.setPaintProperty(
-        CONTEXT_LAYER_IDS.heatmap,
-        "circle-color",
-        appearance.color,
-      );
-      map.setPaintProperty(
-        CONTEXT_LAYER_IDS.heatmap,
-        "circle-opacity",
-        heatmapOpacityRamp(appearance.opacity),
-      );
-    }
     map.setPaintProperty(
       CONTEXT_LAYER_IDS.circles,
       "circle-color",

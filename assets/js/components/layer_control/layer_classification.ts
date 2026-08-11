@@ -9,7 +9,6 @@ import { LAYER_IDS } from "../map_display/layer_ids";
 const PAGE_OVERLAY_LAYER_IDS = [
   "pin-circle",
   "pin-symbol",
-  "context-image-heatmap",
   "context-image-directions",
   "context-image-circles",
   "polygon-fill",
@@ -50,7 +49,6 @@ const BEFORE_LAYER_CANDIDATES: readonly string[] = [
   "subject-hints-label",
   "location-hint-pulse",
   "location-hint-label",
-  "context-image-heatmap",
   "context-image-directions",
   "context-image-circles",
   "pin-circle",
