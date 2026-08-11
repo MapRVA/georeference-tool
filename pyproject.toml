@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4~=4.15.0",
-    "boto3~=1.43.52",
+    "boto3~=1.43.68",
     "celery[librabbitmq]~=5.6.3",
     "django~=6.0.7",
     "django-celery-results>=2.6.0",
@@ -24,9 +24,9 @@ dependencies = [
     "geopy~=2.4.1",
     "iiif-prezi3==3.1.1",
     "markdown~=3.10.2",
-    "neo4j~=5.28",
+    "neo4j~=6.2.0",
     "nh3~=0.3.6",
-    "numpy>=2.5.1",
+    "numpy>=2.5.2",
     "osm-login-python~=2.1.4",
     "pillow==12.0.0",
     "psycopg[binary]~=3.3.4",
@@ -34,8 +34,8 @@ dependencies = [
     "pytesseract>=0.3.13",
     "pyvips[binary]>=3.1.1",
     "requests~=2.34.2",
-    "tqdm~=4.69.0",
-    "uvicorn[standard]~=0.51.0",
+    "tqdm~=4.70.0",
+    "uvicorn[standard]~=0.52.1",
     "whitenoise[brotli]~=6.12.0",
 ]
 
@@ -44,7 +44,7 @@ dev = [
     "pytest-django>=4.11.1",
     "pytest>=9.1.1",
 ]
-docs = ["zensical~=0.0.51"]
+docs = ["zensical~=0.0.53"]
 
 [tool.uv]
 default-groups = ["docs"]
