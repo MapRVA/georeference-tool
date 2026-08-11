@@ -19,6 +19,7 @@ from .similarity import build_subject_query_embedding
 from .sparql_safety import UnsafeSparqlInput, looks_like_pid, looks_like_qid
 from .views import _MAX_AUTOCOMPLETE_QUERY_LEN
 from .wikidata_closure import (
+    ClosureLoadError,
     apply_closure,
     build_graph_payload,
     closure_query,
@@ -543,6 +544,41 @@ _:blank rdfs:label "anonymous"@en .
         self.assertEqual(
             owners, {"Q100-aaaa-bbbb": "Q100", "q100-cccc-dddd": "Q100"}
         )
+
+
+class MalformedClosureTests(SimpleTestCase):
+    """Bad Turtle from WDQS is a ClosureLoadError, not a stray SyntaxError."""
+
+    PREFIXES = """\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+"""
+
+    # A CONSTRUCT response cut off mid-statement, as WDQS leaves it when a
+    # query outruns its time limit after the stream has started.
+    TRUNCATED = PREFIXES + 'wd:Q100 rdfs:label "Test Hall"@en ;\n    wdt:P31 wd:Q2'
+
+    # Whole document, one unusable term: a raw space inside an IRI.
+    BAD_IRI = PREFIXES + "wd:Q100 wdt:P973 <https://example.org/a b> .\n"
+
+    def test_truncated_response_reports_truncation(self):
+        for label, parse in (
+            ("parse_closure", parse_closure),
+            ("extract_seed_metadata", lambda ttl: extract_seed_metadata(ttl, "Q100")),
+        ):
+            with self.subTest(label):
+                with self.assertRaises(ClosureLoadError) as ctx:
+                    parse(self.TRUNCATED.encode())
+                self.assertIn("truncated in transit", str(ctx.exception))
+
+    def test_malformed_term_reports_the_offending_line(self):
+        with self.assertRaises(ClosureLoadError) as ctx:
+            parse_closure(self.BAD_IRI.encode())
+        message = str(ctx.exception)
+        self.assertIn("Invalid IRI", message)
+        self.assertIn("line 5 reads: wd:Q100 wdt:P973", message)
 
 
 class BuildGraphPayloadTests(SimpleTestCase):

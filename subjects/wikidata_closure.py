@@ -303,6 +303,66 @@ def fetch_closure_turtle(session, qid, timeout=60):
     return response.content
 
 
+class ClosureLoadError(Exception):
+    """Raised when fetch/parse of a closure doesn't return a usable seed.
+
+    Network failures from WDQS surface as ``requests`` exceptions and
+    aren't wrapped - callers that care about that distinction can catch
+    them directly.
+    """
+
+
+# How much of the offending Turtle line a parse error quotes back.
+_PARSE_ERROR_SNIPPET_CHARS = 200
+
+
+def _describe_parse_error(turtle_bytes, lineno):
+    """Explain where closure Turtle stopped parsing, for the error message.
+
+    A body that doesn't end in the ``.`` that closes every Turtle
+    statement was cut off in transit rather than malformed at the source:
+    WDQS streams CONSTRUCT results and abandons the stream when a query
+    outruns its time limit, so the client gets HTTP 200 and a document
+    that ends mid-triple. Worth distinguishing - a truncated response
+    means retry (or a cheaper closure), bad data means fix the data.
+    """
+    if turtle_bytes.rstrip()[-1:] != b".":
+        return (
+            f"response ends mid-statement after {len(turtle_bytes):,} bytes, "
+            "so it was truncated in transit (typically a WDQS query timeout)"
+        )
+    lines = turtle_bytes.split(b"\n")
+    if not lineno or lineno > len(lines):
+        return "response is not valid Turtle"
+    snippet = lines[lineno - 1][:_PARSE_ERROR_SNIPPET_CHARS].decode("utf-8", "replace")
+    return f"line {lineno} reads: {snippet}"
+
+
+def _parse_turtle(turtle_bytes):
+    """Yield quads from closure Turtle, as ``ClosureLoadError`` on bad syntax.
+
+    pyoxigraph reports a malformed document by raising the builtin
+    ``SyntaxError`` mid-iteration, which is not an exception any caller of
+    this module thinks to catch - an unparseable WDQS response would take
+    down the whole refresh task, leaving ``sparql_fetch_failures``
+    unincremented so the item never ages out of the rotation. Translating
+    it here routes it into the same handling as any other unusable
+    closure.
+    """
+    quads = pyoxigraph.parse(turtle_bytes, format=pyoxigraph.RdfFormat.TURTLE)
+    while True:
+        try:
+            quad = next(quads)
+        except StopIteration:
+            return
+        except SyntaxError as e:
+            raise ClosureLoadError(
+                f"WDQS returned unparseable Turtle ({e.msg}); "
+                f"{_describe_parse_error(turtle_bytes, e.lineno)}"
+            ) from e
+        yield quad
+
+
 def parse_closure(turtle_bytes):
     """Parse closure Turtle, group by Wikidata entity IRI, collect labels.
 
@@ -320,10 +380,12 @@ def parse_closure(turtle_bytes):
       - ``labels``: ``{qid: english_label}`` - one per Q-entity, for
         populating a freshly-created ``WikidataItem.title`` without an
         extra fetch.
+
+    Raises ``ClosureLoadError`` if the Turtle is malformed or truncated.
     """
     groups = {}
     labels = {}
-    for quad in pyoxigraph.parse(turtle_bytes, format=pyoxigraph.RdfFormat.TURTLE):
+    for quad in _parse_turtle(turtle_bytes):
         subj = quad.subject
         if not isinstance(subj, pyoxigraph.NamedNode):
             continue
@@ -421,6 +483,8 @@ def extract_seed_metadata(turtle_bytes, qid):
         only - matches the JSON path's behavior), or ``None``
       - ``demolished``: ``datetime.date`` from ``wdt:P576`` (dissolved,
         abolished or demolished), same parsing rules, or ``None``
+
+    Raises ``ClosureLoadError`` if the Turtle is malformed or truncated.
     """
     seed_iri = f"{WIKIDATA_ENTITY_IRI_BASE}{qid}"
     title = ""
@@ -431,7 +495,7 @@ def extract_seed_metadata(turtle_bytes, qid):
     inception = None
     demolished = None
 
-    for quad in pyoxigraph.parse(turtle_bytes, format=pyoxigraph.RdfFormat.TURTLE):
+    for quad in _parse_turtle(turtle_bytes):
         subj = quad.subject
         if not isinstance(subj, pyoxigraph.NamedNode):
             continue
@@ -763,15 +827,6 @@ def iri_to_qid(iri):
     return iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
 
 
-class ClosureLoadError(Exception):
-    """Raised when fetch/parse of a closure doesn't return a usable seed.
-
-    Network failures from WDQS surface as ``requests`` exceptions and
-    aren't wrapped - callers that care about that distinction can catch
-    them directly.
-    """
-
-
 def fetch_seed_data(qid, *, session=None, timeout=60):
     """Run the WDQS closure CONSTRUCT for ``qid`` and parse the response.
 
@@ -780,9 +835,9 @@ def fetch_seed_data(qid, *, session=None, timeout=60):
     metadata extraction for the seed's ``WikidataItem`` fields.
 
     Returns a dict with keys ``turtle``, ``groups``, ``labels``,
-    ``metadata``. Raises ``ClosureLoadError`` if the response is empty or
-    missing the seed itself; raises ``requests.RequestException`` if the
-    HTTP call fails.
+    ``metadata``. Raises ``ClosureLoadError`` if the response is empty,
+    unparseable, or missing the seed itself; raises
+    ``requests.RequestException`` if the HTTP call fails.
     """
     owns_session = session is None
     if owns_session:

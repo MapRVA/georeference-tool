@@ -98,7 +98,7 @@ def _do_refresh_wikidata_item(item):
         WikidataItem.objects.filter(pk=item.pk).update(
             sparql_fetch_failures=F("sparql_fetch_failures") + 1,
         )
-        logger.warning(f"No closure returned for {item.wikidata_id}: {e}")
+        logger.warning(f"Unusable closure for {item.wikidata_id}: {e}")
         return {"status": "no_data", "wikidata_id": item.wikidata_id}
 
     try:
