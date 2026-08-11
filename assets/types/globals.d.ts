@@ -4,6 +4,7 @@ import type {
   MapLayerType,
 } from "../js/components/layer_control/types";
 import type { MapDisplayConfig } from "../js/components/map_display/types";
+import type { GeoreferenceConfig } from "../js/pages/georeference_interface/types";
 
 declare global {
   // Minimal shape of the Bootstrap bundle assets/index.js puts on window. The
@@ -15,11 +16,23 @@ declare global {
     dispose(): void;
   }
 
+  interface BootstrapModal {
+    show(): void;
+    hide(): void;
+  }
+
   interface BootstrapNamespace {
     Offcanvas: new (
       element: Element,
       options?: Record<string, unknown>,
     ) => BootstrapOffcanvas;
+    Modal: {
+      new (
+        element: Element,
+        options?: Record<string, unknown>,
+      ): BootstrapModal;
+      getInstance(element: Element): BootstrapModal | null;
+    };
   }
 
   // The single layer previewed on the map layer detail page, serialized by
@@ -33,7 +46,6 @@ declare global {
 
   interface Window {
     // Django-provided configuration, set by inline scripts in templates/base.html
-    OSM_STYLE_URL?: string;
     DEFAULT_MAP_CENTER?: [number, number];
     DEFAULT_MAP_ZOOM?: number;
 
@@ -45,6 +57,10 @@ declare global {
 
     MAP_LAYERS_DATA?: MapLayersData;
     MAP_LAYER?: PreviewMapLayer;
+
+    // Django-serialized configuration for the point georeference interface,
+    // set inline by templates/images/georeference_interface.html
+    georeferenceConfig?: GeoreferenceConfig;
 
     // Protomaps basemap key, set by pages that build their own basemap style
     PROTOMAPS_API_KEY?: string;

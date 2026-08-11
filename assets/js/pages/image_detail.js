@@ -8,7 +8,7 @@ import "../../styles/components/image-viewer.css";
 
 // Import components
 import { initSubjectEditor } from "../components/subject_editor.js";
-import { initImageViewer } from "../components/image_viewer.js";
+import { initImageViewer } from "../components/image_viewer";
 
 // Utility function for difficulty badge colors
 function getBootstrapColor(difficulty) {

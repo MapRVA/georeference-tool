@@ -1,8 +1,16 @@
 import OpenSeadragon from "openseadragon";
-import { addViewerButtons } from "./osd_buttons.js";
+import { addViewerButtons } from "./osd_buttons";
 
-export function initImageViewer() {
-  const osdEl = document.getElementById("osd-viewer");
+// #osd-viewer carries its live viewer, so other bundles (e.g. the point
+// georeference interface's centerline overlay) can reach it.
+export interface OsdViewerElement extends HTMLElement {
+  osdViewer?: OpenSeadragon.Viewer;
+}
+
+export function initImageViewer(): void {
+  const osdEl = document.getElementById(
+    "osd-viewer",
+  ) as OsdViewerElement | null;
   if (osdEl) {
     initOSDViewer(osdEl);
     return;
@@ -11,33 +19,32 @@ export function initImageViewer() {
   // Fallback: wire up broken-image handling for plain <img>
   const mainImage = document.getElementById("main-image");
   const imageFallback = document.getElementById("image-fallback");
+  if (!(mainImage instanceof HTMLImageElement) || !imageFallback) return;
 
-  if (mainImage && imageFallback) {
-    mainImage.onload = function () {
-      imageFallback.style.setProperty("display", "none", "important");
-      mainImage.style.display = "block";
-      mainImage.style.visibility = "visible";
-    };
+  const showImage = (): void => {
+    imageFallback.style.setProperty("display", "none", "important");
+    mainImage.style.display = "block";
+    mainImage.style.visibility = "visible";
+  };
 
-    mainImage.onerror = function () {
-      mainImage.style.display = "none";
-      imageFallback.style.setProperty("display", "flex", "important");
-    };
+  const showFallback = (): void => {
+    mainImage.style.display = "none";
+    imageFallback.style.setProperty("display", "flex", "important");
+  };
 
-    if (mainImage.complete) {
-      if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
-        imageFallback.style.setProperty("display", "none", "important");
-        mainImage.style.display = "block";
-        mainImage.style.visibility = "visible";
-      } else {
-        mainImage.style.display = "none";
-        imageFallback.style.setProperty("display", "flex", "important");
-      }
+  mainImage.onload = showImage;
+  mainImage.onerror = showFallback;
+
+  if (mainImage.complete) {
+    if (mainImage.naturalHeight !== 0 && mainImage.naturalWidth !== 0) {
+      showImage();
+    } else {
+      showFallback();
     }
   }
 }
 
-function initOSDViewer(el) {
+function initOSDViewer(el: OsdViewerElement): void {
   const iiifUrl = el.dataset.iiifUrl;
   if (!iiifUrl) return;
 
@@ -51,7 +58,7 @@ function initOSDViewer(el) {
     drawer: "canvas",
   });
 
-  viewer.addHandler("open", function () {
+  viewer.addHandler("open", () => {
     const size = viewer.world.getItemAt(0).getContentSize();
     el.style.aspectRatio = `${size.x} / ${size.y}`;
     // The aspect-ratio change resizes the container; wait for layout, then

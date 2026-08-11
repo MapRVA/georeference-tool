@@ -494,8 +494,8 @@
 
 {% block extra_js %}
 <script>
-    // Configuration object for georeference_interface.js
-    // This passes Django template variables to the standalone JavaScript file
+    // Configuration object for assets/js/pages/georeference_interface/
+    // This passes Django template variables to the page bundle
     window.georeferenceConfig = {
         {% if current_image %}
         currentImage: {
@@ -541,5 +541,5 @@
 </script>
 
 <!-- Load the standalone JavaScript file -->
-{% vite_asset 'assets/js/pages/georeference_interface.js' %}
+{% vite_asset 'assets/js/pages/georeference_interface/index.ts' %}
 {% endblock %}

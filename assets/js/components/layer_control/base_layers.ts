@@ -1,8 +1,8 @@
-// Map operations behind the base-layer options: raster (XYZ) base layers get
-// their own source/layer, while the default MapLibre style is shown and hidden
-// in place.
+// Map operations behind the base-layer options: raster (XYZ or PMTiles) base
+// layers get their own source/layer, while the initial MapLibre style is shown
+// and hidden in place.
 import type { Map as MapLibreMap } from "maplibre-gl";
-import type { BaseLayer } from "./types";
+import type { BaseLayer, RasterBaseLayer } from "./types";
 
 export function setupRasterBaseLayer(
   map: MapLibreMap,
@@ -10,14 +10,24 @@ export function setupRasterBaseLayer(
   layerId: string,
   url: string,
   attribution: string,
+  tileType: RasterBaseLayer["type"],
 ): void {
   if (!map.getSource(sourceId)) {
-    map.addSource(sourceId, {
-      type: "raster",
-      tiles: [url],
-      tileSize: 256,
-      attribution: attribution,
-    });
+    if (tileType === "pmtiles") {
+      map.addSource(sourceId, {
+        type: "raster",
+        url: `pmtiles://${url}`,
+        tileSize: 256,
+        attribution: attribution,
+      });
+    } else {
+      map.addSource(sourceId, {
+        type: "raster",
+        tiles: [url],
+        tileSize: 256,
+        attribution: attribution,
+      });
+    }
   }
 
   if (!map.getLayer(layerId)) {
@@ -46,7 +56,7 @@ export function hideRasterBaseLayers(
   exceptLayerId?: string,
 ): void {
   for (const baseLayer of Object.values(baseLayers)) {
-    if (baseLayer.type === "xyz" && baseLayer.layerId !== exceptLayerId) {
+    if (baseLayer.type !== "style" && baseLayer.layerId !== exceptLayerId) {
       setRasterBaseLayerVisibility(map, baseLayer.layerId, false);
     }
   }

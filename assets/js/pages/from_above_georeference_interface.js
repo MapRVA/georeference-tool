@@ -11,45 +11,20 @@ import "../../styles/components/image-viewer.css";
 
 // JS imports
 import maplibregl from "maplibre-gl";
-import * as pmtiles from "pmtiles";
 import { Geoman } from "@geoman-io/maplibre-geoman-free";
 import {
-  OSM_STYLE_URL,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
 } from "../constants/map";
-import { LayerControl } from "../components/layer_control";
+import "../components/map_display/pmtiles_protocol";
+import { initialMapStyle, LayerControl } from "../components/layer_control";
 import { initSubjectEditor } from "../components/subject_editor.js";
-import { initImageViewer } from "../components/image_viewer.js";
+import { initImageViewer } from "../components/image_viewer";
 
 function getBootstrapColor(difficulty) {
   const colors = { easy: "success", medium: "warning", hard: "danger" };
   return colors[difficulty] || "secondary";
 }
-
-// Global PMTiles setup
-window.pmtilesProtocolSetup = false;
-
-window.setupPMTilesProtocol = function () {
-  if (window.pmtilesProtocolSetup) return true;
-
-  if (pmtiles) {
-    try {
-      console.log("Setting up PMTiles protocol...");
-      let protocol = new pmtiles.Protocol();
-      maplibregl.addProtocol("pmtiles", protocol.tile);
-      console.log("PMTiles protocol setup complete");
-      window.pmtilesProtocolSetup = true;
-      return true;
-    } catch (error) {
-      console.error("Error setting up PMTiles protocol:", error);
-      return false;
-    }
-  } else {
-    console.log("PMTiles library not yet available");
-    return false;
-  }
-};
 
 document.addEventListener("DOMContentLoaded", function () {
   // Check if configuration is available
@@ -70,22 +45,14 @@ document.addEventListener("DOMContentLoaded", function () {
   const isStaff = config.isStaff;
   const isAuthenticated = config.isAuthenticated;
 
-  // Add PMTiles protocol
-  if (pmtiles) {
-    let protocol = new pmtiles.Protocol();
-    maplibregl.addProtocol("pmtiles", protocol.tile);
-  }
+  window.setupPMTilesProtocol();
 
   var map = new maplibregl.Map({
     container: "mymap",
-    style: OSM_STYLE_URL,
+    style: initialMapStyle(),
     center: DEFAULT_MAP_CENTER,
     zoom: DEFAULT_MAP_ZOOM,
   });
-
-  // Try to setup PMTiles protocol
-  window.setupPMTilesProtocol();
-
   // Track polygon data
   var drawnPolygon = null;
   var gm = null;

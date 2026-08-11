@@ -514,11 +514,6 @@ OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 # Protomaps API key for map tiles
 PROTOMAPS_API_KEY = os.getenv("PROTOMAPS_API_KEY")
 
-# MapLibre style URL for OSM base map
-OSM_STYLE_URL = os.getenv(
-    "OSM_STYLE_URL", "https://styles.maprva.org/openmaptiles-osm.json"
-)
-
 # Activity Feed Settings
 # Milestone thresholds for user georeference achievements
 ACTIVITY_MILESTONE_THRESHOLDS = [

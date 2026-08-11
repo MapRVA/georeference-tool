@@ -8,7 +8,7 @@ import "../../styles/components/image-viewer.css";
 // Styles for the Recent Activity embed (templates/activity/partials/feed_embed.html).
 import "../../styles/pages/activity.css";
 
-import { initImageViewer } from "../components/image_viewer.js";
+import { initImageViewer } from "../components/image_viewer";
 
 document.addEventListener("DOMContentLoaded", function () {
   initImageViewer();

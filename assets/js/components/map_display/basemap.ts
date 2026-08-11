@@ -1,6 +1,5 @@
-// Protomaps basemap style, for the pages that build their own basemap instead
-// of using OSM_STYLE_URL (the standalone subjects map and the map layer
-// preview). The API key comes from window.PROTOMAPS_API_KEY, set by those
+// Protomaps basemap style for the standalone subjects map and the map layer
+// preview. The API key comes from window.PROTOMAPS_API_KEY, set by those
 // templates.
 
 const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";

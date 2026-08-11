@@ -70,7 +70,7 @@ export interface StyleBaseLayer extends BaseLayerCommon {
 }
 
 export interface RasterBaseLayer extends BaseLayerCommon {
-  type: "xyz";
+  type: "pmtiles" | "xyz";
   sourceId: string;
   layerId: string;
 }

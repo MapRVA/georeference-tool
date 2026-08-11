@@ -21,7 +21,11 @@
  *   }), "top-right");
  */
 
-import type { IControl, Map as MapLibreMap } from "maplibre-gl";
+import type {
+  IControl,
+  Map as MapLibreMap,
+  StyleSpecification,
+} from "maplibre-gl";
 import "../../../styles/components/layer-control.css";
 import {
   hideRasterBaseLayers,
@@ -39,6 +43,11 @@ import {
   buildImageLayerPanel,
   type ImageLayerPanel,
 } from "./image_layer_panel";
+import {
+  initialMapStyle,
+  initialPrimaryLayer,
+  rasterBaseLayerIds,
+} from "./initial_style";
 import { findBeforeLayerId, isOverlayLayerId } from "./layer_classification";
 import {
   createLayerOffcanvas,
@@ -64,6 +73,8 @@ import type {
   ResolvedLayerControlOptions,
 } from "./types";
 
+export { initialMapStyle } from "./initial_style";
+
 export class LayerControl implements IControl {
   private readonly options: ResolvedLayerControlOptions;
 
@@ -71,9 +82,9 @@ export class LayerControl implements IControl {
   private collections: LayerCollectionData[] = [];
   private currentBaseLayer: string | null = null;
   private currentOverlay: OverlayLayerConfig | null = null;
-  private defaultStyleUrl: string | null = null;
-  // True while a non-default MapLibre style is loaded, so the next base layer
-  // change knows it has to swap the default style back in first
+  private readonly initialStyle: string | StyleSpecification;
+  // True while a non-initial MapLibre style is loaded, so the next base layer
+  // change knows it has to swap the initial style back in first
   private nonDefaultStyleActive = false;
 
   private imageLayersVisible = true;
@@ -94,6 +105,7 @@ export class LayerControl implements IControl {
   private fullscreenChangeHandler: (() => void) | null = null;
 
   constructor(options: LayerControlOptions = {}) {
+    this.initialStyle = initialMapStyle();
     this.options = {
       showImageLayerToggle: options.showImageLayerToggle ?? false,
       overlayLayerIds: options.overlayLayerIds ?? [],
@@ -219,15 +231,18 @@ export class LayerControl implements IControl {
   }
 
   /**
-   * Build base layers from the primary_layers payload. The default style-type
+   * Build base layers from the primary_layers payload. The initial style-type
    * layer is shown and hidden in place; other style-type layers swap the map
-   * style, and XYZ layers get their own raster source and layer.
+   * style, and raster layers get their own source and layer.
    */
   private buildBaseLayers(primaryLayers: PrimaryLayerData[]): void {
+    const initialLayer = initialPrimaryLayer({ primary_layers: primaryLayers });
+
     for (const layer of primaryLayers) {
       const key = layer.slug;
+      const isInitial = layer.slug === initialLayer?.slug;
 
-      if (layer.type === "style" && layer.is_default) {
+      if (layer.type === "style" && isInitial) {
         this.baseLayers[key] = {
           name: layer.name,
           isDefault: true,
@@ -238,7 +253,6 @@ export class LayerControl implements IControl {
           deactivate: () => this.setDefaultStyleLayersVisible(false),
         };
         this.currentBaseLayer = key;
-        this.defaultStyleUrl = layer.url;
       } else if (layer.type === "style") {
         this.baseLayers[key] = {
           name: layer.name,
@@ -249,13 +263,13 @@ export class LayerControl implements IControl {
           activate: () => this.activateStyle(layer.url),
           deactivate: () => {},
         };
-      } else if (layer.type === "xyz") {
-        const sourceId = `base-${key}`;
-        const layerId = `base-${key}-layer`;
+      } else {
+        const tileType = layer.type;
+        const { sourceId, layerId } = rasterBaseLayerIds(key);
         this.baseLayers[key] = {
           name: layer.name,
-          isDefault: false,
-          type: "xyz",
+          isDefault: isInitial,
+          type: tileType,
           sourceId,
           layerId,
           setupLayer: () =>
@@ -264,19 +278,13 @@ export class LayerControl implements IControl {
               layerId,
               layer.url,
               layer.attribution || "",
+              tileType,
             ),
           activate: () => this.activateRasterBase(layerId),
           deactivate: () => this.deactivateRasterBase(layerId),
         };
+        if (isInitial) this.currentBaseLayer = key;
       }
-    }
-
-    // Fallback: if no default was set, use the first layer
-    const firstKey = primaryLayers[0]?.slug;
-    const firstLayer = firstKey ? this.baseLayers[firstKey] : undefined;
-    if (!this.currentBaseLayer && firstKey && firstLayer) {
-      firstLayer.isDefault = true;
-      this.currentBaseLayer = firstKey;
     }
 
     for (const baseLayer of Object.values(this.baseLayers)) {
@@ -333,7 +341,8 @@ export class LayerControl implements IControl {
 
   private isCustomBaseLayer(layerId: string): boolean {
     return Object.values(this.baseLayers).some(
-      (baseLayer) => baseLayer.type === "xyz" && baseLayer.layerId === layerId,
+      (baseLayer) =>
+        baseLayer.type !== "style" && baseLayer.layerId === layerId,
     );
   }
 
@@ -342,16 +351,24 @@ export class LayerControl implements IControl {
     layerId: string,
     url: string,
     attribution: string,
+    tileType: "pmtiles" | "xyz",
   ): void {
     if (!this.map) return;
-    setupRasterBaseLayer(this.map, sourceId, layerId, url, attribution);
+    setupRasterBaseLayer(
+      this.map,
+      sourceId,
+      layerId,
+      url,
+      attribution,
+      tileType,
+    );
   }
 
   private activateRasterBase(layerId: string): void {
-    if (this.nonDefaultStyleActive && this.defaultStyleUrl) {
-      // Returning from a non-default style — restore default then show raster
+    if (this.nonDefaultStyleActive) {
+      // Returning from a non-initial style — restore it, then show the raster
       this.nonDefaultStyleActive = false;
-      this.swapStyle(this.defaultStyleUrl, () => this.showRasterBase(layerId));
+      this.swapStyle(this.initialStyle, () => this.showRasterBase(layerId));
       return;
     }
     this.showRasterBase(layerId);
@@ -375,10 +392,10 @@ export class LayerControl implements IControl {
   }
 
   private showDefaultStyleLayers(): void {
-    if (this.nonDefaultStyleActive && this.defaultStyleUrl) {
-      // Returning from a non-default style — restore the default style
+    if (this.nonDefaultStyleActive) {
+      // Returning from a non-initial style — restore the initial style
       this.nonDefaultStyleActive = false;
-      this.swapStyle(this.defaultStyleUrl);
+      this.swapStyle(this.initialStyle);
       return;
     }
 
@@ -405,7 +422,10 @@ export class LayerControl implements IControl {
    * Swap the map style and restore the raster base layers and the active tile
    * overlay, both of which setStyle() destroys.
    */
-  private swapStyle(styleUrl: string, afterRestore?: () => void): void {
+  private swapStyle(
+    style: string | StyleSpecification,
+    afterRestore?: () => void,
+  ): void {
     const map = this.map;
     if (!map) return;
 
@@ -419,28 +439,32 @@ export class LayerControl implements IControl {
       this.renderLayerLabel();
     });
 
-    map.setStyle(styleUrl);
+    map.setStyle(style);
 
     map.once("style.load", async () => {
-      for (const baseLayer of Object.values(this.baseLayers)) {
-        if (baseLayer.type === "xyz") baseLayer.setupLayer();
-      }
+      try {
+        for (const baseLayer of Object.values(this.baseLayers)) {
+          if (baseLayer.type !== "style") baseLayer.setupLayer();
+        }
 
-      // Notify consumers to re-add their layers BEFORE restoring the overlay
-      // tile layer. This ensures consumer layers (Geoman polygons, hint
-      // markers, pins, etc.) exist when switchToOverlayLayer looks for the
-      // layer to insert before, so the overlay raster ends up beneath them.
-      if (this.options.onStyleSwap) {
-        await this.options.onStyleSwap(map);
+        // Notify consumers to re-add their layers BEFORE restoring the overlay
+        // tile layer. This ensures consumer layers (Geoman polygons, hint
+        // markers, pins, etc.) exist when switchToOverlayLayer looks for the
+        // layer to insert before, so the overlay raster ends up beneath them.
+        await this.options.onStyleSwap?.(map);
+      } catch (error) {
+        console.error("Failed to restore layers after style swap:", error);
+      } finally {
+        try {
+          if (savedOverlay) {
+            // Reset so switchToOverlayLayer re-adds instead of toggling off
+            this.currentOverlay = null;
+            this.switchToOverlayLayer(savedOverlay);
+          }
+        } finally {
+          afterRestore?.();
+        }
       }
-
-      if (savedOverlay) {
-        // Reset so switchToOverlayLayer re-adds instead of toggling off
-        this.currentOverlay = null;
-        this.switchToOverlayLayer(savedOverlay);
-      }
-
-      afterRestore?.();
     });
   }
 

@@ -3,6 +3,8 @@ import type {
   FilterSpecification,
   Map as MapLibreMap,
 } from "maplibre-gl";
+import { DIRECTION_SPRITE_ID as DIRECTION_ICON } from "../../components/map_display/layer_ids";
+import { DIRECTION_SPRITE_URL as DIRECTION_ICON_URL } from "../../components/map_display/direction_sprite";
 import type { SubjectsMapUrls } from "./types";
 
 // Subject geometry layers, ordered so the topmost queryable feature is also
@@ -20,8 +22,6 @@ export const IMAGE_CIRCLES_LAYER = "image-circles";
 export const IMAGE_DIRECTIONS_LAYER = "image-directions";
 
 const SUBJECT_COLOR = "#ff6b35";
-const DIRECTION_ICON = "image-direction";
-const DIRECTION_ICON_URL = "https://maprva.org/img/surveillance-direction.png";
 
 // Polygons below this area (in square degrees) are drawn on top of, and more
 // opaquely than, the larger ones, so a small building inside a park stays

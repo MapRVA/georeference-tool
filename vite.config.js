@@ -66,7 +66,7 @@ export default defineConfig({
         from_above: path.resolve(__dirname, "./assets/js/pages/from_above.js"),
         georeference_interface: path.resolve(
           __dirname,
-          "./assets/js/pages/georeference_interface.js",
+          "./assets/js/pages/georeference_interface/index.ts",
         ),
         from_above_georeference_interface: path.resolve(
           __dirname,

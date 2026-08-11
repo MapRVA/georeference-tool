@@ -2,16 +2,12 @@
 // templates/images/partials/map_display.html, which loads this bundle and
 // calls window.initializeMap() with a MapDisplayConfig.
 import maplibregl from "maplibre-gl";
-import {
-  OSM_STYLE_URL,
-  DEFAULT_MAP_CENTER,
-  DEFAULT_MAP_ZOOM,
-} from "../../constants/map";
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "../../constants/map";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../../styles/components/map-display.css";
 import "./pmtiles_protocol";
-import { LayerControl } from "../layer_control";
+import { initialMapStyle, LayerControl } from "../layer_control";
 import { addResponsiveGeocoder } from "../responsive_geocoder";
 import { boundsFromAerialGeometry } from "./bounds";
 import { primaryColor, dangerColor } from "./colors";
@@ -71,7 +67,7 @@ export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
   // Initialize the map
   const map = new maplibregl.Map({
     container: mapId,
-    style: OSM_STYLE_URL,
+    style: initialMapStyle(),
     hash: hash,
     center: center,
     zoom: zoom,
