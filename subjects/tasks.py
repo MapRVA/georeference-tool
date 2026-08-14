@@ -22,6 +22,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from images.models import SiteSettings
+from regions.models import Region
+from regions.region_ancestors import update_region_ancestors
 
 from .memgraph import GRAPH_ERRORS, MemgraphClient
 from .models import OsmElement, Subject, WikidataItem
@@ -86,8 +88,15 @@ def _do_refresh_wikidata_item(item):
     WikidataItem.objects.filter(pk=item.pk).update(sparql_last_loaded_at=now)
     item.sparql_last_loaded_at = now
 
+    # Region-ness decides the query shape: region seeds also walk their
+    # P131 containment chain, so resolve it before talking to WDQS.
     try:
-        data = fetch_seed_data(item.wikidata_id)
+        seed_region = item.region
+    except Region.DoesNotExist:
+        seed_region = None
+
+    try:
+        data = fetch_seed_data(item.wikidata_id, include_p131=seed_region is not None)
     except requests.RequestException as e:
         WikidataItem.objects.filter(pk=item.pk).update(
             sparql_fetch_failures=F("sparql_fetch_failures") + 1,
@@ -136,6 +145,19 @@ def _do_refresh_wikidata_item(item):
             logger.warning(
                 "SubjectAncestor refresh failed for %s: %s — "
                 "will retry on next refresh of this Subject",
+                item.wikidata_id,
+                e,
+            )
+
+    # Same deal for the region containment projection.
+    if seed_region is not None:
+        try:
+            with MemgraphClient() as client:
+                update_region_ancestors(seed_region, client)
+        except GRAPH_ERRORS as e:
+            logger.warning(
+                "RegionAncestor refresh failed for %s: %s — "
+                "will retry on next refresh of this Region",
                 item.wikidata_id,
                 e,
             )
@@ -381,13 +403,14 @@ def get_next_stale_wikidata_item():
     """
     Find the next WikidataItem whose graph closure needs refreshing.
 
-    Only items attached to a Subject are refreshed on their own schedule.
-    Ancestor items discovered via closure fetches don't need one: their
-    mirrored data is replaced whenever a seed's closure includes them, and
-    ``commit_closure_to_memgraph`` bumps their freshness timestamps then.
-    Enrolling them here made the rotation unbounded — each ancestor refresh
-    fetched *its* closure, discovering ever-deeper ancestors, until the
-    queue (200k+ items) could never drain within the staleness window.
+    Only items attached to a Subject or a Region are refreshed on their
+    own schedule. Ancestor items discovered via closure fetches don't need
+    one: their mirrored data is replaced whenever a seed's closure includes
+    them, and ``commit_closure_to_memgraph`` bumps their freshness
+    timestamps then. Enrolling them here made the rotation unbounded —
+    each ancestor refresh fetched *its* closure, discovering ever-deeper
+    ancestors, until the queue (200k+ items) could never drain within the
+    staleness window.
     """
 
     stale_hours = get_stale_threshold_hours()
@@ -398,8 +421,8 @@ def get_next_stale_wikidata_item():
         WikidataItem.objects.filter(
             Q(sparql_last_loaded_at__isnull=True)
             | Q(sparql_last_loaded_at__lt=stale_threshold),
+            Q(subject__isnull=False) | Q(region__isnull=False),
             sparql_fetch_failures__lt=max_failures,
-            subject__isnull=False,
         )
         .order_by("sparql_last_loaded_at")
         .first()

@@ -105,6 +105,10 @@ _NODE_LABELS = frozenset({"Entity", "Property"})
 #   - nav  (``_TAIL_NAV``):  labels, descriptions, and class edges only —
 #     enough to name an entity and place it in the P31/P279 ontology
 #     without pulling its statement bodies, which would balloon the closure
+#
+# Region seeds (``closure_query(..., include_p131=True)``) get one extra
+# branch, ``_BRANCH_P131``, whose tail (``_TAIL_NAV_P131``) is the nav
+# profile plus wdt:P131 itself — see the branch's own comment.
 # ---------------------------------------------------------------------------
 
 _TAIL_FULL = """\
@@ -115,6 +119,12 @@ _TAIL_NAV = """\
     ?entity ?p ?o .
     FILTER(?p IN (rdfs:label, skos:altLabel, schema:description,
                   wdt:P31, wdt:P279))
+    {lang_filter}"""
+
+_TAIL_NAV_P131 = """\
+    ?entity ?p ?o .
+    FILTER(?p IN (rdfs:label, skos:altLabel, schema:description,
+                  wdt:P31, wdt:P279, wdt:P131))
     {lang_filter}"""
 
 _BRANCH_SEED = (
@@ -212,6 +222,21 @@ _BRANCH_SITELINK = """\
     ?article schema:about wd:{qid} .
     ?article schema:isPartOf <https://en.wikipedia.org/> ."""
 
+_BRANCH_P131 = (
+    """\
+    # Administrative containment chain (region seeds only): every entity
+    # the seed transitively sits in via P131 (located in the
+    # administrative territorial entity). The tail is the nav profile
+    # plus wdt:P131 itself, so each chain entity's own containment edge
+    # lands in the mirror and Richmond -> Virginia -> USA is walkable
+    # there. Chain entities' class *closures* are not walked; their
+    # direct P31/P279 edges come along via the nav predicates.
+    wd:{qid} wdt:P131+ ?entity .
+    FILTER(?entity != wd:{qid})
+"""
+    + _TAIL_NAV_P131
+)
+
 _CLOSURE_BRANCHES = (
     _BRANCH_SEED,
     _BRANCH_FULL,
@@ -220,8 +245,13 @@ _CLOSURE_BRANCHES = (
     _BRANCH_SITELINK,
 )
 
-_CLOSURE_QUERY_TEMPLATE = (
-    """\
+_REGION_CLOSURE_BRANCHES = _CLOSURE_BRANCHES + (_BRANCH_P131,)
+
+
+def _assemble_template(branches):
+    """Join branch fragments into one CONSTRUCT ``str.format`` template."""
+    return (
+        """\
 PREFIX wd: <http://www.wikidata.org/entity/>
 PREFIX wdt: <http://www.wikidata.org/prop/direct/>
 PREFIX wikibase: <http://wikiba.se/ontology#>
@@ -236,12 +266,16 @@ CONSTRUCT {{
 }} WHERE {{
   {{
 """
-    + "\n  }} UNION {{\n".join(_CLOSURE_BRANCHES)
-    + """
+        + "\n  }} UNION {{\n".join(branches)
+        + """
   }}
 }}
 """
-)
+    )
+
+
+_CLOSURE_QUERY_TEMPLATE = _assemble_template(_CLOSURE_BRANCHES)
+_REGION_CLOSURE_QUERY_TEMPLATE = _assemble_template(_REGION_CLOSURE_BRANCHES)
 
 
 def _language_filter():
@@ -259,8 +293,13 @@ def _language_filter():
     return f'FILTER(!isLiteral(?o) || lang(?o) IN ({tags}) || lang(?o) = "")'
 
 
-def closure_query(qid):
+def closure_query(qid, *, include_p131=False):
     """Build the CONSTRUCT for the seed + its closure neighbourhood.
+
+    ``include_p131=True`` is the region-seed variant: it appends
+    ``_BRANCH_P131``, which walks the seed's transitive P131 containment
+    chain so the administrative hierarchy lands in the mirror. Subject
+    closures (the default) are unchanged by its existence.
 
     Per-branch documentation lives on the ``_BRANCH_*`` fragment constants
     above and is carried into the assembled query as SPARQL comments.
@@ -281,10 +320,13 @@ def closure_query(qid):
       picks the sitelink triples out separately.
     """
     validate_qid(qid)
-    return _CLOSURE_QUERY_TEMPLATE.format(qid=qid, lang_filter=_language_filter())
+    template = (
+        _REGION_CLOSURE_QUERY_TEMPLATE if include_p131 else _CLOSURE_QUERY_TEMPLATE
+    )
+    return template.format(qid=qid, lang_filter=_language_filter())
 
 
-def fetch_closure_turtle(session, qid, timeout=60):
+def fetch_closure_turtle(session, qid, timeout=60, *, include_p131=False):
     """Run the closure CONSTRUCT against WDQS, return Turtle bytes.
 
     Uses POST (recommended by WDQS for arbitrary query bodies) and asks
@@ -292,7 +334,7 @@ def fetch_closure_turtle(session, qid, timeout=60):
     """
     response = session.post(
         WDQS_ENDPOINT,
-        data={"query": closure_query(qid)},
+        data={"query": closure_query(qid, include_p131=include_p131)},
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/turtle",
@@ -827,12 +869,14 @@ def iri_to_qid(iri):
     return iri.removeprefix(WIKIDATA_ENTITY_IRI_BASE)
 
 
-def fetch_seed_data(qid, *, session=None, timeout=60):
+def fetch_seed_data(qid, *, session=None, timeout=60, include_p131=False):
     """Run the WDQS closure CONSTRUCT for ``qid`` and parse the response.
 
     One HTTP request to WDQS, then three passes over the Turtle: grouping
     by entity for the graph load, label extraction for ancestor rows,
     metadata extraction for the seed's ``WikidataItem`` fields.
+    ``include_p131`` selects the region-seed query variant (see
+    ``closure_query``).
 
     Returns a dict with keys ``turtle``, ``groups``, ``labels``,
     ``metadata``. Raises ``ClosureLoadError`` if the response is empty,
@@ -847,7 +891,9 @@ def fetch_seed_data(qid, *, session=None, timeout=60):
 
         session = create_request_session()
     try:
-        turtle = fetch_closure_turtle(session, qid, timeout=timeout)
+        turtle = fetch_closure_turtle(
+            session, qid, timeout=timeout, include_p131=include_p131
+        )
     finally:
         if owns_session:
             session.close()

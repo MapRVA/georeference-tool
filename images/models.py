@@ -217,6 +217,17 @@ class Source(models.Model):
     public = models.BooleanField(
         default=True, help_text="Whether this source is visible to users"
     )
+    # PROTECT (not the license-style SET_NULL): regions are a small
+    # curated taxonomy; deleting one must force reassignment rather than
+    # silently stripping assignments. Applies to all three region FKs.
+    region = models.ForeignKey(
+        "regions.Region",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="sources",
+        help_text="Region this source's images depict, unless overridden on a collection or image",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -248,6 +259,14 @@ class Collection(models.Model):
     public = models.BooleanField(
         default=True, help_text="Whether this collection is visible to users"
     )
+    region = models.ForeignKey(
+        "regions.Region",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="collections",
+        help_text="Region this collection's images depict, unless overridden on an image",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -269,6 +288,11 @@ class Collection(models.Model):
     def is_public(self):
         """Check if both collection and source are public"""
         return self.public and self.source.public
+
+    @property
+    def effective_region(self):
+        """This collection's region, falling back to its source's."""
+        return self.region or self.source.region
 
     class Meta:
         ordering = ["source__name", "name"]
@@ -678,6 +702,14 @@ class Image(models.Model):
     collection = models.ForeignKey(
         Collection, on_delete=models.CASCADE, related_name="images"
     )
+    region = models.ForeignKey(
+        "regions.Region",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="images",
+        help_text="Region this image depicts; falls back to the collection's, then the source's",
+    )
 
     title = models.CharField(max_length=500)
     permalink = models.URLField(
@@ -781,6 +813,14 @@ class Image(models.Model):
         Returns transformed_permalink if available, otherwise permalink.
         """
         return self.transformed_permalink or self.permalink
+
+    @property
+    def effective_region(self):
+        """The region this image belongs to, or None.
+
+        Resolves image -> collection -> source, first match wins.
+        """
+        return self.region or self.collection.effective_region
 
     def save(self, *args, **kwargs):
         """Validate EDTF date format and pre-calculate decimal dates before saving"""

@@ -130,6 +130,7 @@ INSTALLED_APPS = [
     "api",
     "osm_auth",
     "subjects",
+    "regions",
     "images",
     "maps",
     "activity",

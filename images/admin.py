@@ -158,6 +158,7 @@ class SourceAdmin(admin.ModelAdmin):
     list_filter = ("public", "created_at")
     search_fields = ("name", "description")
     readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("region",)
 
     def collection_count(self, obj):
         return obj.collections.count()
@@ -179,6 +180,7 @@ class CollectionAdmin(admin.ModelAdmin):
     list_filter = ("public", "source", "created_at")
     search_fields = ("name", "description", "source__name")
     readonly_fields = ("created_at", "updated_at", "announce_button")
+    autocomplete_fields = ("region",)
 
     def get_urls(self):
         urls = super().get_urls()
@@ -579,7 +581,7 @@ class ImageAdmin(admin.ModelAdmin):
     list_filter = ("difficulty", "scale", "will_not_georef", "collection__source")
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
-    autocomplete_fields = ["duplicate_of", "license"]
+    autocomplete_fields = ["duplicate_of", "license", "region"]
     actions = ["label_scales_action"]
 
     def label_scales_action(self, request, queryset):
@@ -653,6 +655,7 @@ class ImageAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "collection",
+                    "region",
                     "title",
                     "creator",
                     "permalink",

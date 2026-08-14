@@ -22,7 +22,7 @@ Can you spot a second water tower in the distance?==
   allow="fullscreen"
   allowfullscreen></iframe>
 
-# Your First Georeference
+## Your First Georeference
 
 The general process of georeferencing an image can be broken down into three steps:
 
@@ -30,7 +30,7 @@ The general process of georeferencing an image can be broken down into three ste
 2. Figure out where the image is located
 3. Submit the georeference
 
-## Select an image to georeference
+### Select an image to georeference
 ==The easiest way to start georeferencing is to click "**[Contribute](https://yesterdays.maprva.org/georeference/?difficulty=easy%2Bmedium)**" on the [Yesterdays home page](https://yesterdays.maprva.org/).== This will select a random photo from the collection that has not yet been georeferenced. By default, this will only select images that have been tagged as **Easy**{ .badge .badge--easy } or **Medium**{ .badge .badge--medium } difficulty.
 
 !!! tip
@@ -40,7 +40,7 @@ Alternatively, you can click "**[Browse](https://yesterdays.maprva.org/browse/)*
 
 You can go deeper still! Within sources, you can pick specific collections or individual images to georeference. You can read more about our organization system [here](/usage/organization/).
 
-## Figure out where the image is located
+### Figure out where the image is located
 This is the most straightforward step, in theory. Just figure out where the picture was taken! Sometimes this will be [very easy](https://yesterdays.maprva.org/15107/) but other times it will take [a bit more work](https://yesterdays.maprva.org/243/). Thankfully, we have a few tools at our disposal that can help with your research.
 
 The first clues to use are the title and description of the image. Some of them will get you at least in [the general vicinity](https://yesterdays.maprva.org/1067/) of where the picture was taken, while others will tell you [exactly what you're looking at](https://yesterdays.maprva.org/1068/). Still others may have very little, if any information to go off of.
@@ -64,7 +64,7 @@ You may continue to adjust the location of your point by clicking on the map aga
 
 Please see our [georeferencing documentation](/usage/georeferencing/) for more tips and tricks.
 
-## Submit the georeference
+### Submit the georeference
 
 1. Choose a confidence level
 2. Add any additional information to justify the placement of this image

@@ -286,6 +286,7 @@ wd:Q100 rdfs:label "Test Hall"@en, "Salle d'essai"@fr ;
     schema:description "historic building"@en ;
     wdt:P31 wd:Q200 ;
     wdt:P84 wd:Q300 ;
+    wdt:P131 wd:Q700 ;
     wdt:P1435 wd:Q400 ;
     wdt:P5473 "127-0345" ;
     p:P1435 wds:Q100-aaaa-bbbb .
@@ -315,6 +316,17 @@ wd:Q500 rdfs:label "Test District"@en, "Quartier d'essai"@fr ;
 # P1629 target of the authority property: nav profile.
 wd:Q600 rdfs:label "Test Register"@en, "Registre d'essai"@fr ;
     wdt:P571 "1966-01-01T00:00:00Z"^^xsd:dateTime .
+
+# Containment chain: Q100 -P131-> Q700 -P131-> Q710 -P131-> Q720. Q700
+# is also a first-hop direct claim target, so it gets the FULL profile
+# in both query variants; only Q710/Q720 distinguish the region variant
+# (which walks P131+) from the subject one (which stops at Q700).
+wd:Q700 rdfs:label "Test City"@en ;
+    wdt:P131 wd:Q710 .
+wd:Q710 rdfs:label "Test State"@en, "État d'essai"@fr ;
+    wdt:P131 wd:Q720 ;
+    wdt:P571 "1788-01-01T00:00:00Z"^^xsd:dateTime .
+wd:Q720 rdfs:label "Test Country"@en .
 
 # A non-authority property descriptor - the generalized descriptor branch
 # must mirror it too.
@@ -473,6 +485,69 @@ class ClosureQuerySemanticsTests(SimpleTestCase):
             ),
             result,
         )
+
+
+class RegionClosureQueryTests(SimpleTestCase):
+    """The ``include_p131`` (region-seed) variant of the closure CONSTRUCT."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.store = pyoxigraph.Store()
+        cls.store.load(
+            _CLOSURE_FIXTURE_TTL.encode(), format=pyoxigraph.RdfFormat.TURTLE
+        )
+
+    def _closure(self, qid="Q100", **kwargs):
+        return set(self.store.query(closure_query(qid, **kwargs)))
+
+    def test_default_variant_unchanged(self):
+        self.assertEqual(
+            closure_query("Q42"), closure_query("Q42", include_p131=False)
+        )
+        self.assertNotIn("P131+", closure_query("Q42"))
+
+    def test_region_query_structure(self):
+        query = closure_query("Q42", include_p131=True)
+        # One more top-level branch than the subject variant's 7 UNIONs.
+        self.assertEqual(query.count("UNION"), 8)
+        # The nav predicate whitelist: shared tail plus the P131 tail.
+        self.assertEqual(query.count("skos:altLabel"), 2)
+        # One language filter per emission tail: seed, full, nav,
+        # descriptors, containment chain.
+        self.assertEqual(query.count('lang(?o) IN ("en")'), 5)
+        self.assertNotIn("{qid}", query)
+        self.assertNotIn("{lang_filter}", query)
+        self.assertEqual(query.count("{"), query.count("}"))
+
+    def test_region_query_is_valid_sparql(self):
+        pyoxigraph.Store().query(closure_query("Q42", include_p131=True))
+
+    def test_p131_chain_lands_with_edges(self):
+        result = self._closure(include_p131=True)
+        self.assertIn(_label("Q710", "Test State"), result)
+        self.assertNotIn(_label("Q710", "État d'essai", "fr"), result)
+        self.assertIn(_label("Q720", "Test Country"), result)
+        self.assertIn(pyoxigraph.Triple(_wd("Q700"), _wdt("P131"), _wd("Q710")), result)
+        self.assertIn(pyoxigraph.Triple(_wd("Q710"), _wdt("P131"), _wd("Q720")), result)
+
+    def test_chain_entities_get_nav_plus_p131_only(self):
+        result = self._closure(include_p131=True)
+        self.assertFalse(
+            any(
+                t.subject == _wd("Q710") and t.predicate == _wdt("P571") for t in result
+            )
+        )
+
+    def test_chain_absent_from_subject_variant(self):
+        result = self._closure()
+        # Q700 is a first-hop direct claim target, so its full profile —
+        # including its own P131 edge — comes along even for subjects...
+        self.assertIn(_label("Q700", "Test City"), result)
+        self.assertIn(pyoxigraph.Triple(_wd("Q700"), _wdt("P131"), _wd("Q710")), result)
+        # ...but the walk stops there: deeper chain entities stay out.
+        self.assertFalse(any(t.subject == _wd("Q710") for t in result))
+        self.assertNotIn(_label("Q720", "Test Country"), result)
 
 
 class ParseClosureTests(SimpleTestCase):
