@@ -22,11 +22,6 @@
             <div class="col-lg-6">
                 <figure class="hero-feature mb-0">
                     <div class="hero-visual">
-                        {# The map stays fixed on the point because the connector #}
-                        {# is part of the composition, and takes its size from    #}
-                        {# the photograph's panel. Initialized by                 #}
-                        {# assets/js/pages/home_no_region.ts. unlocalize prevents #}
-                        {# comma decimal separators from truncating coordinates.  #}
                         <div id="hero-map"
                              data-lng="{{ hero_feature.lng|unlocalize }}"
                              data-lat="{{ hero_feature.lat|unlocalize }}"
@@ -35,10 +30,6 @@
                              role="img"
                              aria-label="Map showing where {{ hero_feature.title }} was taken{% if hero_feature.region_long_name %}, in {{ hero_feature.region_long_name }}{% endif %}"></div>
 
-                        {# The thumbnail, never display_permalink: this is the    #}
-                        {# page's largest paint and the alternative is an         #}
-                        {# archival scan. Its ratio becomes the composition's, so #}
-                        {# the panel it shares with the map letterboxes nothing.  #}
                         <a href="{{ hero_feature.url }}" class="hero-photo-frame">
                             <img src="{{ hero_feature.thumbnail }}"
                                  alt="{{ hero_feature.title }}"
@@ -46,8 +37,6 @@
                                  decoding="async">
                         </a>
 
-                        {# The georeference is held at the map's exact centre.    #}
-                        {# This connector therefore remains true at every size.  #}
                         <svg class="hero-georef-arrow"
                              viewBox="0 0 100 80"
                              preserveAspectRatio="none"
@@ -58,10 +47,6 @@
                         </svg>
                     </div>
 
-                    {# The caption spans the pair, not either panel: the credit   #}
-                    {# grows to fill its line, holding the link under the map's   #}
-                    {# right edge; if the link wraps to its own line, it centres  #}
-                    {# under both instead of stranding at the far left.           #}
                     <figcaption class="hero-attribution text-body-secondary d-flex justify-content-center align-items-center gap-2 flex-wrap">
                         <small class="hero-attribution-credit fst-italic mb-0 flex-grow-1">
                             {{ hero_feature.title }} &middot;
