@@ -2,23 +2,16 @@
 {% load django_vite %}
 
 {% comment %}
-The homepage shown when no region is selected in the navbar: the
-platform's front door, and the page a stranger arrives on from a shared
-link. Where home.html addresses someone who has already chosen a place
-and knows what georeferencing is, this one assumes neither — it opens by
-demonstrating a georeference, then asks for one, then offers a region.
-
-Composed of full-width bands (see main_container_class below), each of
-which owns its own container and vertical rhythm.
+The homepage shown when no region is selected in the navbar.
 {% endcomment %}
 
 {% block title %}Yesterdays — historical photographs, on the map{% endblock %}
 
 {% block opengraph %}
-	<meta property="og:title" content="Yesterdays — historical photographs, on the map">
+	<meta property="og:title" content="Yesterdays – historical photographs, on the map">
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
-	<meta property="og:description" content="Yesterdays is a place for historical photographs, from libraries, museums, neighborhood associations, and more. We show you where each one was taken — and anyone can help place the ones we haven't.">
+	<meta property="og:description" content="Yesterdays is a place for historical photographs. These photographs come from a variety of places: libraries, museums, neighborhood associations, and more. Yesterdays shows where these photos were taken on the map, and makes it easy to search across vast collections.">
 	{% comment %}
 	The card shows whatever the page is currently leading with, falling
 	back to the top-rated image on a site whose hero is still empty. Both
