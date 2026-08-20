@@ -16,7 +16,7 @@
     <div class="region-directory-heading">
         <div>
             <h1 id="region-directory-title">Explore regions</h1>
-            <p class="lead mb-0">Choose a place to see its photographs, map, and community activity.</p>
+            <p class="lead mb-0">Choose a region to see its photographs, map, and community activity.</p>
         </div>
         {% if current_region %}
         <div class="region-directory-current card">
@@ -28,9 +28,6 @@
         {% endif %}
     </div>
 
-    {# The global homepage's picker map, pins and all. It carries only the #}
-    {# regions a visitor lands in — grouping regions like Virginia are     #}
-    {# listed below but have no pin of their own.                          #}
     {% if region_summaries %}
     <div class="region-directory-map">
         {% include 'partials/global_home_map.html' %}
@@ -51,13 +48,16 @@
     </div>
 
     {% if regions %}
-    <p id="region-directory-count" class="text-body-secondary small mb-3" aria-live="polite">{{ regions|length }} region{{ regions|length|pluralize }}</p>
+    <p id="region-directory-count" class="text-body-secondary small mb-3" aria-live="polite">{{ region_summaries|length }} region{{ region_summaries|length|pluralize }}</p>
     {# Busiest region first (regions.summaries.get_region_summaries orders #}
     {# them); each card leads with the region's representative photo.      #}
+    {# Grouping regions (Virginia above Richmond) render hidden so the     #}
+    {# resting grid mirrors the map's pins; searching surfaces them.       #}
     <div id="region-directory-grid" class="region-directory-grid" data-cookie-name="{{ region_cookie_name }}">
         {% for region in regions %}
-        <article class="card region-directory-card{% if current_region.slug == region.slug %} is-current{% endif %}"
+        <article class="card region-directory-card{% if current_region.slug == region.slug %} is-current{% endif %}{% if region.is_grouping %} d-none{% endif %}"
                  data-region-card
+                 {% if region.is_grouping %}data-region-grouping{% endif %}
                  data-region-slug="{{ region.slug }}"
                  data-region-search="{{ region.short_name }} {{ region.long_name }} {{ region.subtitle }}">
             {% if region.thumbnail %}
@@ -75,12 +75,6 @@
                     {% endif %}
                 </div>
                 {% if region.short_name != region.long_name %}
-                <p class="small text-body-secondary mb-0">{{ region.short_name }}</p>
-                {% endif %}
-                {% if region.subtitle %}
-                <p class="region-directory-subtitle text-body-secondary mt-3 mb-2">{{ region.subtitle }}</p>
-                {% else %}
-                <p class="region-directory-subtitle text-body-secondary mt-3 mb-2">Historical photographs, brought back to their place on the map.</p>
                 {% endif %}
                 <p class="small text-body-secondary mb-4">
                     {{ region.image_count|intcomma }} photo{{ region.image_count|pluralize }}

@@ -43,7 +43,7 @@
 }
 
 .region-directory-card {
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 /* .is-active mirrors :hover and is toggled from the shared map component
@@ -53,7 +53,6 @@
 .region-directory-card.is-active {
     border-color: var(--bs-primary);
     box-shadow: var(--bs-box-shadow);
-    transform: translateY(-2px);
 }
 
 .region-directory-card.is-current {

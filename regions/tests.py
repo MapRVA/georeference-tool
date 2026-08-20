@@ -1409,8 +1409,9 @@ class RegionDirectoryTests(TestCase):
 
     It shows the global homepage's picker map over a card per region, so
     the assertions below are mostly about which regions reach which of the
-    two: every region gets a card, only the ones a visitor lands in get a
-    pin.
+    two: every region gets a card, but grouping regions' cards start
+    hidden (search surfaces them client-side), and only the regions a
+    visitor lands in get a pin.
     """
 
     @classmethod
@@ -1470,10 +1471,27 @@ class RegionDirectoryTests(TestCase):
             total_images=total,
         )
 
+    def _card_tag(self, response, slug):
+        return re.search(
+            rb'<article[^>]*data-region-slug="%s"[^>]*>' % slug.encode(),
+            response.content,
+        ).group(0)
+
     def test_grouping_regions_get_a_card_but_no_pin(self):
         response = self._get()
         self.assertEqual(sorted(self._card_slugs(response)), ["richmond", "virginia"])
         self.assertEqual(self._pin_slugs(response), ["richmond"])
+
+    def test_grouping_cards_start_hidden_until_a_search_surfaces_them(self):
+        response = self._get()
+        virginia = self._card_tag(response, "virginia")
+        self.assertIn(b"data-region-grouping", virginia)
+        self.assertIn(b"d-none", virginia)
+        richmond = self._card_tag(response, "richmond")
+        self.assertNotIn(b"data-region-grouping", richmond)
+        self.assertNotIn(b"d-none", richmond)
+        # The visible count matches: one destination, not two regions.
+        self.assertContains(response, "1 region<")
 
     def test_page_exposes_the_protomaps_key_for_the_picker_map(self):
         response = self._get()
@@ -1503,7 +1521,7 @@ class RegionDirectoryTests(TestCase):
         self.assertContains(response, "https://img.example.com/rva-thumb.jpg")
         # Virginia has no representative image, so its card falls back to the
         # placeholder rather than a broken image.
-        self.assertContains(response, "region-directory-thumb-empty")
+        self.assertContains(response, "region-summary-thumb-empty")
 
     def test_counts_reach_the_cards(self):
         self._stats(self.richmond, 1200)

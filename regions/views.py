@@ -16,11 +16,12 @@ _AUTOCOMPLETE_LIMIT = 3
 def region_index(request):
     """A browsable directory of the places represented on Yesterdays.
 
-    The cards list every region a visitor can select, grouping regions
-    (Virginia above Richmond) included, busiest first. The map above them
-    is the global homepage's picker map, pins and all, so it shows the
-    same destinations that page does — leaf regions only, which is why the
-    two lists are built from one pass and split here.
+    The resting page shows only destinations — the same leaf regions the
+    map above the grid pins, since that map is the global homepage's
+    picker map. Grouping regions (Virginia above Richmond) still get
+    cards, busiest first like the rest, but they render hidden and only
+    surface when the visitor searches. Both lists are built from one pass
+    and split here.
     """
     summaries = get_region_summaries(leaf_only=False)
     return render(

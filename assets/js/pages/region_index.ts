@@ -65,9 +65,12 @@ function initRegionDirectory(): void {
     let visible = 0;
 
     cards.forEach((card) => {
-      const matches = (card.dataset.regionSearch ?? "")
-        .toLocaleLowerCase()
-        .includes(query);
+      // Grouping regions (Virginia above Richmond) stay hidden while the
+      // search box is empty, so the resting grid mirrors the map's pins.
+      const surfaced = query !== "" || card.dataset.regionGrouping === undefined;
+      const matches =
+        surfaced &&
+        (card.dataset.regionSearch ?? "").toLocaleLowerCase().includes(query);
       card.classList.toggle("d-none", !matches);
       if (matches) visible += 1;
     });

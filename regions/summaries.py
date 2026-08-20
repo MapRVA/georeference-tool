@@ -21,8 +21,9 @@ def get_region_summaries(leaf_only=True):
     A region that is itself an ancestor is a grouping region (Virginia
     above Richmond), which every entry reports as ``is_grouping``.
     ``leaf_only`` drops them outright: the global homepage offers only
-    destinations, while the directory at /regions/ lists every region a
-    visitor can select and leaves the pins to the leaves.
+    destinations, while the directory at /regions/ keeps them but renders
+    their cards hidden until a search surfaces them, leaving the pins —
+    and the resting grid — to the leaves.
     """
     # Counts come from the denormalized per-region stats, restricted — as
     # every read of CollectionStats is — to public collections and sources
