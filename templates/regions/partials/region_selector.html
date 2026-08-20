@@ -68,10 +68,13 @@
             {# trigger's label, for the same reason: selecting reloads.    #}
             {# Held back until a list has arrived (fetched), since an      #}
             {# empty one can't yet report that it carries this region.     #}
+            {# The slug check drops it the instant something else is       #}
+            {# clicked — select() moves currentSlug before the reload —    #}
+            {# so choosing Global doesn't flash it in under the check.     #}
             <button type="button"
                     class="dropdown-item"
                     :class="{ active: currentSlug === '{{ current_region.slug }}' }"
-                    x-show="!query && fetched && !currentIsSuggested()"
+                    x-show="!query && fetched && currentSlug === '{{ current_region.slug }}' && !currentIsSuggested()"
                     @click="select({ slug: currentSlug })">
                 <i class="fas fa-map-marker-alt fa-fw me-2" aria-hidden="true"></i>{{ current_region.long_name }}
                 <span class="ms-auto" x-show="currentSlug === '{{ current_region.slug }}'">
