@@ -28,6 +28,7 @@ from .models import (
     SubjectMapping,
     SubjectMappingActivity,
 )
+from .tasks import process_image
 
 
 class UserDisplayNameChoiceField(forms.ModelChoiceField):
@@ -582,12 +583,36 @@ class ImageAdmin(admin.ModelAdmin):
     search_fields = ("title", "description", "collection__name")
     readonly_fields = ("created_at", "updated_at", "skip_count")
     autocomplete_fields = ["duplicate_of", "license", "region"]
-    actions = ["label_scales_action"]
+    actions = ["label_scales_action", "regenerate_assets_action"]
 
     def label_scales_action(self, request, queryset):
         return HttpResponseRedirect(reverse("images:label_scales"))
 
     label_scales_action.short_description = "Label Image Scales"
+
+    def response_change(self, request, obj):
+        if "_regenerate_assets" in request.POST:
+            process_image.delay(obj.pk, force=True)
+            self.message_user(
+                request,
+                "Queued asset regeneration for this image.",
+                messages.SUCCESS,
+            )
+            return HttpResponseRedirect(request.path)
+        return super().response_change(request, obj)
+
+    @admin.action(description="Regenerate image assets (bump generation)")
+    def regenerate_assets_action(self, request, queryset):
+        image_ids = list(queryset.values_list("pk", flat=True))
+        for image_id in image_ids:
+            process_image.delay(image_id, force=True)
+
+        self.message_user(
+            request,
+            "Queued asset regeneration for %(count)d image(s)."
+            % {"count": len(image_ids)},
+            messages.SUCCESS,
+        )
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)

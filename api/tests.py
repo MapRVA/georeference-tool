@@ -23,6 +23,7 @@ from images.models import (
     Georeference,
     GeoreferenceValidation,
     Image,
+    ImportSlot,
     License,
     Source,
     SubjectMapping,
@@ -554,6 +555,75 @@ class TestImagesEndpoint(ApiFixturesMixin, TestCase):
     def test_non_duplicate_detail_has_null_duplicate_of(self):
         resp = self.client.get(f"/api/v2/images/{self.img1.pk}/")
         self.assertIsNone(resp.json()["duplicate_of"])
+
+
+class TestImageReplaceEndpoint(ApiFixturesMixin, TestCase):
+    """Replacing an image's file must not take the image off the site while
+    its new thumbnail and tiles build. Rebuilding a large scan takes minutes,
+    and every template falls back to the raw original when the derived assets
+    are missing — an original that is routinely a TIFF no browser can show."""
+
+    def setUp(self):
+        self.importer = User.objects.create_user(
+            username="osm_500", password="test", is_staff=True
+        )
+        self.client.force_login(self.importer)
+        self.slot = ImportSlot.objects.create(
+            collection=self.collection,
+            created_by=self.importer,
+            s3_key="imports/b5e7c9f2.jpg",
+            content_type="image/jpeg",
+        )
+        self.old_thumbnail = f"https://cdn.test/images/{self.img1.pk}/3/thumbnail.webp"
+        self.old_iiif = f"https://cdn.test/images/{self.img1.pk}/3/tiles"
+        Image.objects.filter(pk=self.img1.pk).update(
+            asset_generation=3,
+            thumbnail=self.old_thumbnail,
+            iiif_url=self.old_iiif,
+            tile_status="complete",
+        )
+
+    def replace(self):
+        with patch("api.views.R2Uploader") as uploader_cls, patch(
+            "api.views.process_image.delay"
+        ) as delay:
+            r2 = uploader_cls.return_value
+            r2.head_object.return_value = {"ContentLength": 1024}
+            r2.iter_keys.return_value = [f"images/{self.img1.pk}/original.jpg"]
+            r2.copy_object.return_value = (
+                f"https://cdn.test/images/{self.img1.pk}/original.jpg"
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                resp = self.client.post(
+                    f"/api/v2/images/{self.img1.pk}/replace/",
+                    {"slot_id": str(self.slot.slot_id)},
+                    content_type="application/json",
+                )
+        self.img1.refresh_from_db()
+        return resp, delay
+
+    def test_repoints_permalink_and_consumes_slot(self):
+        resp, _ = self.replace()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            self.img1.permalink,
+            f"https://cdn.test/images/{self.img1.pk}/original.jpg",
+        )
+        self.assertFalse(ImportSlot.objects.filter(slot_id=self.slot.slot_id).exists())
+
+    def test_previous_assets_stay_referenced_until_rebuild_finishes(self):
+        self.replace()
+        self.assertEqual(self.img1.thumbnail, self.old_thumbnail)
+        self.assertEqual(self.img1.iiif_url, self.old_iiif)
+        # tile_status is a rebuild flag, not a display field: clearing it is
+        # what tells process_image the tiles are out of date.
+        self.assertEqual(self.img1.tile_status, "")
+
+    def test_queues_forced_regeneration(self):
+        """Without force, process_image sees a thumbnail already set and no
+        transform, and short-circuits — leaving the old picture forever."""
+        _, delay = self.replace()
+        delay.assert_called_once_with(self.img1.pk, force=True)
 
 
 # ---------------------------------------------------------------------------

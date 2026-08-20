@@ -793,11 +793,17 @@ def image_replace_view(request, id):
                     old_originals.append(key)
 
             cdn_url = r2.copy_object(slot.s3_key, dest_key)
+            # thumbnail, transformed_permalink and iiif_url deliberately keep
+            # pointing at the previous generation. Each flips to the new
+            # generation the instant that asset exists on R2 — the thumbnail
+            # when process_image finishes, iiif_url when generate_iiif_tiles
+            # does — so holding them here delays nothing. It only avoids the
+            # window where they are empty and every surface falls back to the
+            # raw original, which for a TIFF upload no browser can display.
+            # tile_status is cleared because it is the "tiles need rebuilding"
+            # flag, not a display field.
             Image.objects.filter(pk=image.id).update(
                 permalink=cdn_url,
-                thumbnail=None,
-                transformed_permalink=None,
-                iiif_url=None,
                 rotation=0,
                 mirror="none",
                 tile_status="",
@@ -836,7 +842,11 @@ def image_replace_view(request, id):
 
     def trigger_replace_processing():
         try:
-            process_image.delay(image.id)
+            # force=True: the derived-asset fields still hold the previous
+            # generation's URLs, so process_image's "nothing to do"
+            # short-circuit would otherwise skip rebuilding them from the
+            # new bytes.
+            process_image.delay(image.id, force=True)
         except Exception:
             logger.warning("Failed to queue process_image for image %d", image.id)
 

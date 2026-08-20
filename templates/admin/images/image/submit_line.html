@@ -1,0 +1,7 @@
+{% extends "admin/submit_line.html" %}
+{% block submit-row %}
+{{ block.super }}
+{% if change and original and has_change_permission %}
+    <input type="submit" name="_regenerate_assets" value="Regenerate assets">
+{% endif %}
+{% endblock %}

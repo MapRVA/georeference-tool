@@ -40,7 +40,9 @@ EMPTY_REGION_STATS_TTL = timedelta(days=1)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
-def process_image(self, image_id: int, quality: int = 85):
+def process_image(
+    self, image_id: int, quality: int = 85, force: bool = False
+):
     """
     Ensure an image has the correct transformed/plain assets on R2.
 
@@ -49,6 +51,7 @@ def process_image(self, image_id: int, quality: int = 85):
     - If the image has a transform: apply it, upload full-size + thumbnail
     - If no transform but no thumbnail: generate a plain thumbnail
     - If everything is already correct: do nothing
+    - If forced: regenerate all derived assets in a new generation
 
     A stale-write guard re-checks the DB before writing, so concurrent tasks
     from rapid saves won't clobber each other.
@@ -71,7 +74,8 @@ def process_image(self, image_id: int, quality: int = 85):
     needs_migration = image.asset_generation == 0
 
     if (
-        not needs_transform
+        not force
+        and not needs_transform
         and not needs_thumbnail
         and not needs_transform_cleanup
         and not needs_migration
@@ -143,12 +147,17 @@ def process_image(self, image_id: int, quality: int = 85):
         # current generation's R2 directory, so persisting a superseded
         # generation's URLs would leave the DB pointing at objects that are
         # about to be deleted.
+        # iiif_url is left alone: generate_iiif_tiles overwrites it in the same
+        # statement that marks tiles complete, so the viewer switches the
+        # moment the new tiles are on R2. Nulling it here would instead blank
+        # the deep-zoom viewer for the whole tiling run — minutes, on a large
+        # scan — while the previous generation's tiles sit there perfectly
+        # serviceable. Clearing tile_status is what marks tiles as stale.
         updated = Image.objects.filter(pk=image_id, asset_generation=generation).update(
             transformed_permalink=transformed_url,
             thumbnail=thumb_url,
             tile_status="",
             tile_error="",
-            iiif_url=None,
         )
         if not updated:
             logger.info(

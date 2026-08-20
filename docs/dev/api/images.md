@@ -690,8 +690,8 @@ Example response (200 OK):
 
 - `permalink` is updated to point at the newly uploaded file.
 - `rotation` and `mirror` reset to `0` and `"none"` — the uploaded file is treated as correctly oriented. Apply any rotation or mirroring *before* uploading.
-- `thumbnail` and any derived assets are cleared.
 - A background task regenerates the thumbnail, display variant, and IIIF tiles from the new source, and cleans up prior versions.
+- The image stays viewable throughout: `thumbnail`, the display variant, and the IIIF tiles keep serving the *previous* file until each replacement asset is ready, then swap over. Expect a few minutes of the old picture on a large scan.
 - The previous `images/{id}/original.*` file is deleted when the new file has a different extension.
 - The import slot is consumed (cannot be committed again).
 

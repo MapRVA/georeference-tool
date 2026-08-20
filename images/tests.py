@@ -2089,6 +2089,102 @@ class ProcessImageGenerationGuardTests(TestCase):
         self.assertFalse(image.thumbnail)
         tiles.assert_not_called()
 
+    def test_forced_regeneration_advances_generation_and_recreates_assets(self):
+        image = self.make_image()
+        Image.objects.filter(pk=image.id).update(
+            asset_generation=1,
+            thumbnail=f"https://cdn.test/images/{image.id}/1/thumbnail.webp",
+            tile_status="complete",
+            iiif_url=f"https://cdn.test/images/{image.id}/1/tiles",
+        )
+
+        def download(url, **kwargs):
+            return PILImage.new("RGB", (600, 400))
+
+        with self.run_environment(download) as tiles:
+            process_image(image.id, force=True)
+
+        image.refresh_from_db()
+        self.assertEqual(image.asset_generation, 2)
+        self.assertEqual(
+            image.thumbnail,
+            f"https://cdn.test/images/{image.id}/2/thumbnail.webp",
+        )
+        self.assertEqual(image.tile_status, "")
+        # The old tiles stay referenced until generate_iiif_tiles publishes the
+        # new ones — clearing iiif_url here would blank the deep-zoom viewer for
+        # the whole tiling run.
+        self.assertEqual(image.iiif_url, f"https://cdn.test/images/{image.id}/1/tiles")
+        tiles.assert_called_once_with(image.id)
+
+
+class ImageAdminRegenerationActionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="test"
+        )
+        source = Source.objects.create(
+            name="Src", slug="src", url="https://example.com", description=""
+        )
+        collection = Collection.objects.create(
+            source=source, name="Col", slug="col", url="https://example.com"
+        )
+        cls.image = Image.objects.create(
+            collection=collection,
+            title="Test",
+            permalink="https://img.example.com/test.jpg",
+        )
+
+    def test_action_queues_forced_regeneration(self):
+        self.client.force_login(self.user)
+
+        with patch("images.admin.process_image.delay") as delay:
+            response = self.client.post(
+                reverse("admin:images_image_changelist"),
+                {
+                    "action": "regenerate_assets_action",
+                    "_selected_action": [self.image.pk],
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        delay.assert_called_once_with(self.image.pk, force=True)
+
+    def test_change_page_button_queues_forced_regeneration(self):
+        self.client.force_login(self.user)
+        change_url = reverse("admin:images_image_change", args=(self.image.pk,))
+
+        response = self.client.get(change_url)
+
+        self.assertContains(response, 'name="_save"')
+        self.assertContains(response, 'name="_regenerate_assets"')
+
+        # The button is a submit input on the change form, so post the form's
+        # own values back (plus the inlines' management forms) with the
+        # button's name attached.
+        form = response.context["adminform"].form
+        data = {
+            name: form.get_initial_for_field(field, name)
+            for name, field in form.fields.items()
+            if form.get_initial_for_field(field, name) not in (None, "")
+        }
+        for inline in response.context["inline_admin_formsets"]:
+            management_form = inline.formset.management_form
+            data.update(
+                {
+                    management_form.add_prefix(name): value
+                    for name, value in management_form.initial.items()
+                }
+            )
+        data["_regenerate_assets"] = "Regenerate assets"
+
+        with patch("images.admin.process_image.delay") as delay:
+            response = self.client.post(change_url, data)
+
+        self.assertRedirects(response, change_url)
+        delay.assert_called_once_with(self.image.pk, force=True)
+
 
 class QueueImageProcessingSignalTests(TestCase):
     """Exactly one process_image task per imported image. The API import
