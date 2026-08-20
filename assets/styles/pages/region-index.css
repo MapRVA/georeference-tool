@@ -1,0 +1,84 @@
+.region-directory {
+    max-width: 72rem;
+    margin-inline: auto;
+}
+
+.region-directory-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.region-directory-heading h1 {
+    margin-bottom: 0.5rem;
+}
+
+.region-directory-current {
+    min-width: min(100%, 16rem);
+}
+
+/* The picker map, shared with the global homepage; its own height comes
+   from assets/styles/components/region-map.css. */
+.region-directory-map {
+    margin-bottom: 1.5rem;
+}
+
+.region-directory-tools {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.region-directory-tools .input-group {
+    max-width: 32rem;
+}
+
+.region-directory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 1rem;
+}
+
+.region-directory-card {
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+/* .is-active mirrors :hover and is toggled from the shared map component
+   when the card's pin is hovered. */
+.region-directory-card:hover,
+.region-directory-card:focus-within,
+.region-directory-card.is-active {
+    border-color: var(--bs-primary);
+    box-shadow: var(--bs-box-shadow);
+    transform: translateY(-2px);
+}
+
+.region-directory-card.is-current {
+    border-color: var(--bs-primary);
+    border-width: 2px;
+}
+
+.region-directory-subtitle {
+    min-height: 3rem;
+}
+
+@media (max-width: 575.98px) {
+    .region-directory-heading,
+    .region-directory-tools {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .region-directory-current,
+    .region-directory-tools .input-group {
+        max-width: none;
+        width: 100%;
+    }
+
+    .region-directory-tools .btn {
+        align-self: flex-start;
+    }
+}

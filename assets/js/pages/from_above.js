@@ -2,7 +2,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../components/map_display/pmtiles_protocol";
 import { initialMapStyle } from "../components/layer_control";
-import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "../constants/map";
+import { initialMapView } from "../constants/map";
 
 // Import image grid component (includes bulk selection and modal functionality)
 import { imageGrid } from "../components/image_grid.js";
@@ -41,8 +41,7 @@ function aerialsPage() {
         this.map = new maplibregl.Map({
           container: "aerial-map",
           style: initialMapStyle(),
-          center: DEFAULT_MAP_CENTER,
-          zoom: DEFAULT_MAP_ZOOM,
+          ...initialMapView(),
         });
 
         // Add controls

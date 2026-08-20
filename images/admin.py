@@ -1145,6 +1145,10 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
     change_form_template = "admin/images/sitesettings/change_form.html"
 
+    # Autocomplete rather than a select: the image table is the largest in
+    # the database, and a plain dropdown would try to render all of it.
+    autocomplete_fields = ["home_subjects_image"]
+
     fieldsets = (
         (
             "Homepage Content",
@@ -1217,6 +1221,13 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                     "home_feed_show_new_collections",
                 ),
                 "description": "Controls the recent-activity feed embedded on the homepage",
+            },
+        ),
+        (
+            "Homepage Subjects Band",
+            {
+                "fields": ("home_subjects_image",),
+                "description": 'The photograph labelled in the homepage\'s "The Rabbithole Goes Deep" band, shown with the subjects tagged in it. Leave empty to hide the band.',
             },
         ),
     )

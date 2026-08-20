@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from osm_auth.models import UserPreferences
+from regions.context_processors import get_current_region
 from subjects.models import Subject
 
 from ..models import (
@@ -77,6 +78,24 @@ def georeference_interface(request):
     # 3. Skip tracking is still useful for statistics, but shouldn't hide images
 
     images = images.select_related("collection__source")
+
+    # The navbar region is a preference for the default random queue, not an
+    # additional restriction on links that deliberately target another queue
+    # or image. Difficulty is intentionally absent here: it narrows either the
+    # regional default queue or an explicit queue below.
+    has_explicit_scope = any(
+        (
+            current_image is not None,
+            source_slug,
+            collection_slug,
+            album_id,
+            subject_slug,
+        )
+    )
+    if not has_explicit_scope:
+        region = get_current_region(request)
+        if region is not None:
+            images = images.in_region(region)
 
     # Filter by album if specified
     album = None

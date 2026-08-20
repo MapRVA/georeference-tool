@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import connection, models, transaction
 from django.db.models import Count, F, Q
-from django.db.models.functions import Lower
+from django.db.models.functions import Coalesce, Lower
 
 from .utils import render_markdown_safe
 
@@ -164,6 +164,19 @@ class SiteSettings(models.Model):
     home_feed_show_new_collections = models.BooleanField(
         default=True,
         help_text="Show new collection announcements in the homepage feed embed",
+    )
+    home_subjects_image = models.ForeignKey(
+        "images.Image",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "Photograph labelled in the homepage's subjects band. Pick one "
+            "whose tagged subjects read as a caption of what is in the frame. "
+            "The band is hidden while this is empty, while the photograph has "
+            "no subjects, and while it sits in a private collection or source."
+        ),
     )
 
     class Meta:
@@ -370,6 +383,7 @@ class CollectionStats(models.Model):
     FROM images_collection c
     LEFT JOIN images_image img
         ON img.collection_id = c.id AND img.duplicate_of_id IS NULL
+    -- Kept in sync by hand with the copy in CollectionRegionStats.REFRESH_SQL
     LEFT JOIN LATERAL (
         SELECT CASE WHEN img.aerial THEN (
             SELECT ag.confidence FROM images_aerialgeoreference ag
@@ -412,6 +426,221 @@ class CollectionStats(models.Model):
                 cursor.execute(
                     cls.REFRESH_SQL.format(where_clause="WHERE c.id = ANY(%s)"),
                     [list(collection_ids)],
+                )
+
+
+class CollectionRegionStats(models.Model):
+    """Denormalized per-collection, per-region image statistics.
+
+    The same buckets as CollectionStats, split by the region each image
+    depicts, so a page can order a source's collections by how many images
+    they hold for the region the visitor has selected in the navbar without
+    running an aggregate per request. Bucket semantics (what counts as
+    georeferenced, how will_not_georef and duplicates are treated, which
+    georeference supplies the confidence) are identical to CollectionStats —
+    see that docstring; only the grouping differs.
+
+    An image's region resolves image -> collection -> source, mirroring
+    Image.effective_region, and then rolls *up*: the image counts toward that
+    region and toward every Region whose wikidata_item appears in that
+    region's RegionAncestor rows. So an image tagged with a Richmond
+    neighborhood counts toward Richmond too. RegionAncestor holds strict
+    ancestry (a region is never its own ancestor), so the refresh adds the
+    self-row explicitly. A region's rollup is only as good as its mirrored
+    P131 chain: a Region whose Wikidata item hasn't been hydrated yet has no
+    RegionAncestor rows, so it rolls up nowhere until it has.
+
+    A row exists for every (collection, region) pair with at least one image,
+    plus zeroed rows left behind by pairs that used to have images — those are
+    written back as zeros rather than deleted so that every write passes
+    through the freshness guard (see REFRESH_SQL), and the periodic reconcile
+    garbage-collects them. Images with no effective region produce no rows at
+    all. Counts include non-public collections and sources; visibility is
+    filtered at read time, exactly as for CollectionStats.
+
+    Maintained by the same signal handlers (see signals.py), refreshed a whole
+    collection at a time, with the periodic reconcile as the backstop for
+    write paths that bypass signals. Any new bulk write that touches images,
+    georeferences, or a region assignment must call refresh_for() itself —
+    images.views.core._bulk_set_image_flag is the worked example.
+    """
+
+    collection = models.ForeignKey(
+        Collection, on_delete=models.CASCADE, related_name="region_stats"
+    )
+    # CASCADE, not the PROTECT the Source/Collection/Image region FKs use:
+    # those are curatorial assignments that must not vanish silently, these
+    # are derived counts that mean nothing once the region is gone.
+    region = models.ForeignKey(
+        "regions.Region", on_delete=models.CASCADE, related_name="collection_stats"
+    )
+    total_images = models.PositiveIntegerField(default=0)
+    will_not_georef_images = models.PositiveIntegerField(default=0)
+    georeferenced_low = models.PositiveIntegerField(default=0)
+    georeferenced_medium = models.PositiveIntegerField(default=0)
+    georeferenced_high = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "collection region stats"
+        constraints = [
+            # Also the unique index ON CONFLICT infers in REFRESH_SQL
+            models.UniqueConstraint(
+                fields=["collection", "region"],
+                name="collectionregionstats_unique_pair",
+            ),
+        ]
+        indexes = [models.Index(fields=["region"])]
+
+    def __str__(self):
+        return f"Stats for {self.collection} in {self.region}"
+
+    @property
+    def georeferenced_images(self):
+        return (
+            self.georeferenced_low + self.georeferenced_medium + self.georeferenced_high
+        )
+
+    @property
+    def pending_images(self):
+        return (
+            self.total_images - self.georeferenced_images - self.will_not_georef_images
+        )
+
+    REFRESH_SQL = """
+    WITH region_expansion AS (
+        -- A region counts toward itself...
+        SELECT r.id AS region_id, r.id AS counts_toward_id
+        FROM regions_region r
+        UNION
+        -- ...and toward every Region on its transitive P131 chain. Must stay
+        -- UNION, never UNION ALL: a duplicate pair here silently doubles
+        -- every rolled-up count. RegionAncestor points at a WikidataItem
+        -- rather than a Region, so join back through Region.wikidata_item
+        -- (a OneToOne, hence at most one Region per ancestor item).
+        SELECT ra.region_id, r2.id
+        FROM regions_regionancestor ra
+        JOIN regions_region r2 ON r2.wikidata_item_id = ra.ancestor_id
+    ),
+    image_rows AS MATERIALIZED (
+        -- One row per counted image, with the region it resolves to.
+        -- MATERIALIZED so the correlated confidence lookup runs once per
+        -- image rather than once per (image, region) pair after the
+        -- expansion below fans these rows out.
+        SELECT
+            img.id,
+            c.id AS collection_id,
+            img.will_not_georef,
+            COALESCE(img.region_id, c.region_id, s.region_id) AS region_id,
+            conf.confidence
+        FROM images_collection c
+        JOIN images_source s ON s.id = c.source_id
+        JOIN images_image img
+            ON img.collection_id = c.id AND img.duplicate_of_id IS NULL
+        -- Kept in sync by hand with the copy in CollectionStats.REFRESH_SQL
+        LEFT JOIN LATERAL (
+            SELECT CASE WHEN img.aerial THEN (
+                SELECT ag.confidence FROM images_aerialgeoreference ag
+                WHERE ag.image_id = img.id
+                ORDER BY ag.georeferenced_at DESC LIMIT 1
+            ) ELSE (
+                SELECT g.confidence FROM images_georeference g
+                WHERE g.image_id = img.id
+                ORDER BY g.georeferenced_at DESC LIMIT 1
+            ) END AS confidence
+        ) conf ON TRUE
+        {where_clause}
+    ),
+    computed AS (
+        SELECT
+            ir.collection_id,
+            exp.counts_toward_id AS region_id,
+            COUNT(ir.id) AS total_images,
+            COUNT(ir.id) FILTER (WHERE ir.will_not_georef) AS will_not_georef_images,
+            COUNT(ir.id) FILTER (WHERE NOT ir.will_not_georef AND ir.confidence = 'low') AS georeferenced_low,
+            COUNT(ir.id) FILTER (WHERE NOT ir.will_not_georef AND ir.confidence = 'medium') AS georeferenced_medium,
+            COUNT(ir.id) FILTER (WHERE NOT ir.will_not_georef AND ir.confidence = 'high') AS georeferenced_high
+        FROM image_rows ir
+        -- Inner join: an image with no effective region counts nowhere
+        JOIN region_expansion exp ON exp.region_id = ir.region_id
+        GROUP BY ir.collection_id, exp.counts_toward_id
+    ),
+    targets AS (
+        SELECT * FROM computed
+        UNION ALL
+        -- Pairs that still have a row but no longer have any images, written
+        -- back as zeros rather than deleted. A DELETE arm would break the
+        -- freshness invariant: ON CONFLICT arbitrates against a dirty index
+        -- snapshot, so a stale refresh whose row a fresher one had just
+        -- deleted would take the plain-INSERT path, skip the guard below,
+        -- and resurrect stale counts. Kept disjoint from `computed` by the
+        -- NOT EXISTS, so ON CONFLICT never tries to touch a row twice in one
+        -- statement. Rows already at zero are left alone so their updated_at
+        -- ages and the reconcile can garbage-collect them.
+        SELECT s.collection_id, s.region_id, 0, 0, 0, 0, 0
+        FROM images_collectionregionstats s
+        WHERE {stale_scope}
+          AND s.total_images > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM computed x
+              WHERE x.collection_id = s.collection_id
+                AND x.region_id = s.region_id
+          )
+    )
+    INSERT INTO images_collectionregionstats (
+        collection_id, region_id, total_images, will_not_georef_images,
+        georeferenced_low, georeferenced_medium, georeferenced_high, updated_at
+    )
+    SELECT
+        collection_id, region_id, total_images, will_not_georef_images,
+        georeferenced_low, georeferenced_medium, georeferenced_high,
+        -- statement start time == this statement's snapshot time (READ
+        -- COMMITTED); NOW() would freeze for a whole transaction, breaking
+        -- the freshness guard below under TestCase's wrapping transaction
+        STATEMENT_TIMESTAMP()
+    FROM targets
+    ON CONFLICT (collection_id, region_id) DO UPDATE SET
+        total_images = EXCLUDED.total_images,
+        will_not_georef_images = EXCLUDED.will_not_georef_images,
+        georeferenced_low = EXCLUDED.georeferenced_low,
+        georeferenced_medium = EXCLUDED.georeferenced_medium,
+        georeferenced_high = EXCLUDED.georeferenced_high,
+        updated_at = EXCLUDED.updated_at
+    -- Freshest snapshot wins: a refresh computed from an older snapshot must
+    -- not overwrite counts computed from a newer one, regardless of which
+    -- write lands last
+    WHERE images_collectionregionstats.updated_at < EXCLUDED.updated_at
+    """
+
+    @classmethod
+    def refresh_for(cls, collection_ids=None):
+        """Recompute every region row of the given collections in one upsert.
+
+        Pass a list of collection ids to refresh just those collections, or
+        None to refresh every collection (reconcile). The unit is always the
+        whole collection — callers never have to work out which regions a
+        change moved images between.
+        """
+        if collection_ids is not None and not collection_ids:
+            return
+        with connection.cursor() as cursor:
+            if collection_ids is None:
+                cursor.execute(
+                    cls.REFRESH_SQL.format(where_clause="", stale_scope="TRUE")
+                )
+            else:
+                # Both placeholders take the same id list, bound in SQL-text
+                # order: {where_clause} appears before {stale_scope}. The
+                # stale arm must be scoped by the id list rather than by
+                # `computed`, or a collection whose last image was deleted
+                # would keep its rows forever.
+                ids = list(collection_ids)
+                cursor.execute(
+                    cls.REFRESH_SQL.format(
+                        where_clause="WHERE c.id = ANY(%s)",
+                        stale_scope="s.collection_id = ANY(%s)",
+                    ),
+                    [ids, ids],
                 )
 
 
@@ -677,8 +906,39 @@ class License(models.Model):
         ]
 
 
+class ImageQuerySet(models.QuerySet):
+    def in_region(self, region):
+        """Images that depict ``region`` or any region inside it.
+
+        Resolves each image's region as Image.effective_region does (image ->
+        collection -> source, first match wins) and matches it against the
+        region and its transitive P131 descendants — the same rollup
+        CollectionRegionStats.REFRESH_SQL performs.
+
+        Row eligibility matches that refresh too: duplicates are dropped here
+        exactly as its image_rows join drops them, so this queryset selects
+        the same images the region's stats rows counted. Visibility is the one
+        thing left out, because the refresh leaves it out as well — both
+        tables count non-public collections and sources, and callers apply the
+        public filter at read time (see images.utils._public_collection_stats).
+        """
+        return (
+            self.filter(duplicate_of__isnull=True)
+            .annotate(
+                effective_region_id=Coalesce(
+                    "region_id",
+                    "collection__region_id",
+                    "collection__source__region_id",
+                )
+            )
+            .filter(effective_region_id__in=region.self_and_descendant_ids())
+        )
+
+
 class Image(models.Model):
     """Individual image to be georeferenced"""
+
+    objects = ImageQuerySet.as_manager()
 
     DIFFICULTY_CHOICES = [
         ("easy", "Easy"),
@@ -821,6 +1081,26 @@ class Image(models.Model):
         Resolves image -> collection -> source, first match wins.
         """
         return self.region or self.collection.effective_region
+
+    # SQL mirror of effective_region, for the raw-SQL search endpoints that
+    # can't go through ImageQuerySet.in_region. {alias} is the images_image
+    # qualifier *including* the trailing dot ("i." or "images_image.") and
+    # must never be empty: the correlated subquery needs collection_id
+    # qualified to reach the outer row.
+    #
+    # COALESCE (not an OR across the three region FKs) is what preserves the
+    # override precedence image > collection > source: an image explicitly
+    # tagged region A inside a region-B collection depicts A only. Keep this
+    # in step with in_region and CollectionRegionStats.REFRESH_SQL, which
+    # resolve the same way. Both FKs walked here are non-nullable, so the
+    # subquery always finds exactly one row.
+    EFFECTIVE_REGION_SQL = (
+        "COALESCE({alias}region_id, "
+        "(SELECT COALESCE(c.region_id, s.region_id) "
+        "FROM images_collection c "
+        "JOIN images_source s ON s.id = c.source_id "
+        "WHERE c.id = {alias}collection_id))"
+    )
 
     def save(self, *args, **kwargs):
         """Validate EDTF date format and pre-calculate decimal dates before saving"""
@@ -1765,7 +2045,10 @@ class TopRatedImageView(models.Model):
 class ImageOfTheDay(models.Model):
     """Queues an Image to be featured on one specific calendar day.
 
-    The queue is normally a contiguous run of days: an unlocked entry's
+    Each region keeps its own queue — a day holds one image *per region*, and
+    every operation below is scoped to a single region's run of days.
+
+    That queue is normally a contiguous run of days: an unlocked entry's
     ``day`` is just a function of where it sits in line, so inserting or
     removing an entry re-flows the days of the entries around it.
 
@@ -1782,6 +2065,12 @@ class ImageOfTheDay(models.Model):
         on_delete=models.CASCADE,
         related_name="featured_days",
         help_text="The image to feature. An image may be reused on other days.",
+    )
+    region = models.ForeignKey(
+        "regions.Region",
+        on_delete=models.PROTECT,
+        related_name="featured_days",
+        help_text="The region whose homepage features this image on this day.",
     )
     day = models.DateField(
         help_text="Calendar day (in the site's timezone) this image is featured on"
@@ -1817,7 +2106,7 @@ class ImageOfTheDay(models.Model):
     updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.day:%Y-%m-%d}: {self.image.title}"
+        return f"{self.region}, {self.day:%Y-%m-%d}: {self.image.title}"
 
     def save(self, *args, **kwargs):
         self.note_html = render_markdown_safe(self.note)
@@ -1830,24 +2119,34 @@ class ImageOfTheDay(models.Model):
         super().save(*args, **kwargs)
 
     class Meta:
-        ordering = ["day"]
+        ordering = ["region", "day"]
         verbose_name = "Image of the Day"
         verbose_name_plural = "Images of the Day"
         constraints = [
-            # One image per day. Deferred so the bulk day-shifts in place()
-            # and delete() can transiently overlap and only be validated once,
-            # at COMMIT — making the reflow order-independent.
+            # One image per day, per region. Deferred so the bulk day-shifts
+            # in place() and delete() can transiently overlap and only be
+            # validated once, at COMMIT — making the reflow order-independent.
             models.UniqueConstraint(
-                fields=["day"],
-                name="unique_image_of_the_day",
+                fields=["region", "day"],
+                name="unique_image_of_the_day_per_region",
                 deferrable=models.Deferrable.DEFERRED,
             ),
         ]
         indexes = [
-            models.Index(fields=["locked"]),
+            models.Index(fields=["region", "locked"]),
         ]
 
     # -- Day arithmetic -----------------------------------------------------
+
+    @classmethod
+    def _in_region(cls, region):
+        """This region's queue.
+
+        Every query below goes through here. The reflow rewrites ``day`` in
+        bulk, so a single missing region filter would silently slide another
+        region's queue.
+        """
+        return cls.objects.filter(region=region)
 
     @staticmethod
     def _next_free_day(after, locked_days):
@@ -1858,33 +2157,36 @@ class ImageOfTheDay(models.Model):
         return candidate
 
     @classmethod
-    def next_available_day(cls, start=None):
+    def next_available_day(cls, region, start=None):
         """First day >= ``start`` (default: today) with no image queued.
 
         Used as the default insertion point — appending to the end of the
-        queue, or filling the first gap a lock has left open.
+        region's queue, or filling the first gap a lock has left open.
         """
         start = start or timezone.localdate()
-        taken = set(cls.objects.filter(day__gte=start).values_list("day", flat=True))
+        taken = set(
+            cls._in_region(region).filter(day__gte=start).values_list("day", flat=True)
+        )
         candidate = start
         while candidate in taken:
             candidate += datetime.timedelta(days=1)
         return candidate
 
     @classmethod
-    def for_today(cls):
-        """The entry featured today, or None."""
-        return cls.objects.filter(day=timezone.localdate()).first()
+    def for_today(cls, region):
+        """The entry featured in ``region`` today, or None."""
+        return cls._in_region(region).filter(day=timezone.localdate()).first()
 
     @classmethod
-    def current_or_most_recent(cls):
+    def current_or_most_recent(cls, region):
         """Today's featured entry, or the most recent past one if none today.
 
         Used to surface a featured image even on days with nothing queued —
         the most recently featured image stands in until the next one is due.
         """
         return (
-            cls.objects.filter(day__lte=timezone.localdate())
+            cls._in_region(region)
+            .filter(day__lte=timezone.localdate())
             .select_related("image__collection__source")
             .order_by("-day")
             .first()
@@ -1893,8 +2195,8 @@ class ImageOfTheDay(models.Model):
     # -- Queue operations ---------------------------------------------------
 
     @classmethod
-    def place(cls, image, day=None, locked=False, note=None, user=None):
-        """Insert ``image`` into the queue on ``day`` (default: the end).
+    def place(cls, image, region, day=None, locked=False, note=None, user=None):
+        """Insert ``image`` into ``region``'s queue on ``day`` (default: the end).
 
         Unlocked entries on or after ``day`` ripple forward to the next free
         slot, hopping over days claimed by locked entries, so the queue stays
@@ -1902,9 +2204,11 @@ class ImageOfTheDay(models.Model):
         is already claimed by a locked entry.
         """
         if day is None:
-            day = cls.next_available_day()
+            day = cls.next_available_day(region)
 
-        locked_days = set(cls.objects.filter(locked=True).values_list("day", flat=True))
+        locked_days = set(
+            cls._in_region(region).filter(locked=True).values_list("day", flat=True)
+        )
         if day in locked_days:
             raise ValidationError(
                 f"{day:%Y-%m-%d} is claimed by a locked image; "
@@ -1913,12 +2217,13 @@ class ImageOfTheDay(models.Model):
 
         with transaction.atomic():
             displaced = list(
-                cls.objects.select_for_update()
+                cls._in_region(region)
+                .select_for_update()
                 .filter(locked=False, day__gte=day)
                 .order_by("day")
             )
             entry = cls.objects.create(
-                image=image, day=day, locked=locked, note=note, user=user
+                image=image, region=region, day=day, locked=locked, note=note, user=user
             )
             cursor = day
             for moved in displaced:
@@ -1935,9 +2240,11 @@ class ImageOfTheDay(models.Model):
         to close the gap — and ``new_day`` is then claimed as a locked anchor,
         rippling any unlocked entries already at or after it. Raises
         ``ValidationError`` if ``new_day`` is claimed by another locked entry.
-        Returns the new entry (it is recreated, so its pk changes).
+        Returns the new entry (it is recreated, so its pk changes). The entry
+        stays in its own region's queue; regions are not interchangeable here.
         """
         image = entry.image
+        region = entry.region
         with transaction.atomic():
             # Unlock first so delete() will vacate the slot and slide others
             # back into it; the lock is reapplied when we re-place below.
@@ -1945,10 +2252,12 @@ class ImageOfTheDay(models.Model):
                 cls.objects.filter(pk=entry.pk).update(locked=False)
                 entry.locked = False
             entry.delete()
-            return cls.place(image, day=new_day, locked=True, note=note, user=user)
+            return cls.place(
+                image, region, day=new_day, locked=True, note=note, user=user
+            )
 
     @classmethod
-    def _compact(cls):
+    def _compact(cls, region):
         """Pack upcoming unlocked entries into the earliest free days, in order.
 
         Days are assigned from today forward, skipping locked anchors, so any
@@ -1956,12 +2265,13 @@ class ImageOfTheDay(models.Model):
         """
         today = timezone.localdate()
         locked_days = set(
-            cls.objects.filter(locked=True, day__gte=today).values_list(
-                "day", flat=True
-            )
+            cls._in_region(region)
+            .filter(locked=True, day__gte=today)
+            .values_list("day", flat=True)
         )
         upcoming = list(
-            cls.objects.select_for_update()
+            cls._in_region(region)
+            .select_for_update()
             .filter(locked=False, day__gte=today)
             .order_by("day")
         )
@@ -1986,10 +2296,10 @@ class ImageOfTheDay(models.Model):
             entry.user = user
             entry.locked = False
             entry.save(update_fields=["note", "user", "locked", "updated"])
-            cls._compact()
+            cls._compact(entry.region)
 
     def clean(self):
-        """A locked entry's day is claimed and may not be changed."""
+        """A locked entry's day is claimed; an entry's region is fixed."""
         super().clean()
         if self.pk:
             previous = type(self).objects.filter(pk=self.pk).first()
@@ -2002,13 +2312,25 @@ class ImageOfTheDay(models.Model):
                         )
                     }
                 )
+            # Moving an entry between regions would have to vacate one queue
+            # and ripple another; remove it and queue it again instead.
+            if previous and previous.region_id != self.region_id:
+                raise ValidationError(
+                    {
+                        "region": (
+                            "A queued image cannot change region. Remove it "
+                            "from this queue and add it to the other one."
+                        )
+                    }
+                )
 
     def delete(self, *args, **kwargs):
-        """Remove from the queue, sliding later unlocked entries back.
+        """Remove from its region's queue, sliding later unlocked entries back.
 
         Locked entries must be unlocked first. Removing an unlocked entry
-        frees its day; every later unlocked entry then slides back to the
-        earliest free slot, closing the gap around any locked anchors.
+        frees its day; every later unlocked entry in the same region then
+        slides back to the earliest free slot, closing the gap around any
+        locked anchors.
         """
         if self.locked:
             raise ValidationError(
@@ -2018,12 +2340,16 @@ class ImageOfTheDay(models.Model):
 
         cls = type(self)
         day = self.day
+        region_id = self.region_id
         with transaction.atomic():
             locked_days = set(
-                cls.objects.filter(locked=True).values_list("day", flat=True)
+                cls._in_region(region_id)
+                .filter(locked=True)
+                .values_list("day", flat=True)
             )
             later = list(
-                cls.objects.select_for_update()
+                cls._in_region(region_id)
+                .select_for_update()
                 .filter(locked=False, day__gt=day)
                 .order_by("day")
             )

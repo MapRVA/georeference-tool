@@ -1,4 +1,5 @@
 import json
+import math
 import traceback
 
 from django.contrib import messages
@@ -13,6 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from ..models import (
+    CollectionRegionStats,
     CollectionStats,
     Comment,
     Image,
@@ -61,6 +63,22 @@ def get_min_scale_for_zoom(z):
     return min_scale_to_show
 
 
+def _float_param(request, name):
+    """Read a finite float query parameter, or None if unusable.
+
+    Coerced here rather than in the template because these values land in
+    a numeric position inside a JavaScript literal, where Django's HTML
+    autoescaping is no defence — an uncoerced string would be an
+    injection point. Rejects NaN and infinities too, which parse happily
+    but aren't valid JS literals.
+    """
+    try:
+        value = float(request.GET[name])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
 @xframe_options_exempt
 def map_embed(request):
     """
@@ -72,9 +90,9 @@ def map_embed(request):
         "collection_id": request.GET.get("collection_id"),
         "source_id": request.GET.get("source_id"),
         "subject_id": request.GET.get("subject_id"),
-        "center_lng": request.GET.get("center_lng"),
-        "center_lat": request.GET.get("center_lat"),
-        "zoom_level": request.GET.get("zoom_level"),
+        "center_lng": _float_param(request, "center_lng"),
+        "center_lat": _float_param(request, "center_lat"),
+        "zoom_level": _float_param(request, "zoom_level"),
         "include_geocoder": request.GET.get("include_geocoder", "false").lower()
         == "true",
         "enable_scale_visibility": request.GET.get(
@@ -429,7 +447,8 @@ def _bulk_set_image_flag(request, field):
 
     Shared implementation for the bulk "mark as from above" / "mark as will not
     georeference" actions. A queryset UPDATE bypasses the post_save signal that
-    keeps CollectionStats in sync, so we refresh the affected collections here.
+    keeps the denormalized stats tables in sync, so we refresh the affected
+    collections here.
     """
     if not request.user.is_authenticated:
         return JsonResponse(
@@ -467,8 +486,10 @@ def _bulk_set_image_flag(request, field):
     updated_count = images.update(**{field: True})
 
     # The queryset UPDATE above skips the post_save signal, so refresh the
-    # denormalized stats for the affected collections directly.
+    # denormalized stats for the affected collections directly. Both tables
+    # bucket on will_not_georef and aerial, so both need it.
     CollectionStats.refresh_for(collection_ids)
+    CollectionRegionStats.refresh_for(collection_ids)
 
     return JsonResponse({"success": True, "updated_count": updated_count})
 

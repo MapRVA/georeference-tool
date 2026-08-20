@@ -1,0 +1,79 @@
+{% load l10n static %}
+<section class="home-band home-band-hero">
+    <div class="container">
+        <div class="row align-items-center g-4 g-lg-5">
+            <div class="{% if hero_feature %}col-lg-6{% else %}col-lg-8 mx-auto text-center{% endif %}">
+                <h1 class="display-5 fw-semibold mb-3">Historical photographs,<br class="d-none d-sm-block"> on the map.</h1>
+                <p class="lead mb-4">
+                    We partner with libraries, museums, and more to connect the stories of our past.
+                </p>
+                <div class="d-flex flex-wrap gap-2 {% if not hero_feature %}justify-content-center{% endif %}">
+                    <a href="{% url 'images:georeference_interface' %}?difficulty=easy%2Bmedium"
+                       class="btn btn-primary btn-lg">
+                        <i class="fas fa-map-marker-alt me-2" aria-hidden="true"></i>Place a photo
+                    </a>
+                    <a href="{% url 'map' %}" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-map me-2" aria-hidden="true"></i>Explore the map
+                    </a>
+                </div>
+            </div>
+
+            {% if hero_feature %}
+            <div class="col-lg-6">
+                <figure class="hero-feature mb-0">
+                    <div class="hero-visual">
+                        {# The map stays fixed on the point because the connector #}
+                        {# is part of the composition, and takes its size from    #}
+                        {# the photograph's panel. Initialized by                 #}
+                        {# assets/js/pages/home_no_region.ts. unlocalize prevents #}
+                        {# comma decimal separators from truncating coordinates.  #}
+                        <div id="hero-map"
+                             data-lng="{{ hero_feature.lng|unlocalize }}"
+                             data-lat="{{ hero_feature.lat|unlocalize }}"
+                             {% if hero_feature.direction is not None %}data-direction="{{ hero_feature.direction|unlocalize }}"{% endif %}
+                             data-direction-sprite="{% static 'images/surveillance-direction.png' %}"
+                             role="img"
+                             aria-label="Map showing where {{ hero_feature.title }} was taken{% if hero_feature.region_long_name %}, in {{ hero_feature.region_long_name }}{% endif %}"></div>
+
+                        {# The thumbnail, never display_permalink: this is the    #}
+                        {# page's largest paint and the alternative is an         #}
+                        {# archival scan. Its ratio becomes the composition's, so #}
+                        {# the panel it shares with the map letterboxes nothing.  #}
+                        <a href="{{ hero_feature.url }}" class="hero-photo-frame">
+                            <img src="{{ hero_feature.thumbnail }}"
+                                 alt="{{ hero_feature.title }}"
+                                 fetchpriority="high"
+                                 decoding="async">
+                        </a>
+
+                        {# The georeference is held at the map's exact centre.    #}
+                        {# This connector therefore remains true at every size.  #}
+                        <svg class="hero-georef-arrow"
+                             viewBox="0 0 100 80"
+                             preserveAspectRatio="none"
+                             aria-hidden="true">
+                            <path class="hero-georef-arrow-halo"></path>
+                            <path class="hero-georef-arrow-line"></path>
+                            <path class="hero-georef-arrow-head"></path>
+                        </svg>
+                    </div>
+
+                    {# The caption spans the pair, not either panel: the credit   #}
+                    {# grows to fill its line, holding the link under the map's   #}
+                    {# right edge; if the link wraps to its own line, it centres  #}
+                    {# under both instead of stranding at the far left.           #}
+                    <figcaption class="hero-attribution text-body-secondary d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                        <small class="hero-attribution-credit fst-italic mb-0 flex-grow-1">
+                            {{ hero_feature.title }} &middot;
+                            <a href="{{ hero_feature.source_url }}" class="text-decoration-none">{{ hero_feature.source_name }}</a>
+                        </small>
+                        <a href="{{ hero_feature.url }}" class="small fw-semibold text-decoration-none flex-shrink-0">
+                            See this photograph <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    </figcaption>
+                </figure>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>

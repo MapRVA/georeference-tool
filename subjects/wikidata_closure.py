@@ -15,10 +15,12 @@ mid-walk).
 """
 
 import logging
+import re
 from datetime import datetime
 
 import pyoxigraph
 from django.conf import settings
+from django.contrib.gis.geos import Point
 from django.core.exceptions import ImproperlyConfigured
 
 from .sparql_safety import (
@@ -66,8 +68,20 @@ WDT_P18_IRI = "http://www.wikidata.org/prop/direct/P18"
 WDT_P84_IRI = "http://www.wikidata.org/prop/direct/P84"
 WDT_P571_IRI = "http://www.wikidata.org/prop/direct/P571"
 WDT_P576_IRI = "http://www.wikidata.org/prop/direct/P576"
+WDT_P625_IRI = "http://www.wikidata.org/prop/direct/P625"
 COMMONS_FILEPATH_PREFIX = "http://commons.wikimedia.org/wiki/Special:FilePath/"
 EN_WIKIPEDIA_PREFIX = "https://en.wikipedia.org/"
+
+# Wikidata serializes P625 as a geo:wktLiteral, "Point(<lon> <lat>)" —
+# longitude first, matching WKT (and GEOS) axis order rather than the
+# lat/long order the Wikidata UI displays. Coordinates on another globe
+# carry a leading "<globe IRI>" prefix; Earth is the implicit default and
+# usually omitted.
+WIKIDATA_EARTH_IRI = f"{WIKIDATA_ENTITY_IRI_BASE}Q2"
+_WKT_POINT_RE = re.compile(
+    r"^Point\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)$",
+    re.IGNORECASE,
+)
 
 # IRI namespaces classified by ``build_graph_payload``. ``wdt:`` direct
 # claims, ``p:`` statement links, and ``ps:``/``pq:`` statement
@@ -286,9 +300,12 @@ def _language_filter():
     Built per call so the setting stays test-overridable and importing
     this module never touches Django settings.
     """
-    langs = settings.WIKIDATA_MIRROR_LANGUAGES
-    if not langs:
+    configured_langs = settings.WIKIDATA_MIRROR_LANGUAGES
+    if not configured_langs:
         raise ImproperlyConfigured("WIKIDATA_MIRROR_LANGUAGES must not be empty")
+    langs = list(configured_langs)
+    if "mul" not in langs:
+        langs.append("mul")
     tags = ", ".join(f'"{validate_language_tag(lang)}"' for lang in langs)
     return f'FILTER(!isLiteral(?o) || lang(?o) IN ({tags}) || lang(?o) = "")'
 
@@ -419,14 +436,16 @@ def parse_closure(turtle_bytes):
         property-descriptor branch) go under per-property graph IRIs -
         stored once, shared by every subject that uses the property. Blank
         nodes, value nodes, and reference nodes are dropped.
-      - ``labels``: ``{qid: english_label}`` - one per Q-entity, for
-        populating a freshly-created ``WikidataItem.title`` without an
-        extra fetch.
+      - ``labels``: ``{qid: preferred_label}`` - English when present,
+        otherwise Wikidata's ``mul`` default, for populating a freshly-created
+        ``WikidataItem.title`` without an extra fetch.
 
     Raises ``ClosureLoadError`` if the Turtle is malformed or truncated.
     """
     groups = {}
     labels = {}
+    label_priorities = {"mul": 1, "en": 2}
+    selected_label_priorities = {}
     for quad in _parse_turtle(turtle_bytes):
         subj = quad.subject
         if not isinstance(subj, pyoxigraph.NamedNode):
@@ -483,13 +502,14 @@ def parse_closure(turtle_bytes):
             pyoxigraph.Triple(quad.subject, quad.predicate, quad.object)
         )
 
-        if (
-            quad.predicate.value == RDFS_LABEL_IRI
-            and isinstance(quad.object, pyoxigraph.Literal)
-            and quad.object.language == "en"
-            and qid not in labels
+        if quad.predicate.value == RDFS_LABEL_IRI and isinstance(
+            quad.object, pyoxigraph.Literal
         ):
-            labels[qid] = quad.object.value
+            language = quad.object.language
+            priority = label_priorities.get(language, 0)
+            if priority > selected_label_priorities.get(qid, 0):
+                labels[qid] = quad.object.value
+                selected_label_priorities[qid] = priority
     return groups, labels
 
 
@@ -505,6 +525,34 @@ def _parse_closure_date(literal):
         return None
 
 
+def parse_wikidata_point(value):
+    """Parse a ``P625`` WKT literal string to a ``Point``, or ``None``.
+
+    Shared by both P625 read paths: the closure Turtle parsed here, and
+    the synchronous WDQS SELECT the region admin runs
+    (``regions.wikidata_check``).
+
+    Rejects anything that isn't a plain terrestrial point: coordinates on
+    another globe (Mars, the Moon) and out-of-range values would both be
+    meaningless as a region's location, and non-point geometries aren't
+    valid P625 values in the first place.
+    """
+    value = value.strip()
+    if value.startswith("<"):
+        globe, _, remainder = value.partition(">")
+        if globe.removeprefix("<") != WIKIDATA_EARTH_IRI:
+            return None
+        value = remainder.strip()
+
+    match = _WKT_POINT_RE.match(value)
+    if match is None:
+        return None
+    longitude, latitude = float(match.group(1)), float(match.group(2))
+    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        return None
+    return Point(longitude, latitude, srid=4326)
+
+
 def extract_seed_metadata(turtle_bytes, qid):
     """Pull ``WikidataItem`` metadata fields for ``qid`` out of the closure Turtle.
 
@@ -514,7 +562,7 @@ def extract_seed_metadata(turtle_bytes, qid):
     keeps grouping and metadata extraction as independent concerns.
 
     Returns a dict matching the JSON-API code path it replaces:
-      - ``title``: English ``rdfs:label`` (falls back to ``qid``)
+      - ``title``: English ``rdfs:label``, falling back to the ``mul`` default
       - ``description``: English ``schema:description``
       - ``wikipedia_url``: English Wikipedia article URL (or ``""``)
       - ``architect``: comma-joined ``Wikidata:Qxxx`` strings from
@@ -525,17 +573,25 @@ def extract_seed_metadata(turtle_bytes, qid):
         only - matches the JSON path's behavior), or ``None``
       - ``demolished``: ``datetime.date`` from ``wdt:P576`` (dissolved,
         abolished or demolished), same parsing rules, or ``None``
+      - ``coordinate_location``: ``Point`` from ``wdt:P625``, or ``None``.
+        The one key here that isn't a ``WikidataItem`` field — it lands on
+        ``Region.wikidata_coordinate_location`` for region seeds (see
+        ``subjects.tasks._do_refresh_wikidata_item``) and is ignored for
+        everything else. Extracted here anyway because this is the only
+        pass over the seed's triples.
 
     Raises ``ClosureLoadError`` if the Turtle is malformed or truncated.
     """
     seed_iri = f"{WIKIDATA_ENTITY_IRI_BASE}{qid}"
-    title = ""
+    english_title = ""
+    default_title = ""
     description = ""
     wikipedia_url = ""
     architects = []
     image_url = ""
     inception = None
     demolished = None
+    coordinate_location = None
 
     for quad in _parse_turtle(turtle_bytes):
         subj = quad.subject
@@ -546,8 +602,10 @@ def extract_seed_metadata(turtle_bytes, qid):
 
         if subj.value == seed_iri:
             if pred == RDFS_LABEL_IRI and isinstance(obj, pyoxigraph.Literal):
-                if obj.language == "en" and not title:
-                    title = obj.value
+                if obj.language == "en" and not english_title:
+                    english_title = obj.value
+                elif obj.language == "mul" and not default_title:
+                    default_title = obj.value
             elif pred == SCHEMA_DESCRIPTION_IRI and isinstance(obj, pyoxigraph.Literal):
                 if obj.language == "en" and not description:
                     description = obj.value
@@ -568,6 +626,9 @@ def extract_seed_metadata(turtle_bytes, qid):
             elif pred == WDT_P576_IRI and isinstance(obj, pyoxigraph.Literal):
                 if demolished is None:
                     demolished = _parse_closure_date(obj)
+            elif pred == WDT_P625_IRI and isinstance(obj, pyoxigraph.Literal):
+                if coordinate_location is None:
+                    coordinate_location = parse_wikidata_point(obj.value)
         elif (
             pred == SCHEMA_ABOUT_IRI
             and isinstance(obj, pyoxigraph.NamedNode)
@@ -578,13 +639,14 @@ def extract_seed_metadata(turtle_bytes, qid):
             wikipedia_url = subj.value
 
     return {
-        "title": title or qid,
+        "title": english_title or default_title,
         "description": description,
         "wikipedia_url": wikipedia_url,
         "architect": ", ".join(architects),
         "image_url": image_url,
         "inception": inception,
         "demolished": demolished,
+        "coordinate_location": coordinate_location,
     }
 
 
@@ -906,6 +968,10 @@ def fetch_seed_data(qid, *, session=None, timeout=60, include_p131=False):
         raise ClosureLoadError(f"WDQS response did not include the seed entity {qid}")
 
     metadata = extract_seed_metadata(turtle, qid)
+    if not metadata["title"]:
+        raise ClosureLoadError(
+            f"WDQS returned no English or default label for the seed entity {qid}"
+        )
     return {
         "turtle": turtle,
         "groups": groups,
@@ -962,16 +1028,28 @@ def commit_closure_to_memgraph(
     # write sparql_last_loaded_at in the same INSERT/UPDATE.
     refresh_qids = [q for q in existing_qids if q != seed_qid]
     if refresh_qids:
-        WikidataItem.objects.filter(wikidata_id__in=refresh_qids).update(
-            sparql_last_loaded_at=now,
-            sparql_fetch_failures=0,
+        refresh_items = list(
+            WikidataItem.objects.filter(wikidata_id__in=refresh_qids)
+        )
+        for item in refresh_items:
+            if item.wikidata_id in labels:
+                item.title = labels[item.wikidata_id]
+            item.sparql_last_loaded_at = now
+            item.sparql_fetch_failures = 0
+        WikidataItem.objects.bulk_update(
+            refresh_items,
+            ["title", "sparql_last_loaded_at", "sparql_fetch_failures"],
         )
 
-    new_qids = [q for q in qids if q not in existing_qids and q != seed_qid]
+    new_qids = [
+        q
+        for q in qids
+        if q not in existing_qids and q != seed_qid and q in labels
+    ]
     new_items = [
         WikidataItem(
             wikidata_id=q,
-            title=labels.get(q, q),
+            title=labels[q],
             sparql_last_loaded_at=now,
             sparql_fetch_failures=0,
             discovered_via=discovered_via,

@@ -1,0 +1,78 @@
+/* The region picker map: the basemap-only map with one photo pin per
+   region, shown on the global homepage and again above the directory at
+   /regions/. Loaded by assets/js/components/region_map.ts, so both pages
+   get these styles by importing the component.
+
+   The map's id is the homepage's, because both pages render the same
+   partial (templates/partials/global_home_map.html). */
+
+#global-home-map {
+    width: 100%;
+    height: clamp(16rem, 42vh, 22rem);
+}
+
+/* Representative photograph shared by the homepage picker and the region
+   directory. A fixed banner height keeps every card aligned regardless of
+   the archival image's original shape. */
+.region-summary-thumb {
+    display: block;
+    width: 100%;
+    height: 9rem;
+    object-fit: cover;
+}
+
+.region-summary-thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    font-size: 1.75rem;
+}
+
+@media (min-width: 992px) {
+    #global-home-map {
+        height: clamp(22rem, 48vh, 32rem);
+    }
+}
+
+/* Map pins: the region's featured photo in a circle. The scale on hover
+   lives on this inner element, not .region-marker, because maplibre owns
+   the root's transform (see buildMarkerElement). */
+.region-marker {
+    cursor: pointer;
+}
+
+.region-photo-marker {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--bs-body-bg);
+    background-color: var(--bs-primary);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    transition:
+        transform 0.15s ease-in-out,
+        border-color 0.15s ease-in-out;
+}
+
+.region-photo-marker img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.region-photo-marker-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.125rem;
+}
+
+.region-marker:hover .region-photo-marker,
+.region-marker.is-active .region-photo-marker {
+    border-color: var(--bs-primary);
+    transform: scale(1.12);
+}

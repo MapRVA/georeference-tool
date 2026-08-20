@@ -1,0 +1,17 @@
+/* Visibility (.show) and positioning are Bootstrap's: the menu is static
+   inside the collapsed mobile navbar and absolute (+ .dropdown-menu-end)
+   at the -lg breakpoint. Only the size is ours. */
+.region-selector-dropdown {
+    min-width: 16rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* Every item in this menu is an icon-and-label row. Laid out here rather
+   than with Bootstrap's d-flex utility, which carries !important and so
+   would outrank the inline display:none that x-show writes when "Global"
+   or the pinned current region drops out of the list. */
+.region-selector-dropdown .dropdown-item {
+    display: flex;
+    align-items: center;
+}

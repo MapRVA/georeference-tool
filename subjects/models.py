@@ -31,6 +31,15 @@ def _first_time_claim(claims, pid):
     return None
 
 
+def _preferred_wikidata_label(labels):
+    """Return the English label, falling back to Wikidata's ``mul`` label."""
+    for language in ("en", "mul"):
+        value = labels.get(language, {}).get("value", "")
+        if value:
+            return value
+    return ""
+
+
 class WikidataItem(models.Model):
     """Wikidata item with cached metadata"""
 
@@ -88,6 +97,15 @@ class WikidataItem(models.Model):
     sparql_fetch_failures = models.PositiveIntegerField(
         default=0,
         help_text="Consecutive SPARQL mirror load failures (resets on success)",
+    )
+    sparql_refresh_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Set when an admin manually queues this item, moving it to the "
+            "front of the Beat-driven refresh rotation. Cleared when the "
+            "refresh is picked up."
+        ),
     )
     discovered_via = models.ForeignKey(
         "Subject",
@@ -160,7 +178,7 @@ class WikidataItem(models.Model):
             if not entity or "missing" in entity:
                 return None
 
-            title = entity.get("labels", {}).get("en", {}).get("value", "")
+            title = _preferred_wikidata_label(entity.get("labels", {}))
             description = entity.get("descriptions", {}).get("en", {}).get("value", "")
             wiki_title = entity.get("sitelinks", {}).get("enwiki", {}).get("title")
             wikipedia_url = (
@@ -192,7 +210,7 @@ class WikidataItem(models.Model):
                         break
 
             return {
-                "title": title or self.wikidata_id,
+                "title": title,
                 "description": description,
                 "wikipedia_url": wikipedia_url,
                 "architect": architect,
@@ -216,7 +234,7 @@ class WikidataItem(models.Model):
     def populate_from_wikidata(self):
         """Fetch and populate metadata from Wikidata API."""
         wikidata_info = self._fetch_wikidata_info()
-        if wikidata_info:
+        if wikidata_info and wikidata_info["title"]:
             self.title = wikidata_info["title"]
             self.description = wikidata_info["description"]
             self.wikipedia_url = wikidata_info["wikipedia_url"]
@@ -235,6 +253,16 @@ class WikidataItem(models.Model):
             return True
         return False
 
+    def ensure_display_label(self):
+        """Replace an empty/Q-ID placeholder with an English or ``mul`` label."""
+        if self.title and self.title != self.wikidata_id:
+            return
+        if not self.populate_from_wikidata():
+            raise ValidationError(
+                f"No English or default label found for {self.wikidata_id}"
+            )
+        self.save()
+
     def _apply_seed_metadata(self, meta):
         """Apply a dict from extract_seed_metadata onto self in-place."""
         self.title = meta["title"]
@@ -247,12 +275,28 @@ class WikidataItem(models.Model):
         if meta["demolished"]:
             self.demolished = meta["demolished"]
 
+    def queue_sparql_refresh(self):
+        """Move this item to the front of the WDQS refresh rotation.
+
+        The Beat-driven refresher normally works through seed items
+        oldest-first once they pass the staleness threshold; a queued item
+        is picked up on the very next tick regardless of how fresh it is.
+        ``sparql_fetch_failures`` is reset too, so an item that had
+        exhausted its retries becomes eligible again — a manual queue is a
+        deliberate "try this one again". Targeted UPDATE rather than
+        ``save()`` to keep clear of the is_new WDQS fetch path.
+        """
+        now = timezone.now()
+        WikidataItem.objects.filter(pk=self.pk).update(
+            sparql_refresh_requested_at=now,
+            sparql_fetch_failures=0,
+        )
+        self.sparql_refresh_requested_at = now
+        self.sparql_fetch_failures = 0
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         if is_new:
-            # On creation, title is required. Placeholder until SPARQL fills it.
-            if not self.title:
-                self.title = self.wikidata_id
             # Sync path is only the cheap entity-JSON fetch: confirms the
             # Q-ID resolves and gives us a label/description to return to
             # the caller. The P31?/P279* ancestor walk + Memgraph load is
@@ -261,7 +305,7 @@ class WikidataItem(models.Model):
             # picks the row up too if that task never runs.
             if not self.populate_from_wikidata():
                 raise ValidationError(
-                    f"No Wikidata entity found for {self.wikidata_id}"
+                    f"No English or default label found for {self.wikidata_id}"
                 )
 
         super().save(*args, **kwargs)
@@ -276,7 +320,17 @@ class WikidataItem(models.Model):
         ordering = ["title"]
         indexes = [
             models.Index(fields=["sparql_last_loaded_at"]),
-            # Trigram index on the English label backs the autocomplete
+            # Partial index: the manual-queue lookup runs on every Beat
+            # tick but only ever matches the handful of rows an admin has
+            # queued, so indexing the (almost always empty) non-null set
+            # keeps it off a scan of the 200k+ row table.
+            models.Index(
+                fields=["sparql_refresh_requested_at"],
+                name="wikidataitem_refresh_queued",
+                condition=models.Q(sparql_refresh_requested_at__isnull=False),
+            ),
+            # Trigram index on the preferred English/``mul`` label backs the
+            # autocomplete
             # categories query, which uses ``title__icontains`` to find
             # matching ancestors. Django's ``__icontains`` translates to
             # ``ILIKE '%q%'`` on Postgres, which a GIN index with

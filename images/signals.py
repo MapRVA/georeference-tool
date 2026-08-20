@@ -1,13 +1,12 @@
 """
-Signal handlers for keeping the tile materialized view up-to-date.
+Signal handlers keeping derived data up-to-date as the catalogue changes.
 
-These handlers automatically refresh the public_georeferences_mvt materialized view
-when data that affects it changes.
+Two independent concerns live here:
 
-The view only needs to refresh when:
-- A Georeference is created, updated, or deleted
-- A Collection's 'public' status changes
-- A Source's 'public' status changes
+- The public_georeferences_mvt materialized view, refreshed when a
+  Georeference changes or a Collection's / Source's 'public' status does.
+- The denormalized stats tables, CollectionStats and CollectionRegionStats,
+  refreshed whenever images, georeferences, or region assignments change.
 """
 
 import logging
@@ -15,15 +14,18 @@ import logging
 from django.db import connection, transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from regions.models import Region
 
 from .models import (
     AerialGeoreference,
     Collection,
+    CollectionRegionStats,
     CollectionStats,
     Georeference,
     Image,
     Source,
 )
+from .tasks import reconcile_collection_region_stats
 from .views.api import bump_tile_version
 
 logger = logging.getLogger(__name__)
@@ -104,12 +106,15 @@ def refresh_view_on_source_save(sender, instance, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# CollectionStats maintenance
+# CollectionStats / CollectionRegionStats maintenance
 #
 # Keep the denormalized per-collection statistics current the moment the
 # underlying data changes, so browse pages always show correct numbers
 # without running aggregate queries. Refreshes run on_commit, after the
 # write is visible to other transactions.
+#
+# Both tables refresh a whole collection at a time, so no handler has to work
+# out which regions a change moved images between.
 # ---------------------------------------------------------------------------
 
 # Image fields that affect CollectionStats counts. Saves restricted (via
@@ -121,22 +126,43 @@ STATS_RELEVANT_IMAGE_FIELDS = {
     "aerial",
 }
 
+# The same, for CollectionRegionStats, which additionally splits by region.
+# Kept separate rather than folded into the set above so that a region-only
+# save doesn't drag the sitewide table through a pointless recompute.
+REGION_STATS_RELEVANT_IMAGE_FIELDS = STATS_RELEVANT_IMAGE_FIELDS | {"region"}
 
-def _refresh_stats_on_commit(collection_ids):
+
+def _refresh_stats_on_commit(collection_ids, *, include_sitewide=True):
+    """Queue a post-commit refresh of the denormalized stats tables.
+
+    Both tables refresh from a single callback: the collection-wide aggregate
+    is the expensive part and every triggering write pays for it either way.
+    Changes that only move images between regions — a collection's or source's
+    region assignment — pass include_sitewide=False, since no sitewide count
+    can have moved.
+    """
     ids = [cid for cid in collection_ids if cid is not None]
     if not ids:
         return
 
+    targets = (
+        (CollectionStats, CollectionRegionStats)
+        if include_sitewide
+        else (CollectionRegionStats,)
+    )
+
     def _refresh():
-        # Log but don't raise: the triggering write already committed, and a
-        # failed refresh only means stale stats until the next event or the
-        # periodic reconcile
-        try:
-            CollectionStats.refresh_for(ids)
-        except Exception:
-            logger.warning(
-                f"Failed to refresh collection stats for {ids}", exc_info=True
-            )
+        for model in targets:
+            # Log but don't raise: the triggering write already committed, and
+            # a failed refresh only means stale stats until the next event or
+            # the periodic reconcile. Caught per table so one failing doesn't
+            # skip the other.
+            try:
+                model.refresh_for(ids)
+            except Exception:
+                logger.warning(
+                    f"Failed to refresh {model.__name__} for {ids}", exc_info=True
+                )
 
     transaction.on_commit(_refresh)
 
@@ -175,15 +201,19 @@ def capture_previous_collection(sender, instance, **kwargs):
 @receiver(post_save, sender=Image)
 def refresh_stats_on_image_save(sender, instance, **kwargs):
     update_fields = kwargs.get("update_fields")
-    if update_fields is not None and not (
-        STATS_RELEVANT_IMAGE_FIELDS & set(update_fields)
-    ):
-        return
+    include_sitewide = True
+    if update_fields is not None:
+        fields = set(update_fields)
+        if not (REGION_STATS_RELEVANT_IMAGE_FIELDS & fields):
+            return
+        # A save restricted to the image's own region moves it between
+        # regions without changing any sitewide count
+        include_sitewide = bool(STATS_RELEVANT_IMAGE_FIELDS & fields)
     previous = getattr(instance, "_previous_collection_id", None)
     ids = {instance.collection_id}
     if previous and previous != instance.collection_id:
         ids.add(previous)
-    _refresh_stats_on_commit(ids)
+    _refresh_stats_on_commit(ids, include_sitewide=include_sitewide)
 
 
 @receiver(post_delete, sender=Image)
@@ -191,11 +221,118 @@ def refresh_stats_on_image_delete(sender, instance, **kwargs):
     _refresh_stats_on_commit([instance.collection_id])
 
 
+@receiver(pre_save, sender=Collection)
+def capture_collection_region_inputs(sender, instance, **kwargs):
+    """Remember whether a collection's images are changing region.
+
+    Both fields matter: `region` directly, and `source` because moving a
+    collection to a source with a different region moves every image that
+    doesn't set a region of its own.
+    """
+    instance._region_stats_stale = False
+    update_fields = kwargs.get("update_fields")
+    if instance.pk and (
+        update_fields is None or {"region", "source"} & set(update_fields)
+    ):
+        previous = (
+            Collection.objects.filter(pk=instance.pk)
+            .values_list("region_id", "source_id")
+            .first()
+        )
+        instance._region_stats_stale = previous is not None and previous != (
+            instance.region_id,
+            instance.source_id,
+        )
+
+
 @receiver(post_save, sender=Collection)
-def seed_stats_on_collection_create(sender, instance, created, **kwargs):
-    """Give every new collection a (zeroed) stats row immediately."""
+def refresh_stats_on_collection_save(sender, instance, created, **kwargs):
+    """Seed a new collection's (zeroed) stats row, and recompute its region
+    rows whenever the region its images inherit changes."""
     if created:
         _refresh_stats_on_commit([instance.pk])
+    elif getattr(instance, "_region_stats_stale", False):
+        _refresh_stats_on_commit([instance.pk], include_sitewide=False)
+
+
+@receiver(pre_save, sender=Source)
+def capture_source_region_change(sender, instance, **kwargs):
+    """Remember whether a source's region is changing.
+
+    Gated on an actual change rather than on the save itself: the admin saves
+    with update_fields=None, and a Source save is already expensive (it
+    rewrites the search vector of every image beneath it).
+    """
+    instance._region_changed = False
+    update_fields = kwargs.get("update_fields")
+    if instance.pk and (update_fields is None or "region" in update_fields):
+        previous = (
+            Source.objects.filter(pk=instance.pk)
+            .values_list("region_id", flat=True)
+            .first()
+        )
+        instance._region_changed = previous != instance.region_id
+
+
+@receiver(post_save, sender=Source)
+def refresh_region_stats_on_source_save(sender, instance, **kwargs):
+    """Recompute region rows for the collections inheriting this source's
+    region.
+
+    Only collections without a region of their own are affected: resolution
+    stops at the collection, so a collection that sets a region never reaches
+    its source's.
+    """
+    if not getattr(instance, "_region_changed", False):
+        return
+    _refresh_stats_on_commit(
+        instance.collections.filter(region__isnull=True).values_list("id", flat=True),
+        include_sitewide=False,
+    )
+
+
+@receiver(pre_save, sender=Region)
+def capture_region_rollup_change(sender, instance, **kwargs):
+    """Remember whether a region is new or is being repointed at a different
+    Wikidata item — the two things that change how images roll up."""
+    instance._rollup_changed = instance.pk is None
+    update_fields = kwargs.get("update_fields")
+    if instance.pk and (update_fields is None or "wikidata_item" in update_fields):
+        previous = (
+            Region.objects.filter(pk=instance.pk)
+            .values_list("wikidata_item_id", flat=True)
+            .first()
+        )
+        instance._rollup_changed = previous != instance.wikidata_item_id
+
+
+@receiver(post_save, sender=Region)
+def reconcile_region_stats_on_region_save(sender, instance, **kwargs):
+    """Recompute every region row when a region's place in the hierarchy
+    changes.
+
+    Creating "Virginia" as a Region makes every image already inside it start
+    rolling up into it, and no image, collection, or source row changed to
+    signal that — so a full reconcile is the only correct response. Region
+    saves are rare and admin-only, so the cost is proportionate.
+
+    Deletes need no handler: the rows CASCADE with the region, and PROTECT on
+    the three region FKs means a region still in use cannot be deleted.
+    """
+    if not getattr(instance, "_rollup_changed", False):
+        return
+
+    def _reconcile():
+        try:
+            reconcile_collection_region_stats.delay()
+        except Exception:
+            logger.warning(
+                "Failed to queue region stats reconcile after saving region "
+                f"{instance.pk}",
+                exc_info=True,
+            )
+
+    transaction.on_commit(_reconcile)
 
 
 @receiver(post_save, sender=Image)

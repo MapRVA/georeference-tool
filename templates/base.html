@@ -14,6 +14,9 @@
         window.DEFAULT_MAP_CENTER = {{ default_map_center }};
         window.DEFAULT_MAP_ZOOM = {{ default_map_zoom }};
         window.DEFAULT_SEARCH_BBOX = {{ default_search_bbox }};
+        window.REGION_MAP_CENTER = {% if region_map_center %}{{ region_map_center }}{% else %}null{% endif %};
+        window.REGION_MAP_BOUNDS = {% if region_map_bounds %}{{ region_map_bounds }}{% else %}null{% endif %};
+        window.SEARCH_BBOX = {% if region_search_bbox %}{{ region_search_bbox }}{% else %}{{ default_search_bbox }}{% endif %};
         window.ADMIN_EMAIL = {% if admin_email %}"{{ admin_email }}"{% else %}null{% endif %};
         window.MAP_LAYERS_DATA = {{ map_layers_json|safe }};
     </script>
@@ -85,6 +88,16 @@
                 </ul>
 
                 <ul class="navbar-nav ms-auto">
+                    {% include "regions/partials/region_selector.html" %}
+
+                    {# Decorative separator between the region selector and the account #}
+                    {# menu. Vertical at -lg; the collapsed navbar stacks vertically, so #}
+                    {# swap in a horizontal rule there.                                  #}
+                    <li class="nav-item d-lg-flex align-items-center" aria-hidden="true">
+                        <div class="vr d-none d-lg-block mx-2 my-2 text-white opacity-50"></div>
+                        <hr class="d-lg-none my-2 text-white opacity-50">
+                    </li>
+
                     {% if request.session.is_authenticated %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">

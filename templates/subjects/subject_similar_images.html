@@ -30,6 +30,7 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
             <li class="breadcrumb-item"><a href="{% url 'subjects:browse_subjects' %}">Subjects</a></li>
             <li class="breadcrumb-item"><a href="{% url 'subjects:subject_detail' subject.slug %}">{{ subject.title }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">Similar Images</li>

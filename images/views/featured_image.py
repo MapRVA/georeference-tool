@@ -12,19 +12,29 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from images.models import Image, ImageOfTheDay
+from regions.context_processors import get_current_region
+from regions.models import Region
 
 
 @staff_member_required
 def featured_image_queue(request):
-    """Staff-facing list of images queued for the Image of the Day."""
+    """Staff-facing list of images queued for the Image of the Day.
+
+    Queues are per region, so this shows the queue for whichever region is
+    selected in the navbar; with none selected there is no queue to show.
+    """
     today = timezone.localdate()
-    entries = (
-        ImageOfTheDay.objects.select_related("image", "image__collection", "user")
-        .filter(day__gte=today)
-        .order_by("day")
-    )
+    region = get_current_region(request)
+    entries = None
+    if region is not None:
+        entries = (
+            ImageOfTheDay.objects.select_related("image", "image__collection", "user")
+            .filter(region=region, day__gte=today)
+            .order_by("day")
+        )
     context = {
         "entries": entries,
+        "region": region,
         "today": today,
     }
     return render(request, "images/featured_image_queue.html", context)
@@ -45,6 +55,18 @@ def queue_featured_image(request, image_id):
         return JsonResponse(
             {"success": False, "error": "Invalid JSON in request body"}, status=400
         )
+
+    # Each region curates its own queue, so which one this entry joins is an
+    # explicit choice — the modal defaults it to the image's region, but staff
+    # can queue an image anywhere.
+    region_slug = (data.get("region") or "").strip()
+    if not region_slug:
+        return JsonResponse(
+            {"success": False, "error": "Choose a region for this image."}, status=400
+        )
+    region = Region.objects.filter(slug=region_slug).first()
+    if region is None:
+        return JsonResponse({"success": False, "error": "Unknown region."}, status=400)
 
     day = None
     day_str = (data.get("day") or "").strip()
@@ -71,7 +93,7 @@ def queue_featured_image(request, image_id):
         # Choosing an explicit date pins the image to that day (locks it);
         # leaving it blank appends to the next open day, unlocked.
         entry = ImageOfTheDay.place(
-            image, day=day, locked=day is not None, note=note, user=user
+            image, region, day=day, locked=day is not None, note=note, user=user
         )
     except ValidationError as e:
         return JsonResponse(
@@ -82,7 +104,7 @@ def queue_featured_image(request, image_id):
         {
             "success": True,
             "day": entry.day.isoformat(),
-            "message": f"Queued for {entry.day:%b %d, %Y}.",
+            "message": f"Queued for {entry.day:%b %d, %Y} in {region.short_name}.",
         },
         status=201,
     )
@@ -115,7 +137,7 @@ def user_autocomplete(request):
 def featured_image_edit(request, pk):
     """Edit a queued entry's note and reassign its user."""
     entry = get_object_or_404(
-        ImageOfTheDay.objects.select_related("image", "user"), pk=pk
+        ImageOfTheDay.objects.select_related("image", "user", "region"), pk=pk
     )
 
     if request.method == "POST":

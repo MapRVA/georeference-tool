@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import timedelta
 from io import BytesIO
 
 import requests
@@ -22,6 +23,7 @@ from yesterdays.iiif import generate_and_upload_iiif_tiles
 
 from .models import (
     CollectionEmbeddingStats,
+    CollectionRegionStats,
     CollectionStats,
     DuplicateImagePair,
     Image,
@@ -30,6 +32,11 @@ from .models import (
 from .utils import R2Uploader, R2UploaderError, to_rgb
 
 logger = logging.getLogger(__name__)
+
+# How long a zeroed CollectionRegionStats row must sit untouched before the
+# reconcile below drops it. An internal safety margin against deleting a row a
+# concurrent refresh is about to rewrite, not a tunable.
+EMPTY_REGION_STATS_TTL = timedelta(days=1)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
@@ -491,6 +498,24 @@ def reconcile_collection_stats():
     (bulk updates, raw SQL).
     """
     CollectionStats.refresh_for()
+
+
+@shared_task(ignore_result=True)
+def reconcile_collection_region_stats():
+    """Recompute every CollectionRegionStats row from scratch.
+
+    Same role as reconcile_collection_stats for the per-region table, plus the
+    garbage collection of rows for pairs that no longer have any images: the
+    refresh zeroes those rather than deleting them, so that every write goes
+    through the freshness guard.
+    """
+    CollectionRegionStats.refresh_for()
+    # The refresh above re-stamped every pair that still has images, so a row
+    # left at zero this long is definitively dead — no in-flight refresh can
+    # still be about to write it.
+    CollectionRegionStats.objects.filter(
+        total_images=0, updated_at__lt=timezone.now() - EMPTY_REGION_STATS_TTL
+    ).delete()
 
 
 @shared_task(ignore_result=True)

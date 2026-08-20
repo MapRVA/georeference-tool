@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load django_vite humanize %}
+
+{% block title %}Explore Regions — Yesterdays{% endblock %}
+
+{% block content %}
+<section class="region-directory" aria-labelledby="region-directory-title">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+            <li class="breadcrumb-item active">Regions</li>
+        </ol>
+    </nav>
+
+    <div class="region-directory-heading">
+        <div>
+            <h1 id="region-directory-title">Explore regions</h1>
+            <p class="lead mb-0">Choose a place to see its photographs, map, and community activity.</p>
+        </div>
+        {% if current_region %}
+        <div class="region-directory-current card">
+            <div class="card-body py-3">
+                <span class="small text-body-secondary d-block mb-1">Currently selected:</span>
+                <strong><i class="fas fa-map-marker-alt text-primary me-1" aria-hidden="true"></i>{{ current_region.long_name }}</strong>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# The global homepage's picker map, pins and all. It carries only the #}
+    {# regions a visitor lands in — grouping regions like Virginia are     #}
+    {# listed below but have no pin of their own.                          #}
+    {% if region_summaries %}
+    <div class="region-directory-map">
+        {% include 'partials/global_home_map.html' %}
+    </div>
+    {% endif %}
+
+    <div class="region-directory-tools">
+        <label class="visually-hidden" for="region-directory-search">Search regions</label>
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+            <input id="region-directory-search" class="form-control" type="search" placeholder="Search regions" autocomplete="off">
+        </div>
+        {% if current_region %}
+        <a class="btn btn-outline-secondary" href="/" data-region-clear>
+            <i class="fas fa-globe me-1" aria-hidden="true"></i>View all places
+        </a>
+        {% endif %}
+    </div>
+
+    {% if regions %}
+    <p id="region-directory-count" class="text-body-secondary small mb-3" aria-live="polite">{{ regions|length }} region{{ regions|length|pluralize }}</p>
+    {# Busiest region first (regions.summaries.get_region_summaries orders #}
+    {# them); each card leads with the region's representative photo.      #}
+    <div id="region-directory-grid" class="region-directory-grid" data-cookie-name="{{ region_cookie_name }}">
+        {% for region in regions %}
+        <article class="card region-directory-card{% if current_region.slug == region.slug %} is-current{% endif %}"
+                 data-region-card
+                 data-region-slug="{{ region.slug }}"
+                 data-region-search="{{ region.short_name }} {{ region.long_name }} {{ region.subtitle }}">
+            {% if region.thumbnail %}
+            <img src="{{ region.thumbnail }}" class="region-summary-thumb card-img-top" alt="" loading="lazy">
+            {% else %}
+            <div class="region-summary-thumb region-summary-thumb-empty card-img-top" aria-hidden="true">
+                <i class="fas fa-map-marker-alt"></i>
+            </div>
+            {% endif %}
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <h2 class="h4 mb-1">{{ region.long_name }}</h2>
+                    {% if current_region.slug == region.slug %}
+                    <span class="badge text-bg-primary">Current</span>
+                    {% endif %}
+                </div>
+                {% if region.short_name != region.long_name %}
+                <p class="small text-body-secondary mb-0">{{ region.short_name }}</p>
+                {% endif %}
+                {% if region.subtitle %}
+                <p class="region-directory-subtitle text-body-secondary mt-3 mb-2">{{ region.subtitle }}</p>
+                {% else %}
+                <p class="region-directory-subtitle text-body-secondary mt-3 mb-2">Historical photographs, brought back to their place on the map.</p>
+                {% endif %}
+                <p class="small text-body-secondary mb-4">
+                    {{ region.image_count|intcomma }} photo{{ region.image_count|pluralize }}
+                    &middot;
+                    {{ region.georeferenced_count|intcomma }} mapped
+                </p>
+                <a href="/" class="btn btn-primary mt-auto align-self-start" data-region-select="{{ region.slug }}">
+                    {% if current_region.slug == region.slug %}Continue exploring{% else %}Explore {{ region.short_name }}{% endif %}
+                    <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i>
+                </a>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    <p id="region-directory-empty" class="text-center text-body-secondary py-5 d-none" role="status">No regions match that search.</p>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-globe fa-2x text-body-secondary mb-3" aria-hidden="true"></i>
+            <h2 class="h4">Regions are on their way</h2>
+            <p class="text-body-secondary mb-0">Check back soon as Yesterdays grows into new places.</p>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.PROTOMAPS_API_KEY = "{{ protomaps_api_key|escapejs }}";
+</script>
+{% vite_asset 'assets/js/pages/region_index.ts' %}
+{% endblock %}

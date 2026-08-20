@@ -7,12 +7,22 @@ from django.contrib.postgres.search import TrigramWordSimilarity
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import connection, models, transaction
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import (
+    Case,
+    Count,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    Value,
+    When,
+)
 from django.db.models.functions import Lower
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
@@ -162,7 +172,7 @@ def subject_autocomplete(request):
 
 
 # Cypher for the subjects half of the browse-page autocomplete:
-# case-insensitive substring match against the mirrored English label of
+# case-insensitive substring match against the mirrored English/``mul`` label of
 # every :ProjectSubject-marked entity. Marker-only stubs without a
 # mirrored label are excluded, matching the old query's mandatory
 # rdfs:label join.
@@ -208,7 +218,7 @@ def browse_autocomplete(request):
 
     Subjects come from the Memgraph mirror; categories come from the
     ``SubjectAncestor`` materialization in Postgres (indexed substring
-    match against the mirrored English label in ``WikidataItem.title``,
+    match against the mirrored English/``mul`` label in ``WikidataItem.title``,
     no graph traversal per request).
     """
     q = (request.GET.get("q") or "").strip()
@@ -284,13 +294,22 @@ def wikidata_lookup(request):
 
     try:
         # Get or create WikidataItem (this fetches from Wikidata API if new)
-        wikidata_item, _ = WikidataItem.objects.get_or_create(wikidata_id=wikidata_id)
+        wikidata_item, item_created = WikidataItem.objects.get_or_create(
+            wikidata_id=wikidata_id
+        )
+        if not item_created:
+            wikidata_item.ensure_display_label()
 
         # Get or create Subject
-        subject, _ = Subject.objects.get_or_create(
+        subject, subject_created = Subject.objects.get_or_create(
             wikidata_item=wikidata_item,
             defaults={"title": wikidata_item.title},
         )
+        if not subject_created and subject.title == wikidata_id:
+            subject.title = wikidata_item.title
+            if subject.slug == slugify(wikidata_id):
+                subject.slug = ""
+            subject.save()
 
         return JsonResponse(
             {
@@ -353,6 +372,8 @@ def bulk_add_subject_to_images(request):
             wikidata_item, created = WikidataItem.objects.get_or_create(
                 wikidata_id=wikidata_id
             )
+            if not created:
+                wikidata_item.ensure_display_label()
         except ValidationError as e:
             return JsonResponse({"success": False, "error": str(e)}, status=400)
 
@@ -365,6 +386,8 @@ def bulk_add_subject_to_images(request):
         # Heal the title if an older row still has the Q-ID placeholder.
         if not subject_created and subject.title == wikidata_id:
             subject.title = wikidata_item.title
+            if subject.slug == slugify(wikidata_id):
+                subject.slug = ""
             subject.save()
 
         # Add subject to each image
@@ -460,6 +483,8 @@ def add_subject_to_image(request, image_id):
             wikidata_item, created = WikidataItem.objects.get_or_create(
                 wikidata_id=wikidata_id
             )
+            if not created:
+                wikidata_item.ensure_display_label()
         except ValidationError as e:
             return JsonResponse({"success": False, "error": str(e)}, status=400)
 
@@ -472,6 +497,8 @@ def add_subject_to_image(request, image_id):
         # Heal the title if an older row still has the Q-ID placeholder.
         if not subject_created and subject.title == wikidata_id:
             subject.title = wikidata_item.title
+            if subject.slug == slugify(wikidata_id):
+                subject.slug = ""
             subject.save()
 
         if SubjectMapping.objects.filter(image=image, subject=subject).exists():
@@ -713,7 +740,17 @@ def browse_subjects(request):
         Subject.objects.all()
         .select_related("wikidata_item", "representative_image")
         .annotate(**_public_image_count_annotations())
+        # A city (or other broad subject) that is an ancestor of a more
+        # specific Subject is represented by its descendants in this grid.
+        .annotate(
+            has_descendant_subject=Exists(
+                SubjectAncestor.objects.filter(
+                    ancestor_id=OuterRef("wikidata_item_id")
+                )
+            )
+        )
         .filter(total_images__gt=0)
+        .filter(has_descendant_subject=False)
         .order_by("-total_images", "title")
     )
 

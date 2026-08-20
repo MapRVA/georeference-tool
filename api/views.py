@@ -895,7 +895,7 @@ def _serialize_activity_event(event_type, obj, timestamp):
     """Convert one activity event tuple into a serializable dict."""
     if event_type == "group":
         images = []
-        for member in obj.members.all():
+        for member in obj.feed_members:
             image = member.image
             if image:
                 images.append(
@@ -910,9 +910,9 @@ def _serialize_activity_event(event_type, obj, timestamp):
             "timestamp": timestamp,
             "data": {
                 "user": obj.user.get_display_name() if obj.user else "Anonymous",
-                "count": obj.count,
+                "count": obj.feed_count,
                 "started_at": obj.started_at,
-                "ended_at": obj.ended_at,
+                "ended_at": obj.feed_ended_at,
                 "images": images,
             },
         }
@@ -946,7 +946,7 @@ def _serialize_activity_event(event_type, obj, timestamp):
         }
     elif event_type == "subject":
         images = []
-        for member in obj.members.all():
+        for member in obj.feed_members:
             if member.image:
                 images.append(
                     {
@@ -958,15 +958,15 @@ def _serialize_activity_event(event_type, obj, timestamp):
         data = {
             "user": obj.user.get_display_name(),
             "action": obj.action,
-            "count": obj.count,
+            "count": obj.feed_count,
             "started_at": obj.started_at,
-            "ended_at": obj.ended_at,
+            "ended_at": obj.feed_ended_at,
             "subject_id": obj.subject_id,
             "subject_title": obj.subject.title if obj.subject else None,
             "images": images,
         }
         if obj.action == "reordered":
-            first_member = obj.members.all()[0] if images else None
+            first_member = obj.feed_members[0] if images else None
             if first_member is not None:
                 data["previous_order"] = first_member.previous_order
                 data["new_order"] = first_member.new_order

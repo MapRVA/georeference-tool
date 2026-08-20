@@ -38,6 +38,14 @@ export default defineConfig({
       input: {
         index: path.resolve(__dirname, "./assets/index.js"),
         home: path.resolve(__dirname, "./assets/js/pages/home.js"),
+        home_no_region: path.resolve(
+          __dirname,
+          "./assets/js/pages/home_no_region.ts",
+        ),
+        region_index: path.resolve(
+          __dirname,
+          "./assets/js/pages/region_index.ts",
+        ),
         image_detail: path.resolve(
           __dirname,
           "./assets/js/pages/image_detail.js",

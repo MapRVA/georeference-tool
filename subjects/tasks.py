@@ -22,7 +22,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from images.models import SiteSettings
-from regions.models import Region
+from images.tasks import reconcile_collection_region_stats
+from regions.models import Region, RegionAncestor
 from regions.region_ancestors import update_region_ancestors
 
 from .memgraph import GRAPH_ERRORS, MemgraphClient
@@ -69,6 +70,15 @@ def create_request_session():
 # =============================================================================
 
 
+def _region_ancestor_ids(region):
+    """The set of WikidataItem ids this region currently rolls up into."""
+    return set(
+        RegionAncestor.objects.filter(region=region).values_list(
+            "ancestor_id", flat=True
+        )
+    )
+
+
 def _do_refresh_wikidata_item(item):
     """Re-pull a WikidataItem's closure from WDQS and refresh its mirror.
 
@@ -83,10 +93,16 @@ def _do_refresh_wikidata_item(item):
 
     # Bump the freshness timestamp up front so a concurrent Beat tick
     # doesn't pick the same row while we're talking to WDQS. Targeted
-    # UPDATE avoids the full-row save that ``item.save()`` does.
+    # UPDATE avoids the full-row save that ``item.save()`` does. Any
+    # manual queue request is consumed here rather than on success: a
+    # request that survived a failure would pin the item at the front of
+    # the rotation forever, starving every other seed.
     now = timezone.now()
-    WikidataItem.objects.filter(pk=item.pk).update(sparql_last_loaded_at=now)
+    WikidataItem.objects.filter(pk=item.pk).update(
+        sparql_last_loaded_at=now, sparql_refresh_requested_at=None
+    )
     item.sparql_last_loaded_at = now
+    item.sparql_refresh_requested_at = None
 
     # Region-ness decides the query shape: region seeds also walk their
     # P131 containment chain, so resolve it before talking to WDQS.
@@ -121,6 +137,26 @@ def _do_refresh_wikidata_item(item):
             item.sparql_last_loaded_at = timezone.now()
             item.sparql_fetch_failures = 0
             item.save(update_fields=list(SEED_METADATA_FIELDS))
+            coordinate = data["metadata"]["coordinate_location"]
+            if seed_region is not None and coordinate is not None:
+                # P625 rides along in the seed metadata but belongs to the
+                # Region, not the item. Only written when the claim is
+                # present: a P625 that vanishes upstream (vandalism, a
+                # rename, a bad edit) is far more likely to be a mistake
+                # than a real correction, so the last known coordinate
+                # stands — and clearing it would breach
+                # region_has_a_coordinate for a region with no custom
+                # centerpoint, turning that edit into an outage. An
+                # admin's
+                # custom_coordinate_location is a separate column and
+                # untouched here — a refresh must never walk a
+                # hand-placed map center. Targeted UPDATE for the same
+                # reason as above, with updated_at set by hand since
+                # auto_now doesn't fire on queryset updates.
+                Region.objects.filter(pk=seed_region.pk).update(
+                    wikidata_coordinate_location=coordinate,
+                    updated_at=timezone.now(),
+                )
             commit_closure_to_memgraph(
                 item.wikidata_id,
                 data["groups"],
@@ -151,6 +187,11 @@ def _do_refresh_wikidata_item(item):
 
     # Same deal for the region containment projection.
     if seed_region is not None:
+        # Snapshotted around the call rather than reported back by
+        # update_region_ancestors, which is also driven by the shell-only
+        # rebuild_all_region_ancestors() in a loop — a reconcile per region
+        # there would be pure waste.
+        ancestors_before = _region_ancestor_ids(seed_region)
         try:
             with MemgraphClient() as client:
                 update_region_ancestors(seed_region, client)
@@ -161,6 +202,13 @@ def _do_refresh_wikidata_item(item):
                 item.wikidata_id,
                 e,
             )
+        else:
+            if _region_ancestor_ids(seed_region) != ancestors_before:
+                # Which regions this region's images roll up into just
+                # changed, and no image, collection, or source row moved to
+                # signal it. This call site sits outside the atomic block
+                # above, so on_commit fires straight away.
+                transaction.on_commit(reconcile_collection_region_stats.delay)
 
     logger.info(f"Successfully refreshed WikidataItem {item.wikidata_id}")
     return {"status": "success", "wikidata_id": item.wikidata_id}
@@ -399,6 +447,26 @@ def fetch_osm_features(
 # =============================================================================
 
 
+def get_next_requested_wikidata_item():
+    """Find the next WikidataItem an admin has manually queued.
+
+    These jump ahead of the staleness rotation and ignore both the
+    freshness threshold and the failure cap — the point of the button is
+    to refresh an item *now*, including one that just failed its way out
+    of the rotation. Still restricted to Subject/Region seeds, since a
+    bare ancestor item has no closure of its own worth fetching.
+    """
+
+    return (
+        WikidataItem.objects.filter(
+            Q(subject__isnull=False) | Q(region__isnull=False),
+            sparql_refresh_requested_at__isnull=False,
+        )
+        .order_by("sparql_refresh_requested_at")
+        .first()
+    )
+
+
 def get_next_stale_wikidata_item():
     """
     Find the next WikidataItem whose graph closure needs refreshing.
@@ -482,7 +550,7 @@ def refresh_next_wikidata_item():
     Called periodically by Celery Beat at the configured rate limit interval.
     This approach ensures global rate limiting regardless of worker count.
     """
-    item = get_next_stale_wikidata_item()
+    item = get_next_requested_wikidata_item() or get_next_stale_wikidata_item()
     if item is None:
         logger.debug("No stale WikidataItems to refresh")
         return {"status": "idle", "message": "No stale items"}

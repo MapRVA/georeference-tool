@@ -11,23 +11,7 @@ entry must import it (see home.js / activity_feed.js).
 <ul class="list-group list-group-flush activity-feed-embed">
     {% for event_type, event, timestamp in activity_events %}
     <li class="list-group-item p-0">
-        {% if event_type == 'group' %}
-            {% include 'activity/partials/group_card.html' with group=event %}
-        {% elif event_type == 'comment' %}
-            {% include 'activity/partials/comment_card.html' with comment=event %}
-        {% elif event_type == 'milestone' %}
-            {% include 'activity/partials/milestone_card.html' with milestone=event %}
-        {% elif event_type == 'sitewide' %}
-            {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
-        {% elif event_type == 'validation' %}
-            {% include 'activity/partials/validation_card.html' with validation=event %}
-        {% elif event_type == 'subject' %}
-            {% include 'activity/partials/subject_card.html' with group=event %}
-        {% elif event_type == 'new_subject' %}
-            {% include 'activity/partials/new_subject_card.html' with introduction=event %}
-        {% elif event_type == 'new_collection' %}
-            {% include 'activity/partials/new_collection_card.html' with introduction=event %}
-        {% endif %}
+        {% include 'activity/partials/event_card.html' %}
     </li>
     {% endfor %}
 </ul>

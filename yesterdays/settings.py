@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "django.contrib.humanize",
     "django.contrib.postgres",
     "rest_framework",
     "rest_framework_gis",
@@ -180,6 +181,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "osm_auth.context_processors.osm_auth",
                 "images.context_processors.site_settings",
+                "regions.context_processors.current_region",
             ],
         },
     },
@@ -340,6 +342,7 @@ CELERY_TASK_ROUTES = {
     "images.tasks.cleanup_old_image_assets": {"queue": "background"},
     "images.tasks.cleanup_stale_import_slots": {"queue": "background"},
     "images.tasks.reconcile_collection_stats": {"queue": "background"},
+    "images.tasks.reconcile_collection_region_stats": {"queue": "background"},
     "images.tasks.refresh_collection_embedding_stats": {"queue": "background"},
     "images.tasks.refresh_next_collection_embedding_stats": {"queue": "background"},
     "images.tasks.refresh_duplicate_image_pairs": {"queue": "background"},
@@ -412,6 +415,13 @@ CELERY_BEAT_SCHEDULE = {
         "task": "images.tasks.reconcile_collection_stats",
         "schedule": 3600.0,  # every hour; signals keep stats current in real time
     },
+    "reconcile-collection-region-stats": {
+        "task": "images.tasks.reconcile_collection_region_stats",
+        # Also hourly, but on the half hour rather than a float interval, so
+        # the two heaviest full-table aggregates don't both fire off the same
+        # beat-startup instant
+        "schedule": crontab(minute=30),
+    },
     "refresh-next-collection-embedding-stats": {
         "task": "images.tasks.refresh_next_collection_embedding_stats",
         "schedule": 600.0,  # every 10 minutes: top up the most stale collection
@@ -457,7 +467,7 @@ SUBJECT_MAP_INFO_CACHE_SECONDS = int(os.getenv("SUBJECT_MAP_INFO_CACHE_SECONDS",
 # tags).
 WIKIDATA_MIRROR_LANGUAGES = [
     lang.strip()
-    for lang in os.getenv("WIKIDATA_MIRROR_LANGUAGES", "en").split(",")
+    for lang in os.getenv("WIKIDATA_MIRROR_LANGUAGES", "en,mul").split(",")
     if lang.strip()
 ]
 

@@ -2,7 +2,11 @@
 // templates/images/partials/map_display.html, which loads this bundle and
 // calls window.initializeMap() with a MapDisplayConfig.
 import maplibregl from "maplibre-gl";
-import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "../../constants/map";
+import {
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+  initialMapView,
+} from "../../constants/map";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../../styles/components/map-display.css";
@@ -29,6 +33,7 @@ export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
     mapId,
     center = DEFAULT_MAP_CENTER,
     zoom = DEFAULT_MAP_ZOOM,
+    bounds = null,
     hash = false,
     vectorTilesUrl = null,
     allImagesUrl = null,
@@ -47,6 +52,7 @@ export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
     mapId,
     center,
     zoom,
+    bounds,
     hash,
     vectorTilesUrl,
     allImagesUrl,
@@ -69,8 +75,7 @@ export function initializeMap(config: MapDisplayConfig): maplibregl.Map {
     container: mapId,
     style: initialMapStyle(),
     hash: hash,
-    center: center,
-    zoom: zoom,
+    ...initialMapView({ center, zoom, bounds }),
   });
 
   // Setup toggle for other images if enabled

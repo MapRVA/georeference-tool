@@ -1,22 +1,47 @@
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pyoxigraph
+from django.contrib.admin.sites import AdminSite
+from django.contrib.admin.utils import flatten_fieldsets
 from django.core.exceptions import ImproperlyConfigured
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import (
+    RequestFactory,
+    SimpleTestCase,
+    TestCase,
+    override_settings,
+)
 from django.urls import reverse
+from django.utils import timezone
 
-from images.models import Collection, CollectionEmbeddingStats, Image, Source
+from images.models import (
+    Collection,
+    CollectionEmbeddingStats,
+    Image,
+    Source,
+    SubjectMapping,
+)
 from images.tasks import (
     refresh_collection_embedding_stats,
     refresh_next_collection_embedding_stats,
 )
 
-from .models import Subject, WikidataItem
+from .admin import SubjectAdmin
+from .models import (
+    Subject,
+    SubjectAncestor,
+    WikidataItem,
+    _preferred_wikidata_label,
+)
 from .similarity import build_subject_query_embedding
 from .sparql_safety import UnsafeSparqlInput, looks_like_pid, looks_like_qid
+from .tasks import (
+    get_next_requested_wikidata_item,
+    get_next_stale_wikidata_item,
+)
 from .views import _MAX_AUTOCOMPLETE_QUERY_LEN
 from .wikidata_closure import (
     ClosureLoadError,
@@ -372,7 +397,7 @@ class ClosureQueryTests(SimpleTestCase):
         # The nav predicate whitelist exists exactly once (shared tail).
         self.assertEqual(query.count("skos:altLabel"), 1)
         # One language filter per emission tail: seed, full, nav, descriptors.
-        self.assertEqual(query.count('lang(?o) IN ("en")'), 4)
+        self.assertEqual(query.count('lang(?o) IN ("en", "mul")'), 4)
         # No leftover placeholders and no synthetic predicates.
         self.assertNotIn("{qid}", query)
         self.assertNotIn("{lang_filter}", query)
@@ -381,7 +406,7 @@ class ClosureQueryTests(SimpleTestCase):
 
     def test_language_setting_reaches_filter(self):
         with override_settings(WIKIDATA_MIRROR_LANGUAGES=["en", "fr"]):
-            self.assertIn('lang(?o) IN ("en", "fr")', closure_query("Q42"))
+            self.assertIn('lang(?o) IN ("en", "fr", "mul")', closure_query("Q42"))
 
     def test_query_is_valid_sparql(self):
         # pyoxigraph parses the query eagerly - a syntax error raises here.
@@ -515,7 +540,7 @@ class RegionClosureQueryTests(SimpleTestCase):
         self.assertEqual(query.count("skos:altLabel"), 2)
         # One language filter per emission tail: seed, full, nav,
         # descriptors, containment chain.
-        self.assertEqual(query.count('lang(?o) IN ("en")'), 5)
+        self.assertEqual(query.count('lang(?o) IN ("en", "mul")'), 5)
         self.assertNotIn("{qid}", query)
         self.assertNotIn("{lang_filter}", query)
         self.assertEqual(query.count("{"), query.count("}"))
@@ -600,10 +625,22 @@ _:blank rdfs:label "anonymous"@en .
             any(iri.startswith("https://en.wikipedia.org/") for iri in self.groups)
         )
 
-    def test_labels_collect_english_q_entities_only(self):
+    def test_labels_collect_preferred_q_entity_labels(self):
         self.assertEqual(self.labels["Q100"], "Test Hall")
         self.assertEqual(self.labels["Q200"], "building")
         self.assertNotIn("P5473", self.labels)
+
+    def test_labels_fall_back_to_mul_but_prefer_english(self):
+        ttl = b"""\
+@prefix wd: <http://www.wikidata.org/entity/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+wd:Q201 rdfs:label "Default name"@mul .
+wd:Q202 rdfs:label "Default override"@mul, "English name"@en .
+"""
+        _, labels = parse_closure(ttl)
+
+        self.assertEqual(labels["Q201"], "Default name")
+        self.assertEqual(labels["Q202"], "English name")
 
     def test_payload_covers_every_group(self):
         payload = build_graph_payload(self.groups)
@@ -821,11 +858,30 @@ class ExtractSeedMetadataTests(SimpleTestCase):
     PREFIXES = """\
 @prefix wd: <http://www.wikidata.org/entity/> .
 @prefix wdt: <http://www.wikidata.org/prop/direct/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
 """
 
     def _extract(self, body, qid="Q100"):
         return extract_seed_metadata((self.PREFIXES + body).encode(), qid)
+
+    def test_title_falls_back_to_mul(self):
+        meta = self._extract('wd:Q100 rdfs:label "Default name"@mul .\n')
+
+        self.assertEqual(meta["title"], "Default name")
+
+    def test_title_prefers_english_over_mul(self):
+        meta = self._extract(
+            'wd:Q100 rdfs:label "Default name"@mul, "English name"@en .\n'
+        )
+
+        self.assertEqual(meta["title"], "English name")
+
+    def test_title_does_not_fall_back_to_qid(self):
+        meta = self._extract("wd:Q100 wdt:P31 wd:Q200 .\n")
+
+        self.assertEqual(meta["title"], "")
 
     def test_inception_and_demolished_parsed_first_value_wins(self):
         meta = self._extract(
@@ -860,6 +916,90 @@ wd:Q200 wdt:P571 "1800-01-01T00:00:00Z"^^xsd:dateTime ;
         )
         self.assertIsNone(meta["inception"])
         self.assertIsNone(meta["demolished"])
+
+    def test_coordinate_location_parsed_longitude_first(self):
+        # WKT is "Point(lon lat)", the reverse of Wikidata's UI display.
+        meta = self._extract(
+            'wd:Q100 wdt:P625 "Point(-77.436111 37.540833)"^^geo:wktLiteral .\n'
+        )
+        point = meta["coordinate_location"]
+        self.assertIsNotNone(point)
+        self.assertAlmostEqual(point.x, -77.436111)
+        self.assertAlmostEqual(point.y, 37.540833)
+        self.assertEqual(point.srid, 4326)
+
+    def test_coordinate_location_absent_when_property_missing(self):
+        meta = self._extract("wd:Q100 wdt:P31 wd:Q200 .\n")
+        self.assertIsNone(meta["coordinate_location"])
+
+    def test_coordinate_location_only_read_off_the_seed(self):
+        meta = self._extract(
+            """\
+wd:Q100 wdt:P31 wd:Q200 .
+wd:Q200 wdt:P625 "Point(-77.436111 37.540833)"^^geo:wktLiteral .
+"""
+        )
+        self.assertIsNone(meta["coordinate_location"])
+
+    def test_coordinate_location_rejects_other_globes(self):
+        # A Mars coordinate is not a location on Earth's surface.
+        meta = self._extract(
+            'wd:Q100 wdt:P625 "<http://www.wikidata.org/entity/Q111> '
+            'Point(-77.4 37.5)"^^geo:wktLiteral .\n'
+        )
+        self.assertIsNone(meta["coordinate_location"])
+
+    def test_coordinate_location_accepts_explicit_earth_globe(self):
+        meta = self._extract(
+            'wd:Q100 wdt:P625 "<http://www.wikidata.org/entity/Q2> '
+            'Point(-77.4 37.5)"^^geo:wktLiteral .\n'
+        )
+        point = meta["coordinate_location"]
+        self.assertIsNotNone(point)
+        self.assertAlmostEqual(point.x, -77.4)
+
+    def test_coordinate_location_rejects_out_of_range_and_non_points(self):
+        for literal in ('"Point(-200 37.5)"', '"Polygon((0 0, 1 1, 1 0, 0 0))"'):
+            with self.subTest(literal=literal):
+                meta = self._extract(
+                    f"wd:Q100 wdt:P625 {literal}^^geo:wktLiteral .\n"
+                )
+                self.assertIsNone(meta["coordinate_location"])
+
+
+class PreferredWikidataLabelTests(SimpleTestCase):
+    def test_prefers_english(self):
+        labels = {
+            "mul": {"value": "Default name"},
+            "en": {"value": "English name"},
+        }
+
+        self.assertEqual(_preferred_wikidata_label(labels), "English name")
+
+    def test_falls_back_to_mul(self):
+        labels = {"mul": {"value": "Default name"}}
+
+        self.assertEqual(_preferred_wikidata_label(labels), "Default name")
+
+    def test_does_not_fall_back_to_qid(self):
+        self.assertEqual(_preferred_wikidata_label({}), "")
+
+
+class WikidataItemDisplayLabelTests(TestCase):
+    def test_existing_qid_placeholder_is_refetched(self):
+        item = WikidataItem.objects.bulk_create(
+            [WikidataItem(wikidata_id="Q123", title="Q123")]
+        )[0]
+
+        def populate(instance):
+            instance.title = "Default name"
+            return True
+
+        with patch.object(WikidataItem, "populate_from_wikidata", populate):
+            item.ensure_display_label()
+
+        item.refresh_from_db()
+        self.assertEqual(item.title, "Default name")
 
 
 class WikidataItemDateRangeTests(SimpleTestCase):
@@ -936,6 +1076,62 @@ class ApplyClosureTests(SimpleTestCase):
         self.assertLess(last_wipe, first_write)
 
 
+class BrowseSubjectsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        source = Source.objects.create(
+            name="Public archive",
+            slug="public-archive",
+            url="https://example.com",
+            description="",
+        )
+        collection = Collection.objects.create(
+            source=source,
+            name="Photographs",
+            slug="photographs",
+        )
+
+        city_item, building_item, landmark_item = WikidataItem.objects.bulk_create(
+            [
+                WikidataItem(wikidata_id="Q1001", title="Example City"),
+                WikidataItem(wikidata_id="Q1002", title="Example Building"),
+                WikidataItem(wikidata_id="Q1003", title="Example Landmark"),
+            ]
+        )
+        cls.city = Subject.objects.create(
+            title="Example City", wikidata_item=city_item
+        )
+        cls.building = Subject.objects.create(
+            title="Example Building", wikidata_item=building_item
+        )
+        cls.landmark = Subject.objects.create(
+            title="Example Landmark", wikidata_item=landmark_item
+        )
+        SubjectAncestor.objects.create(subject=cls.building, ancestor=city_item)
+
+        for title, subject in (
+            ("City image", cls.city),
+            ("Building image", cls.building),
+            ("Landmark image", cls.landmark),
+        ):
+            image = Image.objects.create(
+                collection=collection,
+                title=title,
+                permalink=f"https://example.com/{title}.jpg",
+            )
+            SubjectMapping.objects.create(image=image, subject=subject)
+
+    def test_omits_subjects_that_are_ancestors_of_other_subjects(self):
+        response = self.client.get(reverse("subjects:browse_subjects"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {subject.pk for subject in response.context["subjects"]},
+            {self.building.pk, self.landmark.pk},
+        )
+        self.assertEqual(response.context["overall_stats"]["total_subjects"], 2)
+
+
 class SubjectAutocompleteTests(TestCase):
     """The fuzzy subject-tagging autocomplete (subjects/views.py)."""
 
@@ -1009,3 +1205,102 @@ class SubjectAutocompleteTests(TestCase):
         # database query despite get_description() touching the item.
         with self.assertNumQueries(1):
             self.client.get(self.url, {"q": "church"})
+
+
+class ManualWikidataRefreshQueueTests(TestCase):
+    """Admin-queued items jump the Beat-driven refresh rotation."""
+
+    @classmethod
+    def setUpTestData(cls):
+        # bulk_create sidesteps WikidataItem.save(), which would fetch
+        # from Wikidata on creation.
+        cls.fresh_item, cls.stale_item, cls.orphan_item = (
+            WikidataItem.objects.bulk_create(
+                [
+                    WikidataItem(
+                        wikidata_id="Q2001",
+                        title="Fresh",
+                        sparql_last_loaded_at=timezone.now(),
+                    ),
+                    WikidataItem(
+                        wikidata_id="Q2002",
+                        title="Stale",
+                        sparql_last_loaded_at=timezone.now() - timedelta(days=30),
+                    ),
+                    WikidataItem(wikidata_id="Q2003", title="Orphan"),
+                ]
+            )
+        )
+        cls.fresh = Subject.objects.create(title="Fresh", wikidata_item=cls.fresh_item)
+        cls.stale = Subject.objects.create(title="Stale", wikidata_item=cls.stale_item)
+
+    def test_stale_item_wins_when_nothing_is_queued(self):
+        self.assertIsNone(get_next_requested_wikidata_item())
+        self.assertEqual(get_next_stale_wikidata_item(), self.stale_item)
+
+    def test_queued_fresh_item_jumps_ahead_of_the_stale_one(self):
+        self.fresh_item.queue_sparql_refresh()
+
+        self.assertEqual(get_next_requested_wikidata_item(), self.fresh_item)
+        # The staleness rotation is untouched — the queue is a separate lane.
+        self.assertEqual(get_next_stale_wikidata_item(), self.stale_item)
+
+    def test_queueing_clears_the_failure_cap(self):
+        WikidataItem.objects.filter(pk=self.stale_item.pk).update(
+            sparql_fetch_failures=99
+        )
+        self.assertIsNone(get_next_stale_wikidata_item())
+
+        self.stale_item.refresh_from_db()
+        self.stale_item.queue_sparql_refresh()
+
+        self.assertEqual(get_next_requested_wikidata_item(), self.stale_item)
+        self.stale_item.refresh_from_db()
+        self.assertEqual(self.stale_item.sparql_fetch_failures, 0)
+
+    def test_earliest_request_is_served_first(self):
+        self.fresh_item.queue_sparql_refresh()
+        self.stale_item.queue_sparql_refresh()
+
+        self.assertEqual(get_next_requested_wikidata_item(), self.fresh_item)
+
+    def test_items_without_a_seed_are_never_queued_up(self):
+        self.orphan_item.queue_sparql_refresh()
+
+        self.assertIsNone(get_next_requested_wikidata_item())
+
+
+class SubjectAdminWikidataLinkTests(TestCase):
+    """The one-to-one Wikidata link is set at creation and never edited."""
+
+    @classmethod
+    def setUpTestData(cls):
+        item = WikidataItem.objects.bulk_create(
+            [WikidataItem(wikidata_id="Q3001", title="Example Building")]
+        )[0]
+        cls.subject = Subject.objects.create(
+            title="Example Building", wikidata_item=item
+        )
+
+    def setUp(self):
+        self.admin = SubjectAdmin(Subject, AdminSite())
+        self.request = RequestFactory().get("/")
+
+    def test_add_form_still_picks_a_wikidata_item(self):
+        fields = flatten_fieldsets(self.admin.get_fieldsets(self.request))
+
+        self.assertIn("wikidata_item", fields)
+        self.assertNotIn("wikidata_item_display", fields)
+
+    def test_change_form_shows_a_read_only_link_instead(self):
+        fields = flatten_fieldsets(
+            self.admin.get_fieldsets(self.request, self.subject)
+        )
+
+        self.assertNotIn("wikidata_item", fields)
+        self.assertIn("wikidata_item_display", fields)
+
+    def test_change_form_cannot_submit_a_new_wikidata_item(self):
+        form = self.admin.get_form(self.request, self.subject)
+
+        self.assertNotIn("wikidata_item", form.base_fields)

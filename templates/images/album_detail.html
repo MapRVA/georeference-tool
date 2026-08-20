@@ -13,6 +13,7 @@
     <div class="col-12">
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
                 <li class="breadcrumb-item">Users</li>
                 <li class="breadcrumb-item"><a href="{% url 'user_profile' display_name %}">{{ display_name }}</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'user_albums_list' display_name %}">Albums</a></li>

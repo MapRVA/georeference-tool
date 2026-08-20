@@ -12,10 +12,7 @@ import "../../styles/components/image-viewer.css";
 // JS imports
 import maplibregl from "maplibre-gl";
 import { Geoman } from "@geoman-io/maplibre-geoman-free";
-import {
-  DEFAULT_MAP_CENTER,
-  DEFAULT_MAP_ZOOM,
-} from "../constants/map";
+import { initialMapView } from "../constants/map";
 import "../components/map_display/pmtiles_protocol";
 import { initialMapStyle, LayerControl } from "../components/layer_control";
 import { initSubjectEditor } from "../components/subject_editor.js";
@@ -50,8 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var map = new maplibregl.Map({
     container: "mymap",
     style: initialMapStyle(),
-    center: DEFAULT_MAP_CENTER,
-    zoom: DEFAULT_MAP_ZOOM,
+    ...initialMapView(),
   });
   // Track polygon data
   var drawnPolygon = null;

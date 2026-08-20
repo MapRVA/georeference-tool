@@ -1,0 +1,25 @@
+{% if activity_events %}
+<section class="home-band">
+    <div class="container">
+        <div class="row align-items-center g-4 g-lg-5">
+            <div class="col-lg-5">
+                <h2 class="h1 mb-3">Connect with Other Contributors</h2>
+                <p class="lead mb-4">
+                    Every photograph on the map was placed by a volunteer like you.
+                    Our activity feed lets users share their work, and chime in to discussions.
+                </p>
+                <a href="{% url 'activity:feed' %}" class="btn btn-primary btn-lg">
+                    See the Activity Feed
+                </a>
+            </div>
+            <div class="col-lg-7">
+                <div class="home-activity-cards">
+                    {% for event_type, event, timestamp in activity_events %}
+                        {% include 'activity/partials/event_card.html' %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}

@@ -1,0 +1,104 @@
+{# Navbar region selector: persists a region slug in a cookie. Bootstrap's  #}
+{# Dropdown JS owns open/close, positioning, click-outside, Escape and     #}
+{# arrow-key movement between items (data-bs-toggle below); the           #}
+{# regionSelector Alpine component (registered in assets/index.js) owns    #}
+{# only the data — fetching and rendering the suggestion list. Selecting   #}
+{# reloads the page, so the trigger's icon and label are server-rendered.  #}
+<li class="nav-item dropdown d-lg-flex align-items-lg-center"
+    id="region-selector"
+    data-autocomplete-url="{% url 'regions:region_autocomplete' %}"
+    data-cookie-name="{{ region_cookie_name }}"
+    data-current-slug="{{ current_region.slug|default:'' }}"
+    x-data="regionSelector()">
+    {# auto-close="outside" keeps the menu open while typing in, or         #}
+    {# clicking around, the search field.                                    #}
+    <button type="button"
+            class="btn btn-sm btn-outline-light rounded-pill dropdown-toggle my-2 my-lg-0"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-expanded="false">
+        {% if current_region %}
+            <i class="fas fa-map-marker-alt me-1" aria-hidden="true"></i>{{ current_region.short_name }}
+        {% else %}
+            <i class="fas fa-globe me-1" aria-hidden="true"></i>Select Region
+        {% endif %}
+    </button>
+    <div class="dropdown-menu dropdown-menu-end region-selector-dropdown shadow-sm">
+        <div class="px-2 pt-1 pb-2">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+                {# Bootstrap ignores Up/Down while focus is in an input, so  #}
+                {# Down hands focus to the first item; from there Bootstrap  #}
+                {# moves between items itself.                               #}
+                <input type="search"
+                       class="form-control"
+                       placeholder="Search regions..."
+                       aria-label="Search regions"
+                       x-model="query"
+                       @input.debounce.300ms="fetchSuggestions()"
+                       @keydown.enter.prevent="selectFirst()"
+                       @keydown.down.prevent="focusFirstItem()"
+                       autocomplete="off">
+            </div>
+        </div>
+        {# The active item carries a check, swapped for a spinner once it's   #}
+        {# clicked (select() moves currentSlug optimistically and reloads).  #}
+        {# x-show sits on a <span> around each icon rather than the <i>:      #}
+        {# Font Awesome swaps the <i> for an <svg>, and Alpine bindings      #}
+        {# shouldn't ride on the swapped node.                               #}
+        {# Global, its divider and the "Popular" heading drop out while a    #}
+        {# query is in the field, so matches sit directly under the search   #}
+        {# box; they come back when it's cleared (opening the menu resets    #}
+        {# the query), where the list is the most-georeferenced regions.     #}
+        <button type="button"
+                class="dropdown-item"
+                :class="{ active: !currentSlug }"
+                x-show="!query"
+                @click="select(null)">
+            <i class="fas fa-globe fa-fw me-2" aria-hidden="true"></i>Global
+            <span class="ms-auto" x-show="!currentSlug">
+                <span class="spinner-border spinner-border-sm" x-show="selecting" aria-hidden="true"></span>
+                <span x-show="!selecting"><i class="fas fa-check" aria-hidden="true"></i></span>
+            </span>
+        </button>
+        {% if current_region %}
+            {# The selected region, pinned here whenever the popular list  #}
+            {# below doesn't carry it — otherwise an unqueried menu would  #}
+            {# show no sign of what's selected. Server-rendered like the   #}
+            {# trigger's label, for the same reason: selecting reloads.    #}
+            {# Held back until a list has arrived (fetched), since an      #}
+            {# empty one can't yet report that it carries this region.     #}
+            <button type="button"
+                    class="dropdown-item"
+                    :class="{ active: currentSlug === '{{ current_region.slug }}' }"
+                    x-show="!query && fetched && !currentIsSuggested()"
+                    @click="select({ slug: currentSlug })">
+                <i class="fas fa-map-marker-alt fa-fw me-2" aria-hidden="true"></i>{{ current_region.long_name }}
+                <span class="ms-auto" x-show="currentSlug === '{{ current_region.slug }}'">
+                    <span class="spinner-border spinner-border-sm" x-show="selecting" aria-hidden="true"></span>
+                    <span x-show="!selecting"><i class="fas fa-check" aria-hidden="true"></i></span>
+                </span>
+            </button>
+        {% endif %}
+        <div class="dropdown-divider" x-show="!query"></div>
+        <h6 class="dropdown-header" x-show="!query">Popular</h6>
+        <template x-for="region in suggestions" :key="region.slug">
+            <button type="button"
+                    class="dropdown-item"
+                    :class="{ active: region.slug === currentSlug }"
+                    @click="select(region)">
+                <span x-text="region.long_name"></span>
+                <span class="ms-auto" x-show="region.slug === currentSlug">
+                    <span class="spinner-border spinner-border-sm" x-show="selecting" aria-hidden="true"></span>
+                    <span x-show="!selecting"><i class="fas fa-check" aria-hidden="true"></i></span>
+                </span>
+            </button>
+        </template>
+        <span class="dropdown-item-text text-body-secondary"
+              x-show="query && suggestions.length === 0">No matching regions</span>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'regions:region_index' %}">
+            <i class="fas fa-map fa-fw me-2" aria-hidden="true"></i>Explore all regions
+        </a>
+    </div>
+</li>

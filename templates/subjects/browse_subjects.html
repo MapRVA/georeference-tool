@@ -34,9 +34,17 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+                <li class="breadcrumb-item active">Subjects</li>
+            </ol>
+        </nav>
+
         <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
             <div>
-                <h1><i class="fas fa-map-pin me-3"></i>Browse Subjects</h1>
+                <h1>Browse Subjects</h1>
                 <p class="text-muted mb-0">Explore image subjects, including notable buildings, statues, and natural features.</p>
             </div>
             <a href="{% url 'subjects:subjects_map' %}" class="btn btn-primary">
@@ -47,13 +55,19 @@
         <div x-data="subjectBrowser()">
             <div class="mb-4">
                 <div class="position-relative subject-search">
-                    <input type="search" class="form-control form-control-lg"
-                           placeholder="Filter subjects..."
-                           x-model="query"
-                           @input.debounce.300ms="onInput()"
-                           @focus="onFocus()"
-                           @keydown.escape.stop="showDropdown = false"
-                           autocomplete="off">
+                    <label class="visually-hidden" for="subject-directory-search">Search subjects</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+                        <input id="subject-directory-search"
+                               type="search"
+                               class="form-control"
+                               placeholder="Search subjects"
+                               x-model="query"
+                               @input.debounce.300ms="onInput()"
+                               @focus="onFocus()"
+                               @keydown.escape.stop="showDropdown = false"
+                               autocomplete="off">
+                    </div>
 
                     <div class="dropdown-menu w-100 mt-1 shadow-sm subject-search-dropdown"
                          x-show="showDropdown && (suggestions.categories.length > 0 || suggestions.subjects.length > 0)"

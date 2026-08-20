@@ -127,6 +127,11 @@ class Command(BaseCommand):
             .exclude(title__isnull=True)
             .exclude(title="")
             .exclude(georeferences__isnull=False)
+            .select_related(
+                "region",
+                "collection__region",
+                "collection__source__region",
+            )
         )
 
         image_count = images.count()
@@ -143,17 +148,6 @@ class Command(BaseCommand):
             )
 
         site_settings = SiteSettings.load()
-        # geopy viewbox: (southwest, northeast) as (lat, lon) tuples
-        viewbox = (
-            (
-                site_settings.default_search_bbox_south,
-                site_settings.default_search_bbox_west,
-            ),
-            (
-                site_settings.default_search_bbox_north,
-                site_settings.default_search_bbox_east,
-            ),
-        )
 
         # Initialize geocoder with rate limiting (2 seconds between calls)
         # Use a longer timeout to reduce transient failures
@@ -173,7 +167,8 @@ class Command(BaseCommand):
         geocode_failed_count = 0
         cache_hit_count = 0
 
-        # Cache for parsed addresses -> (latitude, longitude) or None for failed geocodes
+        # Region is part of the key: the same street address can legitimately
+        # resolve differently in two cities.
         address_cache = {}
 
         # Use tqdm for progress bar
@@ -195,9 +190,13 @@ class Command(BaseCommand):
                 )
 
                 if not dry_run:
+                    region = image.effective_region
+                    viewbox = self.get_search_viewbox(region, site_settings)
+                    cache_key = (region.pk if region is not None else None, address)
+
                     # Check cache first
-                    if address in address_cache:
-                        cached_coords = address_cache[address]
+                    if cache_key in address_cache:
+                        cached_coords = address_cache[cache_key]
                         if cached_coords:
                             lat, lon = cached_coords
                             point = Point(lon, lat, srid=4326)
@@ -217,12 +216,16 @@ class Command(BaseCommand):
                     else:
                         # Geocode the address
                         location = self.geocode_address(
-                            geocode, address, progress_bar, viewbox
+                            geocode,
+                            address,
+                            progress_bar,
+                            viewbox,
+                            region.long_name if region is not None else None,
                         )
 
                         if location:
                             # Cache the result
-                            address_cache[address] = (
+                            address_cache[cache_key] = (
                                 location.latitude,
                                 location.longitude,
                             )
@@ -239,7 +242,7 @@ class Command(BaseCommand):
                             )
                         else:
                             # Cache the failure
-                            address_cache[address] = None
+                            address_cache[cache_key] = None
                             geocode_failed_count += 1
                             progress_bar.write(
                                 f"    -> {self.style.WARNING('GEOCODE FAILED')}"
@@ -392,22 +395,44 @@ class Command(BaseCommand):
 
         return None
 
-    def geocode_address(self, geocode, address, progress_bar, viewbox, max_retries=3):
+    @staticmethod
+    def get_search_viewbox(region, site_settings):
+        """Return geopy's southwest/northeast viewbox for a region."""
+        bbox = region.search_bbox if region is not None else None
+        if bbox is None:
+            bbox = [
+                site_settings.default_search_bbox_west,
+                site_settings.default_search_bbox_south,
+                site_settings.default_search_bbox_east,
+                site_settings.default_search_bbox_north,
+            ]
+        west, south, east, north = bbox
+        return ((south, west), (north, east))
+
+    def geocode_address(
+        self,
+        geocode,
+        address,
+        progress_bar,
+        viewbox,
+        region_name=None,
+        max_retries=3,
+    ):
         """
-        Geocode an address using Nominatim, restricted to the configured search bbox.
+        Geocode an address using Nominatim, restricted to the effective search bbox.
 
         Args:
             geocode: Rate-limited geocode function
             address: Address string to geocode
             progress_bar: tqdm progress bar for output
             viewbox: ((south_lat, west_lon), (north_lat, east_lon)) tuple
+            region_name: Region name appended to disambiguate the address
             max_retries: Number of times to retry on transient failures
 
         Returns:
             Location object with latitude/longitude, or None if not found
         """
-        # Add Richmond, VA to help with disambiguation
-        full_address = f"{address}, Richmond, VA"
+        full_address = f"{address}, {region_name}" if region_name else address
 
         for attempt in range(max_retries):
             if attempt > 0:

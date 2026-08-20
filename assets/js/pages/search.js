@@ -746,6 +746,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   function displayHtmlResults(html, query, searchModeLabel) {
+    // Set when a region is selected in the navbar; the search endpoints scope
+    // results to it server-side via the region cookie.
+    const regionName = window.filterConfig?.regionName;
+
     // Parse the HTML to extract metadata from the template element
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
@@ -757,11 +761,14 @@ document.addEventListener("DOMContentLoaded", async function () {
       let message = query
         ? `No results found for "<strong>${escapeHtml(query)}</strong>".`
         : "No results found for the selected filters.";
+      const regionHint = regionName
+        ? ` You're searching within <strong>${escapeHtml(regionName)}</strong> \u2014 switch to Global in the region selector to search everywhere.`
+        : "";
       searchResults.innerHTML = `
         <div class="alert alert-info">
           <i class="fas fa-info-circle me-2"></i>
           ${message}
-          Try a different search term or filter.
+          Try a different search term or filter.${regionHint}
         </div>
       `;
       // Hide bulk actions when no results
@@ -838,9 +845,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const isSemanticOrReverse =
       searchModeLabel === "semantic search" ||
       searchModeLabel === "reverse image search";
+    const inRegion = regionName ? ` in ${escapeHtml(regionName)}` : "";
     const statsMessage = isSemanticOrReverse
-      ? `Showing results${forQuery} using ${searchModeLabel}${filterSummary}`
-      : `Found ${totalCount} results${forQuery} using ${searchModeLabel}${filterSummary}`;
+      ? `Showing results${forQuery}${inRegion} using ${searchModeLabel}${filterSummary}`
+      : `Found ${totalCount} results${forQuery}${inRegion} using ${searchModeLabel}${filterSummary}`;
 
     // Clear previously registered IDs since we're loading new results
     if (window.imageGridInstance) {

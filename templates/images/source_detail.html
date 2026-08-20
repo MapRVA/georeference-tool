@@ -6,7 +6,7 @@
 	<meta property="og:title" content="{{ source.name }}">
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
-	<meta property="og:description" content="{% if source.description %}{{ source.description }}{% else %}Archive with {{ collections.count }} collection{{ collections.count|pluralize }} and {{ total_images }} image{{ total_images|pluralize }}.{% endif %}">
+	<meta property="og:description" content="{% if source.description %}{{ source.description }}{% else %}Archive with {{ collection_count }} collection{{ collection_count|pluralize }} and {{ total_images }} image{{ total_images|pluralize }}.{% endif %}">
 	{% if top_rated_image %}
 	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
@@ -25,10 +25,6 @@
     .progress {
         border-radius: 3px;
     }
-    .breadcrumb {
-        background: none;
-        padding: 0;
-    }
 </style>
 {% endblock %}
 
@@ -39,6 +35,7 @@
         <!-- Breadcrumb -->
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'images:browse_sources' %}">Sources</a></li>
                 <li class="breadcrumb-item active">{{ source.name }}</li>
             </ol>
@@ -77,7 +74,7 @@
             <div class="col-4 col-md-4">
                 <div class="card bg-primary text-white h-100">
                     <div class="card-body text-center py-2">
-                        <div class="h4 mb-0">{{ collections.count }}</div>
+                        <div class="h4 mb-0">{{ collection_count }}</div>
                         <small>Collections</small>
                     </div>
                 </div>

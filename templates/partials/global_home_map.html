@@ -1,0 +1,14 @@
+{# Minimal basemap-only map for the global homepage, themed light or dark #}
+{# to match the visitor's colour scheme, with one photo pin per region.  #}
+{# Initialized by assets/js/pages/home_no_region.ts.                     #}
+<div class="card">
+    <div class="card-body p-0">
+        <div id="global-home-map" data-cookie-name="{{ region_cookie_name }}"></div>
+    </div>
+</div>
+
+{# json_script, not a window global: region names and subtitles are      #}
+{# admin-entered free text landing in a script element, and it escapes   #}
+{# the </script> and HTML-special sequences that would otherwise break   #}
+{# out.                                                                  #}
+{{ region_summaries|json_script:"region-summaries-data" }}

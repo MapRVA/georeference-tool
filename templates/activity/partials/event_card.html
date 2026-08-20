@@ -1,0 +1,28 @@
+{% comment %}
+Renders one activity event as its type's card. Expects `event_type` and
+`event` in context — the first two members of the (event_type, event,
+timestamp) tuples get_activity_events() returns — so callers include this
+from inside their own loop and keep whatever wrapper markup they need
+around it.
+
+This is the one place the event types are mapped to their templates: the
+feed page, its load-more fragment, the homepage embed, and the global
+homepage's activity band all come through here.
+{% endcomment %}
+{% if event_type == 'group' %}
+    {% include 'activity/partials/group_card.html' with group=event %}
+{% elif event_type == 'comment' %}
+    {% include 'activity/partials/comment_card.html' with comment=event %}
+{% elif event_type == 'milestone' %}
+    {% include 'activity/partials/milestone_card.html' with milestone=event %}
+{% elif event_type == 'sitewide' %}
+    {% include 'activity/partials/sitewide_milestone_card.html' with milestone=event %}
+{% elif event_type == 'validation' %}
+    {% include 'activity/partials/validation_card.html' with validation=event %}
+{% elif event_type == 'subject' %}
+    {% include 'activity/partials/subject_card.html' with group=event %}
+{% elif event_type == 'new_subject' %}
+    {% include 'activity/partials/new_subject_card.html' with introduction=event %}
+{% elif event_type == 'new_collection' %}
+    {% include 'activity/partials/new_collection_card.html' with introduction=event %}
+{% endif %}

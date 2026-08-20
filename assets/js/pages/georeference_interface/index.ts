@@ -25,6 +25,7 @@ import {
   TimeSliderControl,
 } from "../../components/map_display/time_slider_control";
 import { addResponsiveGeocoder } from "../../components/responsive_geocoder";
+import { initialMapView } from "../../constants/map";
 import { initSubjectEditor } from "../../components/subject_editor.js";
 import {
   CONTEXT_LAYER_IDS,
@@ -177,8 +178,10 @@ function initializeGeoreferenceInterface(
     mapOptions.center = allHintCoords[0];
     mapOptions.zoom = 17;
   } else {
-    mapOptions.center = [config.defaultMapLng, config.defaultMapLat];
-    mapOptions.zoom = config.defaultMapZoom;
+    Object.assign(
+      mapOptions,
+      initialMapView({ zoom: config.defaultMapZoom }),
+    );
   }
 
   const map = new maplibregl.Map(mapOptions);

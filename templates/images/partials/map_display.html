@@ -1,5 +1,6 @@
 {% load static %}
 {% load django_vite %}
+{% load l10n %}
 {% comment %}
 Shared map display component that uses the GeoJSON endpoint for all map data.
 Usage:
@@ -7,7 +8,10 @@ Usage:
 - Source images: {% include 'images/partials/map_display.html' with source_id=source.id map_id='source-map' height='50vh' %}
 - Collection images: {% include 'images/partials/map_display.html' with collection_id=collection.id map_id='collection-map' height='40vh' %}
 - A user's georeferences: {% include 'images/partials/map_display.html' with georeferenced_by_id=profile_user.id map_id='user-georeferences-map' %}
-- Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng='-77.44' center_lat='37.53' zoom_level='11.5' %}
+- Custom location: {% include 'images/partials/map_display.html' with image_id=image.id center_lng=-77.44 center_lat=37.53 zoom_level=11.5 %}
+  (center_lng/center_lat must be numbers, not strings — see the mapCenter block below.
+   Omit them and the map fits the selected region's viewport when configured,
+   falling back to its centerpoint and then the SiteSettings defaults.)
 - Geocoder: {% include 'images/partials/map_display.html' with include_geocoder=True %}
 - Scale-based visibility: {% include 'images/partials/map_display.html' with enable_scale_visibility=True %}
 - Auto-zoom to contents: {% include 'images/partials/map_display.html' with zoom_to_contents=True %}
@@ -71,11 +75,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const allImagesUrl = null;
     {% endif %}
 
+    // Map center, in precedence order: an explicit center passed by the
+    // caller, then the region picked in the navbar (its admin-set
+    // centerpoint, else its Wikidata P625 coordinate — Region resolves
+    // that), then the sitewide default from SiteSettings. Compared
+    // against None, not truthiness, so a deliberate 0 still counts.
+    // center_lng/center_lat must reach us as numbers, never raw strings —
+    // they land in a JS numeric position, where autoescaping won't save us
+    // (see images.views.core._float_param). unlocalize because a locale
+    // with a comma decimal separator would silently split the array.
+    {% if center_lng is not None and center_lat is not None %}
+    const mapCenter = [{{ center_lng|unlocalize }}, {{ center_lat|unlocalize }}];
+    {% elif current_region %}
+    const mapCenter = [{{ current_region.coordinate_location.x|unlocalize }}, {{ current_region.coordinate_location.y|unlocalize }}];
+    {% else %}
+    const mapCenter = [{{ default_map_center.0|unlocalize }}, {{ default_map_center.1|unlocalize }}];
+    {% endif %}
+
+    // Region bounds are used only when the caller did not specify a camera
+    // setting. Explicit content and embed parameters retain precedence.
+    {% if center_lng is not None and center_lat is not None or zoom_level is not None %}
+    const mapBounds = null;
+    {% elif region_map_bounds %}
+    const mapBounds = {{ region_map_bounds }};
+    {% else %}
+    const mapBounds = null;
+    {% endif %}
+
     // Initialize the map using the global function from the bundled module
     window.initializeMap({
         mapId: mapId,
-        center: [{{ center_lng|default:default_map_center.0 }}, {{ center_lat|default:default_map_center.1 }}],
-        zoom: {{ zoom_level|default:default_map_zoom }},
+        center: mapCenter,
+        zoom: {% if zoom_level is not None %}{{ zoom_level|unlocalize }}{% else %}{{ default_map_zoom|unlocalize }}{% endif %},
+        bounds: mapBounds,
         hash: {{ hash|yesno:"true,false,false" }},
         vectorTilesUrl: vectorTilesUrl,
         allImagesUrl: allImagesUrl,

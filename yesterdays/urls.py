@@ -129,6 +129,7 @@ urlpatterns = [
     ),
     *([path("", include("directories.urls"))] if settings.DIRECTORIES_ENABLED else []),
     path("subjects/", include("subjects.urls")),
+    path("regions/", include("regions.urls")),
     path("activity/", include("activity.urls")),
     path("", include("images.urls")),
     # Subject API endpoints (kept at /api/v1/subjects/ for backwards compatibility)

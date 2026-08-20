@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load django_vite %}
 
-{% block title %}Statistics - {{ block.super }}{% endblock %}
+{% block title %}{% if current_region %}Statistics for {{ current_region.short_name }}{% else %}Statistics{% endif %} - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -27,7 +27,21 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="my-4">Site Statistics</h1>
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+            <li class="breadcrumb-item active">Statistics</li>
+        </ol>
+    </nav>
+
+    <h1 class="mt-4 mb-{% if current_region %}2{% else %}4{% endif %}">{% if current_region %}Statistics for {{ current_region.long_name }}{% else %}Site Statistics{% endif %}</h1>
+    {% if current_region %}
+    <p class="lead mb-4">
+        These statistics cover images of {{ current_region.long_name }}, including places within it.
+        Switch to Global in the region selector for sitewide statistics.
+    </p>
+    {% endif %}
 
     <!-- Overall Statistics -->
     <div class="row mb-4">
@@ -69,7 +83,7 @@
     </em></p>
     <div class="card">
         <div class="card-header">
-            <i class="fas fa-users me-2"></i>Contributors
+            <i class="fas fa-users me-2"></i>Contributors{% if current_region %} in {{ current_region.short_name }}{% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -95,6 +109,12 @@
                             </td>
                             <td>{{ stats.georeferences }}</td>
                             <td>{% if contributor == 'Anonymous' %}&ndash;{% else %}{{ stats.validations }}{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                No contributions{% if current_region %} in {{ current_region.short_name }}{% endif %} yet.
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

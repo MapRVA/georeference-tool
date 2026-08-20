@@ -1,5 +1,5 @@
 {% load activity_tags %}
-<div class="card mb-3" x-data="{ expanded: {% if group.count == 1 %}true{% else %}false{% endif %} }">
+<div class="card mb-3" x-data="{ expanded: {% if group.feed_count == 1 %}true{% else %}false{% endif %} }">
     <div class="card-body">
         <div class="d-flex align-items-start">
             <div class="me-3">
@@ -16,30 +16,30 @@
                                     {{ group.user.get_display_name }}
                                 </a>
                                 georeferenced
-                                {% if group.count == 1 %}
+                                {% if group.feed_count == 1 %}
                                     an image
                                 {% else %}
-                                    <strong>{{ group.count }}</strong> images
+                                    <strong>{{ group.feed_count }}</strong> images
                                 {% endif %}
                             {% else %}
-                                {% if group.count == 1 %}
+                                {% if group.feed_count == 1 %}
                                     An anonymous user georeferenced an image
                                 {% else %}
-                                    Anonymous user(s) georeferenced <strong>{{ group.count }}</strong> images
+                                    Anonymous user(s) georeferenced <strong>{{ group.feed_count }}</strong> images
                                 {% endif %}
                             {% endif %}
                         </h6>
                         <small class="text-muted">
-                            <i class="fas fa-clock me-1"></i>{{ group.ended_at|timeago }}
+                            <i class="fas fa-clock me-1"></i>{{ group.feed_ended_at|timeago }}
                         </small>
                     </div>
                 </div>
 
-                {% if group.members.all %}
+                {% if group.feed_members %}
                     <!-- Collapsed: Preview thumbnails -->
                     <div x-show="!expanded" class="mt-3">
                         <div class="d-flex flex-wrap gap-2">
-                            {% for member in group.members.all|slice:":5" %}
+                            {% for member in group.feed_members|slice:":5" %}
                                 {% with image=member.image %}
                                     {% if image %}
                                         <a href="{% url 'images:image_detail' image.id %}">
@@ -51,9 +51,9 @@
                                     {% endif %}
                                 {% endwith %}
                             {% endfor %}
-                            {% if group.count > 5 %}
+                            {% if group.feed_count > 5 %}
                                 <div class="d-flex align-items-center justify-content-center text-muted georef-preview-more">
-                                    +{{ group.count|add:"-5" }} more
+                                    +{{ group.feed_count|add:"-5" }} more
                                 </div>
                             {% endif %}
                         </div>
@@ -61,7 +61,7 @@
 
                     <!-- Expanded: Full list of image cards -->
                     <div x-show="expanded" x-cloak class="mt-3">
-                        {% if group.count >= 10 %}
+                        {% if group.feed_count >= 10 %}
                             <div class="mb-2">
                                 <button class="btn btn-outline-secondary btn-sm" @click="expanded = false">
                                     <i class="fas fa-chevron-up me-1"></i>Show less
@@ -69,7 +69,7 @@
                             </div>
                         {% endif %}
                         <div class="d-flex flex-column gap-2">
-                            {% for member in group.members.all %}
+                            {% for member in group.feed_members %}
                                 {% with image=member.image georeference=member.georeference|default:member.aerial_georeference %}
                                     {% if image %}
                                         <div class="card">
@@ -119,11 +119,11 @@
                     </div>
 
                     <!-- Expand/Collapse button (only for groups with more than 1 image) -->
-                    {% if group.count > 1 %}
+                    {% if group.feed_count > 1 %}
                         <div class="mt-2">
                             <button class="btn btn-outline-secondary btn-sm" @click="expanded = !expanded">
                                 <span x-show="!expanded">
-                                    <i class="fas fa-chevron-down me-1"></i>Show all {{ group.count }} images
+                                    <i class="fas fa-chevron-down me-1"></i>Show all {{ group.feed_count }} images
                                 </span>
                                 <span x-show="expanded" x-cloak>
                                     <i class="fas fa-chevron-up me-1"></i>Show less

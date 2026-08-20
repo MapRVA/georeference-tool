@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MultiPolygon, Polygon } from "geojson";
+import type { MapBounds } from "../../constants/map";
 import type { LayerControl } from "../layer_control";
 import type { TimeSliderControl } from "./time_slider_control";
 
@@ -22,6 +23,7 @@ export interface MapDisplayConfig {
   mapId: string;
   center?: [number, number];
   zoom?: number;
+  bounds?: MapBounds | null;
   hash?: boolean;
   vectorTilesUrl?: string | null;
   allImagesUrl?: string | null;
@@ -41,6 +43,7 @@ export interface ResolvedMapDisplayConfig {
   mapId: string;
   center: [number, number];
   zoom: number;
+  bounds: MapBounds | null;
   hash: boolean;
   vectorTilesUrl: string | null;
   allImagesUrl: string | null;

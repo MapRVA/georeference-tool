@@ -182,28 +182,66 @@ def render_markdown_safe(text):
     return sanitized
 
 
-def _public_collection_stats():
-    """CollectionStats rows for publicly visible collections."""
-    from .models import CollectionStats
+# Plain-language bearings for a Georeference.direction (0-359, 0 = north).
+# Sixteen points would be more precise than a georeference usually is; eight
+# is the resolution a sentence can carry ("facing north-east").
+COMPASS_POINTS = (
+    "north",
+    "north-east",
+    "east",
+    "south-east",
+    "south",
+    "south-west",
+    "west",
+    "north-west",
+)
 
-    return CollectionStats.objects.filter(
-        collection__public=True, collection__source__public=True
-    )
+
+def compass_label(degrees):
+    """Name the bearing ``degrees`` points at: "north-east" for 47.
+
+    None in, None out, so callers can render the direction clause only
+    when there is a direction to render.
+    """
+    if degrees is None:
+        return None
+    # Modulo after rounding, not before: 359 rounds up to the 8th octant,
+    # which is north again rather than an off-the-end index.
+    return COMPASS_POINTS[round(degrees / 45) % 8]
 
 
-def get_confidence_breakdown():
+def _public_collection_stats(region=None):
+    """Stats rows for publicly visible collections.
+
+    Sitewide these are CollectionStats rows; for a region they are that
+    region's CollectionRegionStats rows, which already roll every image up
+    its P131 chain, so filtering on ``region`` alone covers the region and
+    everything inside it. Both tables count non-public collections and
+    sources too, so visibility is applied here, at read time.
+    """
+    from .models import CollectionRegionStats, CollectionStats
+
+    if region is None:
+        rows = CollectionStats.objects.all()
+    else:
+        rows = CollectionRegionStats.objects.filter(region=region)
+    return rows.filter(collection__public=True, collection__source__public=True)
+
+
+def get_confidence_breakdown(region=None):
     """
     Get per-confidence image counts, avoiding double-counting from-above images.
 
     Reads the denormalized CollectionStats table (maintained eagerly by
-    signals). Each image is counted exactly once under its most-recent
-    georeference's confidence level (or ``not_georeferenced`` if it has none).
+    signals), or CollectionRegionStats when ``region`` is given. Each image is
+    counted exactly once under its most-recent georeference's confidence
+    level (or ``not_georeferenced`` if it has none).
 
     Returns:
         dict with keys ``not_georeferenced``, ``low``, ``medium``, ``high``,
         each mapping to an integer count.
     """
-    agg = _public_collection_stats().aggregate(
+    agg = _public_collection_stats(region).aggregate(
         total=Coalesce(Sum(F("total_images") - F("will_not_georef_images")), 0),
         low=Coalesce(Sum("georeferenced_low"), 0),
         medium=Coalesce(Sum("georeferenced_medium"), 0),
@@ -218,13 +256,17 @@ def get_confidence_breakdown():
     }
 
 
-def get_overall_stats():
+def get_overall_stats(region=None):
     """
     Get overall site statistics for images.
 
     Calculates totals for sources, collections, images, and georeferenced images.
     Excludes duplicates and images marked as will_not_georef from totals.
     Includes both point georeferences and aerial georeferences.
+
+    With ``region``, every figure is scoped to that region and the regions
+    inside it: images by their effective region, and sources/collections to
+    those that hold at least one such image.
 
     Returns:
         dict: Statistics containing:
@@ -236,7 +278,8 @@ def get_overall_stats():
     """
     from .models import Collection, Source
 
-    agg = _public_collection_stats().aggregate(
+    rows = _public_collection_stats(region)
+    agg = rows.aggregate(
         total=Coalesce(Sum(F("total_images") - F("will_not_georef_images")), 0),
         georeferenced=Coalesce(
             Sum(
@@ -250,10 +293,19 @@ def get_overall_stats():
     total_images = agg["total"]
     georeferenced_count = agg["georeferenced"]
 
-    total_sources = Source.objects.filter(public=True).count()
-    total_collections = Collection.objects.filter(
-        public=True, source__public=True
-    ).count()
+    if region is None:
+        total_sources = Source.objects.filter(public=True).count()
+        total_collections = Collection.objects.filter(
+            public=True, source__public=True
+        ).count()
+    else:
+        # A (collection, region) row lingers at zero for a while after its
+        # last image leaves, so count only rows that still hold images.
+        populated = rows.filter(total_images__gt=0)
+        total_sources = (
+            populated.values("collection__source").distinct().count()
+        )
+        total_collections = populated.values("collection").distinct().count()
 
     georeferenced_percentage = (
         round((georeferenced_count / total_images * 100), 1) if total_images > 0 else 0

@@ -1,0 +1,76 @@
+{% if subjects_feature %}
+<section class="home-band home-band-muted">
+    <div class="container">
+        <div class="row justify-content-center text-center mb-4">
+            <div class="col-lg-8">
+                <h2 class="h1 mb-3">The Rabbithole Goes Deep</h2>
+                <p class="lead mb-0">
+                    Contributors tag the buildings, objects, and people that each image depicts, linked to <a href="https://www.wikidata.org">Wikidata</a> and <a href="https://www.openstreetmap.org">OpenStreetMap</a>.
+                    Subjects enrich our database with a deeper understanding of history.
+                </p>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <figure class="mb-0">
+                    <div class="home-subjects-stage">
+                        <ul class="home-subject-labels home-subject-labels-before list-unstyled">
+                            {% for subject in subjects_feature.subjects_before %}
+                            <li>
+                                <a href="{{ subject.url }}" class="home-subject-chip">{{ subject.title }}</a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+
+                        {# Sized to the picture and nothing else: no mat, no #}
+                        {# letterboxing, no frame past its own edges.        #}
+                        <a href="{{ subjects_feature.url }}" class="home-subjects-photo-link">
+                            <img src="{{ subjects_feature.thumbnail }}"
+                                 class="home-subjects-photo"
+                                 alt="{{ subjects_feature.title }}"
+                                 loading="lazy"
+                                 decoding="async">
+                        </a>
+
+                        <ul class="home-subject-labels home-subject-labels-after list-unstyled">
+                            {% for subject in subjects_feature.subjects_after %}
+                            <li>
+                                <a href="{{ subject.url }}" class="home-subject-chip">{{ subject.title }}</a>
+                            </li>
+                            {% endfor %}
+                            {% comment %}
+                            The view caps the labels at HOME_SUBJECT_LABEL_LIMIT;
+                            this says so rather than letting the rest disappear.
+                            {% endcomment %}
+                            {% if subjects_feature.extra_subject_count %}
+                            <li>
+                                <a href="{{ subjects_feature.url }}" class="home-subject-chip home-subject-chip-more">
+                                    +{{ subjects_feature.extra_subject_count }} more in this photograph
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+
+                    <figcaption class="small fst-italic text-body-secondary text-center mt-3">
+                        {{ subjects_feature.title }} &middot;
+                        <a href="{{ subjects_feature.source_url }}" class="text-decoration-none">{{ subjects_feature.source_name }}</a>
+                    </figcaption>
+                </figure>
+            </div>
+        </div>
+
+        <div class="row justify-content-center text-center mt-4">
+            <div class="col-lg-8 d-flex flex-wrap justify-content-center align-items-center gap-3">
+                <a href="{% url 'subjects:browse_subjects' %}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-map-pin me-2" aria-hidden="true"></i>Browse subjects
+                </a>
+                <a href="{% url 'subjects:subjects_map' %}" class="text-decoration-none">
+                    Or see them on the map <span aria-hidden="true">&rarr;</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}

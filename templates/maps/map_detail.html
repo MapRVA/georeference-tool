@@ -16,8 +16,9 @@
         <!-- Breadcrumb -->
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'maps:browse_maps' %}">Map Layers</a></li>
-                <li class="breadcrumb-item"><a href="{{ layer.collection.get_absolute_url }}">{{ layer.collection.name }}</a></li>
+                <li class="breadcrumb-item">{{ layer.collection.name }}</li>
                 <li class="breadcrumb-item active">{{ layer.name }}</li>
             </ol>
         </nav>

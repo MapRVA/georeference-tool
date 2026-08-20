@@ -1,0 +1,380 @@
+/* --- Landing-page bands -------------------------------------------------
+   home_no_region.html empties base.html's main_container_class so these
+   bands can run edge to edge. Each one therefore owns its own .container
+   and the vertical rhythm <main>'s my-4 used to provide. Colours come
+   from --bs-* tokens throughout, so the media-query colour mode is
+   followed without this file declaring a dark variant of anything. */
+.home-band {
+    padding-block: 3rem;
+}
+
+.home-band-hero {
+    padding-block: 3.5rem 3rem;
+}
+
+@media (min-width: 992px) {
+    .home-band {
+        padding-block: 4rem;
+    }
+
+    .home-band-hero {
+        padding-block: 5rem 4rem;
+    }
+}
+
+/* Alternating background, so consecutive sections read as separate
+   without needing rules drawn between them. */
+.home-band-muted {
+    background-color: var(--bs-secondary-bg);
+}
+
+/* The preceding band already supplies the space between these sections.
+   Keep the trust statement closer to it, then let the larger margin on the
+   statement separate it clearly from the cards below. */
+.home-band-trust {
+    padding-top: 0;
+}
+
+/* Unless what precedes it is tinted, where a statement starting flush
+   against the colour boundary reads as a mistake rather than as closeness.
+   Both arrangements really occur: the subjects band above is hidden on a
+   site with no photograph chosen for it, leaving the activity band — which
+   is untinted — directly above this one. */
+.home-band-muted + .home-band-trust {
+    padding-top: 3rem;
+}
+
+@media (min-width: 992px) {
+    .home-band-muted + .home-band-trust {
+        padding-top: 4rem;
+    }
+}
+
+/* --- Activity band ------------------------------------------------------
+   The cards arrive from the feed carrying their own mb-3, which would hang
+   below the stack and pull the column out of line with the heading it sits
+   beside. */
+.home-activity-cards > .card:last-child {
+    margin-bottom: 0;
+}
+
+/* --- Hero feature -------------------------------------------------------
+   One georeference, shown rather than described: the photograph beside a
+   map of the point it was taken from. The two are the same size — equal
+   panels anchored to opposite corners, overlapping along the diagonal the
+   arrow follows — so neither reads as the subject of the other.
+
+   The composition carries the thumbnail's own aspect ratio, and so each
+   panel does. home_no_region.ts measures that ratio and writes it here
+   along with --hero-panel, the share of the composition a panel spans on
+   both axes; the values below are what stands until it has. */
+.hero-visual {
+    position: relative;
+    aspect-ratio: 5 / 4;
+}
+
+/* Because the frame carries the composition's ratio, `contain` letterboxes
+   nothing until a thumbnail's own ratio is extreme enough that the
+   composition was clamped away from it — this is an archive, so the
+   remedy is a mat (the tertiary fill) rather than a crop. Until the script
+   has measured the picture, the frame simply takes its height from it. */
+.hero-photo-frame {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    left: 0;
+    width: var(--hero-panel, 55%);
+    height: var(--hero-panel, auto);
+    background-color: var(--bs-tertiary-bg);
+    border: 4px solid var(--bs-body-bg);
+    border-radius: var(--bs-border-radius-lg);
+    box-shadow: var(--bs-box-shadow-lg);
+    overflow: hidden;
+}
+
+.hero-photo-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#hero-map {
+    position: absolute;
+    z-index: 1;
+    right: 0;
+    bottom: 0;
+    width: var(--hero-panel, 55%);
+    height: var(--hero-panel, 55%);
+    border-radius: var(--bs-border-radius-lg);
+    box-shadow: var(--bs-box-shadow-sm);
+    overflow: hidden;
+}
+
+/* The SVG's viewBox is written from the script alongside the composition's
+   ratio — 100 units across, 100 / ratio down — so x and y stay on one
+   scale and the geometry there can speak in angles. It stacks above the
+   map but beneath the photograph, whose frame hides the path's start so
+   the shaft appears to slip out from under the picture. A body-colour halo
+   keeps the line legible over either basemap theme. */
+.hero-georef-arrow {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.hero-georef-arrow-halo,
+.hero-georef-arrow-line {
+    fill: none !important;
+    /* The separate arrowhead starts exactly at this path's endpoint. */
+    stroke-linecap: butt;
+}
+
+.hero-georef-arrow-halo {
+    stroke: var(--bs-body-bg);
+    stroke-width: 2.5;
+}
+
+.hero-georef-arrow-line {
+    stroke: var(--bs-primary);
+    stroke-width: 1.25;
+}
+
+.hero-georef-arrow-head {
+    fill: var(--bs-primary);
+}
+
+/* The caption belongs to the pair, not to either panel, so it spans the
+   whole composition: the credit begins under the photograph's left edge
+   and the link ends under the map's right one (see the template's flex
+   settings, which also centre a wrapped link under the two). */
+.hero-attribution {
+    padding-top: 0.9rem;
+}
+
+/* --- Stat band ---------------------------------------------------------- */
+.home-stat-value {
+    font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--bs-primary);
+}
+
+.home-stat-label {
+    color: var(--bs-secondary-color);
+}
+
+/* --- Invitation band -----------------------------------------------------
+   The photograph offered for placing is shown whole: the visitor is being
+   asked where it was taken, and cropping it to a tidy card ratio would take
+   away part of what they'd answer from. Only the height is bounded, so a
+   portrait can't run the band off the screen beside its copy; the frame it
+   letterboxes into carries the same tertiary fill the hero's does. */
+.home-invite-photo {
+    width: 100%;
+    max-height: clamp(14rem, 38vh, 22rem);
+    object-fit: contain;
+    background-color: var(--bs-tertiary-bg);
+}
+
+/* --- Subjects band -------------------------------------------------------
+   One photograph with the things tagged in it arranged around it. The
+   stage is a three-track grid: a column of labels, the picture, another
+   column of labels. Below lg there is nowhere to put a column, so the
+   areas restack and the labels fall in beneath the photograph — which is
+   why the picture is named first here and the halves follow it. */
+.home-subjects-stage {
+    display: grid;
+    gap: 1rem;
+    grid-template-areas:
+        "photo"
+        "before"
+        "after";
+}
+
+.home-subjects-photo-link {
+    grid-area: photo;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+/* Bounded on both axes and sized to nothing but itself: no mat behind it
+   and no letterboxing, so the picture ends where the picture ends. The
+   height cap keeps a portrait from running the band off the screen. */
+.home-subjects-photo {
+    display: block;
+    max-width: 100%;
+    max-height: clamp(16rem, 45vh, 26rem);
+    border-radius: var(--bs-border-radius-lg);
+    box-shadow: var(--bs-box-shadow-sm);
+}
+
+/* Beneath lg: a centred row that wraps, one half after the other, reading
+   as a caption of the picture above them. */
+.home-subject-labels {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.home-subject-labels-before {
+    grid-area: before;
+}
+
+.home-subject-labels-after {
+    grid-area: after;
+}
+
+/* Body background rather than the band's, so each label reads as a tag
+   laid on the tinted band rather than as text sitting in it.
+
+   A long name has to wrap: the flanking columns are narrow and the titles
+   are whatever Wikidata calls the thing ("Second Presbyterian Church of
+   Richmond"). A pill that wraps is sized to the column rather than to its
+   own text — shrink-to-fit gives up at the available width — so its lines
+   have to fill that width or the pill reads as mostly empty. `pretty`
+   fills each line and only reworks the last, where `balance` would even
+   every line out and leave slack down both sides. The wider inline padding
+   keeps those lines clear of the pill's curve, which is at its widest
+   exactly when the label is more than one line tall. */
+.home-subject-chip {
+    display: inline-block;
+    padding: 0.35rem 1.1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 50rem;
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    line-height: 1.35;
+    text-align: center;
+    text-wrap: pretty;
+    text-decoration: none;
+    transition:
+        border-color 0.15s ease-in-out,
+        color 0.15s ease-in-out;
+}
+
+.home-subject-chip:hover,
+.home-subject-chip:focus-visible {
+    border-color: var(--bs-primary);
+    color: var(--bs-primary);
+}
+
+/* The overflow link is a pointer to the rest rather than one of them, and
+   is spelled that way: the band's own tint behind it, and a dashed edge. */
+.home-subject-chip-more {
+    background-color: transparent;
+    color: var(--bs-secondary-color);
+    border-style: dashed;
+}
+
+/* Where there is room for it: a column of labels either side of the
+   picture, spread down its height and clustered against its edges, so
+   they read as tags hanging around the photograph. The middle track is
+   capped rather than fluid — the picture giving up width is what leaves
+   the columns any to have. */
+@media (min-width: 992px) {
+    .home-subjects-stage {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 26rem) minmax(0, 1fr);
+        grid-template-areas: "before photo after";
+        gap: 1.25rem;
+    }
+
+    .home-subject-labels {
+        flex-direction: column;
+        justify-content: space-evenly;
+    }
+
+    .home-subject-labels-before {
+        align-items: flex-end;
+    }
+
+    .home-subject-labels-after {
+        align-items: flex-start;
+    }
+
+    /* Staggered away from the picture in turn, so a column reads as
+       scattered rather than as a stack ruled up against an edge. Kept
+       small: every bit of it is width taken from a label that may need it
+       to stay on one line. */
+    .home-subject-labels-before li:nth-child(even) {
+        margin-inline-end: 0.75rem;
+    }
+
+    .home-subject-labels-after li:nth-child(even) {
+        margin-inline-start: 0.75rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .home-subjects-stage {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 32rem) minmax(0, 1fr);
+        gap: 1.5rem;
+    }
+}
+
+/* Region picker cards. The whole card is one click target (a
+   stretched-link button on the title); .is-active mirrors :hover and is
+   toggled from home_no_region.ts when the matching map pin is hovered. */
+.region-card-list {
+    display: grid;
+    grid-auto-rows: 1fr;
+    gap: 1rem;
+}
+
+.region-card {
+    overflow: hidden;
+    transition:
+        border-color 0.15s ease-in-out,
+        box-shadow 0.15s ease-in-out;
+}
+
+.region-card:hover,
+.region-card.is-active {
+    border-color: var(--bs-primary);
+    box-shadow: var(--bs-box-shadow-sm);
+}
+
+/* Keyboard focus lands on the inner button; draw it on the card, where
+   the affordance is. */
+.region-card:focus-within {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* The card title doubles as the select button: shed the button chrome so
+   it reads as a heading, and hand its focus ring to the card above. */
+.region-card-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+}
+
+.region-card-link:focus {
+    outline: 0;
+}
+
+/* The banner cards make this column taller than the old side thumbnails did.
+   Let the map beside them grow to match on desktop instead of leaving a blank
+   shelf below it; smaller layouts retain the shared map's bounded height. */
+@media (min-width: 992px) {
+    .home-region-map > .card,
+    .home-region-map > .card > .card-body,
+    .home-region-map #global-home-map {
+        height: 100%;
+    }
+
+    .home-region-map #global-home-map {
+        min-height: 22rem;
+    }
+}

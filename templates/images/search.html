@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load django_vite %}
 
-{% block title %}Search – Yesterdays{% endblock %}
+{% block title %}{% if current_region %}Search – Yesterdays of {{ current_region.long_name }}{% else %}Search – Yesterdays{% endif %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -21,6 +21,7 @@
     // Configuration object for bulk operations and album dropdown
     window.filterConfig = {
         isAuthenticated: {{ request.user.is_authenticated|yesno:'true,false' }},
+        regionName: {% if current_region %}'{{ current_region.long_name|escapejs }}'{% else %}null{% endif %},
         urls: {
             subjectsApi: '{% url "subject_autocomplete" %}',
             bulkAddSubject: '{% url "bulk_add_subject_to_images" %}',
@@ -42,9 +43,15 @@
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
-            <h1 class="mb-4">
+            <h1 class="mb-{% if current_region %}2{% else %}4{% endif %}">
                 <i class="fas fa-search me-2"></i>Image Search
             </h1>
+            {% if current_region %}
+            <p class="lead mb-4">
+                Searching images of {{ current_region.long_name }}, including places within it.
+                Switch to Global in the region selector to search everywhere.
+            </p>
+            {% endif %}
 
             <!-- Search Form (narrower, centered) -->
             <div class="row justify-content-center">

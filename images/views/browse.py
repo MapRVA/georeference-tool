@@ -13,8 +13,12 @@ from django.db.models import (
 )
 from django.shortcuts import get_object_or_404, render
 
+from regions.context_processors import get_current_region
+from regions.models import Region
+
 from ..models import (
     Collection,
+    CollectionRegionStats,
     CollectionStats,
     Image,
     ImageRating,
@@ -151,7 +155,7 @@ def _browse_sources_stats():
 
 
 def browse_sources(request):
-    """Browse all public sources"""
+    """Browse public sources, scoped to the navbar region when selected."""
     sources = (
         Source.objects.filter(public=True)
         .annotate(
@@ -161,6 +165,17 @@ def browse_sources(request):
         )
         .order_by("name")
     )
+
+    # CollectionRegionStats already includes descendant-region rollups. Its
+    # zeroed rows must be ignored: they record a collection's former region,
+    # not images it currently holds.
+    region = get_current_region(request)
+    if region is not None:
+        sources = sources.filter(
+            collections__public=True,
+            collections__region_stats__region=region,
+            collections__region_stats__total_images__gt=0,
+        ).distinct()
 
     stats = _browse_sources_stats()
     for source in sources:
@@ -197,9 +212,14 @@ def browse_sources(request):
 
 
 def source_detail(request, slug):
-    """Detail view for a specific source showing its public collections"""
+    """Detail view for a specific source showing its public collections.
+
+    With a region selected in the navbar, the collections are ordered by how
+    many of their images depict that region, so the ones worth opening come
+    first. The numbers on each card stay sitewide.
+    """
     source = get_object_or_404(Source, slug=slug, public=True)
-    collections = source.collections.filter(public=True).select_related("stats")
+    collections = list(source.collections.filter(public=True).select_related("stats"))
 
     # Attach per-collection statistics from the denormalized stats table, and
     # sum them for the source-level totals
@@ -215,6 +235,19 @@ def source_detail(request, slug):
         total_images += collection.total_images
         georeferenced_images += collection.georeferenced_images
         will_not_georef_images += collection.will_not_georef_images
+
+    # Order by the selected region's image count, densest first. Python's sort
+    # is stable, so collections tied on the count (including every collection
+    # when no region is selected) keep Collection.Meta's name ordering.
+    region = get_current_region(request)
+    if region is not None:
+        region_counts = dict(
+            CollectionRegionStats.objects.filter(
+                region=region,
+                collection_id__in=[collection.id for collection in collections],
+            ).values_list("collection_id", "total_images")
+        )
+        collections.sort(key=lambda collection: -region_counts.get(collection.id, 0))
 
     # Get top-rated image for Open Graph metadata
     top_rated_entry = (
@@ -240,6 +273,8 @@ def source_detail(request, slug):
     context = {
         "source": source,
         "collections": collections,
+        # `collections` is a list, so the template can't call .count on it
+        "collection_count": len(collections),
         "total_images": total_images,
         "georeferenced_images": georeferenced_images,
         "pending_images": total_images - georeferenced_images - will_not_georef_images,
@@ -457,7 +492,12 @@ def image_list(request):
 
 def image_detail(request, image_id):
     """Display detailed view of an image for georeferencing"""
-    image = get_object_or_404(Image, id=image_id)
+    image = get_object_or_404(
+        Image.objects.select_related(
+            "region", "collection__region", "collection__source__region", "license"
+        ),
+        id=image_id,
+    )
 
     # Get current georeferences (cached HTML is used directly in templates)
     georeference = image.get_georeference()
@@ -493,6 +533,13 @@ def image_detail(request, image_id):
         "avg_rating": avg_rating,
         "rating_count": rating_count,
         "user_rating": user_rating,
+        # Only the staff-only "Queue for Image of the Day" modal needs these,
+        # so don't spend the query on everyone else. The default is only a
+        # suggestion: staff may queue an image into any region's queue.
+        "queue_regions": Region.objects.all() if request.user.is_staff else None,
+        "queue_default_region": (
+            image.effective_region if request.user.is_staff else None
+        ),
     }
 
     return render(request, "images/image_detail.html", context)
@@ -506,6 +553,7 @@ def top_rated_images(request):
     # Get optional filters
     source_id = request.GET.get("source")
     collection_id = request.GET.get("collection")
+    region = get_current_region(request)
 
     # Convert page number to offset/limit
     try:
@@ -532,6 +580,12 @@ def top_rated_images(request):
             image_id__in=Image.objects.filter(collection_id=collection_id).values_list(
                 "id", flat=True
             )
+        )
+
+    # Scope to the navbar region (the region and everything inside it).
+    if region is not None:
+        view_entries = view_entries.filter(
+            image_id__in=Image.objects.in_region(region).values_list("id", flat=True)
         )
 
     # Order by rating
@@ -582,20 +636,11 @@ def top_rated_images(request):
     # We already have our page data, so just need to set up the Page object
     page_obj = Page(page_images, page_number, paginator)
 
-    # Calculate statistics from the view
-    stats = TopRatedImageView.objects.aggregate(
-        total_rated=Count("image_id", filter=Q(vote_count__gt=0)),
-        total_unrated=Count("image_id", filter=Q(vote_count=0)),
-    )
-
     # Get top-rated image for Open Graph metadata (first from the ordered list)
     top_rated_image = page_images[0] if page_images else None
 
     context = {
         "page_obj": page_obj,
-        "total_rated": stats["total_rated"],
-        "total_unrated": stats["total_unrated"],
-        "total_images": stats["total_rated"] + stats["total_unrated"],
         "top_rated_image": top_rated_image,
     }
     return render(request, "images/favorites.html", context)
@@ -644,20 +689,21 @@ def browse_aerials(request):
                     ):
                         filtered_image_ids.append(aerial.id)
 
-                # Debug output
-                print(f"Filter point: {filter_point}")
-                print(f"Total aerials before filter: {aerials.count()}")
-                print(f"Filtered image IDs: {filtered_image_ids}")
-
                 # Apply the filter - even if empty list (this will show no results)
                 aerials = aerials.filter(id__in=filtered_image_ids)
                 is_filtered = True
 
-                print(f"Total aerials after filter: {aerials.count()}")
-
         except (ValueError, TypeError):
             # Invalid coordinates, ignore filtering
             pass
+
+    # The card grid follows the navbar region by default. A location click is
+    # intentionally global: its point-in-polygon results should show every
+    # aerial that covers the selected spot, regardless of its assigned region.
+    if not is_filtered:
+        region = get_current_region(request)
+        if region is not None:
+            aerials = aerials.in_region(region)
 
     # Sort filtered results by georeference area (smallest to largest) if filtered
     if is_filtered and filter_point:

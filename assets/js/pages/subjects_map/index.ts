@@ -10,7 +10,7 @@ import {
   protomapsStyleUrl,
 } from "../../components/map_display/basemap";
 import { primaryColor } from "../../components/map_display/colors";
-import { DEFAULT_MAP_CENTER } from "../../constants/map";
+import { initialMapView } from "../../constants/map";
 import { registerSubjectInteractions } from "./interactions";
 import { addCustomLayers } from "./layers";
 import { registerSubjectPanel } from "./panel";
@@ -41,8 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const map = new maplibregl.Map({
     container,
     style: protomapsStyleUrl(),
-    center: DEFAULT_MAP_CENTER,
-    zoom: INITIAL_ZOOM,
+    ...initialMapView({ zoom: INITIAL_ZOOM }),
   });
 
   // Take the wrapper rather than the map container fullscreen so the info

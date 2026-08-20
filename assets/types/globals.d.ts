@@ -4,6 +4,7 @@ import type {
   MapLayerType,
 } from "../js/components/layer_control/types";
 import type { MapDisplayConfig } from "../js/components/map_display/types";
+import type { MapBounds } from "../js/constants/map";
 import type { GeoreferenceConfig } from "../js/pages/georeference_interface/types";
 import type { SubjectBrowserConfig } from "../js/pages/browse_subjects";
 
@@ -49,11 +50,14 @@ declare global {
     // Django-provided configuration, set by inline scripts in templates/base.html
     DEFAULT_MAP_CENTER?: [number, number];
     DEFAULT_MAP_ZOOM?: number;
+    REGION_MAP_CENTER?: [number, number] | null;
+    REGION_MAP_BOUNDS?: MapBounds | null;
 
     // Geocoder configuration: the search bounding box is
     // [west, south, east, north]; ADMIN_EMAIL is sent to Nominatim as a
     // contact address and is null when unset.
     DEFAULT_SEARCH_BBOX?: [number, number, number, number];
+    SEARCH_BBOX?: MapBounds;
     ADMIN_EMAIL?: string | null;
 
     MAP_LAYERS_DATA?: MapLayersData;

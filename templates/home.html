@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% load django_vite %}
 
+{# Only rendered with a region selected (see yesterdays.views.home), so #}
+{# current_region is never None here.                                   #}
+{% block title %}Yesterdays of {{ current_region.long_name }}{% endblock %}
+
 {% block extra_css %}
 <style>
     #homepage-map {
@@ -18,10 +22,10 @@
 {% endblock %}
 
 {% block opengraph %}
-	<meta property="og:title" content="{{ site_title }}">
+	<meta property="og:title" content="Yesterdays of {{ current_region.long_name }}">
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
-	<meta property="og:description" content="{{ site_subtitle }}">
+	<meta property="og:description" content="{{ current_region.subtitle|default:site_subtitle }}">
 	{% if top_rated_image %}
 	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
@@ -31,8 +35,8 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h1>{{ site_title }}</h1>
-        <p class="lead">{{ site_subtitle }}</p>
+        <h1>Yesterdays of {{ current_region.long_name }}</h1>
+        <p class="lead">{{ current_region.subtitle|default:site_subtitle }}</p>
         <div class="mb-4 d-flex gap-2">
             <a href="/georeference/?difficulty=easy%2Bmedium" class="btn btn-primary btn-med">
                 <i class="fas fa-map-marker-alt me-2"></i>Contribute
@@ -113,7 +117,7 @@
     <div class="col-lg-4 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Recent Activity</h5>
+                <h5 class="mb-0">Recent Activity in {{ current_region.short_name }}</h5>
             </div>
             <div class="card-body p-0">
                 {% include 'activity/partials/feed_embed.html' %}

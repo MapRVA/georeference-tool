@@ -1,0 +1,25 @@
+{% load humanize %}
+{% if overall_stats.total_images %}
+<section class="home-band home-band-muted">
+    <div class="container">
+        <div class="row row-cols-2 row-cols-lg-4 g-4 text-center">
+            <div class="col">
+                <div class="home-stat-value">{{ overall_stats.total_images|intcomma }}</div>
+                <div class="home-stat-label">photographs</div>
+            </div>
+            <div class="col">
+                <div class="home-stat-value">{{ overall_stats.total_georeferenced|intcomma }}</div>
+                <div class="home-stat-label">placed on the map</div>
+            </div>
+            <div class="col">
+                <div class="home-stat-value">{{ overall_stats.total_collections|intcomma }}</div>
+                <div class="home-stat-label">collection{{ overall_stats.total_collections|pluralize }}</div>
+            </div>
+            <div class="col">
+                <div class="home-stat-value">{{ overall_stats.total_sources|intcomma }}</div>
+                <div class="home-stat-label">institutions</div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}

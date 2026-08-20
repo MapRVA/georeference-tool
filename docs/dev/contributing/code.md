@@ -37,7 +37,26 @@ export IMPORT_R2_PUBLIC_URL_BASE='https://cdn.maprva.org'
 export PROTOMAPS_API_KEY=6f7a752e00e84ef9
 ```
 
-### 3. Start the stack
+### 3. Download the CLIP model bundle
+
+Semantic search uses a locally mounted OpenVINO model bundle. It is large
+(about 800 MB) and intentionally excluded from Git, so download it once
+before starting Compose:
+
+```sh
+mkdir -p services/clip/model
+curl -fL -o /tmp/clip-vit-l14-336-ir-v1.tar.gz \
+  https://cdn.yesterdays.maprva.org/models/clip-vit-l14-336-ir-v1.tar.gz
+echo '7e6a5ee81c2f6f34320badefef74cb9135a0b13a92834957b3821eae1052ba1f  /tmp/clip-vit-l14-336-ir-v1.tar.gz' \
+  | sha256sum -c -
+tar -xzf /tmp/clip-vit-l14-336-ir-v1.tar.gz -C services/clip/model
+rm /tmp/clip-vit-l14-336-ir-v1.tar.gz
+```
+
+The `services/clip/model/` directory is gitignored. If it is absent or empty,
+the `clip` container stays running but its embedding endpoints return `503`.
+
+### 4. Start the stack
 
 ```sh
 docker compose up --build
@@ -53,6 +72,15 @@ Once the logs settle, the site is live:
 | Django admin        | <http://localhost:8000/admin> | `admin` / `admin` |
 | RabbitMQ management | <http://localhost:15672>      | `guest` / `guest` |
 | Memgraph Lab        | <http://localhost:3000>       | –                 |
+
+The CLIP service compiles its CPU model on its first startup, which can take a
+few minutes. Confirm that it is ready before using semantic search:
+
+```sh
+docker compose exec clip curl -fsS http://localhost:8000/readyz
+```
+
+It prints `{"status":"ready"}` when embeddings are available.
 
 ### Subsequent runs
 

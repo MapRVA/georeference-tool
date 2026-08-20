@@ -15,6 +15,8 @@ from django_ratelimit.decorators import ratelimit
 from PIL import Image as PILImage
 from psycopg import sql
 
+from regions.context_processors import get_current_region
+
 from .. import clip_client
 from ..models import Image
 
@@ -255,6 +257,8 @@ def semantic_search(request):
                 status=400,
             )
 
+    region = get_current_region(request)
+
     try:
         # Generate query embedding
         try:
@@ -331,6 +335,20 @@ def semantic_search(request):
                         "images_image.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%s))"
                     )
                     where_params.append(without_subject_ids)
+
+            # Scope to the selected region (and the regions inside it), the
+            # same resolution ImageQuerySet.in_region performs. Appended last
+            # because where_params is positional: the page query splices it
+            # between the two embedding parameters. Like every other filter
+            # here this post-filters the HNSW candidate pool, so a small
+            # region can return fewer than `limit` rows even when more
+            # in-region matches exist.
+            if region is not None:
+                where_conditions.append(
+                    Image.EFFECTIVE_REGION_SQL.format(alias="images_image.")
+                    + " = ANY(%s)"
+                )
+                where_params.append(region.self_and_descendant_ids())
 
             # Combine all WHERE conditions
             where_clause = " AND ".join(where_conditions)
@@ -891,6 +909,8 @@ def text_search(request):
                 status=400,
             )
 
+    region = get_current_region(request)
+
     # --- Start of Query Logic ---
     try:
         # Build SQL WHERE conditions for all filters
@@ -949,6 +969,15 @@ def text_search(request):
                     "i.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%(without_subject_ids)s))"
                 )
                 sql_params["without_subject_ids"] = without_subject_ids
+
+        # Scope to the selected region (and the regions inside it), the same
+        # resolution ImageQuerySet.in_region performs. where_clause feeds both
+        # the count query and the page query, so both stay in sync.
+        if region is not None:
+            sql_where_conditions.append(
+                Image.EFFECTIVE_REGION_SQL.format(alias="i.") + " = ANY(%(region_ids)s)"
+            )
+            sql_params["region_ids"] = region.self_and_descendant_ids()
 
         where_clause = " AND ".join(sql_where_conditions)
 
@@ -1248,6 +1277,8 @@ def reverse_image_search(request):
                 status=400,
             )
 
+    region = get_current_region(request)
+
     try:
         # Sanitize and validate the image (defense-in-depth security)
         try:
@@ -1357,6 +1388,20 @@ def reverse_image_search(request):
                         "images_image.id NOT IN (SELECT image_id FROM images_subjectmapping WHERE subject_id = ANY(%s))"
                     )
                     where_params.append(without_subject_ids)
+
+            # Scope to the selected region (and the regions inside it), the
+            # same resolution ImageQuerySet.in_region performs. Appended last
+            # because where_params is positional: the page query splices it
+            # between the two embedding parameters. Like every other filter
+            # here this post-filters the HNSW candidate pool, so a small
+            # region can return fewer than `limit` rows even when more
+            # in-region matches exist.
+            if region is not None:
+                where_conditions.append(
+                    Image.EFFECTIVE_REGION_SQL.format(alias="images_image.")
+                    + " = ANY(%s)"
+                )
+                where_params.append(region.self_and_descendant_ids())
 
             # Combine all WHERE conditions
             where_clause = " AND ".join(where_conditions)

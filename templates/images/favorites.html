@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 {% load django_vite %}
 
-{% block title %}Community Favorites – Yesterdays{% endblock %}
+{% block title %}{% if current_region %}Community Favorites – Yesterdays of {{ current_region.long_name }}{% else %}Community Favorites – Yesterdays{% endif %}{% endblock %}
 
 {% block opengraph %}
-	<meta property="og:title" content="Community Favorites – Yesterdays">
+	<meta property="og:title" content="{% if current_region %}Community Favorites – Yesterdays of {{ current_region.long_name }}{% else %}Community Favorites – Yesterdays{% endif %}">
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="{{ request.build_absolute_uri }}">
-	<meta property="og:description" content="Explore our community's favorite images on Yesterdays.">
+	<meta property="og:description" content="{% if current_region %}Explore our community's favorite images of {{ current_region.long_name }} on Yesterdays.{% else %}Explore our community's favorite images on Yesterdays.{% endif %}">
 	{% if top_rated_image %}
 	<meta property="og:image" content="{{ top_rated_image.thumbnail }}">
 	<meta property="og:image:alt" content="{{ top_rated_image.title }}">
@@ -35,24 +35,28 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+                <li class="breadcrumb-item active">Favorites</li>
+            </ol>
+        </nav>
+
         <!-- Header -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
-                    <div class="flex-grow-1 mb-3 mb-md-0">
-                        <h1 class="card-title mb-3">
-                            Community Favorites
-                        </h1>
-                        <p class="card-text text-muted">
-                            Anyone may log in and rate images in our database. Explore our collective favorites below!
-                        </p>
-                    </div>
-                </div>
-            </div>
+        <div class="mb-4">
+            <h1>Community Favorites</h1>
+            <p class="text-muted mb-0">
+                Anyone may log in and rate images in our database. Explore our collective favorites{% if current_region %} from {{ current_region.long_name }}{% endif %} below!
+            </p>
         </div>
 
         <!-- Images Grid -->
+        {% if current_region %}
+        {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=False buttons=False empty_message="No rated images here yet. Switch to Global in the region selector, or browse the collection and rate some favorites." empty_icon="fa-star" %}
+        {% else %}
         {% include 'images/partials/image_grid.html' with georeference_url="/georeference/" show_collection_link=True badges=False buttons=False empty_message="No rated images yet. Be the first to rate some images! Browse the collection and give your favorites a rating." empty_icon="fa-star" %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}

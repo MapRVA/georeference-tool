@@ -38,6 +38,12 @@
                             <span class="badge bg-warning text-dark ms-1"><i class="fas fa-lock me-1"></i>Locked</span>
                             {% endif %}
                         </div>
+                        <!-- Region is fixed for the life of an entry: moving one
+                             between queues would have to vacate one region's days
+                             and ripple another's. Remove and requeue instead. -->
+                        <div class="text-muted small">
+                            <i class="fas fa-map-marker-alt me-1"></i>{{ entry.region.long_name }}
+                        </div>
                     </div>
                 </div>
 

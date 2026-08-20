@@ -11,7 +11,7 @@ import {
   protomapsStyleUrl,
 } from "../components/map_display/basemap";
 import "../components/map_display/pmtiles_protocol";
-import { DEFAULT_MAP_CENTER } from "../constants/map";
+import { initialMapView } from "../constants/map";
 
 const PREVIEW_ZOOM = 13;
 const OVERLAY_ID = "overlay-layer";
@@ -120,8 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const map = new maplibregl.Map({
     container,
     style: isStyleLayer ? layer.url : protomapsStyleUrl(),
-    center: DEFAULT_MAP_CENTER,
-    zoom: PREVIEW_ZOOM,
+    ...initialMapView({ zoom: PREVIEW_ZOOM }),
   });
 
   map.addControl(new maplibregl.NavigationControl());

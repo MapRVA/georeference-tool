@@ -9,7 +9,7 @@
  * Usage:
  *   import { addResponsiveGeocoder } from "./responsive_geocoder";
  *
- *   // With default Nominatim geocoder API (uses admin-configured search bbox)
+ *   // With default Nominatim API (uses the selected region's effective bbox)
  *   addResponsiveGeocoder(map);
  *
  *   // With custom geocoder API
@@ -27,6 +27,7 @@ import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css";
 import "../../styles/components/geocoder-overrides.css";
 import maplibregl from "maplibre-gl";
 import type { ControlPosition, Map as MapLibreMap } from "maplibre-gl";
+import type { MapBounds } from "../constants/map";
 
 // The slice of Nominatim's GeoJSON search response this module reads. `bbox`
 // is [minX, minY, maxX, maxY]; results without one are skipped.
@@ -36,7 +37,7 @@ interface NominatimFeature {
 }
 
 export interface ResponsiveGeocoderOptions {
-  // Custom geocoder API (default: Nominatim using the SiteSettings search bbox)
+  // Custom API (default: Nominatim using the effective region/site bbox)
   geocoderApi?: MaplibreGeocoderApi;
   // Screen width breakpoint in pixels below which the control starts collapsed
   breakpoint?: number;
@@ -52,7 +53,7 @@ export interface ResponsiveGeocoderHandle {
 
 const createDefaultGeocoderApi = (
   email: string | null | undefined,
-  bbox: [number, number, number, number] | undefined,
+  bbox: MapBounds | undefined,
 ): MaplibreGeocoderApi => ({
   forwardGeocode: async (config) => {
     const features: CarmenGeojsonFeature[] = [];
@@ -113,7 +114,7 @@ export function addResponsiveGeocoder(
   const {
     geocoderApi = createDefaultGeocoderApi(
       window.ADMIN_EMAIL,
-      window.DEFAULT_SEARCH_BBOX,
+      window.SEARCH_BBOX ?? window.DEFAULT_SEARCH_BBOX,
     ),
     breakpoint = 1000,
     placeholder = "Search places",
