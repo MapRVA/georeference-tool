@@ -56,6 +56,7 @@ COPY api ./api
 COPY images ./images
 COPY directories ./directories
 COPY maps ./maps
+COPY regions ./regions
 COPY subjects ./subjects
 COPY activity ./activity
 COPY osm_auth ./osm_auth
@@ -126,6 +127,7 @@ COPY --from=build --chown=app:app /app/api /app/api
 COPY --from=build --chown=app:app /app/images /app/images
 COPY --from=build --chown=app:app /app/directories /app/directories
 COPY --from=build --chown=app:app /app/maps /app/maps
+COPY --from=build --chown=app:app /app/regions /app/regions
 COPY --from=build --chown=app:app /app/subjects /app/subjects
 COPY --from=build --chown=app:app /app/activity /app/activity
 COPY --from=build --chown=app:app /app/osm_auth /app/osm_auth
