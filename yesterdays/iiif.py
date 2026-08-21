@@ -125,6 +125,23 @@ def generate_and_upload_iiif_tiles(source_url, r2_tiles_prefix):
 
         width, height = vimg.width, vimg.height
 
+        # When the whole image fits in one tile, dzsave names that tile by
+        # its pixel size (full/499,401/...), but IIIF 3 clients such as
+        # OpenSeadragon request the canonical size "max" for a full-region,
+        # full-size tile. A level0 (static) service must answer canonical
+        # URLs, so upload the same JPEG under both keys.
+        single_tile = os.path.join(
+            tile_dir, "full", f"{width},{height}", "0", "default.jpg"
+        )
+        if os.path.exists(single_tile):
+            with open(single_tile, "rb") as f:
+                uploader.upload_file_content(
+                    f.read(),
+                    f"{r2_tiles_prefix}/full/max/0/default.jpg",
+                    content_type="image/jpeg",
+                    overwrite=True,
+                )
+
     logger.info(
         "IIIF tiles uploaded to %s (%dx%d)",
         r2_tiles_prefix,
