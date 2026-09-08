@@ -394,6 +394,7 @@ class FromAboveGeoreferenceViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = FromAboveGeoreferenceFilter
     filter_backends = [DjangoFilterBackend, RemappingOrderingFilter, InBBoxFilter]
     bbox_filter_field = "polygon"
+    bbox_filter_include_overlapping = True
     ordering_fields = ["georeferenced_at", "confidence", "validation_count"]
     ordering = ["-georeferenced_at"]
     ordering_field_map = {
