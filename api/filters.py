@@ -1,28 +1,75 @@
 from django.db.models import Q
-
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
-from images.models import AerialGeoreference, Georeference, Image
+from images.models import (
+    AerialGeoreference,
+    Collection,
+    Georeference,
+    Image,
+    Source,
+)
+from subjects.models import Subject
+
+
+class NumberInFilter(filters.BaseInFilter, filters.NumberFilter):
+    pass
+
+
+class CharInFilter(filters.BaseInFilter, filters.CharFilter):
+    pass
 
 
 def _filter_georeferenced_by(queryset, name, value):
-    try:
-        osm_id = int(value)
-    except (ValueError, TypeError):
-        raise ValidationError({"georeferenced_by": "Must be an integer (OSM user ID)."})
-    if osm_id == 0:
-        username = "hardcoded_admin"
-    else:
-        username = f"osm_{osm_id}"
-    return queryset.filter(georeferenced_by__username=username)
+    raw_values = str(value).split(",")
+
+    usernames = []
+    for v in raw_values:
+        try:
+            osm_id = int(v.strip())
+        except (ValueError, TypeError):
+            raise ValidationError(
+                {"georeferenced_by": "Must be integers (OSM user IDs) separated by commas."}
+            )
+
+        if osm_id == 0:
+            usernames.append("hardcoded_admin")
+        else:
+            usernames.append(f"osm_{osm_id}")
+
+    return queryset.filter(georeferenced_by__username__in=usernames)
+
+
+class SourceFilter(filters.FilterSet):
+    slug = CharInFilter(field_name="slug", lookup_expr="in")
+
+    class Meta:
+        model = Source
+        fields = ["slug"]
+
+
+class CollectionFilter(filters.FilterSet):
+    source = NumberInFilter(field_name="source_id", lookup_expr="in")
+    slug = CharInFilter(field_name="slug", lookup_expr="in")
+
+    class Meta:
+        model = Collection
+        fields = ["source", "slug"]
+
+
+class SubjectFilter(filters.FilterSet):
+    slug = CharInFilter(field_name="slug", lookup_expr="in")
+
+    class Meta:
+        model = Subject
+        fields = ["slug"]
 
 
 class ImageFilter(filters.FilterSet):
-    source = filters.NumberFilter(field_name="collection__source_id")
-    collection = filters.NumberFilter(field_name="collection_id")
-    subject = filters.NumberFilter(method="filter_by_subject")
-    creator = filters.CharFilter(lookup_expr="icontains")
+    source = NumberInFilter(field_name="collection__source_id", lookup_expr="in")
+    collection = NumberInFilter(field_name="collection_id", lookup_expr="in")
+    subject = NumberInFilter(method="filter_by_subject")
+    creator = CharInFilter(field_name="creator", lookup_expr="in")
 
     # Temporal filters: year-based ranges against the decimal date fields
     year_min = filters.NumberFilter(
@@ -47,7 +94,7 @@ class ImageFilter(filters.FilterSet):
         fields = []
 
     def filter_by_subject(self, queryset, name, value):
-        return queryset.filter(subject_mappings__subject_id=value)
+        return queryset.filter(subject_mappings__subject_id__in=value)
 
     def filter_georeferenced(self, queryset, name, value):
         has_point = Q(aerial=False, georeferences__isnull=False)
@@ -58,10 +105,10 @@ class ImageFilter(filters.FilterSet):
 
 
 class GeoreferenceFilter(filters.FilterSet):
-    image = filters.NumberFilter(field_name="image_id")
-    source = filters.NumberFilter(field_name="image__collection__source_id")
-    collection = filters.NumberFilter(field_name="image__collection_id")
-    subject = filters.NumberFilter(field_name="image__subject_mappings__subject_id")
+    image = NumberInFilter(field_name="image_id", lookup_expr="in")
+    source = NumberInFilter(field_name="image__collection__source_id", lookup_expr="in")
+    collection = NumberInFilter(field_name="image__collection_id", lookup_expr="in")
+    subject = NumberInFilter(field_name="image__subject_mappings__subject_id", lookup_expr="in")
     confidence = filters.ChoiceFilter(
         choices=Georeference.CONFIDENCE_CHOICES,
     )
@@ -82,10 +129,10 @@ class GeoreferenceFilter(filters.FilterSet):
 
 
 class FromAboveGeoreferenceFilter(filters.FilterSet):
-    image = filters.NumberFilter(field_name="image_id")
-    source = filters.NumberFilter(field_name="image__collection__source_id")
-    collection = filters.NumberFilter(field_name="image__collection_id")
-    subject = filters.NumberFilter(field_name="image__subject_mappings__subject_id")
+    image = NumberInFilter(field_name="image_id", lookup_expr="in")
+    source = NumberInFilter(field_name="image__collection__source_id", lookup_expr="in")
+    collection = NumberInFilter(field_name="image__collection_id", lookup_expr="in")
+    subject = NumberInFilter(field_name="image__subject_mappings__subject_id", lookup_expr="in")
     confidence = filters.ChoiceFilter(
         choices=AerialGeoreference.CONFIDENCE_CHOICES,
     )

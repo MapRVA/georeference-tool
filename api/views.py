@@ -56,7 +56,14 @@ from images.utils import R2Uploader, get_confidence_breakdown, get_overall_stats
 from images.views.search import HAS_POSTGRES_SEARCH, _get_text_embedding
 from subjects.models import OsmElement, Subject
 
-from .filters import FromAboveGeoreferenceFilter, GeoreferenceFilter, ImageFilter
+from .filters import (
+    CollectionFilter,
+    FromAboveGeoreferenceFilter,
+    GeoreferenceFilter,
+    ImageFilter,
+    SourceFilter,
+    SubjectFilter,
+)
 from .pagination import GeoJsonDefaultPagination
 from .permissions import IsImporter, is_importer
 from .serializers import (
@@ -144,7 +151,7 @@ class SourceViewSet(
     """Archive sources containing collections of historical images."""
 
     serializer_class = SourceSerializer
-    filterset_fields = ["slug"]
+    filterset_class = SourceFilter
     ordering_fields = ["name"]
     ordering = ["name"]
 
@@ -192,7 +199,7 @@ class CollectionViewSet(
     """Collections of historical images within an archive source."""
 
     serializer_class = CollectionSerializer
-    filterset_fields = ["source", "slug"]
+    filterset_class = CollectionFilter
     ordering_fields = ["name", "source__name"]
     ordering = ["source__name", "name"]
 
@@ -296,7 +303,7 @@ class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
     """Subjects (buildings, people, monuments, etc.) that appear in images."""
 
     serializer_class = SubjectSerializer
-    filterset_fields = ["slug"]
+    filterset_class = SubjectFilter
     ordering_fields = ["title", "image_count"]
     ordering = ["title"]
 
@@ -1157,52 +1164,55 @@ def _parse_search_filters(params, table_ref="images_image"):
                 Response({"error": "year_max must be an integer."}, status=400),
             )
 
-    # Subject filtering
+    # Subject filtering (supports comma-separated IDs)
     subject = params.get("subject")
     if subject is not None:
         try:
-            where_params["subject_id"] = int(subject)
+            subject_ids = [int(s.strip()) for s in subject.split(",") if s.strip()]
+            where_params["subject_ids"] = subject_ids
             where_conditions.append(
                 sql.SQL(
                     "EXISTS (SELECT 1 FROM images_subjectmapping sm"
                     " WHERE sm.image_id = {t}.id"
-                    " AND sm.subject_id = %(subject_id)s)"
+                    " AND sm.subject_id = ANY(%(subject_ids)s))"
                 ).format(t=t)
             )
         except ValueError:
             return (
                 [],
                 {},
-                Response({"error": "subject must be an integer."}, status=400),
+                Response({"error": "subject must be integers separated by commas."}, status=400),
             )
 
-    # Source filtering
+    # Source filtering (supports comma-separated IDs)
     source = params.get("source")
     if source is not None:
         try:
-            where_params["source_id"] = int(source)
+            source_ids = [int(s.strip()) for s in source.split(",") if s.strip()]
+            where_params["source_ids"] = source_ids
             where_conditions.append(
                 sql.SQL(
                     "{t}.collection_id IN (SELECT id FROM images_collection"
-                    " WHERE source_id = %(source_id)s)"
+                    " WHERE source_id = ANY(%(source_ids)s))"
                 ).format(t=t)
             )
         except ValueError:
-            return [], {}, Response({"error": "source must be an integer."}, status=400)
+            return [], {}, Response({"error": "source must be integers separated by commas."}, status=400)
 
-    # Collection filtering
+    # Collection filtering (supports comma-separated IDs)
     collection = params.get("collection")
     if collection is not None:
         try:
-            where_params["collection_id"] = int(collection)
+            collection_ids = [int(c.strip()) for c in collection.split(",") if c.strip()]
+            where_params["collection_ids"] = collection_ids
             where_conditions.append(
-                sql.SQL("{t}.collection_id = %(collection_id)s").format(t=t)
+                sql.SQL("{t}.collection_id = ANY(%(collection_ids)s)").format(t=t)
             )
         except ValueError:
             return (
                 [],
                 {},
-                Response({"error": "collection must be an integer."}, status=400),
+                Response({"error": "collection must be integers separated by commas."}, status=400),
             )
 
     return where_conditions, where_params, None
