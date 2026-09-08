@@ -1164,24 +1164,41 @@ def _parse_search_filters(params, table_ref="images_image"):
                 Response({"error": "year_max must be an integer."}, status=400),
             )
 
-    # Subject filtering (supports comma-separated IDs)
+    # Subject filtering (supports integer PKs and Wikidata IDs like Q4321)
     subject = params.get("subject")
     if subject is not None:
-        try:
-            subject_ids = [int(s.strip()) for s in subject.split(",") if s.strip()]
-            where_params["subject_ids"] = subject_ids
+        raw_subjects = [s.strip() for s in subject.split(",") if s.strip()]
+        pk_ids = []
+        wikidata_ids = []
+
+        for item in raw_subjects:
+            if item.isdigit():
+                pk_ids.append(int(item))
+            else:
+                wikidata_ids.append(item)
+
+        sub_conditions = []
+        if pk_ids:
+            where_params["subject_pk_ids"] = pk_ids
+            sub_conditions.append("sm.subject_id = ANY(%(subject_pk_ids)s)")
+        if wikidata_ids:
+            where_params["wikidata_ids"] = wikidata_ids
+            sub_conditions.append(
+                "sm.subject_id IN ("
+                "  SELECT s.id FROM subjects_subject s"
+                "  JOIN subjects_wikidataitem w ON s.wikidata_item_id = w.id"
+                "  WHERE w.wikidata_id = ANY(%(wikidata_ids)s)"
+                ")"
+            )
+
+        if sub_conditions:
+            combined_sub = " OR ".join(sub_conditions)
             where_conditions.append(
                 sql.SQL(
                     "EXISTS (SELECT 1 FROM images_subjectmapping sm"
-                    " WHERE sm.image_id = {t}.id"
-                    " AND sm.subject_id = ANY(%(subject_ids)s))"
+                    " WHERE sm.image_id = {{t}}.id"
+                    f" AND ({combined_sub}))"
                 ).format(t=t)
-            )
-        except ValueError:
-            return (
-                [],
-                {},
-                Response({"error": "subject must be integers separated by commas."}, status=400),
             )
 
     # Source filtering (supports comma-separated IDs)
